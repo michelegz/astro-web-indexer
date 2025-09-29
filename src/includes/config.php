@@ -14,5 +14,5 @@ define('HEADER_TITLE', getenv('HEADER_TITLE') ?: 'Astro Web Indexer'); // Site t
 
 // Pagination configuration
 define('DEFAULT_PER_PAGE', 20); // Default number of items per page
-define('PER_PAGE_OPTIONS', [10, 20, 50, 100, 500, 10000]); // Available options for items per page
+define('PER_PAGE_OPTIONS', [10, 20, 50, 100, 500, 1000]); // Available options for items per page
 ?>

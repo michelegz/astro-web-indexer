@@ -41,3 +41,11 @@ venv/
 *.tmp
 *.bak
 *.swp
+
+# Continue
+.continue
+.continue/*
+
+
+# custom files
+docker-compose-qnap-mic.yml

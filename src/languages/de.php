@@ -33,7 +33,7 @@ return [
     'back' => 'Zurück',
     'home' => 'Startseite',
     'directory' => 'Verzeichnis',
-    'current_directory' => 'Aktueller Ordner',
+    'current_directory' => 'Aktuelles Verzeichnis',
     'files' => 'Dateien',
     'seconds' => 'Sekunden',
     'download_selected' => 'Auswahl herunterladen (.zip)',
@@ -41,3 +41,4 @@ return [
     'no_files_selected' => 'Keine Dateien für den Download ausgewählt.',
     'menu_directory' => 'Ordner'
 ];
+

@@ -16,7 +16,7 @@ A web-based FITS file indexer and viewer for astronomical data, designed specifi
 - 📥 Bulk download functionality with ZIP compression
 
 ### User Experience
-- 🌐 Multilingual interface (English and Italian)
+- 🌐 Multilingual interface (English, Italian, French, Spanish, and German)
 - 📱 Responsive design for mobile and desktop
 - 🎨 Modern, dark-themed interface
 - ⚡ Fast and efficient file browsing

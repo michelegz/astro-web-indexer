@@ -33,7 +33,7 @@ return [
     'back' => 'Atrás',
     'home' => 'Inicio',
     'directory' => 'Directorio',
-    'current_directory' => 'Carpeta actual',
+    'current_directory' => 'Directorio actual',
     'files' => 'Archivos',
     'seconds' => 'segundos',
     'download_selected' => 'Descargar selección (.zip)',
@@ -41,3 +41,4 @@ return [
     'no_files_selected' => 'No se seleccionaron archivos para la descarga.',
     'menu_directory' => 'Carpetas'
 ];
+

@@ -33,7 +33,7 @@ return [
     'back' => 'Indietro',
     'home' => 'Home',
     'directory' => 'Cartelle',
-    'current_directory' => 'Cartella Corrente',
+    'current_directory' => 'Cartella corrente',
     'files' => 'File',
     'seconds' => 'secondi',
     'download_selected' => 'Scarica Selezionati (.zip)',
@@ -42,3 +42,4 @@ return [
     'no_files_selected' => 'Nessun file selezionato per il download.',
     'menu_directory' => 'Cartelle'
 ];
+

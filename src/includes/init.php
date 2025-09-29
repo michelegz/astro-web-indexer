@@ -1,14 +1,17 @@
 <?php
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/db_functions.php';
-require_once __DIR__ . '/template_functions.php';
 
-// Include language system
+require_once __DIR__ . '/db_functions.php';
+
 require_once __DIR__ . '/language_functions.php';
 require_once __DIR__ . '/language.php';
-
 // Start session for language preference
 session_start();
+
+require_once __DIR__ . '/template_functions.php';
+
+
+
 
 // GET parameters
 $dir = $_GET['dir'] ?? '';
