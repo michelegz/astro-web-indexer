@@ -231,13 +231,13 @@ class FitsHandler(FileSystemEventHandler):
 def main():
     parser = argparse.ArgumentParser(description="Monitor a directory for FITS files and trigger reindex when needed")
     parser.add_argument("fits_dir", help="Directory to monitor for FITS files")
-    parser.add_argument("--reindex-script", default="/opt/scripts/reindex_mariadb.py",
+    parser.add_argument("--reindex-script", default=os.getenv("REINDEX_SCRIPT", "/opt/scripts/reindex_mariadb.py"),
                       help="Path to the reindex script")
-    parser.add_argument("--db-host", default="mariadb", help="MariaDB host")
-    parser.add_argument("--db-user", default="awi_user", help="Database username")
-    parser.add_argument("--db-password", default="awi_password", help="Database password")
-    parser.add_argument("--db-name", default="awi_db", help="Database name")
-    parser.add_argument("--rescan-interval", default=5, type=float,
+    parser.add_argument("--db-host", default=os.getenv("DB_HOST", "mariadb"), help="MariaDB host")
+    parser.add_argument("--db-user", default=os.getenv("DB_USER", "awi_user"), help="Database username")
+    parser.add_argument("--db-password", default=os.getenv("DB_PASS", "awi_password"), help="Database password")
+    parser.add_argument("--db-name", default=os.getenv("DB_NAME", "awi_db"), help="Database name")
+    parser.add_argument("--rescan-interval", default=float(os.getenv("RESCAN_INTERVAL", 5)), type=float,
                         help="Interval in seconds for periodic directory rescan to detect deletions (default: 5s)")
     args = parser.parse_args()
 

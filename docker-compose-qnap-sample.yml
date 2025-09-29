@@ -28,7 +28,7 @@ services:
       - DB_HOST=${DB_HOST:-mariadb}
       - DB_NAME=${DB_NAME:-awi_db}
       - DB_USER=${DB_USER:-awi_user}
-      - DB_PASS=${DB_PASSWORD:-awi_password}
+      - DB_PASSWORD=${DB_PASSWORD:-awi_password}
     restart: unless-stopped
     depends_on:
       mariadb:
