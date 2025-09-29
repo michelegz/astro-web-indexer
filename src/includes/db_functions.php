@@ -22,12 +22,16 @@ function getFolders(PDO $conn, string $currentDir): array
     $stmt = $conn->prepare("
         SELECT DISTINCT
             CASE
-                WHEN :dir_param = '' THEN SUBSTRING_INDEX(path, '/', 1)
+                WHEN :dir_param = '' THEN 
+                    CASE 
+                        WHEN LOCATE('/', path) > 0 THEN SUBSTRING_INDEX(path, '/', 1)
+                        ELSE NULL
+                    END
                 ELSE SUBSTRING_INDEX(SUBSTRING(path, LENGTH(:dir_prefix) + 1), '/', 1)
             END as folder
         FROM files
         WHERE path LIKE :like_pattern
-        AND folder IS NOT NULL AND folder != ''
+        HAVING folder IS NOT NULL AND folder != ''
         ORDER BY folder
     ");
     $stmt->bindValue(':dir_param', $currentDir, PDO::PARAM_STR);

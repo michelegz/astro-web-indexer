@@ -32,12 +32,13 @@ return [
     'navigation' => 'Navigazione',
     'back' => 'Indietro',
     'home' => 'Home',
-    'directory' => 'Directory',
+    'directory' => 'Cartelle',
     'current_directory' => 'Cartella Corrente',
     'files' => 'File',
     'seconds' => 'secondi',
     'download_selected' => 'Scarica Selezionati (.zip)',
-    'footer_credits' => 'Astro Web Indexer v1.0 - Created by Michele Guzzini - Released under GPL',
+    'footer_credits' => 'Astro Web Indexer - Creato da Michele Guzzini - Released under GPL',
     'db_connection_error' => 'Impossibile connettersi al database: {0}',
     'no_files_selected' => 'Nessun file selezionato per il download.',
+    'menu_directory' => 'Cartelle'
 ];

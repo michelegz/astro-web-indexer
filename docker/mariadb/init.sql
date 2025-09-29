@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS files (
     exptime FLOAT,
     filter VARCHAR(50),
     imgtype VARCHAR(50),
+    thumb MEDIUMBLOB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_path (path),

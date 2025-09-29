@@ -1,0 +1,20 @@
+[mysqld]
+character-set-server = utf8mb4
+collation-server = utf8mb4_unicode_ci
+
+# InnoDB settings
+innodb_buffer_pool_size = 256M
+innodb_log_file_size = 64M
+innodb_flush_method = O_DIRECT
+innodb_flush_log_at_trx_commit = 2
+
+# Query cache
+query_cache_size = 32M
+query_cache_type = 1
+
+# Connection settings
+max_connections = 100
+wait_timeout = 600
+
+[client]
+default-character-set = utf8mb4

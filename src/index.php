@@ -12,7 +12,7 @@ include __DIR__ . '/includes/header.php';
     <div class="flex-1 md:ml-60 p-4 transition-all duration-300 ease-in-out" id="content-area">
         <!-- Mobile toggle -->
         <button class="md:hidden p-2 bg-gray-700 hover:bg-gray-600 rounded text-gray-100 mb-4" onclick="toggleMenu()">
-            ☰ Menu
+            ☰ <?php echo __('menu_directory'); ?>
         </button>
 
         <?php 
