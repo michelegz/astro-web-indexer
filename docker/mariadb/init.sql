@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS files (
     -- Extended metadata
     xbinning INT,
     ybinning INT,
-    gain FLOAT,
+    egain FLOAT,
     `offset` FLOAT,
     xpixsz FLOAT,
     ypixsz FLOAT,

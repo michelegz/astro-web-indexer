@@ -22,6 +22,7 @@ $page = max(1, intval($_GET['page'] ?? 1));
 $perPage = max(10, intval($_GET['per_page'] ?? DEFAULT_PER_PAGE));
 $sortBy = $_GET['sort_by'] ?? 'name';
 $sortOrder = $_GET['sort_order'] ?? 'ASC';
+$showAdvanced = isset($_GET['show_advanced']);
 
 $conn = connectDB();
 

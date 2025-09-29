@@ -125,4 +125,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Call function to set initial state of download button
     updateDownloadButtonState();
+
+    const filtersForm = document.getElementById('filters-form');
+    if (filtersForm) {
+        const filters = filtersForm.querySelectorAll('select, input[type="checkbox"]');
+        filters.forEach(filter => {
+            filter.addEventListener('change', () => {
+                filtersForm.submit();
+            });
+        });
+    }
 });

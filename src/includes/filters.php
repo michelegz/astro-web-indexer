@@ -1,4 +1,4 @@
-<form method="get" class="bg-gray-800 p-4 rounded-lg shadow-md flex flex-wrap gap-4 items-end mb-6">
+<form id="filters-form" method="get" class="bg-gray-800 p-4 rounded-lg shadow-md flex flex-wrap gap-4 items-end mb-6">
     <input type="hidden" name="dir" value="<?= htmlspecialchars($dir) ?>">
     <input type="hidden" name="page" value="1"> <!-- Resetta la pagina quando si applicano i filtri -->
     <input type="hidden" name="sort_by" value="<?= htmlspecialchars($sortBy) ?>">
@@ -54,8 +54,15 @@
             <?php endforeach; ?>
         </select>
     </div>
+    
+    <a href="?dir=<?= htmlspecialchars($dir) ?>" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">
+        <?php echo __('reset_filters') ?>
+    </a>
 
-    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">
-        <?php echo __('apply_filters') ?>
-    </button>
+    <div class="flex items-center">
+        <input id="show-advanced-fields" name="show_advanced" type="checkbox" value="1" class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-600 ring-offset-gray-800 focus:ring-2" <?php if ($showAdvanced) echo 'checked'; ?>>
+        <label for="show-advanced-fields" class="ml-2 text-sm font-medium text-gray-300"><?php echo __('show_advanced_fields') ?></label>
+    </div>
+
+
 </form>
