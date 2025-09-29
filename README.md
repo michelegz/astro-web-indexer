@@ -4,6 +4,10 @@
 
 A web-based FITS file indexer and viewer for astronomical data, designed specifically for astronomical observatories and research institutions. This tool helps organize, browse, and analyze FITS (Flexible Image Transport System) files through an intuitive web interface.
 
+## Project Status
+
+**Beta Phase:** This project has been tested in a very limited environment and for a single use case. It should be considered in the beta phase. We appreciate any feedback and contributions to improve its stability and features.
+
 ![Preview Screenshot](docs/images/preview.png)
 
 ## Features
