@@ -1,6 +1,5 @@
 <form method="get" class="bg-gray-800 p-4 rounded-lg shadow-md flex flex-wrap gap-4 items-end mb-6">
     <input type="hidden" name="dir" value="<?= htmlspecialchars($dir) ?>">
-    <input type="hidden" name="lang" value="<?= htmlspecialchars($currentLang) ?>">
     <input type="hidden" name="page" value="1"> <!-- Resetta la pagina quando si applicano i filtri -->
     <input type="hidden" name="sort_by" value="<?= htmlspecialchars($sortBy) ?>">
     <input type="hidden" name="sort_order" value="<?= htmlspecialchars($sortOrder) ?>">

@@ -6,10 +6,13 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     python3-venv \
     default-mysql-client \
+    libzip-dev \
+    zip \
+    unzip \
  && rm -rf /var/lib/apt/lists/*
 
-# Install PDO MySQL extension
-RUN docker-php-ext-install pdo_mysql
+# Install PHP extensions
+RUN docker-php-ext-install pdo_mysql zip
 
 # Create virtualenv in /opt/venv
 RUN python3 -m venv /opt/venv
