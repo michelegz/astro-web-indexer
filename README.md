@@ -102,11 +102,3 @@ Please use the GitHub issue tracker and include:
 
 This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
 
-
-## Credits
-
-Created and maintained by Michele Guzzini.
-
-Special thanks to:
-- Centro Astronomico Gianclaudio Ciampechini
-- All [contributors](../../contributors)
