@@ -71,19 +71,6 @@ All configuration can be done through environment variables. See `.env.example` 
 | ENABLE_FITS_WATCHER | Enable automatic file indexing | true |
 | DB_* | Database connection settings | See .env.example |
 
-## Development
-
-For development, you can use the development compose file:
-
-```bash
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
-```
-
-This will enable:
-- Source code hot-reload
-- XDebug for PHP debugging
-- Development-specific settings
-
 ## Directory Structure
 
 ```
@@ -93,21 +80,6 @@ astro-web-indexer/
 ├── scripts/                  # Utility scripts
 └── tests/                    # Test files
 ```
-
-## Performance Considerations
-
-### Hardware Requirements
-- **CPU**: Dual core or better
-- **RAM**: 2GB minimum, 4GB recommended
-- **Storage**: Depends on FITS file collection size
-- **Network**: Fast network connection recommended for large files
-
-### Scalability
-The application is designed to handle large collections of FITS files efficiently:
-- Paginated file browsing
-- Optimized database queries
-- Thumbnail caching
-- Efficient file monitoring
 
 ## Contributing
 
@@ -119,12 +91,6 @@ We welcome contributions! Here's how you can help:
 4. ⤴️ Push to the branch: `git push origin feature/my-feature`
 5. 🔍 Submit a pull request
 
-### Code Style
-- Follow PSR-12 for PHP code
-- Use meaningful variable and function names
-- Add comments for complex logic
-- Write tests for new features
-
 ### Bug Reports
 Please use the GitHub issue tracker and include:
 - Detailed description of the issue
@@ -132,22 +98,10 @@ Please use the GitHub issue tracker and include:
 - Expected vs actual behavior
 - Environment details
 
-## Support
-
-Need help? Here are some resources:
-- 📖 [Documentation](docs/README.md)
-- 🐛 [Issue Tracker](../../issues)
-- 💬 [Discussions](../../discussions)
-
 ## License
 
 This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
 
-### Why GPL?
-We chose the GPL license to ensure that:
-- The software remains free and open source
-- Modifications and derivatives are also free and open source
-- Users have the freedom to run, study, share, and modify the software
 
 ## Credits
 

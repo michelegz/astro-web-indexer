@@ -1,0 +1,43 @@
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Data directories
+/data/*
+!/data/.gitkeep
+
+# Dependencies
+/vendor/
+/node_modules/
+__pycache__/
+*.pyc
+
+# IDE files
+.idea/
+.vscode/
+*.sublime-*
+
+# Logs
+*.log
+/logs/*
+!/logs/.gitkeep
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Database files
+*.sqlite
+*.sqlite3
+*.db
+
+# Python virtual environment
+venv/
+.venv/
+.python-version
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
