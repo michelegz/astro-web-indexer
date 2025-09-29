@@ -3,6 +3,7 @@ import os
 import sys
 import mysql.connector
 from astropy.io import fits
+from astropy.time import Time
 import numpy as np
 from PIL import Image
 import argparse
@@ -14,7 +15,7 @@ from datetime import datetime
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
-    stream=sys.stdout  # Ensure logs go to stdout for Docker logging
+    stream=sys.stdout
 )
 logger = logging.getLogger('reindex')
 
@@ -82,6 +83,18 @@ def cleanup_missing_files(conn, cur, fits_root):
     conn.commit()
     logger.info(f"Cleanup complete. Removed {removed_count} entries for missing files.")
 
+def get_header_value(header, key, default=None, type_func=None):
+    """Safely get a value from a FITS header, with optional type conversion."""
+    val = header.get(key, default)
+    if val is None or val == '':
+        return default
+    if type_func:
+        try:
+            return type_func(val)
+        except (ValueError, TypeError):
+            return default
+    return val
+
 # --- Main execution ---
 try:
     logger.info(f"Connecting to database {args.database} on {args.host}")
@@ -97,7 +110,7 @@ try:
     if not args.skip_cleanup:
         cleanup_missing_files(conn, cur, fits_root)
 
-# --- Indexing phase ---
+    # --- Indexing phase ---
     logger.info("Starting file indexing...")
     start_time = datetime.now()
     processed_count = 0
@@ -123,23 +136,93 @@ try:
                         header = hdul[0].header
                         data = hdul[0].data
 
-                        object_name = header.get('OBJECT', '').strip() or 'Unknown'
-                        date_obs = header.get('DATE-OBS', '')
-                        exptime = header.get('EXPTIME', 0)
-                        filt = header.get('FILTER', '')
-                        imgtype = header.get('IMAGETYP', '').upper() or 'UNKNOWN'
+                        # --- Metadata extraction ---
+                        object_name = get_header_value(header, 'OBJECT', 'Unknown', str).strip()
+                        
+                        # DATE-OBS parsing
+                        date_obs_str = get_header_value(header, 'DATE-OBS', None, str)
+                        date_obs = None
+                        if date_obs_str:
+                            try:
+                                date_obs = Time(date_obs_str).to_datetime()
+                            except Exception:
+                                logger.warning(f"Unparsable DATE-OBS: {date_obs_str}")
 
+                        exptime = get_header_value(header, 'EXPTIME', 0, float)
+                        filt = get_header_value(header, 'FILTER', '', str)
+                        imgtype = get_header_value(header, 'IMAGETYP', 'UNKNOWN', str).upper()
+
+                        # Extended metadata
+                        xbinning = get_header_value(header, 'XBINNING', None, int)
+                        ybinning = get_header_value(header, 'YBINNING', None, int)
+                        gain = get_header_value(header, 'GAIN', None, float)
+                        offset = get_header_value(header, 'OFFSET', None, float)
+                        xpixsz = get_header_value(header, 'XPIXSZ', None, float)
+                        ypixsz = get_header_value(header, 'YPIXSZ', None, float)
+                        instrume = get_header_value(header, 'INSTRUME', None, str)
+                        set_temp = get_header_value(header, 'SET-TEMP', None, float)
+                        ccd_temp = get_header_value(header, 'CCD-TEMP', None, float)
+                        telescop = get_header_value(header, 'TELESCOP', None, str)
+                        focallen = get_header_value(header, 'FOCALLEN', None, float)
+                        focratio = get_header_value(header, 'FOCRATIO', None, float)
+                        ra = get_header_value(header, 'RA', None, float)
+                        dec = get_header_value(header, 'DEC', None, float)
+                        centalt = get_header_value(header, 'CENTALT', None, float)
+                        centaz = get_header_value(header, 'CENTAZ', None, float)
+                        airmass = get_header_value(header, 'AIRMASS', None, float)
+                        pierside = get_header_value(header, 'PIERSIDE', None, str)
+                        siteelev = get_header_value(header, 'SITEELEV', None, float)
+                        sitelat = get_header_value(header, 'SITELAT', None, float)
+                        sitelong = get_header_value(header, 'SITELONG', None, float)
+
+                        focpos = get_header_value(header, 'FOCPOS', None, int)
+                        if focpos is None:
+                            focpos = get_header_value(header, 'FOCUSPOS', None, int)
+
+                        # Generate thumbnail
                         thumb = make_thumbnail(data) if data is not None else None
 
-                        cur.execute('''
-                            INSERT INTO files
-                            (path, name, object, date_obs, exptime, filter, imgtype, thumb)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        # --- Database insertion ---
+                        sql = '''
+                            INSERT INTO files (
+                                path, name, object, date_obs, exptime, filter, imgtype,
+                                xbinning, ybinning, gain, `offset`, xpixsz, ypixsz, instrume,
+                                set_temp, ccd_temp, telescop, focallen, focratio, ra, `dec`,
+                                centalt, centaz, airmass, pierside, siteelev, sitelat, sitelong,
+                                focpos, thumb
+                            ) VALUES (
+                                %(path)s, %(name)s, %(object)s, %(date_obs)s, %(exptime)s, %(filter)s, %(imgtype)s,
+                                %(xbinning)s, %(ybinning)s, %(gain)s, %(offset)s, %(xpixsz)s, %(ypixsz)s, %(instrume)s,
+                                %(set_temp)s, %(ccd_temp)s, %(telescop)s, %(focallen)s, %(focratio)s, %(ra)s, %(dec)s,
+                                %(centalt)s, %(centaz)s, %(airmass)s, %(pierside)s, %(siteelev)s, %(sitelat)s, %(sitelong)s,
+                                %(focpos)s, %(thumb)s
+                            )
                             ON DUPLICATE KEY UPDATE
-                            name=%s, object=%s, date_obs=%s, exptime=%s, 
-                            filter=%s, imgtype=%s, thumb=%s
-                        ''', (rel_path, file, object_name, date_obs, exptime, filt, imgtype, thumb,
-                              file, object_name, date_obs, exptime, filt, imgtype, thumb))
+                                name=VALUES(name), object=VALUES(object), date_obs=VALUES(date_obs),
+                                exptime=VALUES(exptime), filter=VALUES(filter), imgtype=VALUES(imgtype),
+                                xbinning=VALUES(xbinning), ybinning=VALUES(ybinning), gain=VALUES(gain),
+                                `offset`=VALUES(`offset`), xpixsz=VALUES(xpixsz), ypixsz=VALUES(ypixsz),
+                                instrume=VALUES(instrume), set_temp=VALUES(set_temp), ccd_temp=VALUES(ccd_temp),
+                                telescop=VALUES(telescop), focallen=VALUES(focallen), focratio=VALUES(focratio),
+                                ra=VALUES(ra), `dec`=VALUES(`dec`), centalt=VALUES(centalt), centaz=VALUES(centaz),
+                                airmass=VALUES(airmass), pierside=VALUES(pierside), siteelev=VALUES(siteelev),
+                                sitelat=VALUES(sitelat), sitelong=VALUES(sitelong), focpos=VALUES(focpos),
+                                thumb=COALESCE(VALUES(thumb), thumb)
+                        '''
+
+                        params = {
+                            'path': rel_path, 'name': file, 'object': object_name, 'date_obs': date_obs,
+                            'exptime': exptime, 'filter': filt, 'imgtype': imgtype,
+                            'xbinning': xbinning, 'ybinning': ybinning, 'gain': gain, 'offset': offset,
+                            'xpixsz': xpixsz, 'ypixsz': ypixsz, 'instrume': instrume, 'set_temp': set_temp,
+                            'ccd_temp': ccd_temp, 'telescop': telescop, 'focallen': focallen,
+                            'focratio': focratio, 'ra': ra, 'dec': dec, 'centalt': centalt,
+                            'centaz': centaz, 'airmass': airmass, 'pierside': pierside,
+                            'siteelev': siteelev, 'sitelat': sitelat, 'sitelong': sitelong,
+                            'focpos': focpos, 'thumb': thumb
+                        }
+
+                        cur.execute(sql, params)
                         
                         processed_count += 1
                         if processed_count % commit_interval == 0:
