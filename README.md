@@ -8,6 +8,7 @@ A web-based FITS file indexer and viewer for astronomical data, designed specifi
 
 **Beta Phase:** This project has been tested in a very limited environment and for a single use case. It should be considered in the beta phase. We appreciate any feedback and contributions to improve its stability and features.
 
+## Preview
 ![Preview Screenshot](docs/images/preview.png)
 
 ## Features
