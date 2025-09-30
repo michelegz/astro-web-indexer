@@ -38,7 +38,7 @@ return [
     'seconds' => 'secondi',
     'download_selected' => 'Scarica Selezionati (.zip)',
     'show_advanced_fields' => 'Mostra campi avanzati',
-    'footer_credits' => 'Astro Web Indexer - Creato da Michele Guzzini - Released under GPL',
+    'footer_credits' => 'Astro Web Indexer - Creato da Michele Guzzini - Rilasciato con licenza GPL',
     'db_connection_error' => 'Impossibile connettersi al database: {0}',
     'no_files_selected' => 'Nessun file selezionato per il download.',
     'menu_directory' => 'Cartelle',

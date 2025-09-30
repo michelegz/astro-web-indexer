@@ -49,3 +49,8 @@ venv/
 
 # custom files
 docker-compose-qnap-mic.yml
+
+#composer
+/src/vendor
+/src/vendor/*
+/src/composer.*

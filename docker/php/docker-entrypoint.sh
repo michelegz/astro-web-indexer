@@ -1,5 +1,25 @@
 #!/bin/sh
 
+AWI_DIR="/usr/local/share/awi"
+PHP_INIT_FLAG="$AWI_DIR/php_init_done"
+
+if [ ! -f "$PHP_INIT_FLAG" ]; then
+    echo "Installing composer..."
+    cd /var/www/html || exit 1
+    
+    if composer require maennchen/zipstream-php; then
+        mkdir -p "$AWI_DIR"
+        touch "$PHP_INIT_FLAG"
+        echo "Composer installed successfully"
+    else
+        echo "ERROR: Failed to install composer" >&2
+        exit 1
+    fi
+else
+    echo "Composer already installed, skipping..."
+fi
+
+
 # Initial indexing and watcher if ENABLE_FITS_WATCHER is set to "true"
 if [ "$ENABLE_FITS_WATCHER" = "true" ]; then
 
