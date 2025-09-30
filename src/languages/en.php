@@ -63,6 +63,8 @@ return [
     'siteelev' => 'SITEELEV',
     'sitelat' => 'SITELAT',
     'sitelong' => 'SITELONG',
-    'focpos' => 'FOCPOS'
+        'focpos' => 'FOCPOS',
+        'total_records' => '{total} total items',
+    'total_exposure' => 'Total exposure: {total}h'
 ];
 

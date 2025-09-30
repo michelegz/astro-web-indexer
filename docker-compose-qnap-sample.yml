@@ -15,7 +15,7 @@ services:
   php:
     build: 
       context: /share/Container/astro-web-indexer/docker/php
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile-qnap
     container_name: php-awi
     volumes:
       - /share/Container/astro-web-indexer/src:/var/www/html
@@ -46,10 +46,8 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD:-awi_password}
     volumes:
       - /share/Container/astro-web-indexer/data/db:/var/lib/mysql
-    ports:
-      - "${MYSQL_PORT:-3306}:3306"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-rootpassword}"]
       interval: 10s
       timeout: 5s
       retries: 5

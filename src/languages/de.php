@@ -39,6 +39,8 @@ return [
     'download_selected' => 'Auswahl herunterladen (.zip)',
     'footer_credits' => 'Astro Web Indexer - Erstellt von Michele Guzzini - Veröffentlicht unter GPL',
     'no_files_selected' => 'Keine Dateien für den Download ausgewählt.',
-    'menu_directory' => 'Ordner'
+        'menu_directory' => 'Ordner',
+    'total_records' => '{total} Einträge insgesamt',
+    'total_exposure' => 'Gesamtbelichtung: {total}h'
 ];
 

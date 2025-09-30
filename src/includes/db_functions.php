@@ -134,3 +134,22 @@ function getDistinctValues(PDO $conn, string $column, string $dir, string $curre
     }
     return $values;
 }
+
+function sumExposureTime(PDO $conn, string $dir, string $object, string $filter, string $imgtype): float
+{
+    $dirPattern = $dir === '' ? '%' : $dir . '/%';
+    $sql = "SELECT SUM(exptime) as total_exposure FROM files WHERE path LIKE :dir_pattern";
+    if ($object !== '') $sql .= " AND object = :object";
+    if ($filter !== '') $sql .= " AND filter = :filter";
+    if ($imgtype !== '') $sql .= " AND imgtype = :imgtype";
+
+    $stmt = $conn->prepare($sql);
+    $stmt->bindValue(':dir_pattern', $dirPattern, PDO::PARAM_STR);
+    if ($object !== '') $stmt->bindValue(':object', $object, PDO::PARAM_STR);
+    if ($filter !== '') $stmt->bindValue(':filter', $filter, PDO::PARAM_STR);
+    if ($imgtype !== '') $stmt->bindValue(':imgtype', $imgtype, PDO::PARAM_STR);
+
+    $stmt->execute();
+    $result = $stmt->fetch();
+    return (float)($result['total_exposure'] ?? 0);
+}

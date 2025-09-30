@@ -62,6 +62,8 @@ return [
     'siteelev' => 'SITEELEV',
     'sitelat' => 'SITELAT',
     'sitelong' => 'SITELONG',
-    'focpos' => 'FOCPOS'
+        'focpos' => 'FOCPOS',
+    'total_records' => '{total} elementos en total',
+    'total_exposure' => 'Exposición total: {total}h'
 ];
 

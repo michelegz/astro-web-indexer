@@ -1,5 +1,9 @@
 #!/bin/sh
 
+# for some reason pdo_mysql and zip can't be installed during build on qnap (kernel bug?), so we force it here
+cd /tmp
+docker-php-ext-install pdo_mysql zip
+
 # Initial indexing and watcher if ENABLE_FITS_WATCHER is set to "true"
 if [ "$ENABLE_FITS_WATCHER" = "true" ]; then
 

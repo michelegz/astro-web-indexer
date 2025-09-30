@@ -1,6 +1,10 @@
 <div class="flex flex-col sm:flex-row items-center justify-between my-6 bg-gray-800 p-4 rounded-lg shadow-md">
     <div class="text-sm text-gray-400 mb-2 sm:mb-0">
         <?php echo __('page_of', ['current' => $page, 'total' => $totalPages]) ?>
+        <span class="mx-2">|</span>
+        <?php echo __('total_records', ['total' => $totalRecords]) ?>
+        <span class="mx-2">|</span>
+        <?php echo __('total_exposure', ['total' => round($totalExposure / 3600, 2)]) ?>
     </div>
     <div class="flex flex-wrap justify-center gap-2">
         <?php

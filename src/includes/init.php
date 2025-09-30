@@ -30,8 +30,9 @@ $conn = connectDB();
 $folders = getFolders($conn, $dir);
 
 // Count total files for pagination
-$totalFiles = countFiles($conn, $dir, $filterObject, $filterFilter, $filterImgtype);
-$totalPages = max(1, ceil($totalFiles / $perPage));
+$totalRecords = countFiles($conn, $dir, $filterObject, $filterFilter, $filterImgtype);
+$totalExposure = sumExposureTime($conn, $dir, $filterObject, $filterFilter, $filterImgtype);
+$totalPages = max(1, ceil($totalRecords / $perPage));
 
 // Query for files with filters, LIMIT and sorting
 $files = getFiles($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $perPage, ($page - 1) * $perPage, $sortBy, $sortOrder);
