@@ -64,6 +64,17 @@ return [
     'sitelong' => 'SITELONG',
         'focpos' => 'FOCPOS',
     'total_records' => '{total} elementos en total',
-    'total_exposure' => 'Exposición total: {total}h'
+        'total_exposure' => 'Exposición total: {total}h',
+    'duplicates' => 'Duplicados',
+    'duplicate_files' => 'Archivos Duplicados',
+    'loading...' => 'Cargando...',
+    'no_duplicates_found' => 'No se encontraron duplicados.',
+        'error_fetching_duplicates' => 'Error al obtener los duplicados.',
+    'show_selected' => 'Mostrar Selección',
+    'hide_selected' => 'Ocultar Selección',
+    'reference_file' => 'Archivo de Referencia',
+    'hash' => 'Hash',
+    'modification_time' => 'Fecha de Modificación',
+    'duplicates_tooltip' => '%1$d de %2$d duplicados están visibles',
 ];
 

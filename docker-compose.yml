@@ -20,16 +20,34 @@ services:
     volumes:
       - ./src:/var/www/html
       - ${FITS_DATA_PATH:-./data/fits}:/var/fits:ro
-      - ./scripts:/opt/scripts
     working_dir: /var/www/html
     environment:
-      - ENABLE_FITS_WATCHER=${ENABLE_FITS_WATCHER:-true}
       - HEADER_TITLE=${HEADER_TITLE:-Astro Web Indexer}
       - DB_HOST=${DB_HOST:-mariadb}
       - DB_NAME=${DB_NAME:-awi_db}
       - DB_USER=${DB_USER:-awi_user}
       - DB_PASSWORD=${DB_PASSWORD:-awi_password}
+      - RETENTION_DAYS=${RETENTION_DAYS:-30}
+      - DEBUG=${DEBUG:-true}
     restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+  python:
+    build:
+      context: .
+      dockerfile: docker/python/Dockerfile
+    container_name: fits-watcher-awi
+    volumes:
+      - ${FITS_DATA_PATH:-./data/fits}:/var/fits:ro
+    environment:
+      - DB_HOST=${DB_HOST:-mariadb}
+      - DB_NAME=${DB_NAME:-awi_db}
+      - DB_USER=${DB_USER:-awi_user}
+      - DB_PASSWORD=${DB_PASSWORD:-awi_password}
+      - DEBUG=${DEBUG:-true}
+    restart: always
     depends_on:
       mariadb:
         condition: service_healthy

@@ -1,0 +1,5 @@
+astropy
+pillow
+mysql-connector-python
+watchdog
+xxhash

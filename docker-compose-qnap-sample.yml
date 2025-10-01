@@ -23,7 +23,6 @@ services:
       - /share/Container/astro-web-indexer/scripts:/opt/scripts
     working_dir: /var/www/html
     environment:
-      - ENABLE_FITS_WATCHER=${ENABLE_FITS_WATCHER:-true}
       - HEADER_TITLE=${HEADER_TITLE:-Astro Web Indexer}
       - DB_HOST=${DB_HOST:-mariadb}
       - DB_NAME=${DB_NAME:-awi_db}

@@ -41,5 +41,16 @@ return [
     'no_files_selected' => 'Aucun fichier sélectionné pour le téléchargement.',
         'menu_directory' => 'Dossiers',
     'total_records' => '{total} éléments au total',
-    'total_exposure' => 'Exposition totale : {total}h'
+        'total_exposure' => 'Exposition totale : {total}h',
+    'duplicates' => 'Doublons',
+    'duplicate_files' => 'Fichiers en double',
+    'loading...' => 'Chargement...',
+    'no_duplicates_found' => 'Aucun doublon trouvé.',
+        'error_fetching_duplicates' => 'Erreur lors de la récupération des doublons.',
+    'show_selected' => 'Afficher la sélection',
+    'hide_selected' => 'Masquer la sélection',
+    'reference_file' => 'Fichier de référence',
+    'hash' => 'Hash',
+    'modification_time' => 'Date de modification',
+    'duplicates_tooltip' => '%1$d sur %2$d doublons sont visibles',
 ];

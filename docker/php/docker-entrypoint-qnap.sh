@@ -39,20 +39,9 @@ else
     echo "PHP environment already initialized, skipping..."
 fi
 
-
-
-# Initial indexing and watcher if ENABLE_FITS_WATCHER is set to "true"
-if [ "$ENABLE_FITS_WATCHER" = "true" ]; then
-
-    # Run initial indexing and start watcher afterward, all in background
-    echo "Running initial FITS indexing and starting watcher afterward..."
-    (python /opt/scripts/reindex_mariadb.py /var/fits && \
-     python /opt/scripts/watch_fits.py /var/fits) &
-else
-    # Run initial indexing in background without watcher
-    echo "Running initial FITS indexing in background (watcher disabled)..."
-    python /opt/scripts/reindex_mariadb.py /var/fits &
-fi
+# Run initial indexing and start watcher afterward, all in background
+echo "Running initial FITS indexing and starting watcher afterward..."
+    (python /opt/scripts/reindex_mariadb.py /var/fits &&  python /opt/scripts/watch_fits.py /var/fits) &
 
 # Start PHP-FPM (original php-fpm container command)
 exec docker-php-entrypoint php-fpm

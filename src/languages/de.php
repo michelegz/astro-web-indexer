@@ -41,6 +41,17 @@ return [
     'no_files_selected' => 'Keine Dateien für den Download ausgewählt.',
         'menu_directory' => 'Ordner',
     'total_records' => '{total} Einträge insgesamt',
-    'total_exposure' => 'Gesamtbelichtung: {total}h'
+        'total_exposure' => 'Gesamtbelichtung: {total}h',
+    'duplicates' => 'Duplikate',
+    'duplicate_files' => 'Doppelte Dateien',
+    'loading...' => 'Lädt...',
+    'no_duplicates_found' => 'Keine Duplikate gefunden.',
+        'error_fetching_duplicates' => 'Fehler beim Abrufen der Duplikate.',
+    'show_selected' => 'Auswahl anzeigen',
+    'hide_selected' => 'Auswahl ausblenden',
+    'reference_file' => 'Referenzdatei',
+    'hash' => 'Hash',
+    'modification_time' => 'Änderungszeit',
+    'duplicates_tooltip' => '%1$d von %2$d Duplikaten sind sichtbar',
 ];
 

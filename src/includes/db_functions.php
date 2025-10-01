@@ -18,6 +18,7 @@ function getFolders(PDO $conn, string $currentDir): array
 {
     $folders = [];
     $dirPattern = $currentDir === '' ? '%' : $currentDir . '/%';
+    $dirPrefix = $currentDir === '' ? '' : $currentDir . '/';
 
     $stmt = $conn->prepare("
         SELECT DISTINCT
@@ -30,12 +31,13 @@ function getFolders(PDO $conn, string $currentDir): array
                 ELSE SUBSTRING_INDEX(SUBSTRING(path, LENGTH(:dir_prefix) + 1), '/', 1)
             END as folder
         FROM files
-        WHERE path LIKE :like_pattern
+        WHERE path LIKE :like_pattern AND deleted_at IS NULL AND SUBSTRING(path, LENGTH(:dir_prefix2) + 1) LIKE '%/%'
         HAVING folder IS NOT NULL AND folder != ''
         ORDER BY folder
     ");
     $stmt->bindValue(':dir_param', $currentDir, PDO::PARAM_STR);
-    $stmt->bindValue(':dir_prefix', $currentDir === '' ? '' : $currentDir . '/', PDO::PARAM_STR);
+    $stmt->bindValue(':dir_prefix', $dirPrefix, PDO::PARAM_STR);
+    $stmt->bindValue(':dir_prefix2', $dirPrefix, PDO::PARAM_STR);
     $stmt->bindValue(':like_pattern', $dirPattern, PDO::PARAM_STR);
     $stmt->execute();
     
@@ -50,7 +52,7 @@ function getFolders(PDO $conn, string $currentDir): array
 function countFiles(PDO $conn, string $dir, string $object, string $filter, string $imgtype): int
 {
     $dirPattern = $dir === '' ? '%' : $dir . '/%';
-    $countSql = "SELECT COUNT(*) as cnt FROM files WHERE path LIKE :dir_pattern";
+    $countSql = "SELECT COUNT(*) as cnt FROM files WHERE is_hidden = 0 AND path LIKE :dir_pattern AND deleted_at IS NULL";
     if ($object !== '') $countSql .= " AND object = :object";
     if ($filter !== '') $countSql .= " AND filter = :filter";
     if ($imgtype !== '') $countSql .= " AND imgtype = :imgtype";
@@ -72,13 +74,13 @@ function getFiles(PDO $conn, string $dir, string $object, string $filter, string
     $dirPattern = $dir === '' ? '%' : $dir . '/%';
     
     // Validazione e sanitizzazione di sortBy e sortOrder
-    $allowedSortBy = ['name', 'path', 'object', 'date_obs', 'exptime', 'filter', 'imgtype', 'xbinning', 'ybinning', 'egain', 'offset', 'xpixsz', 'ypixsz', 'instrume', 'set_temp', 'ccd_temp', 'telescop', 'focallen', 'focratio', 'ra', 'dec', 'centalt', 'centaz', 'airmass', 'pierside', 'siteelev', 'sitelat', 'sitelong', 'focpos'];
+    $allowedSortBy = ['name', 'path', 'object', 'date_obs', 'exptime', 'filter', 'imgtype', 'xbinning', 'ybinning', 'egain', 'offset', 'xpixsz', 'ypixsz', 'instrume', 'set_temp', 'ccd_temp', 'telescop', 'focallen', 'focratio', 'ra', 'dec', 'centalt', 'centaz', 'airmass', 'pierside', 'siteelev', 'sitelat', 'sitelong', 'focpos', 'visible_duplicate_count'];
     $allowedSortOrder = ['ASC', 'DESC'];
 
     $sortBy = in_array($sortBy, $allowedSortBy) ? $sortBy : 'name';
     $sortOrder = in_array(strtoupper($sortOrder), $allowedSortOrder) ? strtoupper($sortOrder) : 'ASC';
 
-    $sql = "SELECT id, name, path, object, date_obs, exptime, filter, imgtype, xbinning, ybinning, egain, `offset`, xpixsz, ypixsz, instrume, set_temp, ccd_temp, telescop, focallen, focratio, ra, `dec`, centalt, centaz, airmass, pierside, siteelev, sitelat, sitelong, focpos, thumb FROM files WHERE path LIKE :dir_pattern";
+    $sql = "SELECT id, name, path, object, date_obs, exptime, filter, imgtype, xbinning, ybinning, egain, `offset`, xpixsz, ypixsz, instrume, set_temp, ccd_temp, telescop, focallen, focratio, ra, `dec`, centalt, centaz, airmass, pierside, siteelev, sitelat, sitelong, focpos, thumb, file_hash, total_duplicate_count, visible_duplicate_count FROM files WHERE is_hidden = 0 AND path LIKE :dir_pattern AND deleted_at IS NULL";
     if ($object !== '') $sql .= " AND object = :object";
     if ($filter !== '') $sql .= " AND filter = :filter";
     if ($imgtype !== '') $sql .= " AND imgtype = :imgtype";
@@ -112,7 +114,7 @@ function getDistinctValues(PDO $conn, string $column, string $dir, string $curre
     }
     
     // Costruisci la query base con i filtri già attivi
-    $sql = "SELECT DISTINCT " . $column . " FROM files WHERE path LIKE :dir_pattern";
+    $sql = "SELECT DISTINCT " . $column . " FROM files WHERE path LIKE :dir_pattern AND deleted_at IS NULL";
 
     // Aggiungi gli altri filtri, ma escludi la colonna che stiamo filtrando ora
     if ($column !== 'object' && $currentObject !== '') $sql .= " AND object = :object";
@@ -138,7 +140,7 @@ function getDistinctValues(PDO $conn, string $column, string $dir, string $curre
 function sumExposureTime(PDO $conn, string $dir, string $object, string $filter, string $imgtype): float
 {
     $dirPattern = $dir === '' ? '%' : $dir . '/%';
-    $sql = "SELECT SUM(exptime) as total_exposure FROM files WHERE path LIKE :dir_pattern";
+    $sql = "SELECT SUM(exptime) as total_exposure FROM files WHERE is_hidden = 0 AND path LIKE :dir_pattern AND deleted_at IS NULL";
     if ($object !== '') $sql .= " AND object = :object";
     if ($filter !== '') $sql .= " AND filter = :filter";
     if ($imgtype !== '') $sql .= " AND imgtype = :imgtype";
@@ -153,3 +155,12 @@ function sumExposureTime(PDO $conn, string $dir, string $object, string $filter,
     $result = $stmt->fetch();
     return (float)($result['total_exposure'] ?? 0);
 }
+
+function getDuplicatesByHash(PDO $conn, string $hash): array
+{
+    $stmt = $conn->prepare("SELECT id, path, name, file_hash, mtime, is_hidden FROM files WHERE file_hash = :hash AND deleted_at IS NULL ORDER BY path");
+    $stmt->bindValue(':hash', $hash, PDO::PARAM_STR);
+    $stmt->execute();
+    return $stmt->fetchAll();
+}
+

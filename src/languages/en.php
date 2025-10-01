@@ -65,6 +65,17 @@ return [
     'sitelong' => 'SITELONG',
         'focpos' => 'FOCPOS',
         'total_records' => '{total} total items',
-    'total_exposure' => 'Total exposure: {total}h'
+        'total_exposure' => 'Total exposure: {total}h',
+    'duplicates' => 'Duplicates',
+    'duplicate_files' => 'Duplicate Files',
+    'loading...' => 'Loading...',
+    'no_duplicates_found' => 'No duplicates found.',
+        'error_fetching_duplicates' => 'Error fetching duplicates.',
+    'show_selected' => 'Show Selected',
+    'hide_selected' => 'Hide Selected',
+    'reference_file' => 'Reference File',
+    'hash' => 'Hash',
+    'modification_time' => 'Modification Time',
+    'duplicates_tooltip' => '%1$d of %2$d duplicates are visible',
 ];
 
