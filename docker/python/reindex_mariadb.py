@@ -165,7 +165,7 @@ def update_duplicate_counts(conn, cur, file_hash):
     if not file_hash:
         return
 
-        try:
+    try:
         # Count total active files with the same hash
         cur.execute(
             "SELECT COUNT(*) FROM files WHERE file_hash = %s AND deleted_at IS NULL",
@@ -185,8 +185,10 @@ def update_duplicate_counts(conn, cur, file_hash):
             "UPDATE files SET total_duplicate_count = %s, visible_duplicate_count = %s WHERE file_hash = %s",
             (total_count, visible_count, file_hash)
         )
+
     except mysql.connector.Error as err:
         logger.error(f"Error updating duplicate count for hash {file_hash}: {err}")
+
 
 
 

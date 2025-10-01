@@ -1,6 +1,10 @@
 <?php
 header('Content-Type: application/json');
 
+ob_start();
+require_once '../includes/init.php';
+ob_end_clean();
+
 // Only accept POST requests
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -8,7 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-require_once '../includes/init.php';
+
 
 // Get and decode the JSON payload
 $data = json_decode(file_get_contents('php://input'), true);

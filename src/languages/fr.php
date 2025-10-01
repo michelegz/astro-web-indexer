@@ -53,4 +53,8 @@ return [
     'hash' => 'Hash',
     'modification_time' => 'Date de modification',
     'duplicates_tooltip' => '%1$d sur %2$d doublons sont visibles',
+    'export_astrobin_csv' => 'Exporter pour AstroBin (CSV)',
+    'copied' => 'Copié !',
+    'copy_to_clipboard_failed' => 'Échec de la copie dans le presse-papiers',
+    'error_fetching_csv_data' => 'Erreur lors de la récupération des données CSV',
 ];

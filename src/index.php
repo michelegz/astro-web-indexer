@@ -32,6 +32,7 @@ include __DIR__ . '/includes/preview_overlay.php';
 
 <script src="assets/js/main.js"></script>
 <script src="assets/js/preview.js"></script>
+<script src="assets/js/table_actions.js"></script>
 
 </body>
 </html>

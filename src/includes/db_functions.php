@@ -74,13 +74,13 @@ function getFiles(PDO $conn, string $dir, string $object, string $filter, string
     $dirPattern = $dir === '' ? '%' : $dir . '/%';
     
     // Validazione e sanitizzazione di sortBy e sortOrder
-    $allowedSortBy = ['name', 'path', 'object', 'date_obs', 'exptime', 'filter', 'imgtype', 'xbinning', 'ybinning', 'egain', 'offset', 'xpixsz', 'ypixsz', 'instrume', 'set_temp', 'ccd_temp', 'telescop', 'focallen', 'focratio', 'ra', 'dec', 'centalt', 'centaz', 'airmass', 'pierside', 'siteelev', 'sitelat', 'sitelong', 'focpos', 'visible_duplicate_count'];
+    $allowedSortBy = ['name', 'path', 'object', 'date_obs', 'exptime', 'filter', 'imgtype', 'xbinning', 'ybinning', 'egain', 'offset', 'xpixsz', 'ypixsz', 'instrume', 'set_temp', 'ccd_temp', 'telescop', 'focallen', 'focratio', 'ra', 'dec', 'centalt', 'centaz', 'airmass', 'pierside', 'siteelev', 'sitelat', 'sitelong', 'focpos', 'visible_duplicate_count', 'mtime', 'file_hash'];
     $allowedSortOrder = ['ASC', 'DESC'];
 
     $sortBy = in_array($sortBy, $allowedSortBy) ? $sortBy : 'name';
-    $sortOrder = in_array(strtoupper($sortOrder), $allowedSortOrder) ? strtoupper($sortOrder) : 'ASC';
+        $sortOrder = in_array(strtoupper($sortOrder), $allowedSortOrder) ? strtoupper($sortOrder) : 'ASC';
 
-    $sql = "SELECT id, name, path, object, date_obs, exptime, filter, imgtype, xbinning, ybinning, egain, `offset`, xpixsz, ypixsz, instrume, set_temp, ccd_temp, telescop, focallen, focratio, ra, `dec`, centalt, centaz, airmass, pierside, siteelev, sitelat, sitelong, focpos, thumb, file_hash, total_duplicate_count, visible_duplicate_count FROM files WHERE is_hidden = 0 AND path LIKE :dir_pattern AND deleted_at IS NULL";
+    $sql = "SELECT id, name, path, object, date_obs, exptime, filter, imgtype, xbinning, ybinning, egain, `offset`, xpixsz, ypixsz, instrume, set_temp, ccd_temp, telescop, focallen, focratio, ra, `dec`, centalt, centaz, airmass, pierside, siteelev, sitelat, sitelong, focpos, thumb, file_hash, mtime, total_duplicate_count, visible_duplicate_count FROM files WHERE is_hidden = 0 AND path LIKE :dir_pattern AND deleted_at IS NULL";
     if ($object !== '') $sql .= " AND object = :object";
     if ($filter !== '') $sql .= " AND filter = :filter";
     if ($imgtype !== '') $sql .= " AND imgtype = :imgtype";

@@ -53,5 +53,9 @@ return [
     'hash' => 'Hash',
     'modification_time' => 'Änderungszeit',
     'duplicates_tooltip' => '%1$d von %2$d Duplikaten sind sichtbar',
+    'export_astrobin_csv' => 'Für AstroBin exportieren (CSV)',
+    'copied' => 'Kopiert!',
+    'copy_to_clipboard_failed' => 'Kopieren in die Zwischenablage fehlgeschlagen',
+    'error_fetching_csv_data' => 'Fehler beim Abrufen der CSV-Daten',
 ];
 

@@ -77,5 +77,9 @@ return [
     'hash' => 'Hash',
     'modification_time' => 'Modification Time',
     'duplicates_tooltip' => '%1$d of %2$d duplicates are visible',
+    'export_astrobin_csv' => 'Export for AstroBin (CSV)',
+    'copied' => 'Copied!',
+    'copy_to_clipboard_failed' => 'Failed to copy to clipboard',
+    'error_fetching_csv_data' => 'Error fetching CSV data',
 ];
 

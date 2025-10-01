@@ -32,6 +32,11 @@ A web-based FITS file indexer and viewer for astronomical data, designed specifi
 - 🔒 Secure file handling and access control
 - 📊 FITS header metadata extraction and indexing
 
+### AstroBin Integration
+- **CSV Export for Sessions:** Select multiple files (lights, darks, flats, bias) and copy a pre-formatted CSV string to your clipboard, ready to be pasted into AstroBin's session importer.
+- **Smart Session Aggregation:** The exporter intelligently groups exposures into "astro-nights" (from noon to noon), correctly handling sessions that span across midnight.
+- **Calibration Frame Counting:** Automatically counts the number of selected dark, flat, and bias frames and adds them to the session data.
+
 ### Duplicate Management
 
 The indexer includes a powerful suite for identifying and managing duplicate files, ensuring a clean and efficient archive.
