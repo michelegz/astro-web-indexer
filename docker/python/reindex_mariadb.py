@@ -165,10 +165,10 @@ def update_duplicate_counts(conn, cur, file_hash):
     if not file_hash:
         return
 
-    try:
-        # Count total files with the same hash (including soft-deleted ones)
+        try:
+        # Count total active files with the same hash
         cur.execute(
-            "SELECT COUNT(*) FROM files WHERE file_hash = %s",
+            "SELECT COUNT(*) FROM files WHERE file_hash = %s AND deleted_at IS NULL",
             (file_hash,)
         )
         total_count = cur.fetchone()[0]
