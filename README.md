@@ -1,25 +1,23 @@
-# Astro Web Indexer
+# 🔭 Astro Web Indexer
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 A web-based file indexer and viewer for astronomical data, supporting both FITS and XISF formats. Designed for observatories and astrophotographers, this tool helps organize, browse, and analyze image files through an intuitive web interface.
 
-## Project Status
+## 🧪 Project Status
 
 **Beta Phase:** This project has been tested in a very limited environment and for a single use case. It should be considered in the beta phase. I appreciate any feedback and contributions to improve its stability and features.
 
-## Preview
+## ▶️ Preview
 ![Preview Screenshot](docs/images/preview.png)
 
-## Support the Project
+## ❤️ Support the Project
 
 This project is developed and maintained in my spare time. If you find it useful, please consider supporting its development with a small donation. Thank you!
 
-<a href="https://www.paypal.com/donate/?business=Y85DQZAEYTF94&no_recurring=0&currency_code=EUR" target="_blank">
-  <img src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" alt="PayPal - The safer, easier way to pay online!" border="0">
-</a>
+[![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.com/donate/?business=Y85DQZAEYTF94&no_recurring=0&currency_code=EUR)
 
-## Features
+## 🚀 Features
 
 ### Core Functionality
 - 📁 Browse and search FITS and XISF files in a directory structure
@@ -68,12 +66,12 @@ The indexing engine is designed to be both efficient and resilient, making it su
 - **Content-Based Identification:** Files are uniquely identified by their `xxhash`, a high-speed hashing algorithm.
 - **Soft-Delete Recovery:** When a file is removed from the filesystem, it is not immediately deleted from the database. Instead, it is marked as "deleted" for a configurable retention period (default: 30 days). This provides a safety net against accidental deletions or temporary filesystem unavailability. If the file reappears within the retention period, it is instantly restored without need of full reindexing and hash calculation.
 
-## Requirements
+## 📋 Requirements
 
 - Docker
 - Docker Compose
 
-## Quick Start
+## ⚡ Quick Start
 
 1. Clone the repository:
 ```bash
@@ -98,7 +96,7 @@ docker-compose up -d
 
 5. Access the application at http://localhost:2080
 
-## Configuration
+## ⚙️ Configuration
 
 All configuration is handled via environment variables, typically set in a `.env` file.
 
@@ -132,7 +130,7 @@ These variables are shared across all services to connect to the MariaDB contain
 | `MYSQL_ROOT_PASSWORD` | The root password for the MariaDB server. **It is highly recommended to change this.** | `rootpassword` |
 
 
-## Directory Structure
+## 📁 Directory Structure
 
 ```
 astro-web-indexer/
@@ -141,7 +139,7 @@ astro-web-indexer/
 ├── scripts/                  # Utility scripts
 └── tests/                    # Test files
 ```
-## QNAP and Container Station
+## 📦 QNAP and Container Station
 
 When building the PHP image on QNAP QTS, you may encounter errors like  
 `Cannot change mode to rwxrwxr-x: Bad address`  
@@ -153,7 +151,7 @@ As a workaround, you can use the `docker-compose-qnap-sample.yml`, which relies 
 **Note:** After the container is created, a restart may be required for it to work properly.
 
 
-## Contributing
+## 🤝 Contributing
 
 We welcome contributions! Here's how you can help:
 
@@ -170,11 +168,11 @@ Please use the GitHub issue tracker and include:
 - Expected vs actual behavior
 - Environment details
 
-## License
+## 📜 License
 
 This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
 
-## Acknowledgements
+## 🙏 Acknowledgements
 
 This project is built upon the hard work of many open-source projects, including:
 
@@ -183,4 +181,5 @@ This project is built upon the hard work of many open-source projects, including
 - **[Watchdog](https://github.com/gorakhargosh/watchdog)** for file system monitoring.
 - **PHP**, **Python**, **MariaDB**, and **Nginx** as the core technology stack.
 - **[Tailwind CSS](https://tailwindcss.com/)** for the user interface design.
+
 
