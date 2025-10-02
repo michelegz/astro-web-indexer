@@ -135,4 +135,37 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
+
+    /**
+     * Converts all elements with class 'utc-date' and a 'data-timestamp' attribute
+     * to the user's local timezone format.
+     */
+    function convertUTCDatesToLocal() {
+        const dateElements = document.querySelectorAll('.utc-date');
+        dateElements.forEach(el => {
+            const timestamp = el.getAttribute('data-timestamp');
+            if (timestamp && !isNaN(timestamp)) {
+                // The timestamp is in seconds, JavaScript Date needs milliseconds
+                const date = new Date(timestamp * 1000);
+                
+                // Format to a locale-specific string, e.g., "10/2/2025, 12:18:01 PM"
+                // Using options to ensure year, month, day, hour, minute, second are always shown.
+                const options = {
+                    year: 'numeric', month: 'numeric', day: 'numeric',
+                    hour: 'numeric', minute: 'numeric', second: 'numeric',
+                    hour12: false // Use 24-hour format if preferred by locale, adjust as needed
+                };
+                
+                try {
+                    el.textContent = date.toLocaleString(undefined, options);
+                } catch (e) {
+                    // Fallback for older browsers or invalid options
+                    el.textContent = date.toLocaleString();
+                }
+            }
+        });
+    }
+    
+    // Convert dates on initial page load
+    convertUTCDatesToLocal();
 });

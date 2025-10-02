@@ -14,6 +14,10 @@ COPY docker/python/requirements.txt .
 # Install Python packages into the virtual environment
 RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
 
+# Copy and install the local XISF library
+COPY external/xisf /opt/scripts/external/xisf
+RUN /opt/venv/bin/pip install /opt/scripts/external/xisf
+
 # Copy the application scripts
 COPY docker/python/reindex_mariadb.py .
 COPY docker/python/watch_fits.py .

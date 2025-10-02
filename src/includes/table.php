@@ -84,7 +84,11 @@
                     <?php endif; ?>
                 </td>
                 <td class="p-3 text-gray-200"><?= htmlspecialchars($f['object'] ?? '') ?></td>
-                <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['date_obs'] ?? '') ?></td>
+                <td class="p-3 text-sm text-gray-300">
+                    <span class="utc-date" data-timestamp="<?= !empty($f['date_obs']) ? strtotime($f['date_obs']) : '' ?>">
+                        <?= htmlspecialchars($f['date_obs'] ?? '') ?>
+                    </span>
+                </td>
                 <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['exptime'] ?? '') ?>s</td>
                 <td class="p-3 text-gray-200"><?= htmlspecialchars($f['filter'] ?? '') ?></td>
                 <td class="p-3 text-gray-200"><?= htmlspecialchars($f['imgtype'] ?? '') ?></td>
@@ -111,7 +115,11 @@
                     <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['sitelat'] ?? '') ?></td>
                                         <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['sitelong'] ?? '') ?></td>
                     <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['focpos'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= !empty($f['mtime']) ? date('Y-m-d H:i:s', (int)$f['mtime']) : '' ?></td>
+                    <td class="p-3 text-sm text-gray-300">
+                        <span class="utc-date" data-timestamp="<?= !empty($f['mtime']) ? (int)$f['mtime'] : '' ?>">
+                            <?= !empty($f['mtime']) ? date('Y-m-d H:i:s', (int)$f['mtime']) : '' ?>
+                        </span>
+                    </td>
                     <td class="p-3 text-sm text-gray-300 font-mono text-xs"><?= htmlspecialchars($f['file_hash'] ?? '') ?></td>
                 <?php endif; ?>
             </tr>

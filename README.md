@@ -2,7 +2,7 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-A web-based FITS file indexer and viewer for astronomical data, designed specifically for astronomical observatories and research institutions. This tool helps organize, browse, and analyze FITS (Flexible Image Transport System) files through an intuitive web interface.
+A web-based file indexer and viewer for astronomical data, supporting both FITS and XISF formats. Designed for observatories and astrophotographers, this tool helps organize, browse, and analyze image files through an intuitive web interface.
 
 ## Project Status
 
@@ -11,12 +11,20 @@ A web-based FITS file indexer and viewer for astronomical data, designed specifi
 ## Preview
 ![Preview Screenshot](docs/images/preview.png)
 
+## Support the Project
+
+This project is developed and maintained in my spare time. If you find it useful, please consider supporting its development with a small donation. Thank you!
+
+<a href="https://www.paypal.com/donate/?business=Y85DQZAEYTF94&no_recurring=0&currency_code=EUR" target="_blank">
+  <img src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" alt="PayPal - The safer, easier way to pay online!" border="0">
+</a>
+
 ## Features
 
 ### Core Functionality
-- 📁 Browse and search FITS files in a directory structure
+- 📁 Browse and search FITS and XISF files in a directory structure
 - 🔄 Real-time monitoring and automatic indexing of new files
-- 🖼️ Built-in preview support for FITS images
+- 🖼️ Built-in preview generation for both FITS and XISF images
 - 🔍 Advanced filtering by object, filter type, and image type
 - 📥 Bulk download functionality with ZIP compression
 
@@ -165,4 +173,14 @@ Please use the GitHub issue tracker and include:
 ## License
 
 This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgements
+
+This project is built upon the hard work of many open-source projects, including:
+
+- **[XISF Python Library](https://github.com/sergio-dr/xisf)** by Sergio Díaz for XISF file support.
+- **[Astropy](https://www.astropy.org/)** for FITS file handling and astronomical calculations.
+- **[Watchdog](https://github.com/gorakhargosh/watchdog)** for file system monitoring.
+- **PHP**, **Python**, **MariaDB**, and **Nginx** as the core technology stack.
+- **[Tailwind CSS](https://tailwindcss.com/)** for the user interface design.
 
