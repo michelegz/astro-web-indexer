@@ -81,5 +81,7 @@ return [
     'copied' => 'Copiato!',
     'copy_to_clipboard_failed' => 'Impossibile copiare negli appunti',
     'error_fetching_csv_data' => 'Errore durante il recupero dei dati CSV',
+    'astrobin_modal_explanation' => 'Copia il testo qui sotto e incollalo nell\'importatore di sessioni di AstroBin.',
+    'copy_to_clipboard' => 'Copia negli Appunti',
 ];
 

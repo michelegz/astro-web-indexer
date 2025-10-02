@@ -57,5 +57,7 @@ return [
     'copied' => 'Kopiert!',
     'copy_to_clipboard_failed' => 'Kopieren in die Zwischenablage fehlgeschlagen',
     'error_fetching_csv_data' => 'Fehler beim Abrufen der CSV-Daten',
+    'astrobin_modal_explanation' => 'Kopieren Sie den folgenden Text und fügen Sie ihn in den AstroBin-Sitzungsimporteur ein.',
+    'copy_to_clipboard' => 'In die Zwischenablage kopieren',
 ];
 

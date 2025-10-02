@@ -8,6 +8,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const exportAstroBinBtn = document.getElementById('exportAstroBinBtn');
     const filtersForm = document.getElementById('filters-form');
 
+    // --- MODAL ASTROBIN ---
+    const astrobinModal = document.getElementById('astrobinModal');
+    const closeAstrobinModalBtn = document.getElementById('closeAstrobinModalBtn');
+    const astrobinCsvText = document.getElementById('astrobinCsvText');
+    const copyAstrobinCsvBtn = document.getElementById('copyAstrobinCsvBtn');
+
     // --- UTILS ---
     function getFileCheckboxes() {
         return document.querySelectorAll('.file-checkbox');
@@ -95,30 +101,59 @@ document.addEventListener('DOMContentLoaded', () => {
             const idsQueryString = selectedIds.join(',');
             const exportUrl = `/api/export_astrobin_csv.php?ids=${idsQueryString}`;
 
+            // Show loading indicator
+            const originalText = exportAstroBinBtn.innerHTML;
+            exportAstroBinBtn.innerHTML = window.i18n?.loading || 'Loading...';
+            exportAstroBinBtn.disabled = true;
+
             fetch(exportUrl)
                 .then(response => {
                     if (!response.ok) throw new Error('Network response was not ok.');
                     return response.text();
                 })
                 .then(csvText => {
-                    navigator.clipboard.writeText(csvText).then(() => {
-                        const originalText = exportAstroBinBtn.innerHTML;
-                        exportAstroBinBtn.innerHTML = window.i18n?.copied || 'Copied!';
-                        exportAstroBinBtn.classList.add('bg-green-600', 'hover:bg-green-700');
-                        exportAstroBinBtn.classList.remove('bg-sky-600', 'hover:bg-sky-700');
-                        
-                        setTimeout(() => {
-                            exportAstroBinBtn.innerHTML = originalText;
-                            exportAstroBinBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
-                            exportAstroBinBtn.classList.add('bg-sky-600', 'hover:bg-sky-700');
-                        }, 2000);
-                    }).catch(err => {
-                        alert((window.i18n?.copy_to_clipboard_failed || 'Failed to copy to clipboard:') + ' ' + err);
-                    });
+                    if (astrobinCsvText) astrobinCsvText.value = csvText;
+                    if (astrobinModal) astrobinModal.classList.remove('hidden');
                 })
                 .catch(error => {
                     alert((window.i18n?.error_fetching_csv_data || 'Error fetching CSV data:') + ' ' + error.message);
+                })
+                .finally(() => {
+                    // Restore button state
+                    exportAstroBinBtn.innerHTML = originalText;
+                    exportAstroBinBtn.disabled = false;
                 });
+        });
+    }
+
+    // --- ASTROBIN MODAL ACTIONS ---
+    if (closeAstrobinModalBtn && astrobinModal) {
+        closeAstrobinModalBtn.addEventListener('click', () => astrobinModal.classList.add('hidden'));
+    }
+    if (astrobinModal) {
+        astrobinModal.addEventListener('click', (e) => {
+            if (e.target === astrobinModal) {
+                astrobinModal.classList.add('hidden');
+            }
+        });
+    }
+    if (copyAstrobinCsvBtn && astrobinCsvText) {
+        copyAstrobinCsvBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(astrobinCsvText.value).then(() => {
+                const originalText = copyAstrobinCsvBtn.innerHTML;
+                copyAstrobinCsvBtn.innerHTML = window.i18n?.copied || 'Copied!';
+                copyAstrobinCsvBtn.classList.add('bg-green-600');
+                copyAstrobinCsvBtn.classList.remove('bg-blue-600');
+                
+                setTimeout(() => {
+                    copyAstrobinCsvBtn.innerHTML = originalText;
+                    copyAstrobinCsvBtn.classList.remove('bg-green-600');
+                    copyAstrobinCsvBtn.classList.add('bg-blue-600');
+                }, 2000);
+            }).catch(err => {
+                alert((window.i18n?.copy_to_clipboard_failed || 'Failed to copy to clipboard.') + '\n' + (window.i18n?.astrobin_modal_explanation || 'Please copy the text manually from the text area.'));
+                astrobinCsvText.select(); // Select text for easy manual copying
+            });
         });
     }
 

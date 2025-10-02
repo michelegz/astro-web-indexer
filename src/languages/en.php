@@ -81,5 +81,7 @@ return [
     'copied' => 'Copied!',
     'copy_to_clipboard_failed' => 'Failed to copy to clipboard',
     'error_fetching_csv_data' => 'Error fetching CSV data',
+    'astrobin_modal_explanation' => 'Copy the text below and paste it into the AstroBin session importer.',
+    'copy_to_clipboard' => 'Copy to Clipboard',
 ];
 
