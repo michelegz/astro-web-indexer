@@ -1,112 +1,128 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // DOM element references
+    // --- DOM references ---
     const sidebar = document.getElementById('sidebar');
     const menuOverlay = document.getElementById('menu-overlay');
     const selectAllCheckbox = document.getElementById('selectAll');
     const tableBody = document.querySelector('table tbody'); 
     const downloadSelectedBtn = document.getElementById('downloadSelectedBtn');
+    const exportAstroBinBtn = document.getElementById('exportAstroBinBtn');
+    const filtersForm = document.getElementById('filters-form');
 
-    /**
-     * Handles opening/closing of sidebar menu on mobile devices.
-     * Makes the overlay visible/invisible.
-     */
+    // --- UTILS ---
+    function getFileCheckboxes() {
+        return document.querySelectorAll('.file-checkbox');
+    }
+    function getSelectedFiles() {
+        return Array.from(getFileCheckboxes()).filter(cb => cb.checked);
+    }
+    function updateButtonStates() {
+        const hasSelection = getSelectedFiles().length > 0;
+        if (downloadSelectedBtn) downloadSelectedBtn.disabled = !hasSelection;
+        if (exportAstroBinBtn) exportAstroBinBtn.disabled = !hasSelection;
+    }
+
+    // --- MENU MOBILE ---
     window.toggleMenu = () => {
-        sidebar.classList.toggle('-translate-x-full');
-        sidebar.classList.toggle('translate-x-0');
-        // Handle 'hidden' class to show/hide overlay
-        menuOverlay.classList.toggle('hidden');
+        sidebar?.classList.toggle('-translate-x-full');
+        sidebar?.classList.toggle('translate-x-0');
+        menuOverlay?.classList.toggle('hidden');
     };
-
-    // Close menu when clicking on overlay (mobile only)
     if (menuOverlay) {
         menuOverlay.addEventListener('click', toggleMenu);
     }
 
-    /**
-     * Updates download button state (enabled/disabled)
-     * based on the number of selected checkboxes.
-     */
-    function updateDownloadButtonState() {
-        const fileCheckboxes = document.querySelectorAll('.file-checkbox');
-        const anyChecked = Array.from(fileCheckboxes).some(checkbox => checkbox.checked);
-        if (downloadSelectedBtn) {
-            downloadSelectedBtn.disabled = !anyChecked;
-        }
-    }
-
-    /**
-     * Handles the "Select all" checkbox.
-     * Selects or deselects all file checkboxes.
-     */
+    // --- SELECT ALL CHECKBOX ---
     if (selectAllCheckbox) {
         selectAllCheckbox.addEventListener('change', () => {
-            const fileCheckboxes = document.querySelectorAll('.file-checkbox');
-            fileCheckboxes.forEach(checkbox => {
-                checkbox.checked = selectAllCheckbox.checked;
-            });
-            updateDownloadButtonState();
+            getFileCheckboxes().forEach(cb => cb.checked = selectAllCheckbox.checked);
+            updateButtonStates();
         });
     }
 
-    /**
-     * Handles individual file checkboxes.
-     * If one is deselected, the "Select all" checkbox is deselected.
-     * If all are selected, the "Select all" checkbox is selected.
-     * Uses event delegation to support dynamically loaded rows.
-     */
+    // --- FILE CHECKBOXES (delegation) ---
     if (tableBody) {
         tableBody.addEventListener('change', (event) => {
             if (event.target.classList.contains('file-checkbox')) {
-                const fileCheckboxes = document.querySelectorAll('.file-checkbox');
+                const fileCheckboxes = getFileCheckboxes();
                 if (!event.target.checked && selectAllCheckbox) {
                     selectAllCheckbox.checked = false;
                 } else if (selectAllCheckbox) {
-                    const allChecked = Array.from(fileCheckboxes).every(cb => cb.checked);
-                    selectAllCheckbox.checked = allChecked;
+                    selectAllCheckbox.checked = Array.from(fileCheckboxes).every(cb => cb.checked);
                 }
-                updateDownloadButtonState();
+                updateButtonStates();
             }
         });
     }
 
-    /**
-     * Handles click on "Download Selected" button.
-     * Collects selected file paths and initiates ZIP file download.
-     */
+    // --- DOWNLOAD SELECTED (POST con form) ---
     if (downloadSelectedBtn) {
         downloadSelectedBtn.addEventListener('click', () => {
-            const fileCheckboxes = document.querySelectorAll('.file-checkbox');
-            const selectedFiles = Array.from(fileCheckboxes)
-                                   .filter(checkbox => checkbox.checked)
-                                   .map(checkbox => checkbox.value); // Value is the relative path
-
-            if (selectedFiles.length > 0) {
-                const params = new URLSearchParams();
-                selectedFiles.forEach(file => params.append('files[]', file));
-                
-                // Create a temporary link and simulate click to start download
-                const downloadLink = document.createElement('a');
-                downloadLink.href = 'download.php?' + params.toString();
-                downloadLink.download = 'selected_fits_files.zip'; // Suggested name for downloaded file
-                document.body.appendChild(downloadLink);
-                downloadLink.click();
-                document.body.removeChild(downloadLink);
-
-                // Optional: reset checkboxes and button state after download
-                if (selectAllCheckbox) selectAllCheckbox.checked = false;
-                fileCheckboxes.forEach(checkbox => checkbox.checked = false);
-                updateDownloadButtonState();
-            } else {
-                alert('Please select at least one file to download.');
+            const selectedFiles = getSelectedFiles().map(cb => cb.value);
+            if (selectedFiles.length === 0) {
+                alert(window.i18n?.no_files_selected || 'Please select at least one file to download.');
+                return;
             }
+
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = 'download.php';
+            
+            selectedFiles.forEach(path => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'files[]';
+                input.value = path;
+                form.appendChild(input);
+            });
+            
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+
+            // Reset UI
+            if (selectAllCheckbox) selectAllCheckbox.checked = false;
+            getFileCheckboxes().forEach(cb => cb.checked = false);
+            updateButtonStates();
         });
     }
 
-    /**
-     * Global function for sorting table columns.
-     * Reloads the page with new sorting parameters.
-     * @param {string} column - The name of the column to sort by.
-     */
+    // --- EXPORT ASTROBIN ---
+    if (exportAstroBinBtn) {
+        exportAstroBinBtn.addEventListener('click', () => {
+            const selectedIds = getSelectedFiles().map(cb => cb.dataset.id);
+            if (selectedIds.length === 0) return;
+
+            const idsQueryString = selectedIds.join(',');
+            const exportUrl = `/api/export_astrobin_csv.php?ids=${idsQueryString}`;
+
+            fetch(exportUrl)
+                .then(response => {
+                    if (!response.ok) throw new Error('Network response was not ok.');
+                    return response.text();
+                })
+                .then(csvText => {
+                    navigator.clipboard.writeText(csvText).then(() => {
+                        const originalText = exportAstroBinBtn.innerHTML;
+                        exportAstroBinBtn.innerHTML = window.i18n?.copied || 'Copied!';
+                        exportAstroBinBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+                        exportAstroBinBtn.classList.remove('bg-sky-600', 'hover:bg-sky-700');
+                        
+                        setTimeout(() => {
+                            exportAstroBinBtn.innerHTML = originalText;
+                            exportAstroBinBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                            exportAstroBinBtn.classList.add('bg-sky-600', 'hover:bg-sky-700');
+                        }, 2000);
+                    }).catch(err => {
+                        alert((window.i18n?.copy_to_clipboard_failed || 'Failed to copy to clipboard:') + ' ' + err);
+                    });
+                })
+                .catch(error => {
+                    alert((window.i18n?.error_fetching_csv_data || 'Error fetching CSV data:') + ' ' + error.message);
+                });
+        });
+    }
+
+    // --- SORTING TABLE ---
     window.sortTable = (column) => {
         const urlParams = new URLSearchParams(window.location.search);
         const currentSortBy = urlParams.get('sort_by') || 'name';
@@ -119,14 +135,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         urlParams.set('sort_by', column);
         urlParams.set('sort_order', newSortOrder);
-        urlParams.set('page', '1'); // Return to first page after sorting
+        urlParams.set('page', '1');
         window.location.search = urlParams.toString();
     };
 
-    // Call function to set initial state of download button
-    updateDownloadButtonState();
-
-    const filtersForm = document.getElementById('filters-form');
+    // --- FILTRI ---
     if (filtersForm) {
         const filters = filtersForm.querySelectorAll('select, input[type="checkbox"]');
         filters.forEach(filter => {
@@ -136,36 +149,28 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    /**
-     * Converts all elements with class 'utc-date' and a 'data-timestamp' attribute
-     * to the user's local timezone format.
-     */
+    // --- CONVERSIONE DATE UTC -> LOCAL ---
     function convertUTCDatesToLocal() {
         const dateElements = document.querySelectorAll('.utc-date');
         dateElements.forEach(el => {
             const timestamp = el.getAttribute('data-timestamp');
             if (timestamp && !isNaN(timestamp)) {
-                // The timestamp is in seconds, JavaScript Date needs milliseconds
                 const date = new Date(timestamp * 1000);
-                
-                // Format to a locale-specific string, e.g., "10/2/2025, 12:18:01 PM"
-                // Using options to ensure year, month, day, hour, minute, second are always shown.
                 const options = {
                     year: 'numeric', month: 'numeric', day: 'numeric',
                     hour: 'numeric', minute: 'numeric', second: 'numeric',
-                    hour12: false // Use 24-hour format if preferred by locale, adjust as needed
+                    hour12: false
                 };
-                
                 try {
                     el.textContent = date.toLocaleString(undefined, options);
-                } catch (e) {
-                    // Fallback for older browsers or invalid options
+                } catch {
                     el.textContent = date.toLocaleString();
                 }
             }
         });
     }
-    
-    // Convert dates on initial page load
     convertUTCDatesToLocal();
+
+    // --- Stato iniziale bottoni ---
+    updateButtonStates();
 });

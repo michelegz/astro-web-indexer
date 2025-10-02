@@ -21,7 +21,7 @@ WORKDIR /var/www/html
 COPY src/ .
 
 # Now, with all files in place, run composer install.
-RUN composer install --no-interaction --no-progress --no-suggest --no-dev --optimize-autoloader
+RUN composer install --no-interaction --no-progress --no-dev --optimize-autoloader
 
 # Copy and set permissions for the entrypoint script
 COPY docker/php/docker-entrypoint.sh /usr/local/bin/

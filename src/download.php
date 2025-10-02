@@ -7,12 +7,12 @@ use ZipStream\ZipStream;
 
 $fitsRoot = FITS_ROOT;
 
-if (!isset($_GET['files']) || !is_array($_GET['files']) || empty($_GET['files'])) {
+if (!isset($_REQUEST['files']) || !is_array($_REQUEST['files']) || empty($_REQUEST['files'])) {
     http_response_code(400);
     die(__('no_files_selected'));
 }
 
-$selectedRelativePaths = $_GET['files'];
+$selectedRelativePaths = $_REQUEST['files'];
 $validFiles = [];
 
 // Validazione preliminare

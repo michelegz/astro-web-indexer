@@ -50,6 +50,7 @@ venv/
 
 # test files
 awi-images.tar
+docker-save.bat
 
 #composer
 /src/vendor

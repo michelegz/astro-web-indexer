@@ -1,6 +1,6 @@
 <?php
 // Autoload Composer dependencies using an absolute path
-require_once '../vendor/autoload.php';
+require_once '/var/www/html/vendor/autoload.php';
 
 require_once __DIR__ . '/config.php';
 
