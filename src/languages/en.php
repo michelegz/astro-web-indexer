@@ -79,9 +79,10 @@ return [
     'duplicates_tooltip' => '%1$d of %2$d duplicates are visible',
     'export_astrobin_csv' => 'Export for AstroBin (CSV)',
     'copied' => 'Copied!',
-    'copy_to_clipboard_failed' => 'Failed to copy to clipboard',
+        'copy_to_clipboard_failed' => 'Failed to copy to clipboard',
     'error_fetching_csv_data' => 'Error fetching CSV data',
     'astrobin_modal_explanation' => 'Copy the text below and paste it into the AstroBin session importer.',
     'copy_to_clipboard' => 'Copy to Clipboard',
+    'observation_date' => 'Observation Date',
 ];
 

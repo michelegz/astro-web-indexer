@@ -49,48 +49,39 @@ function getFolders(PDO $conn, string $currentDir): array
     return $folders;
 }
 
-function countFiles(PDO $conn, string $dir, string $object, string $filter, string $imgtype): int
+function countFiles(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo): int
 {
-    $dirPattern = $dir === '' ? '%' : $dir . '/%';
-    $countSql = "SELECT COUNT(*) as cnt FROM files WHERE is_hidden = 0 AND path LIKE :dir_pattern AND deleted_at IS NULL";
-    if ($object !== '') $countSql .= " AND object = :object";
-    if ($filter !== '') $countSql .= " AND filter = :filter";
-    if ($imgtype !== '') $countSql .= " AND imgtype = :imgtype";
+    list($sql, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo);
+    
+    $countSql = "SELECT COUNT(*) as cnt FROM files WHERE " . implode(' AND ', $sql);
 
     $stmt = $conn->prepare($countSql);
-    $stmt->bindValue(':dir_pattern', $dirPattern, PDO::PARAM_STR);
-    if ($object !== '') $stmt->bindValue(':object', $object, PDO::PARAM_STR);
-    if ($filter !== '') $stmt->bindValue(':filter', $filter, PDO::PARAM_STR);
-    if ($imgtype !== '') $stmt->bindValue(':imgtype', $imgtype, PDO::PARAM_STR);
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
 
     $stmt->execute();
     $result = $stmt->fetch();
     return (int)($result['cnt'] ?? 0);
 }
 
-function getFiles(PDO $conn, string $dir, string $object, string $filter, string $imgtype, int $perPage, int $offset, string $sortBy, string $sortOrder): array
+function getFiles(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, int $perPage, int $offset, string $sortBy, string $sortOrder): array
 {
-    $files = [];
-    $dirPattern = $dir === '' ? '%' : $dir . '/%';
-    
     // Validazione e sanitizzazione di sortBy e sortOrder
     $allowedSortBy = ['name', 'path', 'object', 'date_obs', 'exptime', 'filter', 'imgtype', 'xbinning', 'ybinning', 'egain', 'offset', 'xpixsz', 'ypixsz', 'instrume', 'set_temp', 'ccd_temp', 'telescop', 'focallen', 'focratio', 'ra', 'dec', 'centalt', 'centaz', 'airmass', 'pierside', 'siteelev', 'sitelat', 'sitelong', 'focpos', 'visible_duplicate_count', 'mtime', 'file_hash'];
     $allowedSortOrder = ['ASC', 'DESC'];
 
     $sortBy = in_array($sortBy, $allowedSortBy) ? $sortBy : 'name';
-        $sortOrder = in_array(strtoupper($sortOrder), $allowedSortOrder) ? strtoupper($sortOrder) : 'ASC';
+    $sortOrder = in_array(strtoupper($sortOrder), $allowedSortOrder) ? strtoupper($sortOrder) : 'ASC';
 
-    $sql = "SELECT id, name, path, object, date_obs, exptime, filter, imgtype, xbinning, ybinning, egain, `offset`, xpixsz, ypixsz, instrume, set_temp, ccd_temp, telescop, focallen, focratio, ra, `dec`, centalt, centaz, airmass, pierside, siteelev, sitelat, sitelong, focpos, thumb, file_hash, mtime, total_duplicate_count, visible_duplicate_count FROM files WHERE is_hidden = 0 AND path LIKE :dir_pattern AND deleted_at IS NULL";
-    if ($object !== '') $sql .= " AND object = :object";
-    if ($filter !== '') $sql .= " AND filter = :filter";
-    if ($imgtype !== '') $sql .= " AND imgtype = :imgtype";
-    $sql .= " ORDER BY " . $sortBy . " " . $sortOrder . " LIMIT :per_page OFFSET :offset";
+    list($sqlConditions, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo);
+    
+    $sql = "SELECT id, name, path, object, date_obs, exptime, filter, imgtype, xbinning, ybinning, egain, `offset`, xpixsz, ypixsz, instrume, set_temp, ccd_temp, telescop, focallen, focratio, ra, `dec`, centalt, centaz, airmass, pierside, siteelev, sitelat, sitelong, focpos, thumb, file_hash, mtime, total_duplicate_count, visible_duplicate_count FROM files WHERE " . implode(' AND ', $sqlConditions) . " ORDER BY " . $sortBy . " " . $sortOrder . " LIMIT :per_page OFFSET :offset";
 
     $stmt = $conn->prepare($sql);
-    $stmt->bindValue(':dir_pattern', $dirPattern, PDO::PARAM_STR);
-    if ($object !== '') $stmt->bindValue(':object', $object, PDO::PARAM_STR);
-    if ($filter !== '') $stmt->bindValue(':filter', $filter, PDO::PARAM_STR);
-    if ($imgtype !== '') $stmt->bindValue(':imgtype', $imgtype, PDO::PARAM_STR);
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
     $stmt->bindValue(':per_page', $perPage, PDO::PARAM_INT);
     $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 
@@ -137,23 +128,55 @@ function getDistinctValues(PDO $conn, string $column, string $dir, string $curre
     return $values;
 }
 
-function sumExposureTime(PDO $conn, string $dir, string $object, string $filter, string $imgtype): float
+function sumExposureTime(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo): float
 {
-    $dirPattern = $dir === '' ? '%' : $dir . '/%';
-    $sql = "SELECT SUM(exptime) as total_exposure FROM files WHERE is_hidden = 0 AND path LIKE :dir_pattern AND deleted_at IS NULL";
-    if ($object !== '') $sql .= " AND object = :object";
-    if ($filter !== '') $sql .= " AND filter = :filter";
-    if ($imgtype !== '') $sql .= " AND imgtype = :imgtype";
+    list($sql, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo);
+    
+    $sumSql = "SELECT SUM(exptime) as total_exposure FROM files WHERE " . implode(' AND ', $sql);
 
-    $stmt = $conn->prepare($sql);
-    $stmt->bindValue(':dir_pattern', $dirPattern, PDO::PARAM_STR);
-    if ($object !== '') $stmt->bindValue(':object', $object, PDO::PARAM_STR);
-    if ($filter !== '') $stmt->bindValue(':filter', $filter, PDO::PARAM_STR);
-    if ($imgtype !== '') $stmt->bindValue(':imgtype', $imgtype, PDO::PARAM_STR);
+    $stmt = $conn->prepare($sumSql);
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
 
     $stmt->execute();
     $result = $stmt->fetch();
     return (float)($result['total_exposure'] ?? 0);
+}
+
+function buildQueryParts(string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo): array
+{
+    $sql = [
+        "is_hidden = 0",
+        "deleted_at IS NULL",
+        "path LIKE :dir_pattern"
+    ];
+    $params = [
+        ':dir_pattern' => ($dir === '' ? '%' : $dir . '/%')
+    ];
+
+    if ($object !== '') {
+        $sql[] = "object = :object";
+        $params[':object'] = $object;
+    }
+    if ($filter !== '') {
+        $sql[] = "filter = :filter";
+        $params[':filter'] = $filter;
+    }
+    if ($imgtype !== '') {
+        $sql[] = "imgtype = :imgtype";
+        $params[':imgtype'] = $imgtype;
+    }
+    if ($dateObsFrom !== '') {
+        $sql[] = "DATE(date_obs) >= :date_obs_from";
+        $params[':date_obs_from'] = $dateObsFrom;
+    }
+    if ($dateObsTo !== '') {
+        $sql[] = "DATE(date_obs) <= :date_obs_to";
+        $params[':date_obs_to'] = $dateObsTo;
+    }
+
+    return [$sql, $params];
 }
 
 function getDuplicatesByHash(PDO $conn, string $hash): array

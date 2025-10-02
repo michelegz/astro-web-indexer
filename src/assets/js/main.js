@@ -14,6 +14,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const astrobinCsvText = document.getElementById('astrobinCsvText');
     const copyAstrobinCsvBtn = document.getElementById('copyAstrobinCsvBtn');
 
+    // --- FILTRI DATA ---
+    const dateObsFrom = document.getElementById('date_obs_from');
+    const dateObsTo = document.getElementById('date_obs_to');
+
     // --- UTILS ---
     function getFileCheckboxes() {
         return document.querySelectorAll('.file-checkbox');
@@ -182,6 +186,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 filtersForm.submit();
             });
         });
+        
+        // Gestione filtri data con logica di sincronizzazione
+        if (dateObsFrom && dateObsTo) {
+            dateObsFrom.addEventListener('change', () => {
+                if (dateObsFrom.value && dateObsTo.value && dateObsFrom.value > dateObsTo.value) {
+                    dateObsTo.value = dateObsFrom.value;
+                }
+                filtersForm.submit();
+            });
+            
+            dateObsTo.addEventListener('change', () => {
+                if (dateObsFrom.value && dateObsTo.value && dateObsTo.value < dateObsFrom.value) {
+                    dateObsFrom.value = dateObsTo.value;
+                }
+                filtersForm.submit();
+            });
+        }
     }
 
     // --- CONVERSIONE DATE UTC -> LOCAL ---

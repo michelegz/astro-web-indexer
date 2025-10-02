@@ -21,6 +21,8 @@ $dir = $_GET['dir'] ?? '';
 $filterObject = $_GET['object'] ?? '';
 $filterFilter = $_GET['filter'] ?? '';
 $filterImgtype = $_GET['imgtype'] ?? '';
+$dateObsFrom = $_GET['date_obs_from'] ?? '';
+$dateObsTo = $_GET['date_obs_to'] ?? '';
 $page = max(1, intval($_GET['page'] ?? 1));
 $perPage = max(10, intval($_GET['per_page'] ?? DEFAULT_PER_PAGE));
 $sortBy = $_GET['sort_by'] ?? 'name';
@@ -33,9 +35,9 @@ $conn = connectDB();
 $folders = getFolders($conn, $dir);
 
 // Count total files for pagination
-$totalRecords = countFiles($conn, $dir, $filterObject, $filterFilter, $filterImgtype);
-$totalExposure = sumExposureTime($conn, $dir, $filterObject, $filterFilter, $filterImgtype);
+$totalRecords = countFiles($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo);
+$totalExposure = sumExposureTime($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo);
 $totalPages = max(1, ceil($totalRecords / $perPage));
 
 // Query for files with filters, LIMIT and sorting
-$files = getFiles($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $perPage, ($page - 1) * $perPage, $sortBy, $sortOrder);
+$files = getFiles($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo, $perPage, ($page - 1) * $perPage, $sortBy, $sortOrder);

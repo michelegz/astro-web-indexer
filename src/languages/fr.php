@@ -55,8 +55,9 @@ return [
     'duplicates_tooltip' => '%1$d sur %2$d doublons sont visibles',
     'export_astrobin_csv' => 'Exporter pour AstroBin (CSV)',
     'copied' => 'Copié !',
-    'copy_to_clipboard_failed' => 'Échec de la copie dans le presse-papiers',
+        'copy_to_clipboard_failed' => 'Échec de la copie dans le presse-papiers',
     'error_fetching_csv_data' => 'Erreur lors de la récupération des données CSV',
     'astrobin_modal_explanation' => 'Copiez le texte ci-dessous et collez-le dans l\'importateur de session d\'AstroBin.',
     'copy_to_clipboard' => 'Copier dans le Presse-papiers',
+    'observation_date' => 'Date d\'observation',
 ];

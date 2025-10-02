@@ -78,9 +78,10 @@ return [
     'duplicates_tooltip' => '%1$d de %2$d duplicados están visibles',
     'export_astrobin_csv' => 'Exportar para AstroBin (CSV)',
     'copied' => '¡Copiado!',
-    'copy_to_clipboard_failed' => 'Error al copiar al portapapeles',
+        'copy_to_clipboard_failed' => 'Error al copiar al portapapeles',
     'error_fetching_csv_data' => 'Error al obtener los datos CSV',
     'astrobin_modal_explanation' => 'Copie el texto a continuación y péguelo en el importador de sesiones de AstroBin.',
     'copy_to_clipboard' => 'Copiar al Portapapeles',
+    'observation_date' => 'Fecha de observación',
 ];
 
