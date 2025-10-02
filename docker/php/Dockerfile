@@ -13,6 +13,11 @@ RUN docker-php-ext-install pdo_mysql zip
 
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
+WORKDIR /var/www/html
+
+# Copy application source code
+COPY ./src .
+
 # Copy and set permissions for the entrypoint script
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh

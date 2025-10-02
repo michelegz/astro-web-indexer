@@ -139,17 +139,6 @@ astro-web-indexer/
 ├── scripts/                  # Utility scripts
 └── tests/                    # Test files
 ```
-## 📦 QNAP and Container Station
-
-When building the PHP image on QNAP QTS, you may encounter errors like  
-`Cannot change mode to rwxrwxr-x: Bad address`  
-during the execution of `docker-php-ext-install pdo_mysql zip` in `docker/php/Dockerfile`.
-
-This issue is likely caused by certain QNAP kernel or storage configurations.  
-As a workaround, you can use the `docker-compose-qnap-sample.yml`, which relies on a different Dockerfile and entrypoint script with a few adjustments to bypass the problem.
-
-**Note:** After the container is created, a restart may be required for it to work properly.
-
 
 ## 🤝 Contributing
 

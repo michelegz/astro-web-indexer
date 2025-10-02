@@ -1,12 +1,12 @@
 services:
   nginx:
-    image: nginx:1.27
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile
     container_name: nginx-awi
     ports:
       - "${NGINX_PORT:-2080}:80"
     volumes:
-      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./src:/var/www/html
       - ${FITS_DATA_PATH:-./data/fits}:/var/fits:ro
     restart: unless-stopped
     depends_on:
@@ -14,11 +14,10 @@ services:
 
   php:
     build: 
-      context: ./docker/php
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/php/Dockerfile
     container_name: php-awi
     volumes:
-      - ./src:/var/www/html
       - ${FITS_DATA_PATH:-./data/fits}:/var/fits:ro
     working_dir: /var/www/html
     environment:
