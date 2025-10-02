@@ -86,10 +86,13 @@ cd astro-web-indexer
 cp .env.example .env
 ```
 
-3. Create the data directory for your FITS files:
-```bash
-mkdir -p data/fits
-```
+3. Prepare your FITS/XISF data directory.
+
+   By default, the application looks for images inside a `./data/fits` directory. If you want to use this default, create it now:
+   ```bash
+   mkdir -p data/fits
+   ```
+   **Alternatively**, if you already have an image folder, you can edit the `.env` file and set `FITS_DATA_PATH` to your custom path (e.g., `FITS_DATA_PATH=/path/to/my/images`). If you do this, you can skip the command above.
 
 4. Start the application by building the images:
 ```bash

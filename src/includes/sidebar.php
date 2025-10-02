@@ -8,17 +8,28 @@
     </div>
     
     <?php if ($dir !== ''):
-        $parent = dirname($dir);
+                $parent = dirname($dir);
         if ($parent === '.' || $parent === '/') $parent = '';
+        
+        // Build the query string, preserving existing GET parameters
+        $query_params = $_GET;
+        $query_params['dir'] = $parent;
+        $href = '?' . http_build_query($query_params);
     ?>
-        <a href="?dir=<?= urlencode($parent) ?>" class="flex items-center gap-2 p-2 hover:bg-gray-700 rounded-md text-blue-400 mb-2">
+        <a href="<?= htmlspecialchars($href) ?>" class="flex items-center gap-2 p-2 hover:bg-gray-700 rounded-md text-blue-400 mb-2">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12"></path></svg>
             <?php echo __('back') ?>
         </a>
     <?php endif; ?>
-    <nav>
-        <?php foreach($folders as $f): ?>
-            <a href="?dir=<?= urlencode($dir === '' ? $f : $dir.'/'.$f) ?>" class="block p-2 text-gray-300 hover:bg-gray-700 rounded-md truncate">
+        <nav>
+        <?php foreach($folders as $f): 
+            // Build the query string for each folder link
+            $new_dir = ($dir === '' ? $f : $dir.'/'.$f);
+            $query_params = $_GET;
+            $query_params['dir'] = $new_dir;
+            $href = '?' . http_build_query($query_params);
+        ?>
+            <a href="<?= htmlspecialchars($href) ?>" class="block p-2 text-gray-300 hover:bg-gray-700 rounded-md truncate">
                 <?= htmlspecialchars($f) ?>
             </a>
         <?php endforeach; ?>

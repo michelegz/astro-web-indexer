@@ -19,7 +19,7 @@ WORKDIR /var/www/html
 COPY ./src .
 
 # Copy and set permissions for the entrypoint script
-COPY docker-entrypoint.sh /usr/local/bin/
+COPY ./docker/php/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Set the new entrypoint

@@ -56,7 +56,15 @@
         </select>
     </div>
     
-    <a href="?dir=<?= htmlspecialchars($dir) ?>" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">
+        <?php
+        // Build a clean URL for the reset button, preserving only dir and lang
+        $reset_params = [
+            'dir' => $dir,
+            'lang' => $lang
+        ];
+        $reset_href = '?' . http_build_query($reset_params);
+    ?>
+    <a href="<?= htmlspecialchars($reset_href) ?>" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">
         <?php echo __('reset_filters') ?>
     </a>
 
