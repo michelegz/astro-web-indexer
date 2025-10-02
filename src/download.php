@@ -4,7 +4,6 @@ require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/vendor/autoload.php';
 
 use ZipStream\ZipStream;
-use ZipStream\Options;
 
 $fitsRoot = FITS_ROOT;
 
@@ -38,15 +37,11 @@ if (empty($validFiles)) {
     die(__('no_valid_files'));
 }
 
-// Set zipstream options
-$options = new Options();
-$options->setCompressionLevel(3); // Compression level (0-9)
-$options->setSendHttpHeaders(true);
 
 // Crea ZIP
 $zip = new ZipStream(
     outputName: 'fits_files.zip',
-    options: $options
+
 );
 
 try {

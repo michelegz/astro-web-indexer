@@ -2,7 +2,7 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-A web-based file indexer and viewer for astronomical data, supporting both FITS and XISF formats. Designed for observatories and astrophotographers, this tool helps organize, browse, and analyze image files through an intuitive web interface.
+A web-based file indexer and viewer for astronomical data, supporting both FITS and XISF formats. This tool is particularly useful for shared or remote observatories, but also for any astrophotographer looking to track their imaging sessions over time without getting lost navigating filesystem folders. It helps organize, browse, and analyze image files through an intuitive web interface.
 
 ## 🧪 Project Status
 

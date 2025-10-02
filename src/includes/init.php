@@ -1,4 +1,7 @@
 <?php
+// Autoload Composer dependencies using an absolute path
+require_once '../vendor/autoload.php';
+
 require_once __DIR__ . '/config.php';
 
 require_once __DIR__ . '/db_functions.php';

@@ -1,0 +1,5 @@
+{
+    "require": {
+        "maennchen/zipstream-php": "^3.2"
+    }
+}

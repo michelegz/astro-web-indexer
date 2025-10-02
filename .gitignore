@@ -48,13 +48,11 @@ venv/
 .continue/*
 
 
-# custom files
-docker-compose-qnap-mic.yml
+# test files
+awi-images.tar
 
 #composer
 /src/vendor
 /src/vendor/*
-/src/composer.*
-
-# Docker development override
+/src/composer.lock
 /docker-compose.override.yml
