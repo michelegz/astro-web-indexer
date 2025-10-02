@@ -1,0 +1,3 @@
+[submodule "external/xisf"]
+	path = external/xisf
+	url = https://github.com/michelegz/xisf.git
