@@ -73,9 +73,11 @@ The indexing engine is designed to be both efficient and resilient, making it su
 
 ## ⚡ Quick Start
 
+> **Note:** This project is currently distributed as source code, which requires you to build the Docker images on your local machine. After further testing, pre-built images may be released in the future to simplify the installation process.
+
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/astro-web-indexer.git
+git clone https://github.com/michelegz/astro-web-indexer.git
 cd astro-web-indexer
 ```
 
@@ -89,9 +91,9 @@ cp .env.example .env
 mkdir -p data/fits
 ```
 
-4. Start the application:
+4. Start the application by building the images:
 ```bash
-docker-compose up -d
+docker-compose up --build -d
 ```
 
 5. Access the application at http://localhost:2080
