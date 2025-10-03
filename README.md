@@ -136,6 +136,26 @@ These variables are shared across all services to connect to the MariaDB contain
 | `DB_PASSWORD` | The password for the database user. | `awi_password` |
 | `MYSQL_ROOT_PASSWORD` | The root password for the MariaDB server. **It is highly recommended to change this.** | `rootpassword` |
 
+### 🎨 Custom Logo
+
+You can replace the default logo with your own by mapping a local SVG file. 
+
+1.  Open the `docker-compose.yml` file.
+2.  Locate the `php` service.
+3.  Uncomment the volume mapping for the custom logo and replace `./path/to/your/logo.svg` with the actual path to your file.
+
+```yaml
+services:
+  php:
+    # ... other settings
+    volumes:
+      - ${FITS_DATA_PATH:-./data/fits}:/var/fits:ro
+      # To use a custom logo, uncomment the following line and
+      # replace ./path/to/your/logo.svg with the actual path to your logo file.
+      - ./path/to/your/logo.svg:/var/www/html/assets/logo/custom_logo.svg:ro
+```
+The application will automatically use your logo. If this volume is not mapped, it will fall back to the default logo.
+
 
 ## 🛠️ Advanced Usage & Scripts
 
@@ -166,7 +186,7 @@ docker exec -it fits-watcher-awi python /opt/scripts/reindex.py /var/fits --forc
 
 ```
 astro-web-indexer/
-├── docker/                    # Docker configuration files
+├── docker/                   # Docker configuration files
 ├── src/                      # Application source code
 ├── scripts/                  # Utility scripts
 └── tests/                    # Test files
