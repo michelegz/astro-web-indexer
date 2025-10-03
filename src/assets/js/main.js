@@ -7,12 +7,90 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadSelectedBtn = document.getElementById('downloadSelectedBtn');
     const exportAstroBinBtn = document.getElementById('exportAstroBinBtn');
     const filtersForm = document.getElementById('filters-form');
+    const viewContainer = document.querySelector('.view-container');
+    const listView = document.querySelector('.list-view');
+    const thumbnailView = document.querySelector('.thumbnail-view');
+    const listViewBtn = document.getElementById('list-view-btn');
+    const thumbnailViewBtn = document.getElementById('thumbnail-view-btn');
+    const thumbnailSizeSlider = document.getElementById('thumbnail-size-slider');
 
     // --- MODAL ASTROBIN ---
     const astrobinModal = document.getElementById('astrobinModal');
     const closeAstrobinModalBtn = document.getElementById('closeAstrobinModalBtn');
     const astrobinCsvText = document.getElementById('astrobinCsvText');
     const copyAstrobinCsvBtn = document.getElementById('copyAstrobinCsvBtn');
+
+    // --- VIEW MODE & SIZE ---
+    function loadViewPreferences() {
+        const viewMode = localStorage.getItem('viewMode') || 'list';
+        const thumbSize = localStorage.getItem('thumbSize') || '3';
+        return { viewMode, thumbSize };
+    }
+
+    function saveViewPreferences(viewMode, thumbSize) {
+        localStorage.setItem('viewMode', viewMode);
+        localStorage.setItem('thumbSize', thumbSize);
+    }
+
+    function setViewMode(mode) {
+        if (mode === 'list') {
+            listView.classList.remove('hidden');
+            thumbnailView.classList.add('hidden');
+            listViewBtn.classList.add('bg-blue-600');
+            thumbnailViewBtn.classList.remove('bg-blue-600');
+        } else {
+            listView.classList.add('hidden');
+            thumbnailView.classList.remove('hidden');
+            listViewBtn.classList.remove('bg-blue-600');
+            thumbnailViewBtn.classList.add('bg-blue-600');
+        }
+    }
+
+    function setThumbnailSize(size) {
+        // Remove all existing size classes
+        viewContainer.classList.remove('thumb-size-1', 'thumb-size-2', 'thumb-size-3', 'thumb-size-4', 'thumb-size-5');
+        // Add new size class
+        viewContainer.classList.add(`thumb-size-${size}`);
+        // Update slider
+        if (thumbnailSizeSlider) {
+            thumbnailSizeSlider.value = size;
+        }
+    }
+
+    // Initialize view preferences
+    const { viewMode, thumbSize } = loadViewPreferences();
+    setViewMode(viewMode);
+    setThumbnailSize(thumbSize);
+
+    // View toggle handlers
+    if (listViewBtn) {
+        listViewBtn.addEventListener('click', () => {
+            setViewMode('list');
+            saveViewPreferences('list', thumbnailSizeSlider.value);
+        });
+    }
+
+    if (thumbnailViewBtn) {
+        thumbnailViewBtn.addEventListener('click', () => {
+            setViewMode('thumbnail');
+            saveViewPreferences('thumbnail', thumbnailSizeSlider.value);
+        });
+    }
+
+    // Thumbnail size slider
+    if (thumbnailSizeSlider) {
+        thumbnailSizeSlider.addEventListener('input', () => {
+            const size = thumbnailSizeSlider.value;
+            setThumbnailSize(size);
+        });
+        thumbnailSizeSlider.addEventListener('change', () => {
+            const size = thumbnailSizeSlider.value;
+            saveViewPreferences(
+                listView.classList.contains('hidden') ? 'thumbnail' : 'list', 
+                size
+            );
+        });
+    }
 
     // --- FILTRI DATA ---
     const dateObsFrom = document.getElementById('date_obs_from');
@@ -61,6 +139,60 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 updateButtonStates();
             }
+        });
+    }
+
+    // Event delegation for thumbnail view checkboxes
+    if (thumbnailView) {
+        thumbnailView.addEventListener('change', (event) => {
+            if (event.target.classList.contains('file-checkbox')) {
+                const fileCheckboxes = getFileCheckboxes();
+                if (!event.target.checked && selectAllCheckbox) {
+                    selectAllCheckbox.checked = false;
+                } else if (selectAllCheckbox) {
+                    selectAllCheckbox.checked = Array.from(fileCheckboxes).every(cb => cb.checked);
+                }
+                updateButtonStates();
+            }
+        });
+    }
+
+    // Ensure duplicate badges work in thumbnail view
+    if (thumbnailView) {
+        thumbnailView.addEventListener('click', (event) => {
+            const badge = event.target.closest('.duplicate-badge');
+            if (!badge) return;
+            
+            const hash = badge.dataset.hash;
+            const cardElement = badge.closest('.thumb-card');
+            if (!hash || !cardElement) return;
+            
+            // Find the download link to extract the file path
+            const downloadLink = cardElement.querySelector('a[href*="/fits/"]');
+            if (!downloadLink) return;
+            
+            const referencePath = decodeURIComponent(downloadLink.getAttribute('href').split('/fits/')[1]);
+            
+            // Now we have hash and referencePath, we can trigger the same behavior as in the duplicate badge click handler
+            const modal = document.getElementById('duplicatesModal');
+            const container = document.getElementById('duplicatesContainer');
+            
+            if (!modal || !container) return;
+            
+            container.innerHTML = `<p class="text-center p-4">${window.i18n?.loading || 'Loading...'}</p>`;
+            modal.classList.remove('hidden');
+            
+            fetch(`/api/get_duplicates.php?hash=${hash}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+                    // The renderDuplicatesTable function is defined in the script in table.php
+                    // It will be called from event delegation in document.body
+                    // We're just opening the modal here
+                })
+                .catch(error => {
+                    container.innerHTML = `<p class="text-red-500 p-4">${window.i18n?.error_fetching_duplicates || 'Error fetching duplicates'}: ${error.message}</p>`;
+                });
         });
     }
 
