@@ -122,6 +122,7 @@ These variables control the behavior of the Python indexing and watching scripts
 |----------|-------------|---------|
 | `RETENTION_DAYS` | The number of days to keep a record of a deleted file in the database before it is permanently purged. Set to `0` to disable purging. | `30` |
 | `DEBUG` | Enables verbose debug logging for the indexing scripts. Set to `true` or `false`. | `false` |
+| `THUMB_SIZE` | The size (width and height) in pixels for generated thumbnails. | `300` |
 
 ### Database Connection
 
@@ -134,6 +135,31 @@ These variables are shared across all services to connect to the MariaDB contain
 | `DB_USER` | The username for the database. | `awi_user` |
 | `DB_PASSWORD` | The password for the database user. | `awi_password` |
 | `MYSQL_ROOT_PASSWORD` | The root password for the MariaDB server. **It is highly recommended to change this.** | `rootpassword` |
+
+
+## 🛠️ Advanced Usage & Scripts
+
+The application's backend logic is handled by two main Python scripts located in `docker/python/`.
+
+### `watch_fs.py` (The Watcher)
+This script runs continuously in the background inside the `python` container. Its only job is to monitor the data directory (`FITS_DATA_PATH`) for file changes (creations, modifications, deletions). When a change is detected, it waits for a brief cooldown period and then automatically calls `reindex.py` to update the database. You generally do not need to interact with this script directly.
+
+### `reindex.py` (The Indexer)
+This is the core script that performs the heavy lifting: it scans the data directory, extracts metadata from FITS/XISF files, generates thumbnails, and updates the database records.
+
+While the watcher runs this script automatically, you may need to run it manually for specific tasks, such as forcing a full re-index of all files. To do this, you can use `docker exec`:
+
+**Example: Forcing a full re-index**
+This command is useful if you change the thumbnail generation logic, suspect data corruption, or simply want to ensure everything is perfectly synchronized.
+
+```bash
+docker exec -it fits-watcher-awi python /opt/scripts/reindex.py /var/fits --force
+```
+
+**Key Manual Options:**
+- `--force`: Forces the script to re-process every file, even if its modification time and size haven't changed.
+- `--skip-cleanup`: Prevents the script from marking files as deleted if they are no longer found on disk. This is useful if your data disk is temporarily disconnected.
+- `--thumb-size <size>`: Overrides the `THUMB_SIZE` environment variable for a single run, allowing you to test different thumbnail sizes without restarting the container. For example: `--thumb-size 250`.
 
 
 ## 📁 Directory Structure

@@ -21,6 +21,8 @@ logging.basicConfig(
 logger = logging.getLogger('reindex')
 
 # --- Parameter parser ---
+thumb_size_default = int(os.getenv("THUMB_SIZE", 300))
+
 parser = argparse.ArgumentParser(
     description="Reindex FITS/XISF files in MariaDB and generate thumbnails."
 )
@@ -30,7 +32,7 @@ parser.add_argument("--user", default=os.getenv("DB_USER", "awi_user"), help="Da
 parser.add_argument("--password", default=os.getenv("DB_PASS", "awi_password"), help="Database password")
 parser.add_argument("--database", default=os.getenv("DB_NAME", "awi_db"), help="Database name")
 parser.add_argument("--force", action="store_true", help="Force reindexing of existing files")
-parser.add_argument("--thumb-size", default="300x300", help="Thumbnail size WxH, e.g. 400x400")
+parser.add_argument("--thumb-size", type=int, default=thumb_size_default, help="Thumbnail size in pixels (e.g., 300)")
 parser.add_argument("--skip-cleanup", action="store_true", help="Skip removal of non-existing files")
 parser.add_argument("--retention-days", type=int, default=os.getenv("RETENTION_DAYS", 30), help="Days to keep soft-deleted files before permanent removal")
 parser.add_argument("--debug", action="store_true", help="Enable debug logging")
@@ -41,13 +43,7 @@ if args.debug:
 
 fits_root = args.fits_root
 force_reindex = args.force
-
-try:
-    thumb_w, thumb_h = map(int, args.thumb_size.lower().split("x"))
-    thumb_size = (thumb_w, thumb_h)
-except Exception:
-    logger.error("Error: --thumb-size format must be WxH (e.g. 400x400)")
-    sys.exit(1)
+thumb_size = (args.thumb_size, args.thumb_size)
 
 if not os.path.isdir(fits_root):
     logger.error(f"Error: directory {fits_root} does not exist")
@@ -67,7 +63,7 @@ def calculate_hash(filepath, block_size=65536):
     return hasher.hexdigest()
 
 # --- Thumbnail function ---
-def make_thumbnail(data, size=thumb_size):
+def make_thumbnail(data, size):
     try:
         data = np.nan_to_num(data)
         p_low, p_high = np.nanpercentile(data, [0.5, 99.5])
@@ -262,7 +258,7 @@ try:
                     if data.ndim > 2 and data.shape[0] < 5:
                         data = data[0]
                     if data.ndim >= 2:
-                        thumb = make_thumbnail(data)
+                        thumb = make_thumbnail(data, thumb_size)
 
                 object_name = get_value(header, 'OBJECT', 'Unknown', str).strip()
                 date_obs_str = get_value(header, 'DATE-OBS', None, str)

@@ -24,12 +24,13 @@ logging.basicConfig(
 VALID_EXTS = {".fits", ".fit", ".xisf"}
 
 class FitsHandler(FileSystemEventHandler):
-    def __init__(self, fits_dir, reindex_script, db_params, rescan_interval=5, debug=False, retention_days=30):
+    def __init__(self, fits_dir, reindex_script, db_params, rescan_interval=5, debug=False, retention_days=30, thumb_size=300):
         self.fits_dir = Path(fits_dir)
         self.reindex_script = Path(reindex_script)
         self.db_params = db_params
         self.debug = debug
         self.retention_days = retention_days
+        self.thumb_size = thumb_size
         self.pending_reindex = False
         self.last_reindex = 0
         self.cooldown = 10  # Reduced cooldown
@@ -139,7 +140,8 @@ class FitsHandler(FileSystemEventHandler):
         logging.info(f"Reindex scheduled due to {reason}.")
 
     def check_and_reindex(self):
-        if not self.pending_reindex: return
+        if not self.pending_reindex:
+            return
         current_time = time.time()
         if current_time - self.last_reindex < self.cooldown:
             return
@@ -149,9 +151,11 @@ class FitsHandler(FileSystemEventHandler):
                 sys.executable, str(self.reindex_script), str(self.fits_dir),
                 "--host", self.db_params["host"], "--user", self.db_params["user"],
                 "--password", self.db_params["password"], "--database", self.db_params["database"],
-                "--retention-days", str(self.retention_days)
+                "--retention-days", str(self.retention_days),
+                "--thumb-size", str(self.thumb_size)
             ]
-            if self.debug: cmd.append("--debug")
+            if self.debug:
+                cmd.append("--debug")
             subprocess.run(cmd, check=True)
             logging.info("Reindexing completed successfully")
             self.last_reindex = current_time
@@ -159,10 +163,11 @@ class FitsHandler(FileSystemEventHandler):
         except subprocess.CalledProcessError as e:
             logging.error(f"Error during reindexing: {e}")
 
+
 def main():
     parser = argparse.ArgumentParser(description="Monitor a directory for files and trigger reindex.")
     parser.add_argument("fits_dir", help="Directory to monitor")
-    parser.add_argument("--reindex-script", default=os.getenv("REINDEX_SCRIPT", "/opt/scripts/reindex_mariadb.py"),help="Path to the reindex script")
+    parser.add_argument("--reindex-script", default=os.getenv("REINDEX_SCRIPT", "/opt/scripts/reindex.py"),help="Path to the reindex script")
     parser.add_argument("--db-host", default=os.getenv("DB_HOST", "mariadb"), help="MariaDB host")
     parser.add_argument("--db-user", default=os.getenv("DB_USER", "awi_user"), help="Database username")
     parser.add_argument("--db-password", default=os.getenv("DB_PASS", "awi_password"), help="Database password")
@@ -172,6 +177,7 @@ def main():
 
     is_debug = os.getenv('DEBUG', 'false').lower() in ('true', '1')
     retention_days = int(os.getenv('RETENTION_DAYS', 30))
+    thumb_size = int(os.getenv('THUMB_SIZE', 300))
 
     if not os.path.isdir(args.fits_dir):
         logging.error(f"Directory {args.fits_dir} does not exist")
@@ -190,7 +196,7 @@ def main():
     
     event_handler = FitsHandler(
         args.fits_dir, args.reindex_script, db_params,
-        rescan_interval=args.rescan_interval, debug=is_debug, retention_days=retention_days
+        rescan_interval=args.rescan_interval, debug=is_debug, retention_days=retention_days, thumb_size=thumb_size
     )
     observer.schedule(event_handler, args.fits_dir, recursive=True)
     observer.start()

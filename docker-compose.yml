@@ -40,7 +40,7 @@ services:
     build:
       context: .
       dockerfile: docker/python/Dockerfile
-    container_name: fits-watcher-awi
+    container_name: python-awi
     volumes:
       - ${FITS_DATA_PATH:-./data/fits}:/var/fits:ro
     environment:
@@ -49,6 +49,7 @@ services:
       - DB_USER=${DB_USER:-awi_user}
       - DB_PASSWORD=${DB_PASSWORD:-awi_password}
       - DEBUG=${DEBUG:-true}
+      - THUMB_SIZE=${THUMB_SIZE:-300}
     restart: always
     depends_on:
       mariadb:

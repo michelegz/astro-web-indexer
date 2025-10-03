@@ -19,11 +19,11 @@ COPY external/xisf /opt/scripts/external/xisf
 RUN /opt/venv/bin/pip install /opt/scripts/external/xisf
 
 # Copy the application scripts
-COPY docker/python/reindex_mariadb.py .
-COPY docker/python/watch_fits.py .
+COPY docker/python/reindex.py .
+COPY docker/python/watch_fs.py .
 
 # Set the PATH to use the virtual environment's python
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Startup command
-CMD ["sh", "-c", "python reindex_mariadb.py /var/fits && python watch_fits.py /var/fits"]
+CMD ["sh", "-c", "python reindex.py /var/fits && python watch_fs.py /var/fits"]
