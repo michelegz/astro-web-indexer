@@ -16,7 +16,7 @@ services:
     build: 
       context: .
       dockerfile: docker/php/Dockerfile
-      container_name: php-awi
+    container_name: php-awi
     volumes:
       - ${FITS_DATA_PATH:-./data/fits}:/var/fits:ro
       # To use a custom logo, uncomment the following line and
