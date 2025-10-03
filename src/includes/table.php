@@ -10,13 +10,13 @@
 <div class="overflow-x-auto bg-gray-800 rounded-lg shadow-lg">
     <table class="w-full text-left">
         <thead class="bg-gray-700 text-gray-200">
-            <tr>
-                                                <th class="p-3 whitespace-nowrap"><input type="checkbox" id="selectAll" class="form-checkbox h-4 w-4 text-blue-600 rounded"></th>
-                                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('name')"><?php echo __('file_name') ?> <?php echoIcon('name', $sortBy, $sortOrder); ?></th>
+                        <tr>
+                <th class="p-3 whitespace-nowrap"><input type="checkbox" id="selectAll" class="form-checkbox h-4 w-4 text-blue-600 rounded"></th>
+                <th class="p-3 whitespace-nowrap"><?php echo __('preview') ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('name')"><?php echo __('file_name') ?> <?php echoIcon('name', $sortBy, $sortOrder); ?></th>
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600 text-center" onclick="sortTable('visible_duplicate_count')"><?php echo __('duplicates') ?> <?php echoIcon('visible_duplicate_count', $sortBy, $sortOrder); ?></th>
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('path')"><?php echo __('path') ?> <?php echoIcon('path', $sortBy, $sortOrder); ?></th>
-                <th class="p-3 whitespace-nowrap"><?php echo __('preview') ?></th>
-                                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('object')"><?php echo __('object') ?> <?php echoIcon('object', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('object')"><?php echo __('object') ?> <?php echoIcon('object', $sortBy, $sortOrder); ?></th>
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('date_obs')"><?php echo __('date_obs') ?> <?php echoIcon('date_obs', $sortBy, $sortOrder); ?></th>
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('exptime')"><?php echo __('exposure') ?> <?php echoIcon('exptime', $sortBy, $sortOrder); ?></th>
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('filter')"><?php echo __('filter') ?> <?php echoIcon('filter', $sortBy, $sortOrder); ?></th>
@@ -50,10 +50,19 @@
                 <?php endif; ?>
             </tr>
         </thead>
-        <tbody>
+                <tbody>
             <?php foreach ($files as $f): ?>
                         <tr data-id="<?= $f['id'] ?>" class="border-b border-gray-700 hover:bg-gray-700">
                 <td class="p-3"><input type="checkbox" class="file-checkbox h-4 w-4 text-blue-600 rounded" value="<?= htmlspecialchars($f['path'] ?? '') ?>" data-id="<?= $f['id'] ?>"></td>
+                <td class="p-3">
+                    <?php if ($f['thumb']): ?>
+                        <img src="data:image/png;base64,<?= base64_encode($f['thumb']) ?>" 
+                             alt="Preview" 
+                             class="thumb max-w-[150px] h-auto rounded shadow-md object-cover">
+                    <?php else: ?>
+                        <span class="text-gray-500 text-sm">N/A</span>
+                    <?php endif; ?>
+                </td>
                 <td class="p-3">
                     <a href="/fits/<?= rawurlencode($f['path']) ?>" download class="text-blue-400 hover:text-blue-300">
                         <?= htmlspecialchars($f['name'] ?? '') ?>
@@ -74,15 +83,6 @@
                     <?php endif; ?>
                 </td>
                 <td class="p-3 text-sm text-gray-400"><?= htmlspecialchars(dirname($f['path'] ?? '')) ?></td>
-                <td class="p-3">
-                    <?php if ($f['thumb']): ?>
-                        <img src="data:image/png;base64,<?= base64_encode($f['thumb']) ?>" 
-                             alt="Preview" 
-                             class="thumb max-w-[150px] h-auto rounded shadow-md object-cover">
-                    <?php else: ?>
-                        <span class="text-gray-500 text-sm">N/A</span>
-                    <?php endif; ?>
-                </td>
                 <td class="p-3 text-gray-200"><?= htmlspecialchars($f['object'] ?? '') ?></td>
                 <td class="p-3 text-sm text-gray-300">
                     <span class="utc-date" data-timestamp="<?= !empty($f['date_obs']) ? strtotime($f['date_obs']) : '' ?>">

@@ -16,9 +16,12 @@ services:
     build: 
       context: .
       dockerfile: docker/php/Dockerfile
-    container_name: php-awi
+      container_name: php-awi
     volumes:
       - ${FITS_DATA_PATH:-./data/fits}:/var/fits:ro
+      # To use a custom logo, uncomment the following line and
+      # replace ./path/to/your/logo.svg with the actual path to your logo file.
+      # - ./path/to/your/logo.svg:/var/www/html/assets/logo/custom_logo.svg:ro
     working_dir: /var/www/html
     environment:
       - HEADER_TITLE=${HEADER_TITLE:-Astro Web Indexer}

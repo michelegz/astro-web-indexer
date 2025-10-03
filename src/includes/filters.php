@@ -8,8 +8,8 @@
     <?php $currentParams = $_GET; // Per i filtri interdipendenti ?>
 
     <div>
-        <label for="object-select" class="block text-sm font-medium text-gray-300 mb-1"><?php echo __('object') ?></label>
-        <select id="object-select" name="object" class="bg-gray-700 border border-gray-600 text-gray-100 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5 w-40">
+                <label for="object-select" class="block text-sm font-medium text-gray-300 mb-1"><?php echo __('object') ?></label>
+        <select id="object-select" name="object" class="appearance-none bg-gray-700 border border-gray-600 text-gray-100 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5 w-40 pr-8 bg-no-repeat bg-right" style="background-image: url('data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e'); background-position: right 0.5rem center; background-size: 1.5em 1.5em;">
             <option value=""><?php echo __('all_objects') ?></option>
             <?php
             // Get OBJECT values considering other filters (except OBJECT itself)
@@ -21,8 +21,8 @@
     </div>
 
     <div>
-        <label for="filter-select" class="block text-sm font-medium text-gray-300 mb-1"><?php echo __('filter') ?></label>
-        <select id="filter-select" name="filter" class="bg-gray-700 border border-gray-600 text-gray-100 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5 w-40">
+                <label for="filter-select" class="block text-sm font-medium text-gray-300 mb-1"><?php echo __('filter') ?></label>
+        <select id="filter-select" name="filter" class="appearance-none bg-gray-700 border border-gray-600 text-gray-100 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5 w-40 pr-8 bg-no-repeat bg-right" style="background-image: url('data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e'); background-position: right 0.5rem center; background-size: 1.5em 1.5em;">
             <option value=""><?php echo __('all_filters') ?></option>
             <?php
             // Get FILTER values considering other filters (except FILTER itself)
@@ -34,8 +34,8 @@
     </div>
 
     <div>
-        <label for="imgtype-select" class="block text-sm font-medium text-gray-300 mb-1"><?php echo __('type') ?></label>
-        <select id="imgtype-select" name="imgtype" class="bg-gray-700 border border-gray-600 text-gray-100 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5 w-40">
+                <label for="imgtype-select" class="block text-sm font-medium text-gray-300 mb-1"><?php echo __('type') ?></label>
+        <select id="imgtype-select" name="imgtype" class="appearance-none bg-gray-700 border border-gray-600 text-gray-100 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5 w-40 pr-8 bg-no-repeat bg-right" style="background-image: url('data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e'); background-position: right 0.5rem center; background-size: 1.5em 1.5em;">
             <option value=""><?php echo __('all_types') ?></option>
             <?php
             // Get IMGTYPE values considering other filters (except IMGTYPE itself)
@@ -57,9 +57,9 @@
     </div>
 
     <!-- Items per page -->
-    <div class="border-l border-gray-600 pl-4">
+        <div class="border-l border-gray-600 pl-4">
         <label for="per_page-select" class="block text-sm font-medium text-gray-300 mb-1"><?php echo __('elements_per_page') ?>:</label>
-        <select id="per_page-select" name="per_page" class="bg-gray-700 border border-gray-600 text-gray-100 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5 w-24">
+        <select id="per_page-select" name="per_page" class="appearance-none bg-gray-700 border border-gray-600 text-gray-100 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5 w-24 pr-8 bg-no-repeat bg-right" style="background-image: url('data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e'); background-position: right 0.5rem center; background-size: 1.5em 1.5em;">
             <?php foreach(PER_PAGE_OPTIONS as $option): ?>
                 <option value="<?= $option ?>" <?= $option==$perPage?'selected':'' ?>><?= $option ?></option>
             <?php endforeach; ?>
