@@ -5,7 +5,7 @@
         <p><?php echo __('footer_credits') ?></p>
         <!-- Version Info -->
         <?php
-        $version = 'dev'; // Default to 'dev'
+        $version = 'unknown'; // Default to 'unknown'
         $versionFile = __DIR__ . '/../VERSION';
         if (file_exists($versionFile)) {
             $versionContent = trim(file_get_contents($versionFile));

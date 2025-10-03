@@ -74,7 +74,7 @@ The indexing engine is designed to be both efficient and resilient, making it su
 
 ## ⚡ Quick Start
 
-> **Note:** This project is currently distributed as source code, which requires you to build the Docker images on your local machine. After further testing, pre-built images may be released in the future to simplify the installation process.
+> **Note:** This project uses a `build.sh` script to simplify the Docker build process. This script is compatible with Linux, macOS, and Windows (using Git Bash or WSL).
 
 1. Clone the repository:
 ```bash
@@ -93,14 +93,24 @@ cp .env.example .env
    ```bash
    mkdir -p data/fits
    ```
-   **Alternatively**, if you already have an image folder, you can edit the `.env` file and set `FITS_DATA_PATH` to your custom path (e.g., `FITS_DATA_PATH=/path/to/my/images`). If you do this, you can skip the command above.
+   **Alternatively**, if you already have an image folder, you can edit the `.env` file and set `FITS_DATA_PATH` to your custom path (e.g., `FITS_DATA_PATH=/path/to/my/images`).
 
-4. Start the application by building the images:
+4. Build and start the application using the provided script:
 ```bash
-docker-compose up --build -d
+./build.sh build
 ```
+This command handles the entire build process, including automatically embedding the application version from Git.
 
 5. Access the application at http://localhost:2080
+
+### Managing the Application
+
+The `build.sh` script provides several commands to manage the application's lifecycle:
+- `./build.sh start`: Starts the containers without rebuilding.
+- `./build.sh stop`: Stops the containers.
+- `./build.sh logs`: Follows the logs from all running containers.
+- `./build.sh clean`: Stops the containers and removes any temporary files generated during the build.
+
 
 ## ⚙️ Configuration
 
@@ -204,15 +214,16 @@ We welcome contributions! Here's how you can help:
 
 ### Versioning
 
-This project uses Git tags for versioning. To release a new version, simply create and push a new tag:
+This project's version is automatically determined from Git tags. The `build.sh` script reads the latest Git tag (or commit hash) and passes it to Docker during the build process. This version is then displayed in the application's footer.
+
+To release a new version, simply create and push a new tag before running the build script:
 
 ```bash
 # Example for version 1.0.0
 git tag v1.0.0
 git push origin v1.0.0
 ```
-
-When the Docker image is built, the version number will be automatically embedded into the application and displayed in the footer. If no tags are present, the version will be shown as "dev".
+The next time you run `./build.sh build`, the new version number will be embedded in the application. If no tags are present, a development version based on the commit hash will be used.
 
 ### Bug Reports
 Please use the GitHub issue tracker and include:

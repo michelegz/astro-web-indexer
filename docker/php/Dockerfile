@@ -6,7 +6,6 @@ RUN apt-get update && apt-get install -y \
     libzip-dev \
     zip \
     unzip \
-    git \
  && rm -rf /var/lib/apt/lists/*
 
 # Install PHP extensions
@@ -17,14 +16,13 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 
 WORKDIR /var/www/html
 
-# Copy git history to create a version file, then remove it
-COPY ./.git ./.git
-RUN git config --global --add safe.directory /var/www/html
-RUN (git describe --tags --always --dirty 2>/dev/null || git rev-parse --short HEAD) > /var/www/html/VERSION
-RUN rm -rf ./.git
-
 # Copy the application source code
 COPY src/ .
+
+# Set version
+ARG AWI_VERSION=unknown
+ENV APP_VERSION=$AWI_VERSION
+RUN echo $APP_VERSION > VERSION
 
 # Now, with all files in place, run composer install.
 RUN composer install --no-interaction --no-progress --no-dev --optimize-autoloader

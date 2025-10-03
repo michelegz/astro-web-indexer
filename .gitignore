@@ -47,13 +47,14 @@ venv/
 .continue
 .continue/*
 
-
-# test files
+# dev files
 awi-images.tar
 docker-save.bat
+/docker-compose.override.yml
+/docker-compose.override.yml.off
+/src/VERSION
 
 #composer
 /src/vendor
 /src/vendor/*
 /src/composer.lock
-/docker-compose.override.yml

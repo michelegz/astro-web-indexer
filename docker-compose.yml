@@ -16,6 +16,8 @@ services:
     build: 
       context: .
       dockerfile: docker/php/Dockerfile
+      args:
+        AWI_VERSION: "" # placeholder, will be overridden in build.sh
     container_name: php-awi
     volumes:
       - ${FITS_DATA_PATH:-./data/fits}:/var/fits:ro
