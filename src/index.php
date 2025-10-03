@@ -25,11 +25,11 @@ require_once __DIR__ . '/includes/init.php';
             include __DIR__ . '/includes/pagination.php';
             ?>
         </main>
+        <?php include __DIR__ . '/includes/footer.php'; ?>
     </div>
 </div>
 
 <?php 
-include __DIR__ . '/includes/footer.php';
 include __DIR__ . '/includes/preview_overlay.php';
 ?>
 <script src="assets/js/main.js"></script>
