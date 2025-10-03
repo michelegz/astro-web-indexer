@@ -60,5 +60,7 @@ return [
     'astrobin_modal_explanation' => 'Kopieren Sie den folgenden Text und fügen Sie ihn in den AstroBin-Sitzungsimporteur ein.',
     'copy_to_clipboard' => 'In die Zwischenablage kopieren',
     'observation_date' => 'Beobachtungsdatum',
+    'thumbnail_size' => 'Vorschaubildgröße',
+    'list_view' => 'Listenansicht',
+    'thumbnail_view' => 'Miniaturansicht',
 ];
-
