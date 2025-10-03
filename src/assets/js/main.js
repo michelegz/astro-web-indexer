@@ -34,13 +34,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function setViewMode(mode) {
         if (mode === 'list') {
+            // Make list view visible
             listView.classList.remove('hidden');
+            listView.style.display = '';
+            // Hide thumbnail view
             thumbnailView.classList.add('hidden');
+            thumbnailView.style.display = 'none';
+            // Update button styles
             listViewBtn.classList.add('bg-blue-600');
             thumbnailViewBtn.classList.remove('bg-blue-600');
         } else {
+            // Hide list view
             listView.classList.add('hidden');
+            listView.style.display = 'none';
+            // Make thumbnail view visible
             thumbnailView.classList.remove('hidden');
+            thumbnailView.style.display = 'grid';
+            // Update button styles
             listViewBtn.classList.remove('bg-blue-600');
             thumbnailViewBtn.classList.add('bg-blue-600');
         }

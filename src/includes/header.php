@@ -44,6 +44,10 @@
         
         /* Thumbnail View */
         .thumbnail-view {
+            display: none; /* Hidden by default */
+        }
+        
+        .thumbnail-view:not(.hidden) {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
             gap: 16px;
