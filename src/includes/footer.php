@@ -1,8 +1,20 @@
 <!-- FOOTER -->
 <footer class="bg-gray-700 text-gray-400 shadow-md text-sm mt-12">
-    <div class="px-4 py-6 flex flex-col md:flex-row items-center justify-between">
+    <div class="px-4 py-6 flex items-center justify-between">
         <!-- Credits text -->
         <p><?php echo __('footer_credits') ?></p>
+        <!-- Version Info -->
+        <?php
+        $version = 'dev'; // Default to 'dev'
+        $versionFile = __DIR__ . '/../VERSION';
+        if (file_exists($versionFile)) {
+            $versionContent = trim(file_get_contents($versionFile));
+            if (!empty($versionContent)) {
+                $version = $versionContent;
+            }
+        }
+        ?>
+        <p class="text-xs font-mono bg-gray-800 px-2 py-1 rounded"><?php echo htmlspecialchars($version); ?></p>
     </div>
 </footer>
 

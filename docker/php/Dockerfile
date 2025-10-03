@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     libzip-dev \
     zip \
     unzip \
+    git \
  && rm -rf /var/lib/apt/lists/*
 
 # Install PHP extensions
@@ -16,8 +17,12 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 
 WORKDIR /var/www/html
 
-# Copy the entire application source code first.
-# This is a robust approach that always works.
+# Copy git history to create a version file, then remove it
+COPY ./.git ./.git
+RUN (git describe --tags --abbrev=0 2>/dev/null || echo "dev") > /var/www/html/VERSION
+RUN rm -rf ./.git
+
+# Copy the application source code
 COPY src/ .
 
 # Now, with all files in place, run composer install.

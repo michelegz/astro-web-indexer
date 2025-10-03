@@ -202,6 +202,18 @@ We welcome contributions! Here's how you can help:
 4. ⤴️ Push to the branch: `git push origin feature/my-feature`
 5. 🔍 Submit a pull request
 
+### Versioning
+
+This project uses Git tags for versioning. To release a new version, simply create and push a new tag:
+
+```bash
+# Example for version 1.0.0
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+When the Docker image is built, the version number will be automatically embedded into the application and displayed in the footer. If no tags are present, the version will be shown as "dev".
+
 ### Bug Reports
 Please use the GitHub issue tracker and include:
 - Detailed description of the issue
