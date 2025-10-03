@@ -1,7 +1,7 @@
 FROM python:3.9-alpine
 
 # Install system dependencies required to compile Python packages
-RUN apk add --no-cache build-base
+RUN apk add --no-cache build-base git
 
 WORKDIR /opt/scripts
 
@@ -14,9 +14,8 @@ COPY docker/python/requirements.txt .
 # Install Python packages into the virtual environment
 RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
 
-# Copy and install the local XISF library
-COPY external/xisf /opt/scripts/external/xisf
-RUN /opt/venv/bin/pip install /opt/scripts/external/xisf
+# Copy and install the XISF library
+RUN /opt/venv/bin/pip install git+https://github.com/sergio-dr/xisf.git
 
 # Copy the application scripts
 COPY docker/python/reindex.py .
