@@ -19,7 +19,8 @@ WORKDIR /var/www/html
 
 # Copy git history to create a version file, then remove it
 COPY ./.git ./.git
-RUN (git describe --tags --abbrev=0 2>/dev/null || echo "dev") > /var/www/html/VERSION
+RUN git config --global --add safe.directory /var/www/html
+RUN (git describe --tags --always --dirty 2>/dev/null || git rev-parse --short HEAD) > /var/www/html/VERSION
 RUN rm -rf ./.git
 
 # Copy the application source code
