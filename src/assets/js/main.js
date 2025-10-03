@@ -143,6 +143,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (copyAstrobinCsvBtn && astrobinCsvText) {
         copyAstrobinCsvBtn.addEventListener('click', () => {
+            // Prima controlla se l'API della clipboard è disponibile
+            if (!navigator.clipboard) {
+                alert((window.i18n?.copy_to_clipboard_failed || 'Failed to copy to clipboard.') + '\n' + 'This feature is only available on secure (HTTPS) sites.');
+                astrobinCsvText.select(); // Seleziona il testo per la copia manuale
+                return; // Interrompi l'esecuzione
+            }
+
             navigator.clipboard.writeText(astrobinCsvText.value).then(() => {
                 const originalText = copyAstrobinCsvBtn.innerHTML;
                 copyAstrobinCsvBtn.innerHTML = window.i18n?.copied || 'Copied!';
@@ -156,7 +163,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 2000);
             }).catch(err => {
                 alert((window.i18n?.copy_to_clipboard_failed || 'Failed to copy to clipboard.') + '\n' + (window.i18n?.astrobin_modal_explanation || 'Please copy the text manually from the text area.'));
-                astrobinCsvText.select(); // Select text for easy manual copying
+                astrobinCsvText.select(); // Seleziona il testo per la copia manuale
             });
         });
     }
