@@ -1,5 +1,6 @@
 # <img src="src/assets/logo/default_logo.svg" alt="Astro Web Indexer" width="64" style="vertical-align: middle;"> Astro Web Indexer
 
+*Stop navigating folders. Start exploring your sky.*
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
