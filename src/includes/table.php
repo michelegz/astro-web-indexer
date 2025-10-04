@@ -7,7 +7,11 @@
     </button>
 </div>
 
-<div class="overflow-x-auto bg-gray-800 rounded-lg shadow-lg">
+<!-- View container -->
+<div class="view-container thumb-size-3">
+    
+<!-- List View -->
+<div class="list-view overflow-x-auto bg-gray-800 rounded-lg shadow-lg">
     <table class="w-full text-left">
         <thead class="bg-gray-700 text-gray-200">
                         <tr>
@@ -127,8 +131,79 @@
                         <?php if (empty($files)): ?>
                 <tr><td colspan="<?= $showAdvanced ? '33' : '9' ?>" class="p-4 text-center text-gray-500"><?php echo __('no_files_found') ?></td></tr>
             <?php endif; ?>
-                </tbody>
+</tbody>
     </table>
+</div>
+
+<!-- Thumbnail View (Initially Hidden) -->
+<div class="thumbnail-view bg-gray-800 rounded-lg shadow-lg p-4 hidden">
+    <?php foreach ($files as $f): ?>
+    <div class="thumb-card" data-id="<?= $f['id'] ?>">
+        <div class="thumb-image-container">
+            <input type="checkbox" class="file-checkbox thumb-checkbox h-4 w-4 text-blue-600 rounded" 
+                   value="<?= htmlspecialchars($f['path'] ?? '') ?>" 
+                   data-id="<?= $f['id'] ?>">
+            <?php if ($f['thumb']): ?>
+                <img src="data:image/png;base64,<?= base64_encode($f['thumb']) ?>" 
+                     alt="Preview" 
+                     class="thumb max-w-full h-auto rounded shadow-md object-cover">
+            <?php else: ?>
+                <div class="flex items-center justify-center h-32 w-full bg-gray-900 text-gray-500 text-sm rounded">N/A</div>
+            <?php endif; ?>
+        </div>
+        <div class="thumb-details">
+            <div class="thumb-title">
+                <a href="/fits/<?= rawurlencode($f['path']) ?>" download class="text-blue-400 hover:text-blue-300">
+                    <?= htmlspecialchars($f['name'] ?? '') ?>
+                </a>
+                <?php if (($f['total_duplicate_count'] ?? 1) > 1): ?>
+                    <?php 
+                        $visibleCount = $f['visible_duplicate_count'];
+                        $totalCount = $f['total_duplicate_count'];
+                        $badgeColor = ($visibleCount > 1) ? 'bg-yellow-600 text-yellow-100' : 'bg-gray-600 text-gray-100';
+                    ?>
+                    <span class="duplicate-badge cursor-pointer <?= $badgeColor ?> text-xs font-semibold px-2 py-0.5 rounded-full inline-block ml-2"
+                          data-hash="<?= htmlspecialchars($f['file_hash']) ?>"
+                          title="<?= sprintf(__('duplicates_tooltip'), $visibleCount, $totalCount) ?>">
+                        <?= $visibleCount ?> / <?= $totalCount ?>
+                    </span>
+                <?php endif; ?>
+            </div>
+            <div class="thumb-meta">
+                <div class="meta-item">
+                    <span class="meta-label"><?php echo __('object') ?></span>
+                    <span class="meta-value"><?= htmlspecialchars($f['object'] ?? '') ?></span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label"><?php echo __('filter') ?></span>
+                    <span class="meta-value"><?= htmlspecialchars($f['filter'] ?? '') ?></span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label"><?php echo __('exposure') ?></span>
+                    <span class="meta-value"><?= htmlspecialchars($f['exptime'] ?? '') ?>s</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label"><?php echo __('type') ?></span>
+                    <span class="meta-value"><?= htmlspecialchars($f['imgtype'] ?? '') ?></span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label"><?php echo __('date_obs') ?></span>
+                    <span class="meta-value utc-date" data-timestamp="<?= !empty($f['date_obs']) ? strtotime($f['date_obs']) : '' ?>">
+                        <?= htmlspecialchars($f['date_obs'] ?? '') ?>
+                    </span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label"><?php echo __('path') ?></span>
+                    <span class="meta-value text-xs"><?= htmlspecialchars(dirname($f['path'] ?? '')) ?></span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endforeach; ?>
+    
+    <?php if (empty($files)): ?>
+    <div class="p-4 text-center text-gray-500"><?php echo __('no_files_found') ?></div>
+    <?php endif; ?>
 </div>
 
 <!-- Modal for Duplicates Management -->
