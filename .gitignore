@@ -58,3 +58,7 @@ docker-save.bat
 /src/vendor
 /src/vendor/*
 /src/composer.lock
+
+# Test files
+src/test.php
+

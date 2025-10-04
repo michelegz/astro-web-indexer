@@ -27,6 +27,9 @@ RUN echo $APP_VERSION > VERSION
 # Now, with all files in place, run composer install.
 RUN composer install --no-interaction --no-progress --no-dev --optimize-autoloader
 
+# Copy custom PHP configuration to ensure it's loaded last
+COPY docker/php/limits.ini /usr/local/etc/php/conf.d/zz-limits.ini
+
 # Copy and set permissions for the entrypoint script
 COPY docker/php/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh

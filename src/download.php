@@ -1,4 +1,8 @@
 <?php
+
+// Disable execution time limit for this script, allowing for long zip creation times.
+@set_time_limit(0);
+
 // includes/config.php
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/vendor/autoload.php';
