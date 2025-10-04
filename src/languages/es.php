@@ -83,5 +83,7 @@ return [
     'astrobin_modal_explanation' => 'Copie el texto a continuación y péguelo en el importador de sesiones de AstroBin.',
     'copy_to_clipboard' => 'Copiar al Portapapeles',
     'observation_date' => 'Fecha de observación',
+    'thumbnail_size' => 'Tamaño de Miniaturas',
+    'list_view' => 'Vista de Lista',
+    'thumbnail_view' => 'Vista de Miniaturas',
 ];
-

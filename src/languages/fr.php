@@ -18,7 +18,7 @@ return [
     'reset_filters' => 'Réinitialiser les filtres',
     'file_name' => 'Nom du fichier',
     'object' => 'Objet',
-    'date_obs' => 'Date d’observation',
+    'date_obs' => 'Date d'observation',
     'exposure' => 'Exposition',
     'filter' => 'Filtre',
     'type' => 'Type',
@@ -60,4 +60,7 @@ return [
     'astrobin_modal_explanation' => 'Copiez le texte ci-dessous et collez-le dans l\'importateur de session d\'AstroBin.',
     'copy_to_clipboard' => 'Copier dans le Presse-papiers',
     'observation_date' => 'Date d\'observation',
+    'thumbnail_size' => 'Taille des vignettes',
+    'list_view' => 'Vue liste',
+    'thumbnail_view' => 'Vue vignettes',
 ];
