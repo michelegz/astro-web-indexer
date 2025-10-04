@@ -77,11 +77,12 @@ The indexing engine is designed to be both efficient and resilient, making it su
 
 > **Note:** This project uses a `build.sh` script to simplify the Docker build process. This script is compatible with Linux, macOS, and Windows (using Git Bash or WSL).
 
-1. Clone the repository:
+1. Clone the repository and its submodules:
 ```bash
-git clone https://github.com/michelegz/astro-web-indexer.git
+git clone --recurse-submodules https://github.com/michelegz/astro-web-indexer.git
 cd astro-web-indexer
 ```
+> **Note:** This project uses a Git submodule for the XISF library. If you have already cloned the repository without this flag, run `git submodule update --init` inside the project directory to download the necessary files.
 
 2. Copy the example environment file and adjust as needed:
 ```bash
@@ -197,9 +198,9 @@ docker exec -it fits-watcher-awi python /opt/scripts/reindex.py /var/fits --forc
 
 ```
 astro-web-indexer/
-├── docker/                   # Docker configuration files
+├── docker/                    # Docker configuration files
+├── external/                  # Git submodules for external libraries (e.g., XISF)
 ├── src/                      # Application source code
-├── scripts/                  # Utility scripts
 └── tests/                    # Test files
 ```
 
