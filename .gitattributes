@@ -1,0 +1,9 @@
+# Set a general rule for all files: Git will try to guess if they are text
+# and, if so, will enforce LF line endings.
+* text=auto eol=lf
+
+# Set a specific, stronger rule for shell scripts.
+# 'text' (without 'auto') forces Git to always treat these files as text
+# and ensures they have LF line endings. This is critical for their
+# execution in Linux/Docker environments.
+*.sh text eol=lf

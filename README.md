@@ -206,13 +206,15 @@ astro-web-indexer/
 
 ## 🤝 Contributing
 
-We welcome contributions! Here's how you can help:
+We welcome contributions! All pull requests should be made to the `dev` branch. The `main` branch is reserved for stable releases.
+
+Here's how you can help:
 
 1. 🍴 Fork the repository
-2. 🌿 Create a feature branch: `git checkout -b feature/my-feature`
+2. 🌿 Create a feature branch from `dev`: `git checkout -b feature/my-feature dev`
 3. 💾 Commit your changes: `git commit -am 'Add: my feature'`
-4. ⤴️ Push to the branch: `git push origin feature/my-feature`
-5. 🔍 Submit a pull request
+4. ⤴️ Push to your forked repository: `git push origin feature/my-feature`
+5. 🔍 Submit a pull request to the `dev` branch of the main repository.
 
 ### Versioning
 
