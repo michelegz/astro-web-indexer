@@ -47,7 +47,7 @@
     </div>
 
         <!-- Date OBS Filter -->
-    <div class="border-l border-gray-600 pl-4">
+    <div class="md:border-l md:border-gray-600 md:pl-4">
         <label for="date_obs_from" class="block text-sm font-medium text-gray-300 mb-1"><?php echo __('observation_date'); ?>:</label>
         <div class="flex items-center gap-2">
             <input type="date" id="date_obs_from" name="date_obs_from" value="<?= htmlspecialchars($_GET['date_obs_from'] ?? '') ?>" class="bg-gray-700 border border-gray-600 text-gray-100 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5">
@@ -57,7 +57,7 @@
     </div>
 
     <!-- Items per page -->
-        <div class="border-l border-gray-600 pl-4">
+        <div class="md:border-l md:border-gray-600 md:pl-4">
         <label for="per_page-select" class="block text-sm font-medium text-gray-300 mb-1"><?php echo __('elements_per_page') ?>:</label>
         <select id="per_page-select" name="per_page" class="appearance-none bg-gray-700 border border-gray-600 text-gray-100 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5 w-24 pr-8 bg-no-repeat bg-right" style="background-image: url('data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e'); background-position: right 0.5rem center; background-size: 1.5em 1.5em;">
             <?php foreach(PER_PAGE_OPTIONS as $option): ?>
@@ -66,9 +66,9 @@
         </select>
     </div>
     
-<div class="border-l border-gray-600 pl-4 flex items-center gap-4">
+<div class="md:border-l md:border-gray-600 md:pl-4 flex flex-wrap items-center gap-4">
     <!-- View Toggle and Size Slider -->
-    <div class="flex items-center gap-4 pr-4 border-r border-gray-600">
+    <div class="flex items-center gap-4 md:pr-4 md:border-r md:border-gray-600">
         <div class="flex items-center bg-gray-700 rounded-lg">
             <button id="list-view-btn" class="flex items-center justify-center p-2 rounded-l-lg bg-blue-600 hover:bg-blue-700 transition-colors" title="<?php echo __('list_view') ?>">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
