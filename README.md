@@ -185,7 +185,7 @@ While the watcher runs this script automatically, you may need to run it manuall
 This command is useful if you change the thumbnail generation logic, suspect data corruption, or simply want to ensure everything is perfectly synchronized.
 
 ```bash
-docker exec -it fits-watcher-awi python /opt/scripts/reindex.py /var/fits --force
+docker exec -it python-awi python /opt/scripts/reindex.py /var/fits --force
 ```
 
 **Key Manual Options:**
