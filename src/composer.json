@@ -1,5 +1,8 @@
 {
     "require": {
         "maennchen/zipstream-php": "^3.2"
+    },
+    "require-dev": {
+        "robmorgan/phinx": "^0.16.10"
     }
 }
