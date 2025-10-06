@@ -67,4 +67,29 @@ return [
     'dimensions' => 'Dimensions',
     'resolution' => 'Résolution',
     'field_of_view' => 'Champ de vision',
+    'smart_frame_finder' => 'Smart Frame Finder',
+
+    // Smart Frame Finder Modal
+    'sff_find_similar_lights' => 'Trouver des Lights Similaires',
+    'sff_find_bias' => 'Trouver des Bias',
+    'sff_find_darks' => 'Trouver des Darks',
+    'sff_find_flats' => 'Trouver des Flats',
+    'sff_modal_title' => 'Smart Frame Finder',
+    'sff_configure_search' => 'Configurez vos critères de recherche ci-dessous.',
+    'sff_results_placeholder' => 'Les images correspondantes apparaîtront ici.',
+    'sff_find_frames_btn' => 'Trouver les Images',
+    'sff_frames_found' => '{count} images trouvées.',
+    'no_matching_frames_found' => 'Aucune image correspondante trouvée.',
+    'binning' => 'Binning',
+    'camera_id' => 'Camera ID',
+    'rotation' => 'Rotation',
+    'fov_width' => 'FoV Largeur',
+    'fov_height' => 'FoV Hauteur',
+
+        // JS specific translations
+    'sff_loading_filters' => 'Chargement des filtres...',
+    'sff_error_loading_filters' => 'Erreur lors du chargement des filtres:',
+    'sff_searching' => 'Recherche en cours...',
+    'sff_frames_found_js' => '{count} images trouvées.',
+    'sff_configure_and_run' => 'Configurer et lancer une recherche.',
 ];

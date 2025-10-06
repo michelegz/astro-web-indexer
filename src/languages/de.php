@@ -67,4 +67,29 @@ return [
     'dimensions' => 'Abmessungen',
     'resolution' => 'Auflösung',
     'field_of_view' => 'Sichtfeld',
+    'smart_frame_finder' => 'Smart Frame Finder',
+
+    // Smart Frame Finder Modal
+    'sff_find_similar_lights' => 'Ähnliche Lights finden',
+    'sff_find_bias' => 'Bias-Frames finden',
+    'sff_find_darks' => 'Dark-Frames finden',
+    'sff_find_flats' => 'Flat-Frames finden',
+    'sff_modal_title' => 'Smart Frame Finder',
+    'sff_configure_search' => 'Konfigurieren Sie unten Ihre Suchkriterien.',
+    'sff_results_placeholder' => 'Passende Frames werden hier angezeigt.',
+    'sff_find_frames_btn' => 'Frames finden',
+    'sff_frames_found' => '{count} Frames gefunden.',
+    'no_matching_frames_found' => 'Keine passenden Frames gefunden.',
+    'binning' => 'Binning',
+    'camera_id' => 'Camera ID',
+    'rotation' => 'Rotation',
+    'fov_width' => 'FoV Breite',
+    'fov_height' => 'FoV Höhe',
+
+        // JS specific translations
+    'sff_loading_filters' => 'Lade Filter...',
+    'sff_error_loading_filters' => 'Fehler beim Laden der Filter:',
+    'sff_searching' => 'Suche...',
+    'sff_frames_found_js' => '{count} Frames gefunden.',
+    'sff_configure_and_run' => 'Konfigurieren und eine Suche ausführen.',
 ];

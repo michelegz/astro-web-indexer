@@ -20,11 +20,23 @@
 
 <script type="text/javascript">
     window.i18n = {
-        no_files_selected: '<?php echo __('no_files_selected'); ?>',
-        copied: '<?php echo __('copied'); ?>',
-        copy_to_clipboard_failed: '<?php echo __('copy_to_clipboard_failed'); ?>',
-        error_fetching_csv_data: '<?php echo __('error_fetching_csv_data'); ?>',
-        loading: '<?php echo __('loading...'); ?>',
-        error_fetching_duplicates: '<?php echo __('error_fetching_duplicates'); ?>'
+        // General
+        loading: '<?php echo addslashes(__('loading...')); ?>',
+
+        // Main page
+        no_files_selected: '<?php echo addslashes(__('no_files_selected')); ?>',
+        copied: '<?php echo addslashes(__('copied')); ?>',
+        copy_to_clipboard_failed: '<?php echo addslashes(__('copy_to_clipboard_failed')); ?>',
+        error_fetching_csv_data: '<?php echo addslashes(__('error_fetching_csv_data')); ?>',
+        
+        // SFF Modal
+        sff_loading_filters: '<?php echo addslashes(__('sff_loading_filters', 'Loading filters...')); ?>',
+        sff_error_loading_filters: '<?php echo addslashes(__('sff_error_loading_filters', 'Error loading filters:')); ?>',
+        sff_searching: '<?php echo addslashes(__('sff_searching', 'Searching...')); ?>',
+        sff_frames_found_js: '<?php echo addslashes(__('sff_frames_found_js', '{count} frames found.')); ?>',
+        sff_configure_and_run: '<?php echo addslashes(__('sff_configure_and_run', 'Configure and run a search.')); ?>',
+
+        // Duplicates Modal
+        error_fetching_duplicates: '<?php echo addslashes(__('error_fetching_duplicates')); ?>'
     };
 </script>

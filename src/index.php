@@ -31,9 +31,11 @@ require_once __DIR__ . '/includes/init.php';
 
 <?php 
 include __DIR__ . '/includes/preview_overlay.php';
+include __DIR__ . '/includes/sff_modal.php'; // Include the SFF modal
 ?>
 <script src="assets/js/main.js"></script>
 <script src="assets/js/preview.js"></script>
+<script src="assets/js/sff.js"></script> <!-- Include the new SFF script -->
 
 </body>
 </html>

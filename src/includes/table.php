@@ -21,11 +21,13 @@
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600 text-center" onclick="sortTable('visible_duplicate_count')"><?php echo __('duplicates') ?> <?php echoIcon('visible_duplicate_count', $sortBy, $sortOrder); ?></th>
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('path')"><?php echo __('path') ?> <?php echoIcon('path', $sortBy, $sortOrder); ?></th>
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('object')"><?php echo __('object') ?> <?php echoIcon('object', $sortBy, $sortOrder); ?></th>
+                
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('date_obs')"><?php echo __('date_obs') ?> <?php echoIcon('date_obs', $sortBy, $sortOrder); ?></th>
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('exptime')"><?php echo __('exposure') ?> <?php echoIcon('exptime', $sortBy, $sortOrder); ?></th>
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('filter')"><?php echo __('filter') ?> <?php echoIcon('filter', $sortBy, $sortOrder); ?></th>
                                                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('imgtype')"><?php echo __('type') ?> <?php echoIcon('imgtype', $sortBy, $sortOrder); ?></th>
-                                <?php if ($showAdvanced): ?>
+                    <th class="p-3 whitespace-nowrap"><?php echo __('smart_frame_finder') ?></th>
+                    <?php if ($showAdvanced): ?>
                     <!-- Sensor Data -->
                     <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('xbinning')">XBINNING <?php echoIcon('xbinning', $sortBy, $sortOrder); ?></th>
                     <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('ybinning')">YBINNING <?php echoIcon('ybinning', $sortBy, $sortOrder); ?></th>
@@ -112,7 +114,6 @@
                     <?php endif; ?>
                 </td>
                 <td class="p-3 text-sm text-gray-400"><?= htmlspecialchars(dirname($f['path'] ?? '')) ?></td>
-                <td class="p-3 text-gray-200"><?= htmlspecialchars($f['object'] ?? '') ?></td>
                 <td class="p-3 text-sm text-gray-300">
                     <span class="utc-date" data-timestamp="<?= !empty($f['date_obs']) ? strtotime($f['date_obs']) : '' ?>">
                         <?= htmlspecialchars($f['date_obs'] ?? '') ?>
@@ -120,7 +121,19 @@
                 </td>
                 <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['exptime'] ?? '') ?>s</td>
                 <td class="p-3 text-gray-200"><?= htmlspecialchars($f['filter'] ?? '') ?></td>
-                                <td class="p-3 text-gray-200"><?= htmlspecialchars($f['imgtype'] ?? '') ?></td>
+                
+                <td class="p-3 text-gray-200"><?= htmlspecialchars($f['imgtype'] ?? '') ?></td>
+                                <td class="p-3 text-gray-200"><?= htmlspecialchars($f['object'] ?? '') ?></td>
+                                <td class="p-3 whitespace-nowrap">
+                    <?php if (strtoupper($f['imgtype'] ?? '') === 'LIGHT'): ?>
+                        <div class="flex items-center gap-2">
+                            <span class="sff-button cursor-pointer font-mono text-xs bg-sky-800 hover:bg-sky-700 px-2 py-1 rounded" title="<?php echo __('sff_find_similar_lights'); ?>" data-file-id="<?= $f['id'] ?>" data-search-type="similar-lights">L</span>
+                            <span class="sff-button cursor-pointer font-mono text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded" title="<?php echo __('sff_find_bias'); ?>" data-file-id="<?= $f['id'] ?>" data-search-type="bias">B</span>
+                            <span class="sff-button cursor-pointer font-mono text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded" title="<?php echo __('sff_find_darks'); ?>" data-file-id="<?= $f['id'] ?>" data-search-type="darks">D</span>
+                            <span class="sff-button cursor-pointer font-mono text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded" title="<?php echo __('sff_find_flats'); ?>" data-file-id="<?= $f['id'] ?>" data-search-type="flats">F</span>
+                        </div>
+                    <?php endif; ?>
+                </td>
                                 <?php if ($showAdvanced): ?>
                     <!-- Sensor Data -->
                     <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['xbinning'] ?? '') ?></td>
