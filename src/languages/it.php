@@ -87,5 +87,8 @@ return [
     'thumbnail_size' => 'Dimensione miniature',
     'list_view' => 'Vista elenco',
     'thumbnail_view' => 'Vista miniature',
-    'size' => 'Dimensione'
+        'size' => 'Dimensione',
+    'dimensions' => 'Dimensioni',
+    'resolution' => 'Risoluzione',
+    'field_of_view' => 'Campo Inquadrato',
 ];

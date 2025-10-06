@@ -87,4 +87,7 @@ return [
     'list_view' => 'Vista de Lista',
     'thumbnail_view' => 'Vista de Miniaturas',
     'size' => 'Tamaño',
+    'dimensions' => 'Dimensiones',
+    'resolution' => 'Resolución',
+    'field_of_view' => 'Campo de visión',
 ];

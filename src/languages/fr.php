@@ -64,4 +64,7 @@ return [
     'list_view' => 'Vue liste',
     'thumbnail_view' => 'Vue vignettes',
     'size' => 'Taille',
+    'dimensions' => 'Dimensions',
+    'resolution' => 'Résolution',
+    'field_of_view' => 'Champ de vision',
 ];

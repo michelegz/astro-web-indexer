@@ -24,7 +24,7 @@
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('date_obs')"><?php echo __('date_obs') ?> <?php echoIcon('date_obs', $sortBy, $sortOrder); ?></th>
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('exptime')"><?php echo __('exposure') ?> <?php echoIcon('exptime', $sortBy, $sortOrder); ?></th>
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('filter')"><?php echo __('filter') ?> <?php echoIcon('filter', $sortBy, $sortOrder); ?></th>
-                                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('imgtype')"><?php echo __('type') ?> <?php echoIcon('imgtype', $sortBy, $sortOrder); ?></th>
+                                                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('imgtype')"><?php echo __('type') ?> <?php echoIcon('imgtype', $sortBy, $sortOrder); ?></th>
                                 <?php if ($showAdvanced): ?>
                     <!-- Sensor Data -->
                     <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('xbinning')">XBINNING <?php echoIcon('xbinning', $sortBy, $sortOrder); ?></th>
@@ -70,8 +70,11 @@
                     <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('date_avg')">DATE-AVG <?php echoIcon('date_avg', $sortBy, $sortOrder); ?></th>
                     <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('objctra')">OBJCTRA <?php echoIcon('objctra', $sortBy, $sortOrder); ?></th>
                                         <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('objctdec')">OBJCTDEC <?php echoIcon('objctdec', $sortBy, $sortOrder); ?></th>
-                                        <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('mtime')"><?php echo __('modification_time') ?> <?php echoIcon('mtime', $sortBy, $sortOrder); ?></th>
                     <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('file_size')"><?php echo __('size') ?> <?php echoIcon('file_size', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('width')"><?php echo __('dimensions') ?> <?php echoIcon('width', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('resolution')"><?php echo __('resolution') ?> <?php echoIcon('resolution', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('fov_w')"><?php echo __('field_of_view') ?> <?php echoIcon('fov_w', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('mtime')"><?php echo __('modification_time') ?> <?php echoIcon('mtime', $sortBy, $sortOrder); ?></th>
                     <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('file_hash')"><?php echo __('hash') ?> <?php echoIcon('file_hash', $sortBy, $sortOrder); ?></th>
                 <?php endif; ?>
             </tr>
@@ -117,7 +120,7 @@
                 </td>
                 <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['exptime'] ?? '') ?>s</td>
                 <td class="p-3 text-gray-200"><?= htmlspecialchars($f['filter'] ?? '') ?></td>
-                <td class="p-3 text-gray-200"><?= htmlspecialchars($f['imgtype'] ?? '') ?></td>
+                                <td class="p-3 text-gray-200"><?= htmlspecialchars($f['imgtype'] ?? '') ?></td>
                                 <?php if ($showAdvanced): ?>
                     <!-- Sensor Data -->
                     <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['xbinning'] ?? '') ?></td>
@@ -163,15 +166,35 @@
                     <td class="p-3 text-sm text-gray-300"><span class="utc-date" data-timestamp="<?= !empty($f['date_avg']) ? strtotime($f['date_avg']) : '' ?>"><?= htmlspecialchars($f['date_avg'] ?? '') ?></span></td>
                     <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['objctra'] ?? '') ?></td>
                     <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['objctdec'] ?? '') ?></td>
-                                        <td class="p-3 text-sm text-gray-300">
-                        <span class="utc-date" data-timestamp="<?= !empty($f['mtime']) ? (int)$f['mtime'] : '' ?>">
-                            <?= !empty($f['mtime']) ? date('Y-m-d H:i:s', (int)$f['mtime']) : '' ?>
-                        </span>
-                    </td>
                     <td class="p-3 text-sm text-gray-300 text-right">
                         <?php if (!empty($f['file_size'])): ?>
                             <?= number_format($f['file_size'] / (1024 * 1024), 2) ?> MB
                         <?php endif; ?>
+                    </td>
+                    <td class="p-3 text-sm text-gray-300">
+                        <?php if (!empty($f['width']) && !empty($f['height'])): ?>
+                            <?= htmlspecialchars($f['width']) ?>x<?= htmlspecialchars($f['height']) ?>
+                        <?php endif; ?>
+                    </td>
+                    <td class="p-3 text-sm text-gray-300">
+                        <?php if (!empty($f['resolution'])): ?>
+                            <?= number_format($f['resolution'], 2) ?>"/px
+                        <?php endif; ?>
+                    </td>
+                                        <td class="p-3 text-sm text-gray-300">
+                        <?php if (!empty($f['fov_w']) && !empty($f['fov_h'])): 
+                            $fov_w_deg = $f['fov_w'] / 60;
+                            $fov_h_deg = $f['fov_h'] / 60;
+                        ?>
+                            <span title="<?= number_format($f['fov_w'], 1) ?>' x <?= number_format($f['fov_h'], 1) ?>'">
+                                <?= number_format($fov_w_deg, 2) ?>° x <?= number_format($fov_h_deg, 2) ?>°
+                            </span>
+                        <?php endif; ?>
+                    </td>
+                    <td class="p-3 text-sm text-gray-300">
+                        <span class="utc-date" data-timestamp="<?= !empty($f['mtime']) ? (int)$f['mtime'] : '' ?>">
+                            <?= !empty($f['mtime']) ? date('Y-m-d H:i:s', (int)$f['mtime']) : '' ?>
+                        </span>
                     </td>
                     <td class="p-3 text-sm text-gray-300 font-mono text-xs"><?= htmlspecialchars($f['file_hash'] ?? '') ?></td>
                 <?php endif; ?>

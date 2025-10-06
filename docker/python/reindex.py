@@ -256,11 +256,14 @@ try:
                     get_value = get_xisf_header_value
                 
                 thumb = None
+                width, height = None, None
+                resolution, fov_w, fov_h = None, None, None
                 if data is not None:
                     data = np.squeeze(data)
                     if data.ndim > 2 and data.shape[0] < 5:
                         data = data[0]
                     if data.ndim >= 2:
+                        height, width = data.shape[:2]
                         thumb = make_thumbnail(data, thumb_size)
 
                 object_name = get_value(header, 'OBJECT', 'Unknown', str).strip()
@@ -329,9 +332,20 @@ try:
                 roworder = get_value(header, 'ROWORDER', None, str)
                 equinox = get_value(header, 'EQUINOX', None, float)
 
+                # --- Calculated fields ---
+                # Calculate resolution and FOV if possible
+                if xpixsz and focallen and width and height:
+                    if xpixsz > 0 and focallen > 0:
+                        # Resolution in arcsec/pixel
+                        resolution = (xpixsz / focallen) * 206.265
+                        
+                        # FOV in arcminutes
+                        fov_w = (width * resolution) / 60
+                        fov_h = (height * resolution) / 60
+
                 sql = '''
                     INSERT INTO files (
-                        path, file_hash, name, mtime, file_size, 
+                        path, file_hash, name, mtime, file_size, width, height, resolution, fov_w, fov_h,
                         object, objctra, objctdec,
                         imgtype, exptime, date_obs, date_avg, filter,
                         xbinning, ybinning, egain, `offset`, xpixsz, ypixsz, set_temp, ccd_temp,
@@ -341,8 +355,8 @@ try:
                         siteelev, sitelat, sitelong,
                         swcreate, roworder, equinox,
                         thumb, deleted_at, is_hidden
-                    ) VALUES (
-                        %(path)s, %(file_hash)s, %(name)s, %(mtime)s, %(file_size)s,
+                                                            ) VALUES (
+                        %(path)s, %(file_hash)s, %(name)s, %(mtime)s, %(file_size)s, %(width)s, %(height)s, %(resolution)s, %(fov_w)s, %(fov_h)s,
                         %(object)s, %(objctra)s, %(objctdec)s,
                         %(imgtype)s, %(exptime)s, %(date_obs)s, %(date_avg)s, %(filter)s,
                         %(xbinning)s, %(ybinning)s, %(egain)s, %(offset)s, %(xpixsz)s, %(ypixsz)s, %(set_temp)s, %(ccd_temp)s,
@@ -353,8 +367,8 @@ try:
                         %(swcreate)s, %(roworder)s, %(equinox)s,
                         %(thumb)s, NULL, 0
                     )
-                    ON DUPLICATE KEY UPDATE
-                        file_hash=VALUES(file_hash), mtime=VALUES(mtime), file_size=VALUES(file_size), name=VALUES(name),
+                                                            ON DUPLICATE KEY UPDATE
+                        file_hash=VALUES(file_hash), mtime=VALUES(mtime), file_size=VALUES(file_size), width=VALUES(width), height=VALUES(height), resolution=VALUES(resolution), fov_w=VALUES(fov_w), fov_h=VALUES(fov_h), name=VALUES(name),
                         object=VALUES(object), objctra=VALUES(objctra), objctdec=VALUES(objctdec),
                         imgtype=VALUES(imgtype), exptime=VALUES(exptime), date_obs=VALUES(date_obs), date_avg=VALUES(date_avg), filter=VALUES(filter),
                         xbinning=VALUES(xbinning), ybinning=VALUES(ybinning), egain=VALUES(egain), `offset`=VALUES(`offset`), xpixsz=VALUES(xpixsz), ypixsz=VALUES(ypixsz), set_temp=VALUES(set_temp), ccd_temp=VALUES(ccd_temp),
@@ -368,6 +382,7 @@ try:
                 '''
                 params = {
                     'path': rel_path, 'file_hash': file_hash, 'name': file, 'mtime': mtime, 'file_size': file_size,
+                    'width': width, 'height': height, 'resolution': resolution, 'fov_w': fov_w, 'fov_h': fov_h,
                     'object': object_name, 'objctra': objct_ra, 'objctdec': objct_dec,
                     'imgtype': imgtype, 'exptime': exptime, 'date_obs': date_obs, 'date_avg': date_avg, 'filter': filt,
                     'xbinning': xbinning, 'ybinning': ybinning, 'egain': egain, 'offset': offset, 'xpixsz': xpixsz, 'ypixsz': ypixsz, 'set_temp': set_temp, 'ccd_temp': ccd_temp,

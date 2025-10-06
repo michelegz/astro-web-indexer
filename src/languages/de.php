@@ -64,4 +64,7 @@ return [
     'list_view' => 'Listenansicht',
     'thumbnail_view' => 'Miniaturansicht',
     'size' => 'Größe',
+    'dimensions' => 'Abmessungen',
+    'resolution' => 'Auflösung',
+    'field_of_view' => 'Sichtfeld',
 ];

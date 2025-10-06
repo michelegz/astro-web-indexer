@@ -88,4 +88,7 @@ return [
     'list_view' => 'List View',
     'thumbnail_view' => 'Thumbnail View',
     'size' => 'Size',
+    'dimensions' => 'Dimensions',
+    'resolution' => 'Resolution',
+    'field_of_view' => 'Field of View',
 ];
