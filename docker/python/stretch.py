@@ -82,5 +82,37 @@ def stf_autostretch(img,
         'white': white,
         'med_norm': med_norm,
         'm': m
-    }
+        }
     return stretched, params
+
+def stf_autostretch_color(img, k_black=2.8, k_white=10.0, target_mid=0.25, clip_output=True):
+    """
+    Applies STF autostretch to a color image by stretching each channel independently.
+    img: array 3D numpy (H, W, C) o 2D numpy (H, W).
+    Returns: stretched image.
+    """
+    if img.ndim == 3 and img.shape[2] == 3:
+        # Image is color, process each channel
+        stretched_channels = []
+        for i in range(3):
+            channel, _ = stf_autostretch(
+                img[:, :, i],
+                k_black=k_black,
+                k_white=k_white,
+                target_mid=target_mid,
+                clip_output=clip_output
+            )
+            stretched_channels.append(channel)
+        
+        # Stack channels back into a color image
+        stretched_img = np.stack(stretched_channels, axis=-1)
+        return stretched_img, {} # Return empty params dict for compatibility
+    
+    elif img.ndim == 2:
+        # Image is monochrome, use the original function
+        return stf_autostretch(img, k_black, k_white, target_mid, clip_output)
+    
+    else:
+        # Unsupported image format, return as is
+        return img, {}
+

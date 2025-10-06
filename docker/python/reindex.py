@@ -11,7 +11,7 @@ import argparse
 from io import BytesIO
 import logging
 from datetime import datetime
-from stretch import stf_autostretch
+from stretch import stf_autostretch_color
 
 # Configure logging
 logging.basicConfig(
@@ -69,8 +69,8 @@ def make_thumbnail(data, size):
         # Ensure data is float32 and clean
         data = np.nan_to_num(data).astype(np.float32)
         
-        # Apply the STF Autostretch
-        stretched, _ = stf_autostretch(data)
+                # Apply the STF Autostretch (works for both mono and color)
+        stretched, _ = stf_autostretch_color(data)
         
         # Convert to 8-bit image for display
         img = (stretched * 255).astype(np.uint8)
