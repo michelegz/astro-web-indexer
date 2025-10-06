@@ -67,8 +67,17 @@ function countFiles(PDO $conn, string $dir, string $object, string $filter, stri
 
 function getFiles(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, int $perPage, int $offset, string $sortBy, string $sortOrder): array
 {
-    // Validazione e sanitizzazione di sortBy e sortOrder
-    $allowedSortBy = ['name', 'path', 'object', 'date_obs', 'exptime', 'filter', 'imgtype', 'xbinning', 'ybinning', 'egain', 'offset', 'xpixsz', 'ypixsz', 'instrume', 'set_temp', 'ccd_temp', 'telescop', 'focallen', 'focratio', 'ra', 'dec', 'centalt', 'centaz', 'airmass', 'pierside', 'siteelev', 'sitelat', 'sitelong', 'focpos', 'visible_duplicate_count', 'mtime', 'file_hash'];
+        // Validazione e sanitizzazione di sortBy e sortOrder
+    $allowedSortBy = [
+        'name', 'path', 'object', 'date_obs', 'exptime', 'filter', 'imgtype', 
+        'xbinning', 'ybinning', 'egain', 'offset', 'xpixsz', 'ypixsz', 'instrume', 
+        'set_temp', 'ccd_temp', 'telescop', 'focallen', 'focratio', 'ra', 'dec', 
+        'centalt', 'centaz', 'airmass', 'pierside', 'siteelev', 'sitelat', 'sitelong', 
+        'focpos', 'visible_duplicate_count', 'mtime', 'file_hash',
+        // New sortable columns
+        'date_avg', 'swcreate', 'objctra', 'objctdec', 'cameraid', 'usblimit', 
+        'fwheel', 'focname', 'focussz', 'foctemp', 'objctrot', 'roworder', 'equinox'
+    ];
     $allowedSortOrder = ['ASC', 'DESC'];
 
     $sortBy = in_array($sortBy, $allowedSortBy) ? $sortBy : 'name';
@@ -76,7 +85,7 @@ function getFiles(PDO $conn, string $dir, string $object, string $filter, string
 
     list($sqlConditions, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo);
     
-    $sql = "SELECT id, name, path, object, date_obs, exptime, filter, imgtype, xbinning, ybinning, egain, `offset`, xpixsz, ypixsz, instrume, set_temp, ccd_temp, telescop, focallen, focratio, ra, `dec`, centalt, centaz, airmass, pierside, siteelev, sitelat, sitelong, focpos, thumb, file_hash, mtime, total_duplicate_count, visible_duplicate_count FROM files WHERE " . implode(' AND ', $sqlConditions) . " ORDER BY " . $sortBy . " " . $sortOrder . " LIMIT :per_page OFFSET :offset";
+    $sql = "SELECT * FROM files WHERE " . implode(' AND ', $sqlConditions) . " ORDER BY " . $sortBy . " " . $sortOrder . " LIMIT :per_page OFFSET :offset";
 
     $stmt = $conn->prepare($sql);
     foreach ($params as $key => $value) {
