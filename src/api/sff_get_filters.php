@@ -11,7 +11,7 @@ $searchType = htmlspecialchars(filter_input(INPUT_GET, 'type', FILTER_DEFAULT) ?
 
 if (!$fileId || !$searchType) {
     http_response_code(400);
-    echo "Error: Missing or invalid parameters.";
+    echo __('sff_error_missing_params');
     exit;
 }
 
@@ -23,7 +23,7 @@ $referenceFile = $stmt->fetch();
 
 if (!$referenceFile) {
     http_response_code(404);
-    echo "Error: Reference LIGHT frame not found.";
+    echo __('sff_error_no_light_frame');
     exit;
 }
 
@@ -32,12 +32,12 @@ if (!$referenceFile) {
 $allFilters = [
     // Common
     'instrume'   => ['label' => __('instrume'),   'type' => 'toggle', 'default_on' => true],
-    'cameraid'   => ['label' => __('camera_id'),    'type' => 'toggle', 'default_on' => false],
+    'cameraid'   => ['label' => __('camera_id'),    'type' => 'toggle', 'default_on' => true],
     'ccd_temp'   => ['label' => __('ccd_temp'),     'type' => 'slider_degrees', 'default_on' => true, 'min' => 0, 'max' => 30, 'step' => 1, 'unit' => '°', 'default_tolerance' => 2],
     'xbinning'   => ['label' => __('xbinning'),    'type' => 'toggle', 'default_on' => true],
     'ybinning'   => ['label' => __('ybinning'),    'type' => 'toggle', 'default_on' => true],
-    'width'      => ['label' => __('dimensions'),        'type' => 'slider_percent', 'default_on' => false, 'min' => 0, 'max' => 50, 'step' => 1, 'unit' => '%', 'default_tolerance' => 5],
-    'height'     => ['label' => __('dimensions'),       'type' => 'slider_percent', 'default_on' => false, 'min' => 0, 'max' => 50, 'step' => 1, 'unit' => '%', 'default_tolerance' => 5],
+    'width'      => ['label' => __('dimensions_width'),        'type' => 'slider_percent', 'default_on' => false, 'min' => 0, 'max' => 50, 'step' => 1, 'unit' => '%', 'default_tolerance' => 5],
+    'height'     => ['label' => __('dimensions_height'),       'type' => 'slider_percent', 'default_on' => false, 'min' => 0, 'max' => 50, 'step' => 1, 'unit' => '%', 'default_tolerance' => 5],
     'date_obs'   => ['label' => __('date_obs'),    'type' => 'slider_days',    'default_on' => false, 'min' => 0, 'max' => 365, 'step' => 1, 'unit' => 'd', 'default_tolerance' => 30],
 
     // Light specific
@@ -56,7 +56,7 @@ $allFilters = [
 
 // Define which filters apply to which search type
 $filtersForType = [
-    'similar-lights' => ['object', 'filter', 'instrume', 'cameraid', 'exptime', 'ra', 'dec', 'objctrot', 'fov_w', 'fov_h', 'ccd_temp', 'xbinning', 'ybinning', 'width', 'height', 'date_obs'],
+    'lights' => ['object', 'filter', 'instrume', 'cameraid', 'exptime', 'ra', 'dec', 'objctrot', 'fov_w', 'fov_h', 'ccd_temp', 'xbinning', 'ybinning', 'width', 'height', 'date_obs'],
     'bias'           => ['instrume', 'cameraid', 'ccd_temp', 'xbinning', 'ybinning', 'width', 'height', 'date_obs'],
     'darks'          => ['instrume', 'cameraid', 'exptime', 'ccd_temp', 'xbinning', 'ybinning', 'width', 'height', 'date_obs'],
     'flats'          => ['filter', 'instrume', 'cameraid', 'objctrot', 'ccd_temp', 'xbinning', 'ybinning', 'width', 'height', 'date_obs'],
@@ -68,7 +68,7 @@ header('Content-Type: text/html');
 
 $activeFilterKeys = $filtersForType[$searchType] ?? [];
 if (empty($activeFilterKeys)) {
-    echo '<p class="text-red-500">Invalid search type specified.</p>';
+    echo '<p class="text-red-500">' . __('sff_error_invalid_search_type') . '</p>';
     exit;
 }
 

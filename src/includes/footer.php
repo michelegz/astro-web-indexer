@@ -21,22 +21,23 @@
 <script type="text/javascript">
     window.i18n = {
         // General
-        loading: '<?php echo addslashes(__('loading...')); ?>',
+        loading: <?php echo json_encode(__('loading...')); ?>,
 
         // Main page
-        no_files_selected: '<?php echo addslashes(__('no_files_selected')); ?>',
-        copied: '<?php echo addslashes(__('copied')); ?>',
-        copy_to_clipboard_failed: '<?php echo addslashes(__('copy_to_clipboard_failed')); ?>',
-        error_fetching_csv_data: '<?php echo addslashes(__('error_fetching_csv_data')); ?>',
-        
+        no_files_selected: <?php echo json_encode(__('no_files_selected')); ?>,
+        copied: <?php echo json_encode(__('copied')); ?>,
+        copy_to_clipboard_failed: <?php echo json_encode(__('copy_to_clipboard_failed')); ?>,
+        error_fetching_csv_data: <?php echo json_encode(__('error_fetching_csv_data')); ?>,
+
         // SFF Modal
-        sff_loading_filters: '<?php echo addslashes(__('sff_loading_filters', 'Loading filters...')); ?>',
-        sff_error_loading_filters: '<?php echo addslashes(__('sff_error_loading_filters', 'Error loading filters:')); ?>',
-        sff_searching: '<?php echo addslashes(__('sff_searching', 'Searching...')); ?>',
-        sff_frames_found_js: '<?php echo addslashes(__('sff_frames_found_js', '{count} frames found.')); ?>',
-        sff_configure_and_run: '<?php echo addslashes(__('sff_configure_and_run', 'Configure and run a search.')); ?>',
+        sff_modal_title: <?php echo json_encode(__('sff_modal_title')); ?>,
+        sff_loading_filters: <?php echo json_encode(__('sff_loading_filters')); ?>,
+        sff_error_loading_filters: <?php echo json_encode(__('sff_error_loading_filters')); ?>,
+        sff_searching: <?php echo json_encode(__('sff_searching')); ?>,
+        sff_frames_found_js: <?php echo json_encode(__('sff_frames_found_js')); ?>,
+        sff_configure_and_run: <?php echo json_encode(__('sff_configure_and_run')); ?>,
 
         // Duplicates Modal
-        error_fetching_duplicates: '<?php echo addslashes(__('error_fetching_duplicates')); ?>'
+        error_fetching_duplicates: <?php echo json_encode(__('error_fetching_duplicates')); ?>
     };
 </script>

@@ -127,7 +127,7 @@
                                 <td class="p-3 whitespace-nowrap">
                     <?php if (strtoupper($f['imgtype'] ?? '') === 'LIGHT'): ?>
                         <div class="flex items-center gap-2">
-                            <span class="sff-button cursor-pointer font-mono text-xs bg-sky-800 hover:bg-sky-700 px-2 py-1 rounded" title="<?php echo __('sff_find_similar_lights'); ?>" data-file-id="<?= $f['id'] ?>" data-search-type="similar-lights">L</span>
+                            <span class="sff-button cursor-pointer font-mono text-xs bg-sky-800 hover:bg-sky-700 px-2 py-1 rounded" title="<?php echo __('sff_find_similar_lights'); ?>" data-file-id="<?= $f['id'] ?>" data-search-type="lights">L</span>
                             <span class="sff-button cursor-pointer font-mono text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded" title="<?php echo __('sff_find_bias'); ?>" data-file-id="<?= $f['id'] ?>" data-search-type="bias">B</span>
                             <span class="sff-button cursor-pointer font-mono text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded" title="<?php echo __('sff_find_darks'); ?>" data-file-id="<?= $f['id'] ?>" data-search-type="darks">D</span>
                             <span class="sff-button cursor-pointer font-mono text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded" title="<?php echo __('sff_find_flats'); ?>" data-file-id="<?= $f['id'] ?>" data-search-type="flats">F</span>

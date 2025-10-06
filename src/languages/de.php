@@ -85,6 +85,8 @@ return [
     'rotation' => 'Rotation',
     'fov_width' => 'FoV Breite',
     'fov_height' => 'FoV Höhe',
+    'dimensions_width' => 'Breite',
+    'dimensions_height' => 'Höhe',
 
         // JS specific translations
     'sff_loading_filters' => 'Lade Filter...',
@@ -92,4 +94,10 @@ return [
     'sff_searching' => 'Suche...',
     'sff_frames_found_js' => '{count} Frames gefunden.',
     'sff_configure_and_run' => 'Konfigurieren und eine Suche ausführen.',
+
+    // SFF API Errors
+    'sff_error_missing_params' => 'Fehler: Fehlende oder ungültige Parameter.',
+    'sff_error_no_light_frame' => 'Fehler: Referenz-LIGHT-Frame nicht gefunden.',
+    'sff_error_invalid_search_type' => 'Fehler: Ungültiger Suchtyp angegeben.',
+    'date' => 'Datum',
 ];

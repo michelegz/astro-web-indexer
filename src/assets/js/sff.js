@@ -23,10 +23,14 @@ document.addEventListener('DOMContentLoaded', () => {
         currentSearchType = searchType;
 
         // Set title and reset state
-        const titleSearchType = searchType.replace(/-/g, ' ');
-        sffModalTitle.textContent = `${window.i18n?.sff_modal_title || 'Smart Frame Finder'}: ${titleSearchType}`;
-        sffFiltersPanel.innerHTML = `<div class="text-center p-4 text-gray-400">${window.i18n?.sff_loading_filters || 'Loading filters...'}</div>`;
-        sffResultsPanel.innerHTML = `<div class="text-center p-4 text-gray-400">${window.i18n?.sff_configure_and_run || 'Configure and run a search.'}</div>`;
+
+
+
+
+        const titleSearchType = (currentSearchType || '').replace(/-/g, ' ');
+        sffModalTitle.textContent = `${window.i18n.sff_modal_title}: ${titleSearchType}`;
+        sffFiltersPanel.innerHTML = `<div class="text-center p-4 text-gray-400">${window.i18n.sff_loading_filters}</div>`;
+        sffResultsPanel.innerHTML = `<div class="text-center p-4 text-gray-400">${window.i18n.sff_configure_and_run}</div>`;
         sffResultCount.textContent = '';
         sffDownloadBtn.disabled = true;
 
@@ -42,7 +46,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 sffFiltersPanel.innerHTML = html;
             })
             .catch(error => {
-                sffFiltersPanel.innerHTML = `<div class="text-center p-4 text-red-500">${window.i18n?.sff_error_loading_filters || 'Error loading filters:'} ${error.message}</div>`;
+
+                sffFiltersPanel.innerHTML = `<div class="text-center p-4 text-red-500">${window.i18n.sff_error_loading_filters} ${error.message}</div>`;
             });
 
         // Show the modal
@@ -115,7 +120,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 filters: filters
             };
 
-            sffResultsPanel.innerHTML = `<div class="text-center p-4 text-gray-400">${window.i18n?.sff_searching || 'Searching...'}</div>`;
+
+            sffResultsPanel.innerHTML = `<div class="text-center p-4 text-gray-400">${window.i18n.sff_searching}</div>`;
             
             fetch('/api/find_calibration_files.php', {
                 method: 'POST',
@@ -131,7 +137,8 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(html => {
                 sffResultsPanel.innerHTML = html;
                 const resultCount = sffResultsPanel.querySelectorAll('tbody tr').length;
-                sffResultCount.textContent = (window.i18n?.sff_frames_found_js || '{count} frames found.').replace('{count}', resultCount);
+
+                sffResultCount.textContent = (window.i18n.sff_frames_found_js).replace('{count}', resultCount);
                 updateSffDownloadButtonState();
             })
             .catch(error => {

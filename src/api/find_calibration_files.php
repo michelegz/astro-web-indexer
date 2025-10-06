@@ -43,19 +43,19 @@ if (!$refFile) {
 $sqlWhere = [];
 $sqlParams = [];
 
+// --- Base conditions ---
+$sqlWhere[] = "is_hidden = 0";
+$sqlWhere[] = "deleted_at IS NULL";
+
 // Base IMGTYPE filter
 $imgTypes = [
-    'similar-lights' => 'LIGHT',
+    'lights'         => 'LIGHT',
     'bias'           => 'BIAS',
     'darks'          => 'DARK',
     'flats'          => 'FLAT'
 ];
 $sqlWhere[] = "imgtype = :imgtype";
 $sqlParams[':imgtype'] = $imgTypes[$searchType];
-
-// Always exclude the reference file itself from the results
-$sqlWhere[] = "id != :ref_id";
-$sqlParams[':ref_id'] = $fileId;
 
 
 // Process each filter from the frontend
@@ -112,6 +112,22 @@ try {
     $stmt = $conn->prepare($sql);
     $stmt->execute($sqlParams);
     $results = $stmt->fetchAll();
+
+    // Find and move the reference file to the top, if present
+    $reference_file_index = -1;
+    foreach ($results as $index => $file) {
+        if ($file['id'] == $fileId) {
+            $reference_file_index = $index;
+            break;
+        }
+    }
+
+    if ($reference_file_index !== -1) {
+        $reference_file = $results[$reference_file_index];
+        $reference_file['is_reference'] = true; // Add a flag
+        unset($results[$reference_file_index]); // Remove from original position
+        array_unshift($results, $reference_file); // Add to the beginning
+    }
 
     // Render the HTML table and output it
     render_sff_results_table($results);

@@ -26,8 +26,11 @@ function render_sff_results_table(array $files): void
             </tr>
         </thead>
         <tbody class="bg-gray-800">
-            <?php foreach ($files as $file): ?>
-                <tr class="border-b border-gray-700 hover:bg-gray-600">
+            <?php foreach ($files as $file):
+                $isReference = isset($file['is_reference']) && $file['is_reference'];
+                $rowClass = $isReference ? 'bg-blue-900 bg-opacity-50' : '';
+            ?>
+                <tr class="border-b border-gray-700 hover:bg-gray-600 <?= $rowClass ?>">
                     <td class="p-2">
                         <input type="checkbox" class="sff-file-checkbox" value="<?= htmlspecialchars($file['path']) ?>">
                     </td>

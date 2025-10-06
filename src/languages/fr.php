@@ -85,6 +85,8 @@ return [
     'rotation' => 'Rotation',
     'fov_width' => 'FoV Largeur',
     'fov_height' => 'FoV Hauteur',
+    'dimensions_width' => 'Largeur',
+    'dimensions_height' => 'Hauteur',
 
         // JS specific translations
     'sff_loading_filters' => 'Chargement des filtres...',
@@ -92,4 +94,10 @@ return [
     'sff_searching' => 'Recherche en cours...',
     'sff_frames_found_js' => '{count} images trouvées.',
     'sff_configure_and_run' => 'Configurer et lancer une recherche.',
+
+    // SFF API Errors
+    'sff_error_missing_params' => 'Erreur : Paramètres manquants ou invalides.',
+    'sff_error_no_light_frame' => 'Erreur : Image LIGHT de référence non trouvée.',
+    'sff_error_invalid_search_type' => 'Erreur : Type de recherche non valide.',
+    'date' => 'Date',
 ];

@@ -92,6 +92,8 @@ return [
     'resolution' => 'Risoluzione',
     'field_of_view' => 'Campo Inquadrato',
     'smart_frame_finder' => 'Smart Frame Finder',
+    'dimensions_width' => 'Larghezza',
+    'dimensions_height' => 'Altezza',
 
     // Smart Frame Finder Modal
     'sff_find_similar_lights' => 'Trova Light Simili',
@@ -116,4 +118,10 @@ return [
     'sff_searching' => 'Ricerca in corso...',
     'sff_frames_found_js' => '{count} frame trovati.',
     'sff_configure_and_run' => 'Configura e avvia una ricerca.',
+
+    // SFF API Errors
+    'sff_error_missing_params' => 'Errore: Parametri mancanti o non validi.',
+    'sff_error_no_light_frame' => 'Errore: Frame LIGHT di riferimento non trovato.',
+    'sff_error_invalid_search_type' => 'Errore: Tipo di ricerca non valido.',
+    'date' => 'Data',
 ];
