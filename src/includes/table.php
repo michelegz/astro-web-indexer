@@ -69,11 +69,11 @@
                     <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('equinox')">EQUINOX <?php echoIcon('equinox', $sortBy, $sortOrder); ?></th>
                     <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('date_avg')">DATE-AVG <?php echoIcon('date_avg', $sortBy, $sortOrder); ?></th>
                     <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('objctra')">OBJCTRA <?php echoIcon('objctra', $sortBy, $sortOrder); ?></th>
-                                        <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('objctdec')">OBJCTDEC <?php echoIcon('objctdec', $sortBy, $sortOrder); ?></th>
-                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('file_size')"><?php echo __('size') ?> <?php echoIcon('file_size', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('objctdec')">OBJCTDEC <?php echoIcon('objctdec', $sortBy, $sortOrder); ?></th>
                     <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('width')"><?php echo __('dimensions') ?> <?php echoIcon('width', $sortBy, $sortOrder); ?></th>
                     <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('resolution')"><?php echo __('resolution') ?> <?php echoIcon('resolution', $sortBy, $sortOrder); ?></th>
                     <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('fov_w')"><?php echo __('field_of_view') ?> <?php echoIcon('fov_w', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('file_size')"><?php echo __('size') ?> <?php echoIcon('file_size', $sortBy, $sortOrder); ?></th>
                     <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('mtime')"><?php echo __('modification_time') ?> <?php echoIcon('mtime', $sortBy, $sortOrder); ?></th>
                     <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('file_hash')"><?php echo __('hash') ?> <?php echoIcon('file_hash', $sortBy, $sortOrder); ?></th>
                 <?php endif; ?>
@@ -166,11 +166,7 @@
                     <td class="p-3 text-sm text-gray-300"><span class="utc-date" data-timestamp="<?= !empty($f['date_avg']) ? strtotime($f['date_avg']) : '' ?>"><?= htmlspecialchars($f['date_avg'] ?? '') ?></span></td>
                     <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['objctra'] ?? '') ?></td>
                     <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['objctdec'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300 text-right">
-                        <?php if (!empty($f['file_size'])): ?>
-                            <?= number_format($f['file_size'] / (1024 * 1024), 2) ?> MB
-                        <?php endif; ?>
-                    </td>
+
                     <td class="p-3 text-sm text-gray-300">
                         <?php if (!empty($f['width']) && !empty($f['height'])): ?>
                             <?= htmlspecialchars($f['width']) ?>x<?= htmlspecialchars($f['height']) ?>
@@ -189,6 +185,11 @@
                             <span title="<?= number_format($f['fov_w'], 1) ?>' x <?= number_format($f['fov_h'], 1) ?>'">
                                 <?= number_format($fov_w_deg, 2) ?>° x <?= number_format($fov_h_deg, 2) ?>°
                             </span>
+                        <?php endif; ?>
+                    </td>
+                    <td class="p-3 text-sm text-gray-300 text-right">
+                        <?php if (!empty($f['file_size'])): ?>
+                            <?= number_format($f['file_size'] / (1024 * 1024), 2) ?> MB
                         <?php endif; ?>
                     </td>
                     <td class="p-3 text-sm text-gray-300">
