@@ -87,4 +87,5 @@ return [
     'thumbnail_size' => 'Dimensione miniature',
     'list_view' => 'Vista elenco',
     'thumbnail_view' => 'Vista miniature',
+    'size' => 'Dimensione'
 ];

@@ -87,4 +87,5 @@ return [
     'thumbnail_size' => 'Thumbnail Size',
     'list_view' => 'List View',
     'thumbnail_view' => 'Thumbnail View',
+    'size' => 'Size',
 ];

@@ -73,7 +73,7 @@ function getFiles(PDO $conn, string $dir, string $object, string $filter, string
         'xbinning', 'ybinning', 'egain', 'offset', 'xpixsz', 'ypixsz', 'instrume', 
         'set_temp', 'ccd_temp', 'telescop', 'focallen', 'focratio', 'ra', 'dec', 
         'centalt', 'centaz', 'airmass', 'pierside', 'siteelev', 'sitelat', 'sitelong', 
-        'focpos', 'visible_duplicate_count', 'mtime', 'file_hash',
+                'focpos', 'visible_duplicate_count', 'mtime', 'file_hash', 'file_size',
         // New sortable columns
         'date_avg', 'swcreate', 'objctra', 'objctdec', 'cameraid', 'usblimit', 
         'fwheel', 'focname', 'focussz', 'foctemp', 'objctrot', 'roworder', 'equinox'

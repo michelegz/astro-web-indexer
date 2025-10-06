@@ -63,4 +63,5 @@ return [
     'thumbnail_size' => 'Vorschaubildgröße',
     'list_view' => 'Listenansicht',
     'thumbnail_view' => 'Miniaturansicht',
+    'size' => 'Größe',
 ];

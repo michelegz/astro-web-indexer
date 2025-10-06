@@ -63,4 +63,5 @@ return [
     'thumbnail_size' => 'Taille des vignettes',
     'list_view' => 'Vue liste',
     'thumbnail_view' => 'Vue vignettes',
+    'size' => 'Taille',
 ];
