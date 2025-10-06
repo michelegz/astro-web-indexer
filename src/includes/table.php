@@ -8,7 +8,7 @@
 </div>
 
 <!-- View container -->
-<div class="view-container thumb-size-3">
+<div id="selectable-container" class="view-container thumb-size-3">
     
 <!-- List View -->
 <div class="list-view overflow-x-auto bg-gray-800 rounded-lg shadow-lg">
@@ -55,8 +55,8 @@
             </tr>
         </thead>
                 <tbody>
-            <?php foreach ($files as $f): ?>
-                        <tr data-id="<?= $f['id'] ?>" class="border-b border-gray-700 hover:bg-gray-700">
+                        <?php foreach ($files as $f): ?>
+                        <tr data-id="<?= $f['id'] ?>" class="selectable-item border-b border-gray-700 hover:bg-gray-700">
                 <td class="p-3"><input type="checkbox" class="file-checkbox h-4 w-4 text-blue-600 rounded" value="<?= htmlspecialchars($f['path'] ?? '') ?>" data-id="<?= $f['id'] ?>"></td>
                 <td class="p-3">
                     <?php if ($f['thumb']): ?>
@@ -138,7 +138,7 @@
 <!-- Thumbnail View (Initially Hidden) -->
 <div class="thumbnail-view bg-gray-800 rounded-lg shadow-lg p-4 hidden">
     <?php foreach ($files as $f): ?>
-    <div class="thumb-card" data-id="<?= $f['id'] ?>">
+    <div class="selectable-item thumb-card" data-id="<?= $f['id'] ?>">
         <div class="thumb-image-container">
             <input type="checkbox" class="file-checkbox thumb-checkbox h-4 w-4 text-blue-600 rounded" 
                    value="<?= htmlspecialchars($f['path'] ?? '') ?>" 

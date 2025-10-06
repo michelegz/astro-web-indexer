@@ -7,6 +7,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadSelectedBtn = document.getElementById('downloadSelectedBtn');
     const exportAstroBinBtn = document.getElementById('exportAstroBinBtn');
     const filtersForm = document.getElementById('filters-form');
+
+    // --- MULTI-ROW SELECTION LOGIC ---
+    const selectableContainer = document.getElementById('selectable-container');
+    let lastCheckedCheckbox = null;
     const viewContainer = document.querySelector('.view-container');
     const listView = document.querySelector('.list-view');
     const thumbnailView = document.querySelector('.thumbnail-view');
@@ -137,17 +141,45 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- FILE CHECKBOXES (delegation) ---
-    if (tableBody) {
-        tableBody.addEventListener('change', (event) => {
-            if (event.target.classList.contains('file-checkbox')) {
-                const fileCheckboxes = getFileCheckboxes();
-                if (!event.target.checked && selectAllCheckbox) {
-                    selectAllCheckbox.checked = false;
-                } else if (selectAllCheckbox) {
-                    selectAllCheckbox.checked = Array.from(fileCheckboxes).every(cb => cb.checked);
+    // --- FILE CHECKBOXES (delegation with SHIFT multi-select logic) ---
+    if (selectableContainer) {
+        selectableContainer.addEventListener('click', (e) => {
+            const targetElement = e.target;
+            
+            // We only care about clicks on the checkbox itself for shift-select
+            if (!targetElement.classList.contains('file-checkbox')) {
+                // If the click is on other parts of the item, let other event handlers manage it
+                // or just let it bubble. For now, we do nothing to keep it simple.
+                return;
+            }
+
+            const checkbox = targetElement;
+            const allCheckboxes = Array.from(selectableContainer.querySelectorAll('.file-checkbox'));
+
+            // If SHIFT key is pressed and there was a previous checkbox clicked
+            if (e.shiftKey && lastCheckedCheckbox) {
+                const start = allCheckboxes.indexOf(lastCheckedCheckbox);
+                const end = allCheckboxes.indexOf(checkbox);
+                const range = [start, end].sort((a, b) => a - b);
+                
+                // The behavior should be to set the state of the range to the state of the clicked checkbox
+                const shouldBeChecked = checkbox.checked;
+
+                // Check/uncheck all checkboxes within the range
+                for (let i = range[0]; i <= range[1]; i++) {
+                    allCheckboxes[i].checked = shouldBeChecked;
                 }
-                updateButtonStates();
+            }
+
+            lastCheckedCheckbox = checkbox; // Update the last checked checkbox
+
+            // --- Update UI state after any click on a checkbox ---
+            updateButtonStates();
+            if (selectAllCheckbox) {
+                const allSelected = allCheckboxes.length > 0 && allCheckboxes.every(cb => cb.checked);
+                const someSelected = allCheckboxes.some(cb => cb.checked);
+                selectAllCheckbox.checked = allSelected;
+                selectAllCheckbox.indeterminate = someSelected && !allSelected;
             }
         });
     }
