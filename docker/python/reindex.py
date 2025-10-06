@@ -11,6 +11,7 @@ import argparse
 from io import BytesIO
 import logging
 from datetime import datetime
+from stretch import stf_autostretch
 
 # Configure logging
 logging.basicConfig(
@@ -65,14 +66,16 @@ def calculate_hash(filepath, block_size=65536):
 # --- Thumbnail function ---
 def make_thumbnail(data, size):
     try:
-        data = np.nan_to_num(data)
-        p_low, p_high = np.nanpercentile(data, [0.5, 99.5])
-        if p_high <= p_low:
-            stretched = np.zeros_like(data, dtype=float)
-        else:
-            stretched = (data - p_low) / (p_high - p_low)
-        stretched = np.clip(stretched, 0, 1)
+        # Ensure data is float32 and clean
+        data = np.nan_to_num(data).astype(np.float32)
+        
+        # Apply the STF Autostretch
+        stretched, _ = stf_autostretch(data)
+        
+        # Convert to 8-bit image for display
         img = (stretched * 255).astype(np.uint8)
+        
+        # Create thumbnail with Pillow
         image = Image.fromarray(img)
         image.thumbnail(size)
         buf = BytesIO()

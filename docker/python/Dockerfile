@@ -21,6 +21,7 @@ RUN /opt/venv/bin/pip install /opt/scripts/external/xisf
 # Copy the application scripts
 COPY docker/python/reindex.py .
 COPY docker/python/watch_fs.py .
+COPY docker/python/stretch.py .
 
 # Set the PATH to use the virtual environment's python
 ENV PATH="/opt/venv/bin:$PATH"
