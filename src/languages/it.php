@@ -87,4 +87,41 @@ return [
     'thumbnail_size' => 'Dimensione miniature',
     'list_view' => 'Vista elenco',
     'thumbnail_view' => 'Vista miniature',
+        'size' => 'Dimensione',
+    'dimensions' => 'Dimensioni',
+    'resolution' => 'Risoluzione',
+    'field_of_view' => 'Campo Inquadrato',
+    'smart_frame_finder' => 'Smart Frame Finder',
+    'dimensions_width' => 'Larghezza',
+    'dimensions_height' => 'Altezza',
+
+    // Smart Frame Finder Modal
+    'sff_find_similar_lights' => 'Trova Light Simili',
+    'sff_find_bias' => 'Trova Bias',
+    'sff_find_darks' => 'Trova Dark',
+    'sff_find_flats' => 'Trova Flat',
+    'sff_modal_title' => 'Smart Frame Finder',
+    'sff_configure_search' => 'Configura i criteri di ricerca qui sotto.',
+    'sff_results_placeholder' => 'I frame corrispondenti appariranno qui.',
+    'sff_find_frames_btn' => 'Trova Frame',
+    'sff_frames_found' => '{count} frame trovati.',
+    'no_matching_frames_found' => 'Nessun frame corrispondente trovato.',
+    'binning' => 'Binning',
+    'camera_id' => 'Camera ID',
+    'rotation' => 'Rotazione',
+    'fov_width' => 'FoV Larghezza',
+    'fov_height' => 'FoV Altezza',
+
+        // JS specific translations
+    'sff_loading_filters' => 'Caricamento filtri...',
+    'sff_error_loading_filters' => 'Errore nel caricamento dei filtri:',
+    'sff_searching' => 'Ricerca in corso...',
+    'sff_frames_found_js' => '{count} frame trovati.',
+    'sff_configure_and_run' => 'Configura e avvia una ricerca.',
+
+    // SFF API Errors
+    'sff_error_missing_params' => 'Errore: Parametri mancanti o non validi.',
+    'sff_error_no_light_frame' => 'Errore: Frame LIGHT di riferimento non trovato.',
+    'sff_error_invalid_search_type' => 'Errore: Tipo di ricerca non valido.',
+    'date' => 'Data',
 ];

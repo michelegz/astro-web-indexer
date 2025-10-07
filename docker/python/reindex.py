@@ -256,11 +256,14 @@ try:
                     get_value = get_xisf_header_value
                 
                 thumb = None
+                width, height = None, None
+                resolution, fov_w, fov_h = None, None, None
                 if data is not None:
                     data = np.squeeze(data)
                     if data.ndim > 2 and data.shape[0] < 5:
                         data = data[0]
                     if data.ndim >= 2:
+                        height, width = data.shape[:2]
                         thumb = make_thumbnail(data, thumb_size)
 
                 object_name = get_value(header, 'OBJECT', 'Unknown', str).strip()
@@ -274,6 +277,9 @@ try:
                         logger.warning(f"Unparsable DATE-OBS: '{date_obs_str}' in {rel_path}")
 
                 exptime = get_value(header, 'EXPTIME', 0, float)
+                if exptime == 0: # Fallback to EXPOSURE if EXPTIME is not present or zero
+                    exptime = get_value(header, 'EXPOSURE', 0, float)
+                
                 filt = get_value(header, 'FILTER', '', str)
                 imgtype = get_value(header, 'IMAGETYP', 'UNKNOWN', str).upper()
                 xbinning = get_value(header, 'XBINNING', None, int)
@@ -300,45 +306,92 @@ try:
                 focpos = get_value(header, 'FOCPOS', None, int)
                 if focpos is None:
                     focpos = get_value(header, 'FOCUSPOS', None, int)
+                
+                # New fields from header
+                date_avg_str = get_value(header, 'DATE-AVG', None, str)
+                date_avg = None
+                if date_avg_str:
+                    try:
+                        normalized_date_avg_str = date_avg_str.replace('/', '-')
+                        date_avg = Time(normalized_date_avg_str, format='isot' if 'T' in normalized_date_avg_str else 'iso').to_datetime()
+                    except Exception:
+                        logger.warning(f"Unparsable DATE-AVG: '{date_avg_str}' in {rel_path}")
+
+                swcreate = get_value(header, 'SWCREATE', None, str)
+                objct_ra = get_value(header, 'OBJCTRA', None, str)
+                objct_dec = get_value(header, 'OBJCTDEC', None, str)
+                camera_id = get_value(header, 'CAMERAID', None, str)
+                usb_limit = get_value(header, 'USBLIMIT', None, int)
+                fwheel = get_value(header, 'FWHEEL', None, str)
+                foc_name = get_value(header, 'FOCNAME', None, str)
+                focus_sz = get_value(header, 'FOCUSSZ', None, float)
+                foc_temp = get_value(header, 'FOCTEMP', None, float)
+                if foc_temp is None:
+                    foc_temp = get_value(header, 'FOCUSTEM', None, float)
+                objctrot = get_value(header, 'OBJCTROT', None, float)
+                roworder = get_value(header, 'ROWORDER', None, str)
+                equinox = get_value(header, 'EQUINOX', None, float)
+
+                # --- Calculated fields ---
+                # Calculate resolution and FOV if possible
+                if xpixsz and focallen and width and height:
+                    if xpixsz > 0 and focallen > 0:
+                        # Resolution in arcsec/pixel
+                        resolution = (xpixsz / focallen) * 206.265
+                        
+                        # FOV in arcminutes
+                        fov_w = (width * resolution) / 60
+                        fov_h = (height * resolution) / 60
 
                 sql = '''
                     INSERT INTO files (
-                        path, file_hash, name, mtime, file_size, object, date_obs, exptime, filter, imgtype,
-                        xbinning, ybinning, egain, `offset`, xpixsz, ypixsz, instrume,
-                        set_temp, ccd_temp, telescop, focallen, focratio, ra, `dec`,
-                        centalt, centaz, airmass, pierside, siteelev, sitelat, sitelong,
-                        focpos, thumb, deleted_at, is_hidden
-                    ) VALUES (
-                        %(path)s, %(file_hash)s, %(name)s, %(mtime)s, %(file_size)s, %(object)s, %(date_obs)s, %(exptime)s, %(filter)s, %(imgtype)s,
-                        %(xbinning)s, %(ybinning)s, %(egain)s, %(offset)s, %(xpixsz)s, %(ypixsz)s, %(instrume)s,
-                        %(set_temp)s, %(ccd_temp)s, %(telescop)s, %(focallen)s, %(focratio)s, %(ra)s, %(dec)s,
-                        %(centalt)s, %(centaz)s, %(airmass)s, %(pierside)s, %(siteelev)s, %(sitelat)s, %(sitelong)s,
-                        %(focpos)s, %(thumb)s, NULL, 0
+                        path, file_hash, name, mtime, file_size, width, height, resolution, fov_w, fov_h,
+                        object, objctra, objctdec,
+                        imgtype, exptime, date_obs, date_avg, filter,
+                        xbinning, ybinning, egain, `offset`, xpixsz, ypixsz, set_temp, ccd_temp,
+                        instrume, cameraid, usblimit, fwheel, telescop, focallen, focratio, 
+                        focname, focpos, focussz, foctemp,
+                        ra, `dec`, centalt, centaz, airmass, pierside, objctrot,
+                        siteelev, sitelat, sitelong,
+                        swcreate, roworder, equinox,
+                        thumb, deleted_at, is_hidden
+                                                            ) VALUES (
+                        %(path)s, %(file_hash)s, %(name)s, %(mtime)s, %(file_size)s, %(width)s, %(height)s, %(resolution)s, %(fov_w)s, %(fov_h)s,
+                        %(object)s, %(objctra)s, %(objctdec)s,
+                        %(imgtype)s, %(exptime)s, %(date_obs)s, %(date_avg)s, %(filter)s,
+                        %(xbinning)s, %(ybinning)s, %(egain)s, %(offset)s, %(xpixsz)s, %(ypixsz)s, %(set_temp)s, %(ccd_temp)s,
+                        %(instrume)s, %(cameraid)s, %(usblimit)s, %(fwheel)s, %(telescop)s, %(focallen)s, %(focratio)s,
+                        %(focname)s, %(focpos)s, %(focussz)s, %(foctemp)s,
+                        %(ra)s, %(dec)s, %(centalt)s, %(centaz)s, %(airmass)s, %(pierside)s, %(objctrot)s,
+                        %(siteelev)s, %(sitelat)s, %(sitelong)s,
+                        %(swcreate)s, %(roworder)s, %(equinox)s,
+                        %(thumb)s, NULL, 0
                     )
-                    ON DUPLICATE KEY UPDATE
-                        file_hash=VALUES(file_hash), mtime=VALUES(mtime), file_size=VALUES(file_size),
-                        name=VALUES(name), object=VALUES(object), date_obs=VALUES(date_obs),
-                        exptime=VALUES(exptime), filter=VALUES(filter), imgtype=VALUES(imgtype),
-                        xbinning=VALUES(xbinning), ybinning=VALUES(ybinning), egain=VALUES(egain),
-                        `offset`=VALUES(`offset`), xpixsz=VALUES(xpixsz), ypixsz=VALUES(ypixsz),
-                        instrume=VALUES(instrume), set_temp=VALUES(set_temp), ccd_temp=VALUES(ccd_temp),
-                        telescop=VALUES(telescop), focallen=VALUES(focallen), focratio=VALUES(focratio),
-                        ra=VALUES(ra), `dec`=VALUES(`dec`), centalt=VALUES(centalt), centaz=VALUES(centaz),
-                        airmass=VALUES(airmass), pierside=VALUES(pierside), siteelev=VALUES(siteelev),
-                        sitelat=VALUES(sitelat), sitelong=VALUES(sitelong), focpos=VALUES(focpos),
+                                                            ON DUPLICATE KEY UPDATE
+                        file_hash=VALUES(file_hash), mtime=VALUES(mtime), file_size=VALUES(file_size), width=VALUES(width), height=VALUES(height), resolution=VALUES(resolution), fov_w=VALUES(fov_w), fov_h=VALUES(fov_h), name=VALUES(name),
+                        object=VALUES(object), objctra=VALUES(objctra), objctdec=VALUES(objctdec),
+                        imgtype=VALUES(imgtype), exptime=VALUES(exptime), date_obs=VALUES(date_obs), date_avg=VALUES(date_avg), filter=VALUES(filter),
+                        xbinning=VALUES(xbinning), ybinning=VALUES(ybinning), egain=VALUES(egain), `offset`=VALUES(`offset`), xpixsz=VALUES(xpixsz), ypixsz=VALUES(ypixsz), set_temp=VALUES(set_temp), ccd_temp=VALUES(ccd_temp),
+                        instrume=VALUES(instrume), cameraid=VALUES(cameraid), usblimit=VALUES(usblimit), fwheel=VALUES(fwheel), telescop=VALUES(telescop), focallen=VALUES(focallen), focratio=VALUES(focratio),
+                        focname=VALUES(focname), focpos=VALUES(focpos), focussz=VALUES(focussz), foctemp=VALUES(foctemp),
+                        ra=VALUES(ra), `dec`=VALUES(`dec`), centalt=VALUES(centalt), centaz=VALUES(centaz), airmass=VALUES(airmass), pierside=VALUES(pierside), objctrot=VALUES(objctrot),
+                        siteelev=VALUES(siteelev), sitelat=VALUES(sitelat), sitelong=VALUES(sitelong),
+                        swcreate=VALUES(swcreate), roworder=VALUES(roworder), equinox=VALUES(equinox),
                         thumb=COALESCE(VALUES(thumb), thumb),
                         deleted_at=NULL, is_hidden=is_hidden
                 '''
                 params = {
                     'path': rel_path, 'file_hash': file_hash, 'name': file, 'mtime': mtime, 'file_size': file_size,
-                    'object': object_name, 'date_obs': date_obs, 'exptime': exptime, 'filter': filt, 'imgtype': imgtype,
-                    'xbinning': xbinning, 'ybinning': ybinning, 'egain': egain, 'offset': offset,
-                    'xpixsz': xpixsz, 'ypixsz': ypixsz, 'instrume': instrume, 'set_temp': set_temp,
-                    'ccd_temp': ccd_temp, 'telescop': telescop, 'focallen': focallen,
-                    'focratio': focratio, 'ra': ra, 'dec': dec, 'centalt': centalt,
-                    'centaz': centaz, 'airmass': airmass, 'pierside': pierside,
+                    'width': width, 'height': height, 'resolution': resolution, 'fov_w': fov_w, 'fov_h': fov_h,
+                    'object': object_name, 'objctra': objct_ra, 'objctdec': objct_dec,
+                    'imgtype': imgtype, 'exptime': exptime, 'date_obs': date_obs, 'date_avg': date_avg, 'filter': filt,
+                    'xbinning': xbinning, 'ybinning': ybinning, 'egain': egain, 'offset': offset, 'xpixsz': xpixsz, 'ypixsz': ypixsz, 'set_temp': set_temp, 'ccd_temp': ccd_temp,
+                    'instrume': instrume, 'cameraid': camera_id, 'usblimit': usb_limit, 'fwheel': fwheel, 'telescop': telescop, 'focallen': focallen, 'focratio': focratio,
+                    'focname': foc_name, 'focpos': focpos, 'focussz': focus_sz, 'foctemp': foc_temp,
+                    'ra': ra, 'dec': dec, 'centalt': centalt, 'centaz': centaz, 'airmass': airmass, 'pierside': pierside, 'objctrot': objctrot,
                     'siteelev': siteelev, 'sitelat': sitelat, 'sitelong': sitelong,
-                    'focpos': focpos, 'thumb': thumb
+                    'swcreate': swcreate, 'roworder': roworder, 'equinox': equinox,
+                    'thumb': thumb
                 }
                 cur.execute(sql, params)
                 update_duplicate_counts(conn, cur, file_hash)

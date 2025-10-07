@@ -25,7 +25,7 @@ ENV APP_VERSION=$AWI_VERSION
 RUN echo $APP_VERSION > VERSION
 
 # Now, with all files in place, run composer install.
-RUN composer install --no-interaction --no-progress --no-dev --optimize-autoloader
+RUN composer install --no-interaction --optimize-autoloader
 
 # Copy custom PHP configuration to ensure it's loaded last
 COPY docker/php/limits.ini /usr/local/etc/php/conf.d/zz-limits.ini

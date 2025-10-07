@@ -148,13 +148,9 @@ if (empty($sessions)) {
     $cal_only_row = array_merge($cal_only_row, $cal_frames);
     fputcsv($output, $cal_only_row);
 } else {
-    // Add calibration data to the first session found
-    $first = true;
+    // Add calibration data to *every* session found
     foreach ($sessions as $session) {
-        if ($first) {
-            $session = array_merge($session, $cal_frames);
-            $first = false;
-        }
+        $session = array_merge($session, $cal_frames);
         // Ensure all columns are present, even if empty
         $row_to_write = array_merge(array_fill_keys($full_header, ''), $session);
         fputcsv($output, $row_to_write);

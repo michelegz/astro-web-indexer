@@ -34,7 +34,14 @@ COMMAND=${1:-help}
 case "$COMMAND" in
     build)
         echo "Building Docker images with AWI_VERSION=$AWI_VERSION..."
-        docker compose build --build-arg AWI_VERSION="$AWI_VERSION"
+        
+        NO_CACHE_FLAG=""
+        if [ "$2" = "--no-cache" ]; then
+            echo "Forcing a clean build with --no-cache..."
+            NO_CACHE_FLAG="--no-cache"
+        fi
+
+        docker compose build $NO_CACHE_FLAG --build-arg AWI_VERSION="$AWI_VERSION"
         docker compose up -d
         echo "Build complete. Astro Web Indexer is running."
         ;;

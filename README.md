@@ -45,6 +45,15 @@ This project is developed and maintained in my spare time. If you find it useful
 - **Smart Session Aggregation:** The exporter intelligently groups exposures into "astro-nights" (from noon to noon), correctly handling sessions that span across midnight.
 - **Calibration Frame Counting:** Automatically counts the number of selected dark, flat, and bias frames and adds them to the session data.
 
+### 🔬 Smart Frame Finder (SFF)
+
+Finding the right calibration frames (darks, flats, bias) for your light frames can be tedious. The Smart Frame Finder automates this process with a powerful, configurable search engine.
+
+- **Context-Aware Search:** Start a search directly from a `LIGHT` frame to find matching calibration files. The system knows which parameters are relevant for each calibration type (e.g., `EXPTIME` for darks, `FILTER` for flats).
+- **Flexible Rules Engine:** Activate and deactivate search criteria on the fly. You can match by `CCD-TEMP`, `BINNING`, `INSTRUME`, and many other FITS headers.
+- **Tolerance Sliders:** Don't need an exact match? Use intuitive sliders to define acceptable tolerances for parameters like temperature (`±2°`), date (`±30 days`), or exposure (`±10%`).
+- **Dedicated Interface:** The SFF operates in a dedicated modal window, allowing you to build complex queries, view results, and download a `.zip` archive of the selected frames without leaving the main page.
+
 ### Duplicate Management
 
 The indexer includes a powerful suite for identifying and managing duplicate files, ensuring a clean and efficient archive.
@@ -108,6 +117,8 @@ This command handles the entire build process, including automatically embedding
 ### Managing the Application
 
 The `build.sh` script provides several commands to manage the application's lifecycle:
+- `./build.sh build`: Builds (or rebuilds) the Docker images and starts the services.
+- `./build.sh build --no-cache`: Forces a complete rebuild of the images without using Docker's cache. This is useful when you have issues with outdated dependencies.
 - `./build.sh start`: Starts the containers without rebuilding.
 - `./build.sh stop`: Stops the containers.
 - `./build.sh logs`: Follows the logs from all running containers.
@@ -215,6 +226,9 @@ Here's how you can help:
 3. 💾 Commit your changes: `git commit -am 'Add: my feature'`
 4. ⤴️ Push to your forked repository: `git push origin feature/my-feature`
 5. 🔍 Submit a pull request to the `dev` branch of the main repository.
+
+### Database Migrations
+This project uses **Phinx** to manage database schema changes. Migrations are applied automatically when the application starts, ensuring the database is always up-to-date. Developers wishing to contribute schema changes should familiarize themselves with the Phinx workflow.
 
 ### Versioning
 
