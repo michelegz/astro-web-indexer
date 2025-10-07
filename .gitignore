@@ -48,7 +48,7 @@ venv/
 .continue/*
 
 # dev files
-awi-images.tar
+awi-images*.tar
 docker-save.bat
 /docker-compose.override.yml
 /docker-compose.override.yml.off
