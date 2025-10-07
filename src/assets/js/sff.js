@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Store reference file ID and search type when modal is opened
     let currentFileId = null;
     let currentSearchType = null;
+    let lastSffChecked = null; // Variable for shift-click
 
     // --- Modal Basic Functions ---
     
@@ -57,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function closeSffModal() {
         if (!sffModal) return;
         sffModal.classList.add('hidden');
+        lastSffChecked = null; // Reset on close
     }
 
     // --- Event Handlers ---
@@ -165,6 +167,35 @@ document.addEventListener('DOMContentLoaded', () => {
             updateSffDownloadButtonState();
         }
     });
+
+    // Handle shift-click for multi-selection in results
+    sffResultsPanel.addEventListener('click', function(event) {
+        if (event.target.classList.contains('sff-file-checkbox') && event.shiftKey) {
+            if (!lastSffChecked) {
+                lastSffChecked = event.target;
+                return;
+            }
+
+            const checkboxes = Array.from(sffResultsPanel.querySelectorAll('.sff-file-checkbox'));
+            const start = checkboxes.indexOf(lastSffChecked);
+            const end = checkboxes.indexOf(event.target);
+            
+            if (start === -1 || end === -1) return;
+
+            const lower = Math.min(start, end);
+            const upper = Math.max(start, end);
+
+            for (let i = lower; i <= upper; i++) {
+                checkboxes[i].checked = event.target.checked;
+            }
+            updateSffDownloadButtonState();
+        }
+        
+        if (event.target.classList.contains('sff-file-checkbox')) {
+            lastSffChecked = event.target;
+        }
+    });
+
 
     // Handle Download button click
     if (sffDownloadBtn) {

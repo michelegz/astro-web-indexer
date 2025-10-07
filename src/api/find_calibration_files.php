@@ -64,7 +64,8 @@ foreach ($filters as $filter) {
 
     // Simple toggle filters (exact match)
     if ($filter['type'] === 'toggle') {
-        $sqlWhere[] = "{$id} = :{$id}";
+        $escapedId = "`{$id}`";
+        $sqlWhere[] = "{$escapedId} = :{$id}";
         $sqlParams[":{$id}"] = $refFile[$id];
     }
     
@@ -77,14 +78,16 @@ foreach ($filters as $filter) {
             $delta = $refValue * ($tolerance / 100);
             $min = $refValue - $delta;
             $max = $refValue + $delta;
-            $sqlWhere[] = "{$id} BETWEEN :{$id}_min AND :{$id}_max";
+            $escapedId = "`{$id}`";
+            $sqlWhere[] = "{$escapedId} BETWEEN :{$id}_min AND :{$id}_max";
             $sqlParams[":{$id}_min"] = $min;
             $sqlParams[":{$id}_max"] = $max;
         }
         elseif ($filter['type'] === 'slider_degrees') {
             $min = $refValue - $tolerance;
             $max = $refValue + $tolerance;
-            $sqlWhere[] = "{$id} BETWEEN :{$id}_min AND :{$id}_max";
+            $escapedId = "`{$id}`";
+            $sqlWhere[] = "{$escapedId} BETWEEN :{$id}_min AND :{$id}_max";
             $sqlParams[":{$id}_min"] = $min;
             $sqlParams[":{$id}_max"] = $max;
         }
@@ -95,7 +98,8 @@ foreach ($filters as $filter) {
             $maxDate = clone $refDate;
             $maxDate->modify("+{$tolerance} days");
             
-            $sqlWhere[] = "{$id} BETWEEN :{$id}_min AND :{$id}_max"; // And here
+            $escapedId = "`{$id}`";
+            $sqlWhere[] = "{$escapedId} BETWEEN :{$id}_min AND :{$id}_max"; // And here
             $sqlParams[":{$id}_min"] = $minDate->format('Y-m-d H:i:s');
             $sqlParams[":{$id}_max"] = $maxDate->format('Y-m-d H:i:s');
         }
