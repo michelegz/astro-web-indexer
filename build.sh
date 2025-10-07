@@ -60,8 +60,28 @@ case "$COMMAND" in
         echo "Cleaning up generated files..."
         rm -f src/VERSION
         ;;
+    save)
+        echo "Saving Docker images with tag $AWI_VERSION..."
+        if [ -z "$AWI_VERSION" ]; then
+            echo "Error: Could not determine version. Aborting."
+            exit 1
+        fi
+        
+        OUTPUT_FILE="awi-images-${AWI_VERSION// /-}.tar"
+        
+        echo "Exporting images to ${OUTPUT_FILE}..."
+        
+        docker save -o "$OUTPUT_FILE" \
+            "astro-web-indexer-nginx:${AWI_VERSION}" \
+            "astro-web-indexer-php:${AWI_VERSION}" \
+            "astro-web-indexer-python:${AWI_VERSION}" \
+            "astro-web-indexer-mariadb:${AWI_VERSION}"
+            
+        echo "Images saved successfully."
+        echo "You can load them on another machine using: docker load -i ${OUTPUT_FILE}"
+        ;;
     help|-h|--help)
-        echo "Usage: $0 [build|start|stop|logs|clean]"
+        echo "Usage: $0 [build|start|stop|logs|clean|save]"
         echo ""
         echo "Commands:"
         echo "  build    Build and start containers (AWI_VERSION passed as build-arg)."
@@ -69,6 +89,7 @@ case "$COMMAND" in
         echo "  stop     Stop containers."
         echo "  logs     Follow logs of running containers."
         echo "  clean    Stop containers and remove generated files."
+        echo "  save     Save the versioned Docker images to a .tar file."
         ;;
     *)
         echo "Unknown command: $COMMAND"

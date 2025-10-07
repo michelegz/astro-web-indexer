@@ -128,6 +128,7 @@ The `build.sh` script provides several commands to manage the application's life
 - `./build.sh stop`: Stops the containers.
 - `./build.sh logs`: Follows the logs from all running containers.
 - `./build.sh clean`: Stops the containers and removes any temporary files generated during the build.
+- `./build.sh save`: Exports the versioned Docker images to a `.tar` archive for manual transfer.
 
 
 ## ⚙️ Configuration
