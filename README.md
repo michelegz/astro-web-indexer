@@ -23,10 +23,22 @@ This project is developed and maintained in my spare time. If you find it useful
 
 ### Core Functionality
 - 📁 Browse and search FITS and XISF files in a directory structure
-- 🔄 Real-time monitoring and automatic indexing of new files
-- 🖼️ Built-in preview generation for both FITS and XISF images
 - 🔍 Advanced filtering by object, filter type, and image type
+- 🔄 Real-time monitoring and automatic indexing of new files
+- 🖼️ Built-in preview generation for both FITS and XISF images with a non linear STF stretch
+- 🔬 **Smart Frame Finder (SFF):** A powerful, context-aware search engine to find the right calibration frames (darks, flats, bias) for your lights using a flexible, tolerance-based rules engine.
 - 📥 Bulk download functionality with ZIP compression
+
+### AstroBin Integration
+- **CSV Export for Sessions:** Select multiple files (lights, darks, flats, bias) and copy a pre-formatted CSV string to your clipboard, ready to be pasted into AstroBin's session importer.
+- **Smart Session Aggregation:** The exporter intelligently groups exposures into "astro-nights" (from noon to noon), correctly handling sessions that span across midnight.
+- **Calibration Frame Counting:** Automatically counts the number of selected dark, flat, and bias frames and adds them to the session data.
+
+### Duplicate Management
+The indexer includes a powerful suite for identifying and managing duplicate files, ensuring a clean and efficient archive.
+- **Content-Based Duplicate Detection:** Files are identified as duplicates based on their content hash (`xxhash`), regardless of their name or location.
+- **Smart Duplicate Badge:** The main file table displays an intelligent badge to manage duplicate sets.
+- **Interactive Management Modal:** A dedicated interface to view, hide, and restore duplicate files.
 
 ### User Experience
 - 🌐 Multilingual interface (English, Italian, French, Spanish, and German)
@@ -36,28 +48,20 @@ This project is developed and maintained in my spare time. If you find it useful
 
 ### Technical Features
 - 🐳 Dockerized deployment for easy setup
-- 🗄️ MariaDB backend for robust data storage
+- 🗄️ MariaDB backend with schema migrations managed by **Phinx**.
 - 🔒 Secure file handling and access control
-- 📊 FITS header metadata extraction and indexing
+- 📊 Extensive FITS/XISF header metadata extraction and indexing.
 
-### AstroBin Integration
-- **CSV Export for Sessions:** Select multiple files (lights, darks, flats, bias) and copy a pre-formatted CSV string to your clipboard, ready to be pasted into AstroBin's session importer.
-- **Smart Session Aggregation:** The exporter intelligently groups exposures into "astro-nights" (from noon to noon), correctly handling sessions that span across midnight.
-- **Calibration Frame Counting:** Automatically counts the number of selected dark, flat, and bias frames and adds them to the session data.
+*A more detailed description of the SFF, Duplicate Management, and Indexing engine can be found below.*
 
 ### 🔬 Smart Frame Finder (SFF)
-
 Finding the right calibration frames (darks, flats, bias) for your light frames can be tedious. The Smart Frame Finder automates this process with a powerful, configurable search engine.
-
 - **Context-Aware Search:** Start a search directly from a `LIGHT` frame to find matching calibration files. The system knows which parameters are relevant for each calibration type (e.g., `EXPTIME` for darks, `FILTER` for flats).
 - **Flexible Rules Engine:** Activate and deactivate search criteria on the fly. You can match by `CCD-TEMP`, `BINNING`, `INSTRUME`, and many other FITS headers.
 - **Tolerance Sliders:** Don't need an exact match? Use intuitive sliders to define acceptable tolerances for parameters like temperature (`±2°`), date (`±30 days`), or exposure (`±10%`).
 - **Dedicated Interface:** The SFF operates in a dedicated modal window, allowing you to build complex queries, view results, and download a `.zip` archive of the selected frames without leaving the main page.
 
 ### Duplicate Management
-
-The indexer includes a powerful suite for identifying and managing duplicate files, ensuring a clean and efficient archive.
-
 - **Content-Based Duplicate Detection:** Files are identified as duplicates based on their content hash (`xxhash`), regardless of their name or location. If two files have the same hash, they are considered duplicates.
 - **Smart Duplicate Badge:** The main file table displays an intelligent badge in the format `Visible / Total` for files that have duplicates.
   - `5 / 5` (Yellow): Indicates 5 duplicates exist, and all are currently visible.
@@ -68,6 +72,7 @@ The indexer includes a powerful suite for identifying and managing duplicate fil
   - Select and hide redundant duplicates to declutter the main view.
   - View and restore previously hidden files.
 - **Sort by Duplicates:** The main table can be sorted by the number of visible duplicates, making it easy to find and manage files with the most copies.
+
 
 ### Resilient Indexing & Soft-Delete
 
@@ -211,8 +216,7 @@ docker exec -it python-awi python /opt/scripts/reindex.py /var/fits --force
 astro-web-indexer/
 ├── docker/                    # Docker configuration files
 ├── external/                  # Git submodules for external libraries (e.g., XISF)
-├── src/                      # Application source code
-└── tests/                    # Test files
+└── src/                       # Application source code
 ```
 
 ## 🤝 Contributing

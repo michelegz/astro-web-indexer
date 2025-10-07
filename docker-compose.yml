@@ -1,5 +1,6 @@
 services:
   nginx:
+    image: astro-web-indexer-nginx:${AWI_VERSION:-latest}
     build:
       context: .
       dockerfile: docker/nginx/Dockerfile
@@ -13,6 +14,7 @@ services:
       - php
 
   php:
+    image: astro-web-indexer-php:${AWI_VERSION:-latest}
     build: 
       context: .
       dockerfile: docker/php/Dockerfile
@@ -39,6 +41,7 @@ services:
         condition: service_healthy
 
   python:
+    image: astro-web-indexer-python:${AWI_VERSION:-latest}
     build:
       context: .
       dockerfile: docker/python/Dockerfile
@@ -58,6 +61,7 @@ services:
         condition: service_healthy
 
   mariadb:
+    image: astro-web-indexer-mariadb:${AWI_VERSION:-latest}
     build:
       context: ./docker/mariadb
       dockerfile: Dockerfile
@@ -75,3 +79,4 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+

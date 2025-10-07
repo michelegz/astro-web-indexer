@@ -27,6 +27,7 @@ get_version() {
 
 AWI_VERSION=$(get_version)
 echo "Detected version: $AWI_VERSION"
+export AWI_VERSION
 
 # Command to execute (default: help)
 COMMAND=${1:-help}
