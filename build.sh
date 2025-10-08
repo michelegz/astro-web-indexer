@@ -135,10 +135,10 @@ case "$COMMAND" in
         echo "Pushing images with tag $AWI_VERSION to GHCR..."
         
         # Check for ghcr.io login
-        if ! docker info | grep -q "ghcr.io"; then
-            echo "Error: You are not logged into ghcr.io. Please run 'echo \$GH_PAT | docker login ghcr.io -u <username> --password-stdin' first."
-            exit 1
-        fi
+        #if ! docker info | grep -q "ghcr.io"; then
+        #    echo "Error: You are not logged into ghcr.io. Please run 'echo \$GH_PAT | docker login ghcr.io -u <username> --password-stdin' first."
+        #    exit 1
+        #fi
 
         SERVICES=("nginx" "php" "python" "mariadb")
         IMAGE_OWNER=${IMAGE_OWNER:-michelegz} # Use environment variable or default
