@@ -47,10 +47,10 @@ function render_sff_results_table(array $files): void
                         <a href="/fits/<?= rawurlencode($file['path']) ?>" download><?= htmlspecialchars($file['name']) ?></a>
                     </td>
                     <td class="p-2 text-gray-300 whitespace-nowrap"><?= htmlspecialchars(substr($file['date_obs'], 0, 10)) ?></td>
-                    <td class="p-2 text-gray-300"><?= htmlspecialchars($file['exptime']) ?>s</td>
-                    <td class="p-2 text-gray-300"><?= htmlspecialchars($file['ccd_temp']) ?>°</td>
-                    <td class="p-2 text-gray-300"><?= htmlspecialchars($file['xbinning'] . 'x' . $file['ybinning']) ?></td>
-                    <td class="p-2 text-gray-300"><?= htmlspecialchars($file['width'] . 'x' . $file['height']) ?></td>
+                    <td class="p-2 text-gray-300"><?= isset($file['exptime']) ? htmlspecialchars((string)$file['exptime']) . 's' : 'N/A' ?></td>
+                    <td class="p-2 text-gray-300"><?= isset($file['ccd_temp']) ? htmlspecialchars((string)$file['ccd_temp']) . '°' : 'N/A' ?></td>
+                    <td class="p-2 text-gray-300"><?= isset($file['xbinning'], $file['ybinning']) ? htmlspecialchars($file['xbinning'] . 'x' . $file['ybinning']) : 'N/A' ?></td>
+                    <td class="p-2 text-gray-300"><?= isset($file['width'], $file['height']) ? htmlspecialchars($file['width'] . 'x' . $file['height']) : 'N/A' ?></td>
                 </tr>
             <?php endforeach; ?>
         </tbody>
