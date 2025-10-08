@@ -32,7 +32,7 @@ $baseQueryString = http_build_query($baseQueryParams);
                 $queryString = http_build_query($queryParams);
         ?>
             <li class="flex items-center">
-                <a href="?<?= $queryString ?>" class="text-blue-400 hover:text-blue-300"><?= htmlspecialchars($part) ?></a>
+                <a href="?<?= htmlspecialchars($queryString) ?>" class="text-blue-400 hover:text-blue-3-00"><?= htmlspecialchars($part) ?></a>
                 <span class="mx-2 text-gray-500">/</span>
             </li>
         <?php
