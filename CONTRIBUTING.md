@@ -48,13 +48,15 @@ If you want to build the project from the source code instead of using the pre-b
 ### Managing the Application with `build.sh`
 
 The `build.sh` script provides several commands to manage the application's lifecycle:
-- `./build.sh build`: Builds (or rebuilds) the Docker images and starts the services.
-- `./build.sh build --no-cache`: Forces a complete rebuild of the images without using Docker's cache.
-- `./build.sh build --latest`: Builds the images with the `latest` tag instead of the Git version tag.
+- `./build.sh build`: Builds (or rebuilds) the Docker images and starts the services. Options:
+  - `--no-cache`: Forces a complete rebuild without using Docker's cache.
+  - `--tag-latest`: Additionally tags the build as 'latest'.
+  - `--tag-dev`: Additionally tags the build as 'dev'.
 - `./build.sh start`: Starts the containers without rebuilding.
 - `./build.sh stop`: Stops the containers.
 - `./build.sh logs`: Follows the logs from all running containers.
 - `./build.sh save`: Exports the versioned Docker images to a `.tar` archive for manual transfer.
+- `./build.sh push`: Pushes the built images to GitHub Container Registry. Options: `--tag-latest`, `--tag-dev`.
 - `./build.sh push`: Pushes the built images to GitHub Container Registry. Options: `--tag-latest`, `--tag-dev`.
 
 ### Frontend Development
@@ -110,17 +112,6 @@ We welcome contributions! All pull requests should be made to the `dev` branch. 
 
 ### Database Migrations
 This project uses **Phinx** to manage database schema changes. Migrations are applied automatically when the application starts.
-
-> **Note for existing users updating to v1.1.0+:**
-> Due to the introduction of Phinx and significant schema changes, you will need to **completely remove your old database volume** before starting the new version. The application will create a fresh, correctly structured database on the first run.
-> ```bash
-> # Stop the containers
-> ./build.sh stop
-> # Remove the database volume (default name is data/db)
-> rm -rf data/db
-> # Rebuild and start
-> ./build.sh build
-> ```
 
 If you need to make schema changes, you should create a new migration file using the Phinx CLI. You can run Phinx commands inside the `php` container:
 ```bash
