@@ -1,9 +1,10 @@
+# This docker-compose file is intended for end-users.
+# It uses pre-built images from the GitHub Container Registry.
+# For development and building from source, please use the main docker-compose.yml file.
+
 services:
   nginx:
-    image: ghcr.io/${IMAGE_OWNER:-michelegz}/astro-web-indexer-nginx:${AWI_VERSION:-latest}
-    build:
-      context: .
-      dockerfile: docker/nginx/Dockerfile
+    image: ghcr.io/michelegz/astro-web-indexer-nginx:v1.1.0
     container_name: nginx-awi
     ports:
       - "${NGINX_PORT:-2080}:80"
@@ -14,12 +15,7 @@ services:
       - php
 
   php:
-    image: ghcr.io/${IMAGE_OWNER:-michelegz}/astro-web-indexer-php:${AWI_VERSION:-latest}
-    build:  
-      context: .
-      dockerfile: docker/php/Dockerfile
-      args:
-        AWI_VERSION: "" # placeholder, will be overridden in build.sh
+    image: ghcr.io/michelegz/astro-web-indexer-php:v1.1.0
     container_name: php-awi
     volumes:
       - ${FITS_DATA_PATH:-./data/fits}:/var/fits:ro
@@ -34,17 +30,14 @@ services:
       - DB_USER=${DB_USER:-awi_user}
       - DB_PASSWORD=${DB_PASSWORD:-awi_password}
       - RETENTION_DAYS=${RETENTION_DAYS:-30}
-      - DEBUG=${DEBUG:-true}
+      - DEBUG=${DEBUG:-false}
     restart: unless-stopped
     depends_on:
       mariadb:
         condition: service_healthy
 
   python:
-    image: ghcr.io/${IMAGE_OWNER:-michelegz}/astro-web-indexer-python:${AWI_VERSION:-latest}
-    build:
-      context: .
-      dockerfile: docker/python/Dockerfile
+    image: ghcr.io/michelegz/astro-web-indexer-python:v1.1.0
     container_name: python-awi
     volumes:
       - ${FITS_DATA_PATH:-./data/fits}:/var/fits:ro
@@ -53,7 +46,7 @@ services:
       - DB_NAME=${DB_NAME:-awi_db}
       - DB_USER=${DB_USER:-awi_user}
       - DB_PASSWORD=${DB_PASSWORD:-awi_password}
-      - DEBUG=${DEBUG:-true}
+      - DEBUG=${DEBUG:-false}
       - THUMB_SIZE=${THUMB_SIZE:-300}
     restart: always
     depends_on:
@@ -61,10 +54,7 @@ services:
         condition: service_healthy
 
   mariadb:
-    image: ghcr.io/${IMAGE_OWNER:-michelegz}/astro-web-indexer-mariadb:${AWI_VERSION:-latest}
-    build:
-      context: ./docker/mariadb
-      dockerfile: Dockerfile
+    image: ghcr.io/michelegz/astro-web-indexer-mariadb:v1.1.0
     container_name: mariadb-awi
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
@@ -79,4 +69,3 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
-

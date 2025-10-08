@@ -8,7 +8,7 @@ A web-based file indexer and viewer for astronomical data, supporting both FITS 
 
 ## 🧪 Project Status
 
-**Beta Phase:** This project has been tested in a very limited environment and for a single use case. It should be considered in the beta phase. I appreciate any feedback and contributions to improve its stability and features.
+**Beta Phase:** All v1.x.x releases are considered beta. During this phase, development may be rapid and include breaking changes. The goal is to gather wider user feedback to achieve a stable v2.0.0 release.
 
 ## ▶️ Preview
 ![Preview Screenshot](docs/images/preview.png)
@@ -25,20 +25,37 @@ This project is developed and maintained in my spare time. If you find it useful
 - 📁 Browse and search FITS and XISF files in a directory structure
 - 🔍 Advanced filtering by object, filter type, and image type
 - 🔄 Real-time monitoring and automatic indexing of new files
-- 🖼️ Built-in preview generation for both FITS and XISF images with a non linear STF stretch
-- 🔬 **Smart Frame Finder (SFF):** A powerful search engine to find matching calibration frames (darks, flats, bias) or similar, stackable `LIGHT` frames using a flexible, tolerance-based rules engine.
+- 🖼️ Built-in preview generation for both FITS and XISF images with a non linear MTF stretch
 - 📥 Bulk download functionality with ZIP compression
 
-### AstroBin Integration
+### 🔬 Smart Frame Finder (SFF)
+A powerful search engine to find matching calibration frames (darks, flats, bias) or similar, stackable `LIGHT` frames using a flexible, tolerance-based rules engine.
+
+- **Find Stackable Lights:** Beyond calibration, SFF can find other light frames of the same object with similar celestial coordinates (`RA`/`DEC`), rotation, and field of view, making it easy to identify all stackable exposures of a target, even across different nights.
+- **Context-Aware Search:** Start a search directly from a `LIGHT` frame to find matching calibration files. The system knows which parameters are relevant for each calibration type (e.g., `EXPTIME` for darks, `FILTER` for flats).
+- **Flexible Rules Engine:** Activate and deactivate search criteria on the fly. You can match by `CCD-TEMP`, `BINNING`, `INSTRUME`, and many other FITS headers.
+- **Tolerance Sliders:** Don't need an exact match? Use intuitive sliders to define acceptable tolerances for parameters like temperature (`±2°`), date (`±30 days`), or exposure (`±10%`).
+- **Dedicated Interface:** The SFF operates in a dedicated modal window, allowing you to build complex queries, view results, and download a `.zip` archive of the selected frames without leaving the main page.
+
+### 🌌 AstroBin Integration
 - **CSV Export for Sessions:** Select multiple files (lights, darks, flats, bias) and copy a pre-formatted CSV string to your clipboard, ready to be pasted into AstroBin's session importer.
 - **Smart Session Aggregation:** The exporter intelligently groups exposures into "astro-nights" (from noon to noon), correctly handling sessions that span across midnight.
 - **Calibration Frame Counting:** Automatically counts the number of selected dark, flat, and bias frames and adds them to the session data.
 
-### Duplicate Management
+### ‼️Duplicate Management
 The indexer includes a powerful suite for identifying and managing duplicate files, ensuring a clean and efficient archive.
 - **Content-Based Duplicate Detection:** Files are identified as duplicates based on their content hash (`xxhash`), regardless of their name or location.
-- **Smart Duplicate Badge:** The main file table displays an intelligent badge to manage duplicate sets.
+- **Smart Duplicate Badge:** The main file table displays an intelligent badge in the format `Visible / Total` for files that have duplicates.
 - **Interactive Management Modal:** A dedicated interface to view, hide, and restore duplicate files.
+- **Sort by Duplicates:** The main table can be sorted by the number of visible duplicates, making it easy to find and manage files with the most copies.
+
+### 🗃️ Resilient Indexing & Soft-Delete
+
+The indexing engine is designed to be both efficient and resilient, making it suitable for managing large and dynamic data archives.
+
+- **Fast Rescans:** The indexer uses a combination of file modification time (`mtime`) and size to quickly skip files that have not changed since the last scan. This makes subsequent indexing runs extremely fast.
+- **Content-Based Identification:** Files are uniquely identified by their `xxhash`, a high-speed hashing algorithm.
+- **Soft-Delete Recovery:** When a file is removed from the filesystem, it is not immediately deleted from the database. Instead, it is marked as "deleted" for a configurable retention period (default: 30 days). This provides a safety net against accidental deletions or temporary filesystem unavailability. If the file reappears within the retention period, it is instantly restored without need of full reindexing and hash calculation.
 
 ### User Experience
 - 🌐 Multilingual interface (English, Italian, French, Spanish, and German)
@@ -52,92 +69,49 @@ The indexer includes a powerful suite for identifying and managing duplicate fil
 - 🔒 Secure file handling and access control
 - 📊 Extensive FITS/XISF header metadata extraction and indexing.
 
-*A more detailed description of the SFF, Duplicate Management, and Indexing engine can be found below.*
-
-### 🔬 Smart Frame Finder (SFF)
-Finding the right frames for calibration or for stacking can be tedious. The Smart Frame Finder automates this process with a powerful, configurable search engine.
-
-- **Find Stackable Lights:** Beyond calibration, SFF can find other light frames of the same object with similar celestial coordinates (`RA`/`DEC`), rotation, and field of view, making it easy to identify all stackable exposures of a target, even across different nights.
-- **Context-Aware Search:** Start a search directly from a `LIGHT` frame to find matching calibration files. The system knows which parameters are relevant for each calibration type (e.g., `EXPTIME` for darks, `FILTER` for flats).
-- **Flexible Rules Engine:** Activate and deactivate search criteria on the fly. You can match by `CCD-TEMP`, `BINNING`, `INSTRUME`, and many other FITS headers.
-- **Tolerance Sliders:** Don't need an exact match? Use intuitive sliders to define acceptable tolerances for parameters like temperature (`±2°`), date (`±30 days`), or exposure (`±10%`).
-- **Dedicated Interface:** The SFF operates in a dedicated modal window, allowing you to build complex queries, view results, and download a `.zip` archive of the selected frames without leaving the main page.
-
-### Duplicate Management
-- **Content-Based Duplicate Detection:** Files are identified as duplicates based on their content hash (`xxhash`), regardless of their name or location. If two files have the same hash, they are considered duplicates.
-- **Smart Duplicate Badge:** The main file table displays an intelligent badge in the format `Visible / Total` for files that have duplicates.
-  - `5 / 5` (Yellow): Indicates 5 duplicates exist, and all are currently visible.
-  - `1 / 5` (Gray): Indicates that this is the only visible file out of 5 duplicates. The other 4 have been hidden by the user.
-- **Interactive Management Modal:** Clicking the badge opens a detailed modal window where users can:
-  - View all duplicate files in a comprehensive table.
-  - Designate a "reference" file that cannot be hidden.
-  - Select and hide redundant duplicates to declutter the main view.
-  - View and restore previously hidden files.
-- **Sort by Duplicates:** The main table can be sorted by the number of visible duplicates, making it easy to find and manage files with the most copies.
-
-
-### Resilient Indexing & Soft-Delete
-
-The indexing engine is designed to be both efficient and resilient, making it suitable for managing large and dynamic data archives.
-
-- **Fast Rescans:** The indexer uses a combination of file modification time (`mtime`) and size to quickly skip files that have not changed since the last scan. This makes subsequent indexing runs extremely fast.
-- **Content-Based Identification:** Files are uniquely identified by their `xxhash`, a high-speed hashing algorithm.
-- **Soft-Delete Recovery:** When a file is removed from the filesystem, it is not immediately deleted from the database. Instead, it is marked as "deleted" for a configurable retention period (default: 30 days). This provides a safety net against accidental deletions or temporary filesystem unavailability. If the file reappears within the retention period, it is instantly restored without need of full reindexing and hash calculation.
-
 ## 📋 Requirements
 
 - Docker
 - Docker Compose
 
-## ⚡ Quick Start
+## ⚡ Quick Start (for Users)
 
-> **Note:** This project uses a `build.sh` script to simplify the Docker build process. This script is compatible with Linux, macOS, and Windows (using Git Bash or WSL).
+This method uses pre-built Docker images and is the recommended way to get started quickly.
 
-1. Clone the repository and its submodules:
-```bash
-git clone --recurse-submodules https://github.com/michelegz/astro-web-indexer.git
-cd astro-web-indexer
-```
-> **Note:** This project uses a Git submodule for the XISF library. If you have already cloned the repository without this flag, run `git submodule update --init` inside the project directory to download the necessary files.
+1.  **Download the Release Files**
+    - Go to the [**latest release page**](https://github.com/michelegz/astro-web-indexer/releases/latest).
+    - Under the "Assets" section, download the `astro-web-indexer-vX.X.X.zip` file.
 
-2. Copy the example environment file and adjust as needed:
-```bash
-cp .env.example .env
-```
+2.  **Unzip and Prepare**
+    - Unzip the downloaded file. It contains a `docker-compose.yml` and an `.env.example` file.
+    - Create your environment file by copying the example:
+      ```bash
+      cp .env.example .env
+      ```
+    - Edit `.env` file to your needs
 
-3. Prepare your FITS/XISF data directory.
+3.  **Prepare Your Data Directory**
+    - Create a `data/fits` directory and place your FITS/XISF files inside.
+      ```bash
+      mkdir -p data/fits
+      ```
+    - Alternatively, edit the `.env` file to point `FITS_DATA_PATH` to your existing image folder (e.g., `FITS_DATA_PATH=/path/to/my/images`).
 
-   By default, the application looks for images inside a `./data/fits` directory. If you want to use this default, create it now:
-   ```bash
-   mkdir -p data/fits
-   ```
-   **Alternatively**, if you already have an image folder, you can edit the `.env` file and set `FITS_DATA_PATH` to your custom path (e.g., `FITS_DATA_PATH=/path/to/my/images`).
+4.  **Start the Application**
+    - Run the following command from the same directory where you unzipped the files:
+      ```bash
+      docker compose up -d
+      ```
 
-4. Build and start the application using the provided script:
-```bash
-./build.sh build
-```
-This command handles the entire build process, including automatically embedding the application version from Git.
-
-5. Access the application at http://localhost:2080
-
-### Managing the Application
-
-The `build.sh` script provides several commands to manage the application's lifecycle:
-- `./build.sh build`: Builds (or rebuilds) the Docker images and starts the services.
-- `./build.sh build --no-cache`: Forces a complete rebuild of the images without using Docker's cache. This is useful when you have issues with outdated dependencies.
-- `./build.sh start`: Starts the containers without rebuilding.
-- `./build.sh stop`: Stops the containers.
-- `./build.sh logs`: Follows the logs from all running containers.
-- `./build.sh clean`: Stops the containers and removes any temporary files generated during the build.
-- `./build.sh save`: Exports the versioned Docker images to a `.tar` archive for manual transfer.
+5.  **Access the Application**
+    - Open your browser and navigate to http://localhost:2080 (or the port you configured in `.env`). The first indexing process will start automatically in the background.
 
 
 ## ⚙️ Configuration
 
 All configuration is handled via environment variables, typically set in a `.env` file.
 
-### Core Application
+### 🌍 Core Application
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -145,7 +119,7 @@ All configuration is handled via environment variables, typically set in a `.env
 | `HEADER_TITLE` | The main title displayed in the application header. | `Astro Web Indexer` |
 | `FITS_DATA_PATH` | The **host path** to the directory containing your FITS files. This directory will be mounted into the containers. | `./data/fits` |
 
-### Indexing Service
+### 🗃️ Indexing Service
 
 These variables control the behavior of the Python indexing and watching scripts.
 
@@ -155,7 +129,7 @@ These variables control the behavior of the Python indexing and watching scripts
 | `DEBUG` | Enables verbose debug logging for the indexing scripts. Set to `true` or `false`. | `false` |
 | `THUMB_SIZE` | The size (width and height) in pixels for generated thumbnails. | `300` |
 
-### Database Connection
+### 🗄️ Database Connection
 
 These variables are shared across all services to connect to the MariaDB container. **Ensure they are consistent everywhere.**
 
@@ -188,74 +162,10 @@ services:
 The application will automatically use your logo. If this volume is not mapped, it will fall back to the default logo.
 
 
-## 🛠️ Advanced Usage & Scripts
+## 🤝 Contributing & Development
 
-The application's backend logic is handled by two main Python scripts located in `docker/python/`.
+This project welcomes contributions! If you are a developer and want to build the project from the source code, please read our **[Contributing Guide](CONTRIBUTING.md)** for detailed instructions on setting up a development environment.
 
-### `watch_fs.py` (The Watcher)
-This script runs continuously in the background inside the `python` container. Its only job is to monitor the data directory (`FITS_DATA_PATH`) for file changes (creations, modifications, deletions). When a change is detected, it waits for a brief cooldown period and then automatically calls `reindex.py` to update the database. You generally do not need to interact with this script directly.
-
-### `reindex.py` (The Indexer)
-This is the core script that performs the heavy lifting: it scans the data directory, extracts metadata from FITS/XISF files, generates thumbnails, and updates the database records.
-
-While the watcher runs this script automatically, you may need to run it manually for specific tasks, such as forcing a full re-index of all files. To do this, you can use `docker exec`:
-
-**Example: Forcing a full re-index**
-This command is useful if you change the thumbnail generation logic, suspect data corruption, or simply want to ensure everything is perfectly synchronized.
-
-```bash
-docker exec -it python-awi python /opt/scripts/reindex.py /var/fits --force
-```
-
-**Key Manual Options:**
-- `--force`: Forces the script to re-process every file, even if its modification time and size haven't changed.
-- `--skip-cleanup`: Prevents the script from marking files as deleted if they are no longer found on disk. This is useful if your data disk is temporarily disconnected.
-- `--thumb-size <size>`: Overrides the `THUMB_SIZE` environment variable for a single run, allowing you to test different thumbnail sizes without restarting the container. For example: `--thumb-size 250`.
-
-
-## 📁 Directory Structure
-
-```
-astro-web-indexer/
-├── docker/                    # Docker configuration files
-├── external/                  # Git submodules for external libraries (e.g., XISF)
-└── src/                       # Application source code
-```
-
-## 🤝 Contributing
-
-We welcome contributions! All pull requests should be made to the `dev` branch. The `main` branch is reserved for stable releases.
-
-Here's how you can help:
-
-1. 🍴 Fork the repository
-2. 🌿 Create a feature branch from `dev`: `git checkout -b feature/my-feature dev`
-3. 💾 Commit your changes: `git commit -am 'Add: my feature'`
-4. ⤴️ Push to your forked repository: `git push origin feature/my-feature`
-5. 🔍 Submit a pull request to the `dev` branch of the main repository.
-
-### Database Migrations
-This project uses **Phinx** to manage database schema changes. Migrations are applied automatically when the application starts, ensuring the database is always up-to-date. Developers wishing to contribute schema changes should familiarize themselves with the Phinx workflow.
-
-### Versioning
-
-This project's version is automatically determined from Git tags. The `build.sh` script reads the latest Git tag (or commit hash) and passes it to Docker during the build process. This version is then displayed in the application's footer.
-
-To release a new version, simply create and push a new tag before running the build script:
-
-```bash
-# Example for version 1.0.0
-git tag v1.0.0
-git push origin v1.0.0
-```
-The next time you run `./build.sh build`, the new version number will be embedded in the application. If no tags are present, a development version based on the commit hash will be used.
-
-### Bug Reports
-Please use the GitHub issue tracker and include:
-- Detailed description of the issue
-- Steps to reproduce
-- Expected vs actual behavior
-- Environment details
 
 ## 📜 License
 
@@ -271,4 +181,7 @@ This project is built upon the hard work of many open-source projects, including
 - **PHP**, **Python**, **MariaDB**, and **Nginx** as the core technology stack.
 - **[Tailwind CSS](https://tailwindcss.com/)** for the user interface design.
 
+## ⚠️ Disclaimer
+
+This software provided "as is". The author is not responsible for any data loss, corruption, or other issues. **Always maintain backups of your data.** Use at your own risk.
 

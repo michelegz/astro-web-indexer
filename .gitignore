@@ -68,3 +68,5 @@ npm-debug.log
 # Test files
 src/test.php
 
+# Release script
+publish.sh
