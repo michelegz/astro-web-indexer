@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sffFindBtn = document.getElementById('sffFindBtn');
     const sffDownloadBtn = document.getElementById('sffDownloadBtn');
     const sffResultCount = document.getElementById('sffResultCount');
+    const sffTotalExposure = document.getElementById('sffTotalExposure');
 
     // Store reference file ID and search type when modal is opened
     let currentFileId = null;
@@ -33,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sffFiltersPanel.innerHTML = `<div class="text-center p-4 text-gray-400">${window.i18n.sff_loading_filters}</div>`;
         sffResultsPanel.innerHTML = `<div class="text-center p-4 text-gray-400">${window.i18n.sff_configure_and_run}</div>`;
         sffResultCount.textContent = '';
+        sffTotalExposure.textContent = '';
         sffDownloadBtn.disabled = true;
 
         // Fetch the filters panel HTML from the backend
@@ -84,6 +86,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function formatSeconds(seconds) {
+        if (isNaN(seconds) || seconds <= 0) {
+            return "0.00h";
+        }
+        const hours = seconds / 3600;
+        return hours.toFixed(2) + "h";
+    }
+
     // --- SFF Modal Interactivity ---
 
     // Handle "Find Frames" button click
@@ -132,19 +142,26 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(response => {
                 if (!response.ok) {
-                    return response.text().then(text => { throw new Error(text || `Server error: ${response.statusText}`) });
+                    return response.json().then(data => { throw new Error(data.error || `Server error: ${response.statusText}`) });
                 }
-                return response.text(); // Expect HTML now
+                return response.json(); // Expect JSON now
             })
-            .then(html => {
-                sffResultsPanel.innerHTML = html;
-                const resultCount = sffResultsPanel.querySelectorAll('tbody tr').length;
+            .then(data => {
+                sffResultsPanel.innerHTML = data.html;
+                sffResultCount.textContent = (window.i18n.sff_frames_found_js).replace('{count}', data.count);
+                
+                if (data.total_exposure > 0) {
+                    sffTotalExposure.textContent = `${window.i18n.sff_total_exposure}: ${formatSeconds(data.total_exposure)}`;
+                } else {
+                    sffTotalExposure.textContent = '';
+                }
 
-                sffResultCount.textContent = (window.i18n.sff_frames_found_js).replace('{count}', resultCount);
                 updateSffDownloadButtonState();
             })
             .catch(error => {
                 sffResultsPanel.innerHTML = `<div class="text-center p-4 text-red-500">Error: ${error.message}</div>`;
+                sffResultCount.textContent = '';
+                sffTotalExposure.textContent = '';
             });
         });
     }

@@ -78,7 +78,6 @@ return [
     'sff_configure_search' => 'Configurez vos critères de recherche ci-dessous.',
     'sff_results_placeholder' => 'Les images correspondantes apparaîtront ici.',
     'sff_find_frames_btn' => 'Trouver les Images',
-    'sff_frames_found' => '{count} images trouvées.',
     'no_matching_frames_found' => 'Aucune image correspondante trouvée.',
     'binning' => 'Binning',
     'camera_id' => 'Camera ID',
@@ -89,10 +88,11 @@ return [
     'dimensions_height' => 'Hauteur',
 
         // JS specific translations
-    'sff_loading_filters' => 'Chargement des filtres...',
+        'sff_total_exposure' => 'Exposition Totale',
+        'sff_loading_filters' => 'Chargement des filtres...',
     'sff_error_loading_filters' => 'Erreur lors du chargement des filtres:',
     'sff_searching' => 'Recherche en cours...',
-    'sff_frames_found_js' => '{count} images trouvées.',
+    'sff_frames_found_js' => '{count} images trouvées',
     'sff_configure_and_run' => 'Configurer et lancer une recherche.',
 
     // SFF API Errors
@@ -100,4 +100,5 @@ return [
     'sff_error_no_light_frame' => 'Erreur : Image LIGHT de référence non trouvée.',
     'sff_error_invalid_search_type' => 'Erreur : Type de recherche non valide.',
     'date' => 'Date',
+];
 ];

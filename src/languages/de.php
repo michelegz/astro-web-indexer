@@ -78,7 +78,6 @@ return [
     'sff_configure_search' => 'Konfigurieren Sie unten Ihre Suchkriterien.',
     'sff_results_placeholder' => 'Passende Frames werden hier angezeigt.',
     'sff_find_frames_btn' => 'Frames finden',
-    'sff_frames_found' => '{count} Frames gefunden.',
     'no_matching_frames_found' => 'Keine passenden Frames gefunden.',
     'binning' => 'Binning',
     'camera_id' => 'Camera ID',
@@ -89,10 +88,11 @@ return [
     'dimensions_height' => 'Höhe',
 
         // JS specific translations
+    'sff_total_exposure' => 'Gesamtbelichtung',
     'sff_loading_filters' => 'Lade Filter...',
     'sff_error_loading_filters' => 'Fehler beim Laden der Filter:',
     'sff_searching' => 'Suche...',
-    'sff_frames_found_js' => '{count} Frames gefunden.',
+    'sff_frames_found_js' => '{count} Frames gefunden',
     'sff_configure_and_run' => 'Konfigurieren und eine Suche ausführen.',
 
     // SFF API Errors

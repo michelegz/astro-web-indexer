@@ -101,7 +101,6 @@ return [
     'sff_configure_search' => 'Configure sus criterios de búsqueda a continuación.',
     'sff_results_placeholder' => 'Los fotogramas coincidentes aparecerán aquí.',
     'sff_find_frames_btn' => 'Buscar Fotogramas',
-    'sff_frames_found' => '{count} fotogramas encontrados.',
     'no_matching_frames_found' => 'No se encontraron fotogramas coincidentes.',
     'binning' => 'Binning',
     'camera_id' => 'Camera ID',
@@ -112,10 +111,11 @@ return [
     'dimensions_height' => 'Alto',
 
         // JS specific translations
-    'sff_loading_filters' => 'Cargando filtros...',
+        'sff_total_exposure' => 'Exposición Total',
+        'sff_loading_filters' => 'Cargando filtros...',
     'sff_error_loading_filters' => 'Error al cargar filtros:',
     'sff_searching' => 'Buscando...',
-    'sff_frames_found_js' => '{count} fotogramas encontrados.',
+    'sff_frames_found_js' => '{count} fotogramas encontrados',
     'sff_configure_and_run' => 'Configurar y ejecutar una búsqueda.',
 
     // SFF API Errors
@@ -123,4 +123,5 @@ return [
     'sff_error_no_light_frame' => 'Error: No se encontró el fotograma LIGHT de referencia.',
     'sff_error_invalid_search_type' => 'Error: Tipo de búsqueda no válido.',
     'date' => 'Fecha',
+];
 ];

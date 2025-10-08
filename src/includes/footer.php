@@ -30,6 +30,7 @@
         error_fetching_csv_data: <?php echo json_encode(__('error_fetching_csv_data')); ?>,
 
         // SFF Modal
+        sff_total_exposure: <?php echo json_encode(__('sff_total_exposure')); ?>,
         sff_modal_title: <?php echo json_encode(__('sff_modal_title')); ?>,
         sff_loading_filters: <?php echo json_encode(__('sff_loading_filters')); ?>,
         sff_error_loading_filters: <?php echo json_encode(__('sff_error_loading_filters')); ?>,

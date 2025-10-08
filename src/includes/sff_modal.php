@@ -32,6 +32,7 @@
             </div>
             <div>
                 <span id="sffResultCount" class="text-sm text-gray-400 mr-4"></span>
+                <span id="sffTotalExposure" class="text-sm text-gray-400 mr-4"></span>
                 <button id="sffDownloadBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50" disabled><?php echo __('download_selected'); ?></button>
             </div>
         </div>

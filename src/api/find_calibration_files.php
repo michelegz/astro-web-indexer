@@ -1,7 +1,7 @@
 <?php
 // api/find_calibration_files.php
 
-header('Content-Type: text/html');
+header('Content-Type: application/json');
 
 // Bootstrap the application
 require_once __DIR__ . '/../includes/init.php';
@@ -133,11 +133,23 @@ try {
         array_unshift($results, $reference_file); // Add to the beginning
     }
 
-    // Render the HTML table and output it
+    // Calculate total exposure time
+    $totalExposure = array_sum(array_column($results, 'exptime'));
+
+    // Render the HTML table into a variable
+    ob_start();
     render_sff_results_table($results);
+    $html = ob_get_clean();
+
+    // Return JSON response
+    echo json_encode([
+        'html' => $html,
+        'total_exposure' => $totalExposure,
+        'count' => count($results)
+    ]);
 
 } catch (PDOException $e) {
     http_response_code(500);
-    // Return a simple error message in HTML format
-    echo '<p class="text-red-500 p-4">Database query failed: ' . htmlspecialchars($e->getMessage()) . '</p>';
+    // Return a JSON error message
+    echo json_encode(['error' => 'Database query failed: ' . $e->getMessage()]);
 }
