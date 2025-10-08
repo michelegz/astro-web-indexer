@@ -26,7 +26,7 @@ This project is developed and maintained in my spare time. If you find it useful
 - 🔍 Advanced filtering by object, filter type, and image type
 - 🔄 Real-time monitoring and automatic indexing of new files
 - 🖼️ Built-in preview generation for both FITS and XISF images with a non linear STF stretch
-- 🔬 **Smart Frame Finder (SFF):** A powerful, context-aware search engine to find the right calibration frames (darks, flats, bias) for your lights using a flexible, tolerance-based rules engine.
+- 🔬 **Smart Frame Finder (SFF):** A powerful search engine to find matching calibration frames (darks, flats, bias) or similar, stackable `LIGHT` frames using a flexible, tolerance-based rules engine.
 - 📥 Bulk download functionality with ZIP compression
 
 ### AstroBin Integration
@@ -55,7 +55,9 @@ The indexer includes a powerful suite for identifying and managing duplicate fil
 *A more detailed description of the SFF, Duplicate Management, and Indexing engine can be found below.*
 
 ### 🔬 Smart Frame Finder (SFF)
-Finding the right calibration frames (darks, flats, bias) for your light frames can be tedious. The Smart Frame Finder automates this process with a powerful, configurable search engine.
+Finding the right frames for calibration or for stacking can be tedious. The Smart Frame Finder automates this process with a powerful, configurable search engine.
+
+- **Find Stackable Lights:** Beyond calibration, SFF can find other light frames of the same object with similar celestial coordinates (`RA`/`DEC`), rotation, and field of view, making it easy to identify all stackable exposures of a target, even across different nights.
 - **Context-Aware Search:** Start a search directly from a `LIGHT` frame to find matching calibration files. The system knows which parameters are relevant for each calibration type (e.g., `EXPTIME` for darks, `FILTER` for flats).
 - **Flexible Rules Engine:** Activate and deactivate search criteria on the fly. You can match by `CCD-TEMP`, `BINNING`, `INSTRUME`, and many other FITS headers.
 - **Tolerance Sliders:** Don't need an exact match? Use intuitive sliders to define acceptable tolerances for parameters like temperature (`±2°`), date (`±30 days`), or exposure (`±10%`).
