@@ -5,15 +5,23 @@ set -e
 # Astro Web Indexer - Cross-Platform Build Script
 # =============================================================================
 # This script manages the build and lifecycle of the Docker containers.
-# The application version is automatically calculated from Git
-# and passed as a build-arg AWI_VERSION to the Dockerfile.
+# The application version is automatically calculated from Git.
 #
 # Usage:
-#   ./build.sh build     # Build and start containers, update version
-#   ./build.sh start     # Start containers without rebuilding
-#   ./build.sh stop      # Stop containers
-#   ./build.sh logs      # Follow container logs
-#   ./build.sh clean     # Stop containers and remove the generated VERSION file
+#   ./build.sh build [options]  # Build/rebuild and start containers.
+#     Options:
+#       --no-cache              Force a rebuild without using Docker's cache.
+#       --tag-latest            In addition to the version tag, also tag images as 'latest'.
+#       --tag-dev               In addition to the version tag, also tag images as 'dev'.
+#
+#   ./build.sh start            # Start containers without rebuilding.
+#   ./build.sh stop             # Stop containers.
+#   ./build.sh logs             # Follow container logs.
+#   ./build.sh save             # Save the versioned Docker images to a .tar archive.
+#   ./build.sh push [options]   # Push built images to GitHub Container Registry.
+#     Options:
+#       --tag-latest            Push the 'latest' tag if it was created.
+#       --tag-dev               Push the 'dev' tag if it was created.
 # =============================================================================
 
 # Function to get Git version
@@ -34,15 +42,56 @@ COMMAND=${1:-help}
 
 case "$COMMAND" in
     build)
-        echo "Building Docker images with AWI_VERSION=$AWI_VERSION..."
-        
+        # Parse arguments
         NO_CACHE_FLAG=""
-        if [ "$2" = "--no-cache" ]; then
+        TAG_LATEST=false
+        TAG_DEV=false
+        shift # Removes 'build' from the arguments list
+        for arg in "$@"; do
+            case $arg in
+                --tag-latest)
+                TAG_LATEST=true
+                ;;
+                --tag-dev)
+                TAG_DEV=true
+                ;;
+                --no-cache)
+                NO_CACHE_FLAG="--no-cache"
+                ;;
+            esac
+        done
+
+        echo "Building Docker images with primary tag: $AWI_VERSION..."
+        if [ -n "$NO_CACHE_FLAG" ]; then
             echo "Forcing a clean build with --no-cache..."
-            NO_CACHE_FLAG="--no-cache"
         fi
 
+        # Build the Tailwind CSS
+        echo "Building Tailwind CSS..."
+        npm run build
+
+        # Build the version-tagged images
         docker compose build $NO_CACHE_FLAG --build-arg AWI_VERSION="$AWI_VERSION"
+
+        # Define services to tag
+        SERVICES=("nginx" "php" "python" "mariadb")
+
+        # Add 'latest' tag if requested
+        if [ "$TAG_LATEST" = true ]; then
+            echo "Adding 'latest' tag to images..."
+            for service in "${SERVICES[@]}"; do
+                docker tag "astro-web-indexer-${service}:$AWI_VERSION" "astro-web-indexer-${service}:latest"
+            done
+        fi
+
+        # Add 'dev' tag if requested
+        if [ "$TAG_DEV" = true ]; then
+            echo "Adding 'dev' tag to images..."
+            for service in "${SERVICES[@]}"; do
+                docker tag "astro-web-indexer-${service}:$AWI_VERSION" "astro-web-indexer-${service}:dev"
+            done
+        fi
+
         docker compose up -d
         echo "Build complete. Astro Web Indexer is running."
         ;;
@@ -54,11 +103,6 @@ case "$COMMAND" in
         ;;
     logs)
         docker compose logs -f
-        ;;
-    clean)
-        docker compose down
-        echo "Cleaning up generated files..."
-        rm -f src/VERSION
         ;;
     save)
         echo "Saving Docker images with tag $AWI_VERSION..."
@@ -80,16 +124,66 @@ case "$COMMAND" in
         echo "Images saved successfully."
         echo "You can load them on another machine using: docker load -i ${OUTPUT_FILE}"
         ;;
+    push)
+        echo "Pushing images with tag $AWI_VERSION to GHCR..."
+        
+        # Check for ghcr.io login
+        if ! docker info | grep -q "ghcr.io"; then
+            echo "Error: You are not logged into ghcr.io. Please run 'echo \$GH_PAT | docker login ghcr.io -u <username> --password-stdin' first."
+            exit 1
+        fi
+
+        SERVICES=("nginx" "php" "python" "mariadb")
+        IMAGE_OWNER=${IMAGE_OWNER:-michelegz} # Use environment variable or default
+
+        # Push the version tag
+        for service in "${SERVICES[@]}"; do
+            docker push "ghcr.io/${IMAGE_OWNER}/astro-web-indexer-${service}:$AWI_VERSION"
+        done
+        echo "Version tag pushed successfully."
+
+        # Additionally push 'latest' or 'dev' tags if they were created
+        TAG_LATEST=false
+        TAG_DEV=false
+        for arg in "$@"; do
+            case $arg in
+                --tag-latest)
+                TAG_LATEST=true
+                ;;
+                --tag-dev)
+                TAG_DEV=true
+                ;;
+            esac
+        done
+
+        if [ "$TAG_LATEST" = true ]; then
+            echo "Pushing 'latest' tag..."
+            for service in "${SERVICES[@]}"; do
+                docker push "ghcr.io/${IMAGE_OWNER}/astro-web-indexer-${service}:latest"
+            done
+        fi
+        if [ "$TAG_DEV" = true ]; then
+            echo "Pushing 'dev' tag..."
+            for service in "${SERVICES[@]}"; do
+                docker push "ghcr.io/${IMAGE_OWNER}/astro-web-indexer-${service}:dev"
+            done
+        fi
+        ;;
     help|-h|--help)
-        echo "Usage: $0 [build|start|stop|logs|clean|save]"
+        echo "Usage: $0 [command] [options]"
         echo ""
         echo "Commands:"
-        echo "  build    Build and start containers (AWI_VERSION passed as build-arg)."
-        echo "  start    Start containers without rebuilding."
-        echo "  stop     Stop containers."
-        echo "  logs     Follow logs of running containers."
-        echo "  clean    Stop containers and remove generated files."
-        echo "  save     Save the versioned Docker images to a .tar file."
+        echo "  build         Build and start containers. Options:"
+        echo "                  --no-cache    Force a rebuild without using Docker's cache."
+        echo "                  --tag-latest  Additionally tag the build as 'latest'."
+        echo "                  --tag-dev     Additionally tag the build as 'dev'."
+        echo "  start         Start containers without rebuilding."
+        echo "  stop          Stop containers."
+        echo "  logs          Follow logs of running containers."
+        echo "  save          Save the versioned Docker images to a .tar file."
+        echo "  push          Push built images to GitHub Container Registry. Options:"
+        echo "                  --tag-latest  Push the 'latest' tag as well."
+        echo "                  --tag-dev     Push the 'dev' tag as well."
         ;;
     *)
         echo "Unknown command: $COMMAND"

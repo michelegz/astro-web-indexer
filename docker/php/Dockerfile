@@ -22,7 +22,7 @@ COPY src/ .
 # Set version
 ARG AWI_VERSION=unknown
 ENV APP_VERSION=$AWI_VERSION
-RUN echo $APP_VERSION > VERSION
+RUN echo $APP_VERSION > /opt/AWI_VERSION
 
 # Now, with all files in place, run composer install.
 RUN composer install --no-interaction --optimize-autoloader

@@ -6,7 +6,7 @@
         <!-- Version Info -->
         <?php
         $version = 'unknown'; // Default to 'unknown'
-        $versionFile = __DIR__ . '/../VERSION';
+        $versionFile = '/opt/AWI_VERSION';
         if (file_exists($versionFile)) {
             $versionContent = trim(file_get_contents($versionFile));
             if (!empty($versionContent)) {
