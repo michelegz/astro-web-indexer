@@ -1,3 +1,8 @@
+<?php
+// Leggi le preferenze di visualizzazione dai cookie per evitare il flickering
+$viewMode = $_COOKIE['viewMode'] ?? 'list';
+$thumbSize = $_COOKIE['thumbSize'] ?? '3';
+?>
 <div class="mb-4 flex justify-end gap-2">
     <button id="exportAstroBinBtn" class="bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50" disabled>
         <?php echo __('export_astrobin_csv') ?>
@@ -8,10 +13,10 @@
 </div>
 
 <!-- View container -->
-<div id="selectable-container" class="view-container thumb-size-3">
+<div id="selectable-container" class="view-container thumb-size-<?php echo htmlspecialchars($thumbSize); ?>">
     
 <!-- List View -->
-<div class="list-view bg-gray-800 rounded-lg shadow-lg">
+<div class="list-view <?php if ($viewMode !== 'list') echo 'hidden'; ?> bg-gray-800 rounded-lg shadow-lg">
     <table class="w-full text-left">
         <thead class="bg-gray-700 text-gray-200">
              <tr>
@@ -223,7 +228,7 @@
 </div>
 
 <!-- Thumbnail View (Initially Hidden) -->
-<div class="thumbnail-view bg-gray-800 rounded-lg shadow-lg p-4 hidden">
+<div class="thumbnail-view bg-gray-800 rounded-lg shadow-lg p-4 <?php if ($viewMode !== 'thumbnail') echo 'hidden'; ?>">
     <?php foreach ($files as $f): ?>
     <div class="selectable-item thumb-card" data-id="<?= $f['id'] ?>">
         <div class="thumb-image-container">

@@ -1,3 +1,8 @@
+<?php
+// Leggi le preferenze di visualizzazione dai cookie per evitare il flickering
+$viewMode = $_COOKIE['viewMode'] ?? 'list';
+$thumbSize = $_COOKIE['thumbSize'] ?? '3';
+?>
 <form id="filters-form" method="get" class="bg-gray-800 p-4 rounded-lg shadow-md flex flex-wrap gap-4 items-end mb-6">
     <input type="hidden" name="dir" value="<?= htmlspecialchars($dir) ?>">
     <input type="hidden" name="page" value="1"> <!-- Resetta la pagina quando si applicano i filtri -->
@@ -70,12 +75,12 @@
     <!-- View Toggle and Size Slider -->
     <div class="flex items-center gap-4 md:pr-4 md:border-r md:border-gray-600">
         <div class="flex items-center bg-gray-700 rounded-lg">
-            <button id="list-view-btn" class="flex items-center justify-center p-2 rounded-l-lg bg-blue-600 hover:bg-blue-700 transition-colors" title="<?php echo __('list_view') ?>">
+            <button id="list-view-btn" class="flex items-center justify-center p-2 rounded-l-lg <?php echo $viewMode === 'list' ? 'bg-blue-600' : ''; ?> hover:bg-blue-700 transition-colors" title="<?php echo __('list_view') ?>">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
             </button>
-            <button id="thumbnail-view-btn" class="flex items-center justify-center p-2 rounded-r-lg hover:bg-blue-700 transition-colors" title="<?php echo __('thumbnail_view') ?>">
+            <button id="thumbnail-view-btn" class="flex items-center justify-center p-2 rounded-r-lg <?php echo $viewMode === 'thumbnail' ? 'bg-blue-600' : ''; ?> hover:bg-blue-700 transition-colors" title="<?php echo __('thumbnail_view') ?>">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
                 </svg>
@@ -86,7 +91,7 @@
             <label for="thumbnail-size-slider" class="text-sm font-medium text-gray-300 mb-1"><?php echo __('thumbnail_size') ?></label>
             <div class="flex items-center gap-2">
                 <span class="text-sm text-gray-400">S</span>
-                <input type="range" id="thumbnail-size-slider" min="1" max="5" value="3" class="w-24 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                <input type="range" id="thumbnail-size-slider" min="1" max="5" value="<?php echo htmlspecialchars($thumbSize); ?>" class="w-24 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
                 <span class="text-sm text-gray-400">L</span>
             </div>
         </div>

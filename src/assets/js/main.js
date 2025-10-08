@@ -34,6 +34,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function saveViewPreferences(viewMode, thumbSize) {
         localStorage.setItem('viewMode', viewMode);
         localStorage.setItem('thumbSize', thumbSize);
+        
+        // Set cookies to be read by PHP on next page load to prevent flickering
+        const expiryDate = new Date();
+        expiryDate.setFullYear(expiryDate.getFullYear() + 1); // Expire in 1 year
+        document.cookie = `viewMode=${viewMode};path=/;expires=${expiryDate.toUTCString()};samesite=Lax`;
+        document.cookie = `thumbSize=${thumbSize};path=/;expires=${expiryDate.toUTCString()};samesite=Lax`;
     }
 
     function setViewMode(mode) {
