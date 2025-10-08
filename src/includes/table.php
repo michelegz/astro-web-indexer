@@ -16,7 +16,7 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
 <div id="selectable-container" class="view-container thumb-size-<?php echo htmlspecialchars($thumbSize); ?>">
     
 <!-- List View -->
-<div class="list-view <?php if ($viewMode !== 'list') echo 'hidden'; ?> bg-gray-800 rounded-lg shadow-lg">
+<div class="list-view <?php if ($viewMode !== 'list') echo 'hidden'; ?> bg-gray-800 rounded-lg shadow-lg overflow-x-auto">
     <table class="w-full text-left">
         <thead class="bg-gray-700 text-gray-200">
              <tr>
