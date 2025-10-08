@@ -54,6 +54,13 @@ docker-save.bat
 /docker-compose.override.yml.off
 /src/VERSION
 
+# Node.js
+/node_modules
+npm-debug.log
+
+# CSS output
+/src/assets/css/output.css
+
 #composer
 /src/vendor
 /src/vendor/*

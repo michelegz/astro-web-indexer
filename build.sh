@@ -42,6 +42,10 @@ case "$COMMAND" in
             NO_CACHE_FLAG="--no-cache"
         fi
 
+        # Build the Tailwind CSS
+        echo "Building Tailwind CSS..."
+        npm run build
+
         docker compose build $NO_CACHE_FLAG --build-arg AWI_VERSION="$AWI_VERSION"
         docker compose up -d
         echo "Build complete. Astro Web Indexer is running."
