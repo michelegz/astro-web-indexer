@@ -75,12 +75,13 @@ case "$COMMAND" in
 
         # Define services to tag
         SERVICES=("nginx" "php" "python" "mariadb")
+        IMAGE_OWNER=${IMAGE_OWNER:-michelegz}
 
         # Add 'latest' tag if requested
         if [ "$TAG_LATEST" = true ]; then
             echo "Adding 'latest' tag to images..."
             for service in "${SERVICES[@]}"; do
-                docker tag "astro-web-indexer-${service}:$AWI_VERSION" "astro-web-indexer-${service}:latest"
+                docker tag "ghcr.io/${IMAGE_OWNER}/astro-web-indexer-${service}:$AWI_VERSION" "ghcr.io/${IMAGE_OWNER}/astro-web-indexer-${service}:latest"
             done
         fi
 
@@ -88,7 +89,7 @@ case "$COMMAND" in
         if [ "$TAG_DEV" = true ]; then
             echo "Adding 'dev' tag to images..."
             for service in "${SERVICES[@]}"; do
-                docker tag "astro-web-indexer-${service}:$AWI_VERSION" "astro-web-indexer-${service}:dev"
+                docker tag "ghcr.io/${IMAGE_OWNER}/astro-web-indexer-${service}:$AWI_VERSION" "ghcr.io/${IMAGE_OWNER}/astro-web-indexer-${service}:dev"
             done
         fi
 
@@ -112,14 +113,20 @@ case "$COMMAND" in
         fi
         
         OUTPUT_FILE="awi-images-${AWI_VERSION// /-}.tar"
-        
         echo "Exporting images to ${OUTPUT_FILE}..."
+
+        # Define services and image owner to build full image names
+        SERVICES=("nginx" "php" "python" "mariadb")
+        IMAGE_OWNER=${IMAGE_OWNER:-michelegz}
+        IMAGE_NAMES=()
+
+        # Loop through services to build the full image names
+        for service in "${SERVICES[@]}"; do
+            IMAGE_NAMES+=("ghcr.io/${IMAGE_OWNER}/astro-web-indexer-${service}:$AWI_VERSION")
+        done
         
-        docker save -o "$OUTPUT_FILE" \
-            "astro-web-indexer-nginx:${AWI_VERSION}" \
-            "astro-web-indexer-php:${AWI_VERSION}" \
-            "astro-web-indexer-python:${AWI_VERSION}" \
-            "astro-web-indexer-mariadb:${AWI_VERSION}"
+        # Use the array of full image names in the docker save command
+        docker save -o "$OUTPUT_FILE" "${IMAGE_NAMES[@]}"
             
         echo "Images saved successfully."
         echo "You can load them on another machine using: docker load -i ${OUTPUT_FILE}"
