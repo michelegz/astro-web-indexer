@@ -56,10 +56,10 @@ $allFilters = [
 
 // Define which filters apply to which search type
 $filtersForType = [
-    'lights' => ['object', 'filter', 'instrume', 'cameraid', 'exptime', 'ra', 'dec', 'objctrot', 'fov_w', 'fov_h', 'ccd_temp', 'xbinning', 'ybinning', 'width', 'height', 'date_obs'],
+    'lights' => ['object', 'filter', 'instrume', 'cameraid', 'exptime', 'ccd_temp', 'xbinning', 'ybinning', 'ra', 'dec', 'objctrot', 'fov_w', 'fov_h', 'width', 'height', 'date_obs'],
     'bias'           => ['instrume', 'cameraid', 'ccd_temp', 'xbinning', 'ybinning', 'width', 'height', 'date_obs'],
     'darks'          => ['instrume', 'cameraid', 'exptime', 'ccd_temp', 'xbinning', 'ybinning', 'width', 'height', 'date_obs'],
-    'flats'          => ['filter', 'instrume', 'cameraid', 'objctrot', 'ccd_temp', 'xbinning', 'ybinning', 'width', 'height', 'date_obs'],
+    'flats'          => ['filter', 'instrume', 'cameraid','ccd_temp', 'xbinning', 'ybinning', 'objctrot', 'width', 'height', 'date_obs'],
 ];
 
 // --- Render Filters ---
