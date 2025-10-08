@@ -11,7 +11,7 @@
 <div id="selectable-container" class="view-container thumb-size-3">
     
 <!-- List View -->
-<div class="list-view overflow-x-auto bg-gray-800 rounded-lg shadow-lg">
+<div class="list-view bg-gray-800 rounded-lg shadow-lg">
     <table class="w-full text-left">
         <thead class="bg-gray-700 text-gray-200">
              <tr>
@@ -113,7 +113,7 @@
                         </span>
                     <?php endif; ?>
                 </td>
-                <td class="p-3 text-sm text-gray-400"><?= htmlspecialchars(dirname($f['path'] ?? '')) ?></td>
+                <td class="p-3 text-sm text-gray-400 break-all"><?= htmlspecialchars(dirname($f['path'] ?? '')) ?></td>
                 <td class="p-3 text-gray-200"><?= htmlspecialchars($f['object'] ?? '') ?></td>
                 <td class="p-3 text-sm text-gray-300">
                     <span class="utc-date" data-timestamp="<?= !empty($f['date_obs']) ? strtotime($f['date_obs']) : '' ?>">
@@ -281,7 +281,7 @@
                 </div>
                 <div class="meta-item">
                     <span class="meta-label"><?php echo __('path') ?></span>
-                    <span class="meta-value text-xs"><?= htmlspecialchars(dirname($f['path'] ?? '')) ?></span>
+                    <span class="meta-value text-xs break-all"><?= htmlspecialchars(dirname($f['path'] ?? '')) ?></span>
                 </div>
             </div>
         </div>

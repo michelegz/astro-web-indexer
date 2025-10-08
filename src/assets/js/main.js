@@ -110,6 +110,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const dateObsFrom = document.getElementById('date_obs_from');
     const dateObsTo = document.getElementById('date_obs_to');
 
+    const contentArea = document.getElementById('content-area');
+
     // --- UTILS ---
     function getFileCheckboxes() {
         return document.querySelectorAll('.file-checkbox');
@@ -125,9 +127,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- MENU MOBILE ---
     window.toggleMenu = () => {
-        sidebar?.classList.toggle('-translate-x-full');
+        const isOpen = sidebar?.classList.toggle('-translate-x-full');
         sidebar?.classList.toggle('translate-x-0');
         menuOverlay?.classList.toggle('hidden');
+
+        if (window.innerWidth >= 768) { // md breakpoint
+            if (!isOpen) {
+                contentArea?.classList.add('md:ml-60');
+            } else {
+                contentArea?.classList.remove('md:ml-60');
+            }
+        }
     };
     if (menuOverlay) {
         menuOverlay.addEventListener('click', toggleMenu);

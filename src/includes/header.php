@@ -165,7 +165,7 @@
 <body class="flex flex-col min-h-screen bg-gray-900 text-gray-100 font-sans">
     <header class="bg-gray-700 shadow-md">
         <div class="px-4 py-4 flex items-center justify-between">
-            <div class="flex items-center gap-4">
+                        <div class="flex items-center gap-4">
                 <?php
                 $customLogoPath = '/var/www/html/assets/logo/custom_logo.svg';
                 $defaultLogoPath = 'assets/logo/default_logo.svg';

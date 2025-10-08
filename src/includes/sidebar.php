@@ -1,4 +1,4 @@
-<div class="sidebar fixed inset-y-0 left-0 w-60 bg-gray-800 p-4 overflow-y-auto z-30 transition-transform duration-300 ease-in-out transform -translate-x-full md:translate-x-0" id="sidebar">
+<div class="sidebar fixed inset-y-0 left-0 w-60 bg-gray-800 p-4 overflow-y-auto z-30 transition-transform duration-300 ease-in-out transform -translate-x-full" id="sidebar">
     <div class="flex justify-between items-center mb-4">
         <h2 class="text-xl font-semibold text-white"><?php echo __('directory') ?></h2>
         <!-- Mobile close button -->
