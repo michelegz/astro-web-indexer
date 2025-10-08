@@ -59,11 +59,6 @@ case "$COMMAND" in
     logs)
         docker compose logs -f
         ;;
-    clean)
-        docker compose down
-        echo "Cleaning up generated files..."
-        rm -f src/VERSION
-        ;;
     save)
         echo "Saving Docker images with tag $AWI_VERSION..."
         if [ -z "$AWI_VERSION" ]; then
@@ -85,14 +80,13 @@ case "$COMMAND" in
         echo "You can load them on another machine using: docker load -i ${OUTPUT_FILE}"
         ;;
     help|-h|--help)
-        echo "Usage: $0 [build|start|stop|logs|clean|save]"
+        echo "Usage: $0 [build|start|stop|logs|save]"
         echo ""
         echo "Commands:"
         echo "  build    Build and start containers (AWI_VERSION passed as build-arg)."
         echo "  start    Start containers without rebuilding."
         echo "  stop     Stop containers."
         echo "  logs     Follow logs of running containers."
-        echo "  clean    Stop containers and remove generated files."
         echo "  save     Save the versioned Docker images to a .tar file."
         ;;
     *)
