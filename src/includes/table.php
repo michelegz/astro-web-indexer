@@ -254,11 +254,6 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                         $totalCount = $f['total_duplicate_count'];
                         $badgeColor = ($visibleCount > 1) ? 'bg-yellow-600 text-yellow-100' : 'bg-gray-600 text-gray-100';
                     ?>
-                    <span class="duplicate-badge cursor-pointer <?= $badgeColor ?> text-xs font-semibold px-2 py-0.5 rounded-full inline-block ml-2"
-                          data-hash="<?= htmlspecialchars($f['file_hash']) ?>"
-                          title="<?= sprintf(__('duplicates_tooltip'), $visibleCount, $totalCount) ?>">
-                        <?= $visibleCount ?> / <?= $totalCount ?>
-                    </span>
                 <?php endif; ?>
             </div>
             <div class="thumb-meta">
