@@ -86,6 +86,46 @@ def make_thumbnail(data, size):
         logger.warning(f"Thumbnail generation failed: {e}")
         return None
 
+def make_crop_preview(data, size):
+    try:
+        # Ensure data is float32 and clean
+        data = np.nan_to_num(data).astype(np.float32)
+        
+        # Get original dimensions
+        h, w = data.shape
+        crop_w, crop_h = size
+
+        # Handle images smaller than the crop size
+        if w < crop_w or h < crop_h:
+            # If the image is smaller, just use the whole image and resize it.
+            # This is an edge case, but ensures we always get a preview.
+            return make_thumbnail(data, size)
+
+        # Calculate center crop coordinates
+        center_x, center_y = w // 2, h // 2
+        start_x = center_x - crop_w // 2
+        start_y = center_y - crop_h // 2
+        end_x = start_x + crop_w
+        end_y = start_y + crop_h
+        
+        # Slice the array to get the 100% crop
+        cropped_data = data[start_y:end_y, start_x:end_x]
+        
+        # Apply the STF Autostretch
+        stretched, _ = stf_autostretch_color(cropped_data)
+        
+        # Convert to 8-bit image for display
+        img = (stretched * 255).astype(np.uint8)
+        
+        # Create image with Pillow (no resizing)
+        image = Image.fromarray(img)
+        buf = BytesIO()
+        image.save(buf, format='PNG')
+        return buf.getvalue()
+    except Exception as e:
+        logger.warning(f"Crop preview generation failed: {e}")
+        return None
+
 # --- Database cleanup functions ---
 def soft_delete_missing_files(conn, cur, db_files, disk_files):
     logger.info("Marking missing files as deleted (soft delete)...")
@@ -256,16 +296,20 @@ try:
                     data = xisf_file.read_image(0)
                     get_value = get_xisf_header_value
                 
-                thumb = None
+                thumb, thumb_crop = None, None
                 width, height = None, None
                 resolution, fov_w, fov_h = None, None, None
                 if data is not None:
                     data = np.squeeze(data)
-                    if data.ndim > 2 and data.shape[0] < 5:
-                        data = data[0]
-                    if data.ndim >= 2:
-                        height, width = data.shape[:2]
-                        thumb = make_thumbnail(data, thumb_size)
+                    # For thumbnail generation, we might need to select a single plane from a multi-dimensional array
+                    thumb_data = data
+                    if thumb_data.ndim > 2 and thumb_data.shape[0] in [3, 4]:
+                         thumb_data = thumb_data[0]
+
+                    if thumb_data.ndim >= 2:
+                        height, width = thumb_data.shape[:2]
+                        thumb = make_thumbnail(thumb_data, thumb_size)
+                        thumb_crop = make_crop_preview(thumb_data, thumb_size)
 
                 object_name = get_value(header, 'OBJECT', 'Unknown', str).strip()
                 date_obs_str = get_value(header, 'DATE-OBS', None, str)
@@ -365,7 +409,7 @@ try:
                         ra, `dec`, centalt, centaz, airmass, pierside, objctrot,
                         siteelev, sitelat, sitelong,
                                                 swcreate, roworder, equinox,
-                        thumb, deleted_at, is_hidden, data_schema_version,
+                        thumb, thumb_crop, deleted_at, is_hidden, data_schema_version,
                         moon_phase, moon_angle
                                                             ) VALUES (
                         %(path)s, %(file_hash)s, %(name)s, %(mtime)s, %(file_size)s, %(width)s, %(height)s, %(resolution)s, %(fov_w)s, %(fov_h)s,
@@ -377,7 +421,7 @@ try:
                         %(ra)s, %(dec)s, %(centalt)s, %(centaz)s, %(airmass)s, %(pierside)s, %(objctrot)s,
                         %(siteelev)s, %(sitelat)s, %(sitelong)s,
                         %(swcreate)s, %(roworder)s, %(equinox)s,
-                        %(thumb)s, NULL, 0, 1,
+                        %(thumb)s, %(thumb_crop)s, NULL, 0, 1,
                         %(moon_phase)s, %(moon_angle)s
                     )
                                                             ON DUPLICATE KEY UPDATE
@@ -391,6 +435,7 @@ try:
                         siteelev=VALUES(siteelev), sitelat=VALUES(sitelat), sitelong=VALUES(sitelong),
                         swcreate=VALUES(swcreate), roworder=VALUES(roworder), equinox=VALUES(equinox),
                         thumb=COALESCE(VALUES(thumb), thumb),
+                        thumb_crop=COALESCE(VALUES(thumb_crop), thumb_crop),
                         deleted_at=NULL, is_hidden=is_hidden,
                         moon_phase=VALUES(moon_phase),
                         moon_angle=VALUES(moon_angle)
@@ -408,6 +453,7 @@ try:
                     'siteelev': siteelev, 'sitelat': sitelat, 'sitelong': sitelong,
                     'swcreate': swcreate, 'roworder': roworder, 'equinox': equinox,
                     'thumb': thumb,
+                    'thumb_crop': thumb_crop,
                     'moon_phase': moon_phase,
                     'moon_angle': moon_angle
                 }
