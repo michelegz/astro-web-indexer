@@ -25,7 +25,9 @@ This project is developed and maintained in my spare time. If you find it useful
 - 📁 Browse and search FITS and XISF files in a directory structure
 - 🔍 Advanced filtering by object, filter type, and image type
 - 🔄 Real-time monitoring and automatic indexing of new files
-- 🖼️ Built-in preview generation for both FITS and XISF images with a non linear MTF stretch
+- 🖼️ Built-in preview generation (full and 100% crop) with a non-linear MTF stretch
+- 👁️ Calculates Field of View (FoV) and angular resolution based on FITS header data
+- 🌘 Calculates Moon phase for each image at the time of acquisition
 - 📥 Bulk download functionality with ZIP compression
 
 ### 🔬 Smart Frame Finder (SFF)
