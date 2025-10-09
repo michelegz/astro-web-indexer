@@ -10,7 +10,7 @@ from PIL import Image
 import argparse
 from io import BytesIO
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from stretch import stf_autostretch_color
 from ephemeris import get_moon_ephemeris
 
@@ -348,7 +348,10 @@ try:
                 moon_phase = None
                 moon_angle = None
                 if date_obs:
-                    timestamp = date_obs.timestamp()
+                    # Make the datetime object timezone-aware (UTC) before creating a timestamp.
+                    # This prevents dependency on the system's local timezone.
+                    date_obs_aware = date_obs.replace(tzinfo=timezone.utc)
+                    timestamp = date_obs_aware.timestamp()
                     moon_phase, moon_angle = get_moon_ephemeris(timestamp)
 
                 sql = '''

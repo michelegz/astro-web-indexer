@@ -127,5 +127,5 @@ return [
     'sff_filters_tab' => 'Filtros',
 
     'moon_phase' => 'Fase Lunar',
-    'moon_phase_tooltip' => 'Iluminación: {phase}%',
+    'moon_phase_tooltip' => 'Iluminación: {phase}% | Ángulo: {angle}°',
 ];

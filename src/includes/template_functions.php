@@ -44,7 +44,7 @@ function getMoonPhaseMarkup(?float $angle, ?float $phase): string {
         $emoji = '🌘'; // Waning Crescent
     }
 
-    $tooltip = __('moon_phase_tooltip', ['phase' => number_format($phase, 1)]);
+    $tooltip = __('moon_phase_tooltip', ['phase' => number_format($phase, 1), 'angle' => number_format($angle, 1)]);
     
     return "<span title=\"{$tooltip}\">{$emoji}</span>";
 }
