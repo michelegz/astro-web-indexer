@@ -87,7 +87,7 @@ return [
     'dimensions_width' => 'Breite',
     'dimensions_height' => 'Höhe',
 
-        // JS specific translations
+    // JS specific translations
     'sff_total_exposure' => 'Gesamtbelichtung',
     'sff_loading_filters' => 'Lade Filter...',
     'sff_error_loading_filters' => 'Fehler beim Laden der Filter:',
@@ -100,4 +100,9 @@ return [
     'sff_error_no_light_frame' => 'Fehler: Referenz-LIGHT-Frame nicht gefunden.',
     'sff_error_invalid_search_type' => 'Fehler: Ungültiger Suchtyp angegeben.',
     'date' => 'Datum',
+    'sff_results_tab' => 'Ergebnisse',
+    'sff_filters_tab' => 'Filter',
+
+    'moon_phase' => 'Mondphase',
+    'moon_phase_tooltip' => 'Beleuchtung: {phase}%',
 ];

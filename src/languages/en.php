@@ -124,4 +124,10 @@ return [
     'sff_error_no_light_frame' => 'Error: Reference LIGHT frame not found.',
     'sff_error_invalid_search_type' => 'Error: Invalid search type specified.',
     'date' => 'Date',
+
+    'sff_results_tab' => 'Results',
+    'sff_filters_tab' => 'Filters',
+
+    'moon_phase' => 'Moon Phase',
+    'moon_phase_tooltip' => 'Illumination: {phase}%',
 ];

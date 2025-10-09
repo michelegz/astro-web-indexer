@@ -123,5 +123,9 @@ return [
     'sff_error_no_light_frame' => 'Error: No se encontró el fotograma LIGHT de referencia.',
     'sff_error_invalid_search_type' => 'Error: Tipo de búsqueda no válido.',
     'date' => 'Fecha',
-];
+    'sff_results_tab' => 'Resultados',
+    'sff_filters_tab' => 'Filtros',
+
+    'moon_phase' => 'Fase Lunar',
+    'moon_phase_tooltip' => 'Iluminación: {phase}%',
 ];

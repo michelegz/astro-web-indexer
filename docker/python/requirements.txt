@@ -3,3 +3,7 @@ pillow
 mysql-connector-python
 watchdog
 xxhash
+pyephem
+numpy
+xisf @ file:../external/xisf
+stretch @ file:./stretch.py

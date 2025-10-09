@@ -12,6 +12,7 @@ from io import BytesIO
 import logging
 from datetime import datetime
 from stretch import stf_autostretch_color
+from ephemeris import get_moon_ephemeris
 
 # Configure logging
 logging.basicConfig(
@@ -343,6 +344,13 @@ try:
                         fov_w = (width * resolution) / 60
                         fov_h = (height * resolution) / 60
 
+                # --- Ephemeris data ---
+                moon_phase = None
+                moon_angle = None
+                if date_obs:
+                    timestamp = date_obs.timestamp()
+                    moon_phase, moon_angle = get_moon_ephemeris(timestamp)
+
                 sql = '''
                     INSERT INTO files (
                         path, file_hash, name, mtime, file_size, width, height, resolution, fov_w, fov_h,
@@ -353,8 +361,9 @@ try:
                         focname, focpos, focussz, foctemp,
                         ra, `dec`, centalt, centaz, airmass, pierside, objctrot,
                         siteelev, sitelat, sitelong,
-                        swcreate, roworder, equinox,
-                        thumb, deleted_at, is_hidden
+                                                swcreate, roworder, equinox,
+                        thumb, deleted_at, is_hidden, data_schema_version,
+                        moon_phase, moon_angle
                                                             ) VALUES (
                         %(path)s, %(file_hash)s, %(name)s, %(mtime)s, %(file_size)s, %(width)s, %(height)s, %(resolution)s, %(fov_w)s, %(fov_h)s,
                         %(object)s, %(objctra)s, %(objctdec)s,
@@ -365,7 +374,8 @@ try:
                         %(ra)s, %(dec)s, %(centalt)s, %(centaz)s, %(airmass)s, %(pierside)s, %(objctrot)s,
                         %(siteelev)s, %(sitelat)s, %(sitelong)s,
                         %(swcreate)s, %(roworder)s, %(equinox)s,
-                        %(thumb)s, NULL, 0
+                        %(thumb)s, NULL, 0, 1,
+                        %(moon_phase)s, %(moon_angle)s
                     )
                                                             ON DUPLICATE KEY UPDATE
                         file_hash=VALUES(file_hash), mtime=VALUES(mtime), file_size=VALUES(file_size), width=VALUES(width), height=VALUES(height), resolution=VALUES(resolution), fov_w=VALUES(fov_w), fov_h=VALUES(fov_h), name=VALUES(name),
@@ -378,7 +388,10 @@ try:
                         siteelev=VALUES(siteelev), sitelat=VALUES(sitelat), sitelong=VALUES(sitelong),
                         swcreate=VALUES(swcreate), roworder=VALUES(roworder), equinox=VALUES(equinox),
                         thumb=COALESCE(VALUES(thumb), thumb),
-                        deleted_at=NULL, is_hidden=is_hidden
+                        deleted_at=NULL, is_hidden=is_hidden,
+                        moon_phase=VALUES(moon_phase),
+                        moon_angle=VALUES(moon_angle)
+                        -- data_schema_version is intentionally omitted to preserve its value on update
                 '''
                 params = {
                     'path': rel_path, 'file_hash': file_hash, 'name': file, 'mtime': mtime, 'file_size': file_size,
@@ -391,7 +404,9 @@ try:
                     'ra': ra, 'dec': dec, 'centalt': centalt, 'centaz': centaz, 'airmass': airmass, 'pierside': pierside, 'objctrot': objctrot,
                     'siteelev': siteelev, 'sitelat': sitelat, 'sitelong': sitelong,
                     'swcreate': swcreate, 'roworder': roworder, 'equinox': equinox,
-                    'thumb': thumb
+                    'thumb': thumb,
+                    'moon_phase': moon_phase,
+                    'moon_angle': moon_angle
                 }
                 cur.execute(sql, params)
                 update_duplicate_counts(conn, cur, file_hash)

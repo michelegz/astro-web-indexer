@@ -100,5 +100,10 @@ return [
     'sff_error_no_light_frame' => 'Erreur : Image LIGHT de référence non trouvée.',
     'sff_error_invalid_search_type' => 'Erreur : Type de recherche non valide.',
     'date' => 'Date',
-];
+
+    'sff_results_tab' => 'Résultats',
+    'sff_filters_tab' => 'Filtres',
+
+    'moon_phase' => 'Phase de Lune',
+    'moon_phase_tooltip' => 'Illumination : {phase}%',
 ];

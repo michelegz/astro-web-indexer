@@ -124,4 +124,10 @@ return [
     'sff_error_no_light_frame' => 'Errore: Frame LIGHT di riferimento non trovato.',
     'sff_error_invalid_search_type' => 'Errore: Tipo di ricerca non valido.',
     'date' => 'Data',
+
+    'sff_results_tab' => 'Risultati',
+    'sff_filters_tab' => 'Filtri',
+
+    'moon_phase' => 'Fase Lunare',
+    'moon_phase_tooltip' => 'Illuminazione: {phase}%',
 ];

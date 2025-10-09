@@ -28,6 +28,7 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('object')"><?php echo __('object') ?> <?php echoIcon('object', $sortBy, $sortOrder); ?></th>
                 
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('date_obs')"><?php echo __('date_obs') ?> <?php echoIcon('date_obs', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('moon_phase')"><?php echo __('moon_phase') ?> <?php echoIcon('moon_phase', $sortBy, $sortOrder); ?></th>
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('exptime')"><?php echo __('exposure') ?> <?php echoIcon('exptime', $sortBy, $sortOrder); ?></th>
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('filter')"><?php echo __('filter') ?> <?php echoIcon('filter', $sortBy, $sortOrder); ?></th>
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('imgtype')"><?php echo __('type') ?> <?php echoIcon('imgtype', $sortBy, $sortOrder); ?></th>
@@ -124,6 +125,9 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                     <span class="utc-date" data-timestamp="<?= !empty($f['date_obs']) ? strtotime($f['date_obs']) : '' ?>">
                         <?= htmlspecialchars($f['date_obs'] ?? '') ?>
                     </span>
+                </td>
+                <td class="p-3 text-xl text-center">
+                    <?= getMoonPhaseMarkup($f['moon_angle'] ?? null, $f['moon_phase'] ?? null) ?>
                 </td>
                 <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['exptime'] ?? '') ?>s</td>
                 <td class="p-3 text-gray-200"><?= htmlspecialchars($f['filter'] ?? '') ?></td>
