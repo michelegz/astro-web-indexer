@@ -70,3 +70,6 @@ src/test.php
 
 # Release script
 publish.sh
+
+#vite
+/awi-vite-project

@@ -104,5 +104,5 @@ return [
     'sff_filters_tab' => 'Filter',
 
     'moon_phase' => 'Mondphase',
-    'moon_phase_tooltip' => 'Beleuchtung: {phase}% | Winkel: {angle}°',
+
 ];

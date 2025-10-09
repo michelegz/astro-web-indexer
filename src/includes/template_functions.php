@@ -43,9 +43,10 @@ function getMoonPhaseMarkup(?float $angle, ?float $phase): string {
     } else {
         $emoji = '🌘'; // Waning Crescent - centrato a 315°
     }
-    $tooltip = __('moon_phase_tooltip', ['phase' => number_format($phase, 1), 'angle' => number_format($angle, 1)]);
+   
     
-    return "<span title=\"{$tooltip}\">{$emoji}</span>";
+    //return "<div class=\"flex flex-col items-center \"></span><span>{$emoji}</span><span class=\"text-xs\">"  . number_format($phase, 0) . "% - " . number_format($angle, 0) . "°</span></div>";
+    return "<div class=\"flex flex-col items-center gap-2\"></span><span>{$emoji}</span><span class=\"text-xs \">"  . number_format($phase, 0) . "%</span></div>";
 }
 
 ?>
