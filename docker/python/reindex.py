@@ -276,11 +276,25 @@ try:
 
                 if not force_reindex and rel_path in db_files:
                     db_entry = db_files[rel_path]
-                    mtime_match = False
-                    if db_entry['mtime'] is not None:
-                        mtime_match = int(float(db_entry['mtime'])) == int(mtime)
-                    size_match = db_entry['size'] == file_size
                     is_deleted = db_entry['deleted_at'] is not None
+                    
+                    # Perform checks
+                    mtime_from_db = db_entry.get('mtime')
+                    size_from_db = db_entry.get('size')
+                    
+                    mtime_match = mtime_from_db is not None and int(mtime_from_db) == int(mtime)
+                    size_match = size_from_db is not None and int(size_from_db) == file_size
+
+                    # --- Enhanced Debug Logging ---
+                    # Log the details ONLY if the final check is going to fail
+                    if not (not is_deleted and mtime_match and size_match):
+                        logger.debug(f"Failed skip check for: {rel_path}")
+                        logger.debug(f"  - DB mtime: {mtime_from_db} (type: {type(mtime_from_db)}) | FS mtime: {mtime} (type: {type(mtime)}) -> Match: {mtime_match}")
+                        logger.debug(f"  - DB size: {size_from_db} (type: {type(size_from_db)}) | FS size: {file_size} (type: {type(file_size)}) -> Match: {size_match}")
+                        logger.debug(f"  - Is deleted: {is_deleted}")
+                        logger.debug(f"  - Final Condition: not is_deleted({not is_deleted}) AND mtime_match({mtime_match}) AND size_match({size_match})")
+                    # --- End Debug ---
+
                     if not is_deleted and mtime_match and size_match:
                         skipped_count += 1
                         continue
@@ -449,7 +463,7 @@ try:
                         -- data_schema_version is intentionally omitted to preserve its value on update
                 '''
                 params = {
-                    'path': rel_path, 'file_hash': file_hash, 'name': file, 'mtime': mtime, 'file_size': file_size,
+                    'path': rel_path, 'file_hash': file_hash, 'name': file, 'mtime': int(mtime), 'file_size': file_size,
                     'width': width, 'height': height, 'resolution': resolution, 'fov_w': fov_w, 'fov_h': fov_h,
                     'object': object_name, 'objctra': objct_ra, 'objctdec': objct_dec,
                     'imgtype': imgtype, 'exptime': exptime, 'date_obs': date_obs, 'date_avg': date_avg, 'filter': filt,
