@@ -101,6 +101,12 @@ CREATE TABLE `files` (
     `mean_pixel` FLOAT NULL COMMENT 'Mean pixel value (ADU)',
     `median_pixel` FLOAT NULL COMMENT 'Median pixel value (ADU)',
     `bit_depth` TINYINT UNSIGNED NULL COMMENT 'Bit depth of the image (e.g., 16)',
+    `image_channels` INT NULL DEFAULT NULL COMMENT 'Number of image channels (1=mono, 3=color)',
+    `image_color_type` VARCHAR(10) NULL DEFAULT NULL COMMENT 'Type of color (MONO, OSC, RGB)',
+    `bayer_pattern` VARCHAR(10) NULL DEFAULT NULL COMMENT 'Bayer pattern if OSC (e.g., RGGB)',
+    
+    
+    -- Moon phase info
     `moon_phase` FLOAT NULL COMMENT 'Moon phase illumination percentage',
     `moon_angle` FLOAT NULL COMMENT 'Moon phase angle in degrees (0=New, 180=Full)',
     
