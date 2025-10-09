@@ -88,47 +88,43 @@ def make_thumbnail(data, size):
 
 def make_crop_preview(data, size):
     try:
-        # Ensure data is float32 and clean
+        # This function now expects 2D monochrome data for simplicity and robustness
         data = np.nan_to_num(data).astype(np.float32)
         
-        # Get original dimensions
-        h, w = data.shape
+        # Get original dimensions, handling both mono (H, W) and color (H, W, C)
+        if data.ndim == 2:
+            h, w = data.shape
+        elif data.ndim == 3 and data.shape[2] in [3, 4]:
+            h, w, channels = data.shape
+        else:
+            logger.warning(f"Unsupported data shape for crop preview: {data.shape}")
+            return None
+
         max_w, max_h = size
 
-        # Handle images smaller than the max size by just using the whole image
         if w <= max_w and h <= max_h:
             cropped_data = data
         else:
-            # Calculate proportional crop dimensions
             original_aspect = w / h
             max_aspect = max_w / max_h
-
             if original_aspect > max_aspect:
-                # Image is wider than the target box, width is the limiter
                 crop_w = max_w
                 crop_h = int(crop_w / original_aspect)
             else:
-                # Image is taller or same aspect, height is the limiter
                 crop_h = max_h
                 crop_w = int(crop_h * original_aspect)
-
-            # Calculate center crop coordinates
+            
             center_x, center_y = w // 2, h // 2
             start_x = center_x - crop_w // 2
             start_y = center_y - crop_h // 2
-            end_x = start_x + crop_w
-            end_y = start_y + crop_h
             
-            # Slice the array to get the 100% crop
-            cropped_data = data[start_y:end_y, start_x:end_x]
-        
-        # Apply the STF Autostretch
+            if data.ndim == 2:
+                cropped_data = data[start_y : start_y + crop_h, start_x : start_x + crop_w]
+            else:
+                cropped_data = data[start_y : start_y + crop_h, start_x : start_x + crop_w, :]
+
         stretched, _ = stf_autostretch_color(cropped_data)
-        
-        # Convert to 8-bit image for display
         img = (stretched * 255).astype(np.uint8)
-        
-        # Create image with Pillow (no resizing)
         image = Image.fromarray(img)
         buf = BytesIO()
         image.save(buf, format='PNG')
@@ -320,7 +316,7 @@ try:
                     if thumb_data.ndim >= 2:
                         height, width = thumb_data.shape[:2]
                         thumb = make_thumbnail(thumb_data, thumb_size)
-                        thumb_crop = make_crop_preview(thumb_data, thumb_size)
+                        thumb_crop = make_crop_preview(data, thumb_size) # Pass original data for color crop
 
                 object_name = get_value(header, 'OBJECT', 'Unknown', str).strip()
                 date_obs_str = get_value(header, 'DATE-OBS', None, str)
