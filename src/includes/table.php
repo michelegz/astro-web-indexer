@@ -92,13 +92,27 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                         <tr data-id="<?= $f['id'] ?>" class="selectable-item border-b border-gray-700 hover:bg-gray-700">
                 <td class="p-3"><input type="checkbox" class="file-checkbox h-4 w-4 text-blue-600 rounded" value="<?= htmlspecialchars($f['path'] ?? '') ?>" data-id="<?= $f['id'] ?>"></td>
                 <td class="p-3">
-                    <?php if ($f['thumb']): ?>
-                        <img src="data:image/png;base64,<?= base64_encode($f['thumb']) ?>" 
-                             alt="Preview" 
-                             class="thumb max-w-[150px] h-auto rounded shadow-md object-cover">
-                    <?php else: ?>
-                        <span class="text-gray-500 text-sm">N/A</span>
-                    <?php endif; ?>
+                    <div class="thumb-wrapper relative inline-block align-middle" tabindex="0">
+                        <?php if ($f['thumb']): ?>
+                            <!-- The original thumb, its size is controlled by the slider's CSS rules -->
+                            <img src="data:image/png;base64,<?= base64_encode($f['thumb']) ?>" 
+                                 alt="Preview" 
+                                 class="thumb h-auto rounded shadow-md object-cover">
+                            
+                            <?php if ($f['thumb_crop']): ?>
+                            <!-- The crop viewport: an overlay positioned absolutely on top of the thumb -->
+                            <div class="thumb-crop-viewport absolute top-0 left-0 w-full h-full rounded overflow-hidden opacity-0 transition-opacity duration-200 pointer-events-none bg-gray-900">
+                                 <img src="data:image/png;base64,<?= base64_encode($f['thumb_crop']) ?>" 
+                                      alt="Crop Preview" 
+                                      class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-none h-auto w-auto">
+                            </div>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <div class="w-[150px] h-[150px] flex items-center justify-center bg-gray-900 rounded">
+                                <span class="text-gray-500 text-sm">N/A</span>
+                            </div>
+                        <?php endif; ?>
+                    </div>
                 </td>
                 <td class="p-3">
                     <a href="/fits/<?= rawurlencode($f['path']) ?>" download class="text-blue-400 hover:text-blue-300">

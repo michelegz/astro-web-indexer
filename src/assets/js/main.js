@@ -426,4 +426,57 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Stato iniziale bottoni ---
     updateButtonStates();
+
+    // --- In-place Thumbnail Crop Preview ---
+    const listContainer = document.querySelector('.list-view');
+    if (listContainer) {
+        
+        function toggleCrop(container, show) {
+            const viewport = container.querySelector('.thumb-crop-viewport');
+            if (viewport) {
+                viewport.style.opacity = show ? '1' : '0';
+            }
+        }
+
+        // --- Desktop hover ---
+        listContainer.addEventListener('mouseover', e => {
+            const wrapper = e.target.closest('.thumb-wrapper');
+            if (wrapper) toggleCrop(wrapper, true);
+        });
+        listContainer.addEventListener('mouseout', e => {
+            const wrapper = e.target.closest('.thumb-wrapper');
+            if (wrapper) toggleCrop(wrapper, false);
+        });
+
+        // --- Mobile tap ---
+        let activeThumbWrapper = null;
+        document.body.addEventListener('click', e => {
+            const wrapper = e.target.closest('.thumb-wrapper');
+
+            // Clicked on a thumb wrapper
+            if (wrapper) {
+                e.stopPropagation(); // Prevent click from bubbling to the body handler immediately
+
+                // If it's already active, deactivate it
+                if (wrapper === activeThumbWrapper) {
+                    toggleCrop(wrapper, false);
+                    activeThumbWrapper = null;
+                } else {
+                    // If another was active, deactivate it first
+                    if (activeThumbWrapper) {
+                        toggleCrop(activeThumbWrapper, false);
+                    }
+                    // Activate the new one
+                    toggleCrop(wrapper, true);
+                    activeThumbWrapper = wrapper;
+                }
+            } else {
+                // Clicked outside any thumb wrapper
+                if (activeThumbWrapper) {
+                    toggleCrop(activeThumbWrapper, false);
+                    activeThumbWrapper = null;
+                }
+            }
+        });
+    }
 });
