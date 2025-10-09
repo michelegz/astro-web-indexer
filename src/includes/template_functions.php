@@ -26,24 +26,23 @@ function getMoonPhaseMarkup(?float $angle, ?float $phase): string {
     }
 
     // Determine the correct emoji based on the angle
-    if ($angle >= 355 || $angle < 5) {
-        $emoji = '🌑'; // New Moon
-    } elseif ($angle < 85) {
-        $emoji = '🌒'; // Waxing Crescent
-    } elseif ($angle < 95) {
-        $emoji = '🌓'; // First Quarter
-    } elseif ($angle < 175) {
-        $emoji = '🌔'; // Waxing Gibbous
-    } elseif ($angle < 185) {
-        $emoji = '🌕'; // Full Moon
-    } elseif ($angle < 265) {
-        $emoji = '🌖'; // Waning Gibbous
-    } elseif ($angle < 275) {
-        $emoji = '🌗'; // Last Quarter
+    if ($angle >= 337.5 || $angle < 22.5) {
+        $emoji = '🌑'; // New Moon - centrato a 0°
+    } elseif ($angle < 67.5) {
+        $emoji = '🌒'; // Waxing Crescent - centrato a 45°
+    } elseif ($angle < 112.5) {
+        $emoji = '🌓'; // First Quarter - centrato a 90°
+    } elseif ($angle < 157.5) {
+        $emoji = '🌔'; // Waxing Gibbous - centrato a 135°
+    } elseif ($angle < 202.5) {
+        $emoji = '🌕'; // Full Moon - centrato a 180°
+    } elseif ($angle < 247.5) {
+        $emoji = '🌖'; // Waning Gibbous - centrato a 225°
+    } elseif ($angle < 292.5) {
+        $emoji = '🌗'; // Last Quarter - centrato a 270°
     } else {
-        $emoji = '🌘'; // Waning Crescent
+        $emoji = '🌘'; // Waning Crescent - centrato a 315°
     }
-
     $tooltip = __('moon_phase_tooltip', ['phase' => number_format($phase, 1), 'angle' => number_format($angle, 1)]);
     
     return "<span title=\"{$tooltip}\">{$emoji}</span>";

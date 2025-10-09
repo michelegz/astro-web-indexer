@@ -77,7 +77,7 @@ function getFiles(PDO $conn, string $dir, string $object, string $filter, string
                 'width', 'height', 'resolution', 'fov_w', 'fov_h',
         // New sortable columns
         'date_avg', 'swcreate', 'objctra', 'objctdec', 'cameraid', 'usblimit', 
-        'fwheel', 'focname', 'focussz', 'foctemp', 'objctrot', 'roworder', 'equinox'
+        'fwheel', 'focname', 'focussz', 'foctemp', 'objctrot', 'roworder', 'equinox', 'moon_phase'
     ];
     $allowedSortOrder = ['ASC', 'DESC'];
 
