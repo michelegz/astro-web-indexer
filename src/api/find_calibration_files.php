@@ -62,6 +62,11 @@ $sqlParams[':imgtype'] = $imgTypes[$searchType];
 foreach ($filters as $filter) {
     $id = $filter['id'];
 
+    // CRITICAL: Do not apply a filter if the reference file has no value for it.
+    if (!isset($refFile[$id]) || $refFile[$id] === null) {
+        continue;
+    }
+
     // Simple toggle filters (exact match)
     if ($filter['type'] === 'toggle') {
         $escapedId = "`{$id}`";
@@ -74,8 +79,11 @@ foreach ($filters as $filter) {
         $refValue = (float)($filter['ref_value'] ?? $refFile[$id]);
         $tolerance = (float)$filter['tolerance'];
         
+        // Epsilon for float comparison when tolerance is zero
+        $epsilon = 0.001;
+
         if ($filter['type'] === 'slider_percent') {
-            $delta = $refValue * ($tolerance / 100);
+            $delta = $refValue * ($tolerance / 100) + ($tolerance == 0 ? $epsilon : 0);
             $min = $refValue - $delta;
             $max = $refValue + $delta;
             $escapedId = "`{$id}`";
@@ -83,9 +91,20 @@ foreach ($filters as $filter) {
             $sqlParams[":{$id}_min"] = $min;
             $sqlParams[":{$id}_max"] = $max;
         }
+        elseif ($filter['type'] === 'slider_absolute') {
+            $effective_tolerance = $tolerance + ($tolerance == 0 ? $epsilon : 0);
+            $min = max(0, $refValue - $effective_tolerance);
+            $max = min(100, $refValue + $effective_tolerance);
+            $escapedId = "`{$id}`";
+            // Use explicit >= and <= which is more robust for floats than BETWEEN
+            $sqlWhere[] = "({$escapedId} >= :{$id}_min AND {$escapedId} <= :{$id}_max)";
+            $sqlParams[":{$id}_min"] = $min;
+            $sqlParams[":{$id}_max"] = $max;
+        }
         elseif ($filter['type'] === 'slider_degrees') {
-            $min = $refValue - $tolerance;
-            $max = $refValue + $tolerance;
+            $effective_tolerance = $tolerance + ($tolerance == 0 ? $epsilon : 0);
+            $min = $refValue - $effective_tolerance;
+            $max = $refValue + $effective_tolerance;
             $escapedId = "`{$id}`";
             $sqlWhere[] = "{$escapedId} BETWEEN :{$id}_min AND :{$id}_max";
             $sqlParams[":{$id}_min"] = $min;

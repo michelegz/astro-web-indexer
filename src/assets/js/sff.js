@@ -105,15 +105,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (toggle.checked) {
                     const filterId = row.dataset.filterId;
                     const refValueInput = row.querySelector('.sff-reference-value');
-                    const slider = row.querySelector('.sff-filter-slider');
-                    const valueSpan = row.querySelector('.sff-slider-value');
+                    const sliderContainer = row.querySelector('.sff-slider-container');
+                    const slider = row.querySelector('.sff-filter-slider'); // THIS LINE WAS MISSING
                     
                     let filterType = 'toggle';
-                    if (slider) {
-                        const unit = valueSpan.dataset.unit || '';
-                        if (unit === '%') filterType = 'slider_percent';
-                        else if (unit === '°') filterType = 'slider_degrees';
-                        else if (unit === 'd') filterType = 'slider_days';
+                    if (slider && sliderContainer) {
+                        // Read the type directly from the data-type attribute for robustness
+                        filterType = sliderContainer.dataset.type || 'toggle';
                     }
 
                     const filterData = {

@@ -49,6 +49,7 @@ $allFilters = [
     'objctrot'   => ['label' => __('rotation'),     'type' => 'slider_degrees', 'default_on' => false, 'min' => 0, 'max' => 180, 'step' => 1, 'unit' => '°', 'default_tolerance' => 2],
     'fov_w'      => ['label' => __('fov_width'),    'type' => 'slider_percent', 'default_on' => false, 'min' => 0, 'max' => 50, 'step' => 1, 'unit' => '%', 'default_tolerance' => 5],
     'fov_h'      => ['label' => __('fov_height'),   'type' => 'slider_percent', 'default_on' => false, 'min' => 0, 'max' => 50, 'step' => 1, 'unit' => '%', 'default_tolerance' => 5],
+    'moon_phase' => ['label' => __('moon_phase'),   'type' => 'slider_absolute', 'default_on' => false, 'min' => 0, 'max' => 100, 'step' => 1, 'unit' => '', 'default_tolerance' => 30],
     
     // Flat specific (filter is already common)
     // 'filter' is handled by the common group
@@ -56,7 +57,7 @@ $allFilters = [
 
 // Define which filters apply to which search type
 $filtersForType = [
-    'lights' => ['object', 'filter', 'instrume', 'cameraid', 'exptime', 'ccd_temp', 'xbinning', 'ybinning', 'ra', 'dec', 'objctrot', 'fov_w', 'fov_h', 'width', 'height', 'date_obs'],
+    'lights' => ['object', 'filter', 'instrume', 'cameraid', 'exptime', 'ccd_temp', 'xbinning', 'ybinning', 'ra', 'dec', 'objctrot', 'fov_w', 'fov_h', 'moon_phase', 'width', 'height', 'date_obs'],
     'bias'           => ['instrume', 'cameraid', 'ccd_temp', 'xbinning', 'ybinning', 'width', 'height', 'date_obs'],
     'darks'          => ['instrume', 'cameraid', 'exptime', 'ccd_temp', 'xbinning', 'ybinning', 'width', 'height', 'date_obs'],
     'flats'          => ['filter', 'instrume', 'cameraid','ccd_temp', 'xbinning', 'ybinning', 'objctrot', 'width', 'height', 'date_obs'],

@@ -39,7 +39,7 @@ function render_sff_filter(array $filterConfig, $referenceValue): void
     </div>
 
     <?php if ($type !== 'toggle'): ?>
-        <div class="sff-slider-container mt-3 <?= $isDisabled ? 'opacity-50' : '' ?>">
+        <div class="sff-slider-container mt-3 <?= $isDisabled ? 'opacity-50' : '' ?>" data-type="<?= htmlspecialchars($type) ?>">
             <div class="flex items-center justify-between gap-4">
                 <input type="range" 
                        class="sff-filter-slider w-full" 
