@@ -95,14 +95,14 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                     <div class="thumb-wrapper relative inline-block align-middle" tabindex="0">
                         <?php if ($f['thumb']): ?>
                             <!-- The original thumb, its size is controlled by the slider's CSS rules -->
-                            <img src="data:image/png;base64,<?= base64_encode($f['thumb']) ?>" 
+                            <img src="/image.php?id=<?= $f['id'] ?>&type=thumb" 
                                  alt="Preview" 
                                  class="thumb h-auto rounded shadow-md object-cover">
                             
                             <?php if ($f['thumb_crop']): ?>
                             <!-- The crop viewport: an overlay positioned absolutely on top of the thumb -->
                             <div class="thumb-crop-viewport absolute top-0 left-0 w-full h-full rounded overflow-hidden opacity-0 transition-opacity duration-200 pointer-events-none bg-gray-900">
-                                 <img src="data:image/png;base64,<?= base64_encode($f['thumb_crop']) ?>" 
+                                 <img src="/image.php?id=<?= $f['id'] ?>&type=crop" 
                                       alt="Crop Preview" 
                                       class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-none h-auto w-auto">
                             </div>
@@ -255,7 +255,7 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                     value="<?= htmlspecialchars($f['path'] ?? '') ?>" 
                     data-id="<?= $f['id'] ?>">
                 <?php if ($f['thumb']): ?>
-                    <img src="data:image/png;base64,<?= base64_encode($f['thumb']) ?>" 
+                    <img src="/image.php?id=<?= $f['id'] ?>&type=thumb" 
                         alt="Preview" 
                         class="thumb max-w-full h-auto rounded shadow-md object-cover">
                 <?php else: ?>
@@ -267,7 +267,7 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                  <?php if ($f['thumb_crop']): ?>
                             <!-- The crop viewport: an overlay positioned absolutely on top of the thumb -->
                             <div class="thumb-crop-viewport absolute top-0 left-0 w-full h-full rounded overflow-hidden opacity-0 transition-opacity duration-200 pointer-events-none bg-gray-900">
-                                 <img src="data:image/png;base64,<?= base64_encode($f['thumb_crop']) ?>" 
+                                 <img src="/image.php?id=<?= $f['id'] ?>&type=crop" 
                                       alt="Crop Preview" 
                                       class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-none h-auto w-auto">
                             </div>
