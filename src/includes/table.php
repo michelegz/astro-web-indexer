@@ -249,17 +249,31 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
 <div class="thumbnail-view bg-gray-800 rounded-lg shadow-lg p-4 <?php if ($viewMode !== 'thumbnail') echo 'hidden'; ?>">
     <?php foreach ($files as $f): ?>
     <div class="selectable-item thumb-card" data-id="<?= $f['id'] ?>">
-        <div class="thumb-image-container">
-            <input type="checkbox" class="file-checkbox thumb-checkbox h-4 w-4 text-blue-600 rounded" 
-                   value="<?= htmlspecialchars($f['path'] ?? '') ?>" 
-                   data-id="<?= $f['id'] ?>">
-            <?php if ($f['thumb']): ?>
-                <img src="data:image/png;base64,<?= base64_encode($f['thumb']) ?>" 
-                     alt="Preview" 
-                     class="thumb max-w-full h-auto rounded shadow-md object-cover">
-            <?php else: ?>
-                <div class="flex items-center justify-center h-32 w-full bg-gray-900 text-gray-500 text-sm rounded">N/A</div>
-            <?php endif; ?>
+        <div class="thumb-wrapper relative inline-block align-middle" tabindex="0">
+            <div class="thumb-image-container">
+                <input type="checkbox" class="file-checkbox thumb-checkbox h-4 w-4 text-blue-600 rounded" 
+                    value="<?= htmlspecialchars($f['path'] ?? '') ?>" 
+                    data-id="<?= $f['id'] ?>">
+                <?php if ($f['thumb']): ?>
+                    <img src="data:image/png;base64,<?= base64_encode($f['thumb']) ?>" 
+                        alt="Preview" 
+                        class="thumb max-w-full h-auto rounded shadow-md object-cover">
+                <?php else: ?>
+
+
+                    <div class="flex items-center justify-center h-32 w-full bg-gray-900 text-gray-500 text-sm rounded">N/A</div>
+                <?php endif; ?>
+
+                 <?php if ($f['thumb_crop']): ?>
+                            <!-- The crop viewport: an overlay positioned absolutely on top of the thumb -->
+                            <div class="thumb-crop-viewport absolute top-0 left-0 w-full h-full rounded overflow-hidden opacity-0 transition-opacity duration-200 pointer-events-none bg-gray-900">
+                                 <img src="data:image/png;base64,<?= base64_encode($f['thumb_crop']) ?>" 
+                                      alt="Crop Preview" 
+                                      class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-none h-auto w-auto">
+                            </div>
+                 <?php endif; ?>
+
+            </div>
         </div>
         <div class="thumb-details">
             <div class="thumb-title">
