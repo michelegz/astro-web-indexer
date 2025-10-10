@@ -11,8 +11,12 @@ import argparse
 from io import BytesIO
 import logging
 from datetime import datetime, timezone
-from stretch import stf_autostretch_color
-from ephemeris import get_moon_ephemeris
+
+# Corrected imports for the new structure
+from indexer_lib.image_processing import make_thumbnail, make_crop_preview
+from indexer_lib.file_utils import calculate_hash, get_header_value, get_xisf_header_value
+from indexer_lib.db_utils import soft_delete_missing_files, purge_deleted_files, update_duplicate_counts
+from indexer_lib.ephemeris import get_moon_ephemeris
 
 # Configure logging
 logging.basicConfig(
@@ -54,187 +58,15 @@ if not os.path.isdir(fits_root):
 commit_interval = 50
 
 # --- Hash function ---
-def calculate_hash(filepath, block_size=65536):
-    hasher = xxhash.xxh64()
-    with open(filepath, 'rb') as f:
-        while True:
-            buf = f.read(block_size)
-            if not buf:
-                break
-            hasher.update(buf)
-    return hasher.hexdigest()
+from indexer_lib.file_utils import calculate_hash, get_header_value, get_xisf_header_value
 
 # --- Thumbnail function ---
-def make_thumbnail(data, size):
-    try:
-        # Ensure data is float32 and clean
-        data = np.nan_to_num(data).astype(np.float32)
-        
-                # Apply the STF Autostretch (works for both mono and color)
-        stretched, _ = stf_autostretch_color(data)
-        
-        # Convert to 8-bit image for display
-        img = (stretched * 255).astype(np.uint8)
-        
-        # Create thumbnail with Pillow
-        image = Image.fromarray(img)
-        image.thumbnail(size)
-        buf = BytesIO()
-        image.save(buf, format='PNG')
-        return buf.getvalue()
-    except Exception as e:
-        logger.warning(f"Thumbnail generation failed: {e}")
-        return None
-
-def make_crop_preview(data, size):
-    try:
-        # This function now expects 2D monochrome data for simplicity and robustness
-        data = np.nan_to_num(data).astype(np.float32)
-        
-        # Get original dimensions, handling both mono (H, W) and color (H, W, C)
-        if data.ndim == 2:
-            h, w = data.shape
-        elif data.ndim == 3 and data.shape[2] in [3, 4]:
-            h, w, channels = data.shape
-        else:
-            logger.warning(f"Unsupported data shape for crop preview: {data.shape}")
-            return None
-
-        max_w, max_h = size
-
-        if w <= max_w and h <= max_h:
-            cropped_data = data
-        else:
-            original_aspect = w / h
-            max_aspect = max_w / max_h
-            if original_aspect > max_aspect:
-                crop_w = max_w
-                crop_h = int(crop_w / original_aspect)
-            else:
-                crop_h = max_h
-                crop_w = int(crop_h * original_aspect)
-            
-            center_x, center_y = w // 2, h // 2
-            start_x = center_x - crop_w // 2
-            start_y = center_y - crop_h // 2
-            
-            if data.ndim == 2:
-                cropped_data = data[start_y : start_y + crop_h, start_x : start_x + crop_w]
-            else:
-                cropped_data = data[start_y : start_y + crop_h, start_x : start_x + crop_w, :]
-
-        stretched, _ = stf_autostretch_color(cropped_data)
-        img = (stretched * 255).astype(np.uint8)
-        image = Image.fromarray(img)
-        buf = BytesIO()
-        image.save(buf, format='PNG')
-        return buf.getvalue()
-    except Exception as e:
-        logger.warning(f"Crop preview generation failed: {e}")
-        return None
+from indexer_lib.image_processing import make_thumbnail, make_crop_preview
 
 # --- Database cleanup functions ---
-def soft_delete_missing_files(conn, cur, db_files, disk_files):
-    logger.info("Marking missing files as deleted (soft delete)...")
-    db_paths = {p for p, f in db_files.items() if f['deleted_at'] is None}
-    disk_paths = set(disk_files.keys())
-    missing_paths = db_paths - disk_paths
-    
-    if not missing_paths:
-        logger.info("Soft delete complete. No missing files to mark.")
-        return 0
+from indexer_lib.db_utils import soft_delete_missing_files, purge_deleted_files, update_duplicate_counts
 
-    batch_size = 500
-    missing_paths_list = list(missing_paths)
-    update_time = datetime.now()
-    hashes_to_update = set()
 
-    for i in range(0, len(missing_paths_list), batch_size):
-        batch_paths = missing_paths_list[i:i+batch_size]
-        format_strings = ','.join(['%s'] * len(batch_paths))
-        cur.execute(f"SELECT file_hash FROM files WHERE path IN ({format_strings})", tuple(batch_paths))
-        for row in cur.fetchall():
-            hashes_to_update.add(row[0])
-
-    for i in range(0, len(missing_paths_list), batch_size):
-        batch = [(update_time, path) for path in missing_paths_list[i:i+batch_size]]
-        cur.executemany("UPDATE files SET deleted_at = %s WHERE path = %s", batch)
-
-    if hashes_to_update:
-        logger.info(f"Updating duplicate counts for {len(hashes_to_update)} unique hashes...")
-        for file_hash in hashes_to_update:
-            update_duplicate_counts(conn, cur, file_hash)
-
-    conn.commit()
-    logger.info(f"Soft delete complete. Marked {len(missing_paths)} files as deleted.")
-    return len(missing_paths)
-
-def purge_deleted_files(conn, cur, retention_days):
-    if retention_days <= 0:
-        logger.info("Purge skipped as retention_days is zero or less.")
-        return 0
-        
-    logger.info(f"Purging files deleted more than {retention_days} days ago...")
-    cur.execute("SELECT DISTINCT file_hash FROM files WHERE deleted_at < NOW() - INTERVAL %s DAY", (retention_days,))
-    hashes_to_update = [row[0] for row in cur.fetchall()]
-
-    if not hashes_to_update:
-        logger.info("Purge complete. No old files to remove.")
-        return 0
-
-    cur.execute("DELETE FROM files WHERE deleted_at < NOW() - INTERVAL %s DAY", (retention_days,))
-    removed_count = cur.rowcount
-    
-    if removed_count > 0:
-        logger.info(f"Permanently removed {removed_count} files. Updating duplicate counts...")
-        for file_hash in hashes_to_update:
-            update_duplicate_counts(conn, cur, file_hash)
-        conn.commit()
-        logger.info(f"Duplicate counts updated for {len(hashes_to_update)} unique hashes.")
-    else:
-        logger.info("Purge complete. No old files to remove.")
-    
-    return removed_count
-
-def update_duplicate_counts(conn, cur, file_hash):
-    if not file_hash:
-        return
-    try:
-        cur.execute("SELECT COUNT(*) FROM files WHERE file_hash = %s AND deleted_at IS NULL", (file_hash,))
-        total_count = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM files WHERE file_hash = %s AND deleted_at IS NULL AND is_hidden = 0", (file_hash,))
-        visible_count = cur.fetchone()[0]
-        cur.execute("UPDATE files SET total_duplicate_count = %s, visible_duplicate_count = %s WHERE file_hash = %s", (total_count, visible_count, file_hash))
-    except mysql.connector.Error as err:
-        logger.error(f"Error updating duplicate count for hash {file_hash}: {err}")
-
-def get_header_value(header, key, default=None, type_func=None):
-    val = header.get(key, default)
-    if val is None or val == '':
-        return default
-    if type_func:
-        try:
-            return type_func(val)
-        except (ValueError, TypeError):
-            return default
-    return val
-
-def get_xisf_header_value(header, key, default=None, type_func=None):
-    if key in header and header[key]:
-        val = header[key][0].get('value', default)
-    else:
-        val = default
-    if val is None or val == '':
-        return default
-    if type_func:
-        try:
-            if type_func == bool and isinstance(val, str):
-                if val.lower() == 'true': return True
-                if val.lower() == 'false': return False
-            return type_func(val)
-        except (ValueError, TypeError):
-            return default
-    return val
 
 # --- Main execution ---
 try:
