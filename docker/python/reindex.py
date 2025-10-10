@@ -254,15 +254,21 @@ def main():
                     mtime = stat.st_mtime
                     file_size = stat.st_size
 
-                    if not force_reindex and rel_path in db_files:
+                    should_process = False
+                    reason = "skipped (no changes)"
+
+                    if force_reindex:
+                        should_process = True
+                        reason = "forced reindex"
+                    elif rel_path not in db_files:
+                        should_process = True
+                        reason = "new file"
+                    else:
                         db_entry = db_files[rel_path]
                         is_deleted = db_entry['deleted_at'] is not None
 
-                        mtime_from_db = db_entry.get('mtime')
-                        size_from_db = db_entry.get('size')
-                        
-                        mtime_match = mtime_from_db is not None and int(mtime_from_db) == int(mtime)
-                        size_match = size_from_db is not None and int(size_from_db) == file_size
+                        mtime_match = db_entry.get('mtime') is not None and int(db_entry.get('mtime')) == int(mtime)
+                        size_match = db_entry.get('size') is not None and int(db_entry.get('size')) == file_size
 
                         if not is_deleted and mtime_match and size_match:
                             skipped_count += 1
@@ -279,10 +285,13 @@ def main():
                             db_files[rel_path].update({'mtime': mtime, 'size': file_size, 'deleted_at': None})
                             skipped_count += 1
                             continue
-                    
-                    reason = "new file" if rel_path not in db_files else "content hash changed"
-                    logger.debug(f"Queueing '{rel_path}' for processing. Reason: {reason}.")
-                    tasks.append(full_path)
+                        else:
+                            should_process = True
+                            reason = "content hash changed"
+
+                    if should_process:
+                        logger.debug(f"Queueing '{rel_path}' for processing. Reason: {reason}.")
+                        tasks.append(full_path)
 
                 except Exception as e:
                     logger.error(f'Error evaluating file {rel_path}: {e}')
