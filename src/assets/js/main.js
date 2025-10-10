@@ -485,3 +485,43 @@ if (containers.length > 0) {
 }
 
 });
+// --- DYNAMIC FOLDER TREE LOGIC ---
+    const folderTree = document.getElementById('folder-tree');
+    if (folderTree) {
+        folderTree.addEventListener('click', e => {
+            const toggle = e.target.closest('.folder-toggle');
+            if (!toggle) return;
+
+            e.preventDefault();
+            const folderItem = toggle.closest('.folder-item');
+            const subfoldersDiv = folderItem.nextElementSibling;
+
+            if (!subfoldersDiv || !subfoldersDiv.classList.contains('subfolders')) return;
+
+            const isOpening = subfoldersDiv.classList.contains('hidden');
+
+            // --- Accordion Logic ---
+            if (isOpening) {
+                const parentContainer = folderItem.parentElement;
+                // Find all sibling folder items at the same level
+                const siblingItems = parentContainer.querySelectorAll(':scope > .folder-item');
+
+                // Close all other subfolders at this level
+                siblingItems.forEach(sibling => {
+                    if (sibling !== folderItem) {
+                        const siblingSubfolders = sibling.nextElementSibling;
+                        if (siblingSubfolders && siblingSubfolders.classList.contains('subfolders')) {
+                            siblingSubfolders.classList.add('hidden');
+                        }
+                    }
+                });
+            }
+            // --- End Accordion Logic ---
+
+            // Finally, toggle the current subfolder div
+            subfoldersDiv.classList.toggle('hidden');
+        });
+    }
+
+//}); // NOTE: The final brackets are commented out as we are replacing a block of code.
+

@@ -129,5 +129,8 @@ return [
     'sff_filters_tab' => 'Filters',
 
     'moon_phase' => 'Moon Phase',
+    'filter_by_folder' => 'Filtra by Folder',
+    'no_subfolders' => 'No Subfolders',
+
 
 ];

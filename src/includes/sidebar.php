@@ -7,34 +7,68 @@
         </button>
     </div>
     
-    <?php if ($dir !== ''):
-                $parent = dirname($dir);
-        if ($parent === '.' || $parent === '/') $parent = '';
-        
-        // Build the query string, preserving existing GET parameters
-        $query_params = $_GET;
-        $query_params['dir'] = $parent;
-        $href = '?' . http_build_query($query_params);
-    ?>
-        <a href="<?= htmlspecialchars($href) ?>" class="flex items-center gap-2 p-2 hover:bg-gray-700 rounded-md text-blue-400 mb-2">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12"></path></svg>
-            <?php echo __('back') ?>
-        </a>
-    <?php endif; ?>
-        <nav>
-        <?php foreach($folders as $f): 
-            // Build the query string for each folder link
-            $new_dir = ($dir === '' ? $f : $dir.'/'.$f);
-            $query_params = $_GET;
-            $query_params['dir'] = $new_dir;
-            $href = '?' . http_build_query($query_params);
+    
+                    <nav id="folder-tree">
+        <?php
+        /**
+         * Renders the folder tree recursively.
+         *
+         * @param array $folderTree The nested array of folders.
+         * @param string $activeDir The currently active directory filter.
+         * @param string $basePath The path prefix for the current recursion level.
+         */
+        function render_folder_tree(array $folderTree, string $activeDir, string $basePath = ''): void
+        {
+            foreach ($folderTree as $folderName => $subfolders) {
+                $fullPath = ($basePath === '') ? $folderName : $basePath . '/' . $folderName;
+
+                // Determine the state of the folder
+                $isActive = ($fullPath === $activeDir);
+                // An ancestor is a folder whose path is a prefix of the active directory's path.
+                // The check ensures `FILTER` is not considered an ancestor of `FILTER_B`.
+                $isAncestor = str_starts_with($activeDir, $fullPath . '/');
+                $isOpen = $isActive || $isAncestor;
+
+                // Build query params for the filter link
+                $queryParams = $_GET;
+                $queryParams['dir'] = $fullPath;
+                $queryParams['page'] = 1;
+                $filterHref = '?' . http_build_query($queryParams);
+
+                // Define CSS classes based on state
+                $folderToggleClasses = 'folder-toggle flex-grow cursor-pointer p-2 hover:bg-gray-700 rounded-l-md truncate';
+                if ($isActive) {
+                    $folderToggleClasses .= ' bg-blue-800 font-semibold text-white';
+                }
         ?>
-            <a href="<?= htmlspecialchars($href) ?>" class="block p-2 text-gray-300 hover:bg-gray-700 rounded-md truncate">
-                <?= htmlspecialchars($f) ?>
-            </a>
-        <?php endforeach; ?>
-        <?php if (empty($folders) && $dir === ''): ?>
-            <p class="text-gray-500 text-sm p-2"><?php echo __('no_files_found') ?></p>
-        <?php endif; ?>
+                <div class="folder-item flex justify-between items-center text-gray-300 rounded-md">
+                    <span class="<?= $folderToggleClasses ?>">
+                        <?= htmlspecialchars($folderName) ?>
+                    </span>
+                    <a href="<?= htmlspecialchars($filterHref) ?>" class="filter-link p-2 hover:bg-gray-600 rounded-r-md" title="<?= __('filter_by_folder') ?>">
+                        ▶️
+                    </a>
+                </div>
+                                <div class="subfolders ml-4 <?= !$isOpen ? 'hidden' : '' ?>">
+                    <?php
+                    // Recursive call for subfolders
+                    if (!empty($subfolders)) {
+                        render_folder_tree($subfolders, $activeDir, $fullPath);
+                    } else {
+                        // Show a message if there are no subfolders to display.
+                        echo '<span class="p-2 text-gray-500 text-sm">' . __('no_subfolders') . '</span>';
+                    }
+                    ?>
+                </div>
+        <?php
+            }
+        }
+
+        if (!empty($folders)) {
+            render_folder_tree($folders, $dir ?? '');
+        } elseif (($dir ?? '') === '') {
+            echo '<p class="text-gray-500 text-sm p-2">' . __('no_files_found') . '</p>';
+        }
+        ?>
     </nav>
 </div>

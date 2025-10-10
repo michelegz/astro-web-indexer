@@ -105,5 +105,7 @@ return [
     'sff_filters_tab' => 'Filtres',
 
     'moon_phase' => 'Phase de Lune',
+    'filter_by_folder' => 'Filtrer par Dossier',
+    'no_subfolders' => 'Aucune sous-dossier',
 
 ];

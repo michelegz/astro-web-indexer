@@ -127,5 +127,6 @@ return [
     'sff_filters_tab' => 'Filtros',
 
     'moon_phase' => 'Fase Lunar',
-
+    'filter_by_folder' => 'Filtrar por Carpeta',
+    'no_subfolders' => 'No hay subcarpetas',
 ];

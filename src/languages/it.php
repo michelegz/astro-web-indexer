@@ -129,5 +129,7 @@ return [
     'sff_filters_tab' => 'Filtri',
 
     'moon_phase' => 'Fase Lunare',
+    'filter_by_folder' => 'Filtra per Cartella',
+    'no_subfolders' => 'Nessuna sottocartella',
 
 ];

@@ -31,8 +31,8 @@ $showAdvanced = isset($_GET['show_advanced']);
 
 $conn = connectDB();
 
-// Get folders for navigation
-$folders = getFolders($conn, $dir);
+// Get the complete folder tree for navigation
+$folders = getAllFoldersAsTree($conn);
 
 // Count total files for pagination
 $totalRecords = countFiles($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo);

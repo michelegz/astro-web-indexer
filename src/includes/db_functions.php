@@ -197,3 +197,37 @@ function getDuplicatesByHash(PDO $conn, string $hash): array
     return $stmt->fetchAll();
 }
 
+/**
+ * Fetches all unique folder paths and organizes them into a nested tree structure.
+ *
+ * @param PDO $conn The database connection object.
+ * @return array The nested array representing the folder tree.
+ */
+function getAllFoldersAsTree(PDO $conn): array
+{
+    $stmt = $conn->query("
+        SELECT DISTINCT LEFT(path, LENGTH(path) - LENGTH(SUBSTRING_INDEX(path, '/', -1)) - 1) as dir_path
+        FROM files
+        WHERE path LIKE '%/%' AND deleted_at IS NULL
+        ORDER BY dir_path
+    ");
+    
+    $paths = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    
+    $tree = [];
+    
+    foreach ($paths as $path) {
+        $parts = explode('/', $path);
+        $currentNode = &$tree;
+        
+        foreach ($parts as $part) {
+            if (!isset($currentNode[$part])) {
+                $currentNode[$part] = [];
+            }
+            $currentNode = &$currentNode[$part];
+        }
+    }
+    
+    return $tree;
+}
+

@@ -104,5 +104,6 @@ return [
     'sff_filters_tab' => 'Filter',
 
     'moon_phase' => 'Mondphase',
-
+    'filter_by_folder' => 'Nach Ordner filtern',
+    'no_subfolders' => 'Keine Unterordner',
 ];
