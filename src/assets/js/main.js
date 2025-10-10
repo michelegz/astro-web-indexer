@@ -134,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.toggleMenu = () => {
         const isOpen = sidebar?.classList.toggle('-translate-x-full');
         sidebar?.classList.toggle('translate-x-0');
-        menuOverlay?.classList.toggle('hidden');
+
 
         if (window.innerWidth >= 768) { // md breakpoint
             if (!isOpen) {
@@ -144,9 +144,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     };
-    if (menuOverlay) {
-        menuOverlay.addEventListener('click', toggleMenu);
-    }
 
     // --- SELECT ALL CHECKBOX ---
     if (selectAllCheckbox) {
