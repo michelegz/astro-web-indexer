@@ -7,7 +7,7 @@
 function render_sff_results_table(array $files): void
 {
     if (empty($files)) {
-        echo '<p class="text-center text-gray-400 p-8">No matching frames found.</p>';
+        echo '<p class="text-center text-gray-400 p-8">'. __('no_matching_frames_found') .  ' </p>';
         return;
     }
 ?>
