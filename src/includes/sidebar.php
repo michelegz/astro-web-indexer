@@ -45,8 +45,8 @@
                     <span class="<?= $folderToggleClasses ?>">
                         <?= htmlspecialchars($folderName) ?>
                     </span>
-                    <a href="<?= htmlspecialchars($filterHref) ?>" class="filter-link p-2 hover:bg-gray-600 rounded-r-md" title="<?= __('filter_by_folder') ?>">
-                        ▶️
+                    <a href="<?= htmlspecialchars($filterHref) ?>" class="filter-link p-2 hover:bg-gray-600 rounded-r-md text-white" title="<?= __('filter_by_folder') ?>">
+                    ▶️
                     </a>
                 </div>
                                 <div class="subfolders ml-4 <?= !$isOpen ? 'hidden' : '' ?>">

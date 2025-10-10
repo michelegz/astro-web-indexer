@@ -1,16 +1,12 @@
 <?php
 require_once __DIR__ . '/includes/init.php';
+include __DIR__ . '/includes/header.php';
 ?>
 
 <div class="flex flex-col md:flex-row min-h-screen">
     <?php include __DIR__ . '/includes/sidebar.php'; ?>
 
-    <!-- Mobile menu overlay -->
-    <div id="menu-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-20 hidden md:hidden" onclick="toggleMenu()"></div>
-
-    <div class="flex-1 transition-all duration-300 ease-in-out" id="content-area">
-        <?php include __DIR__ . '/includes/header.php'; ?>
-        
+    <div class="flex-1 transition-all duration-300 ease-in-out" id="content-area">        
         <main class="p-4">
             <?php 
             include __DIR__ . '/includes/breadcrumbs.php';

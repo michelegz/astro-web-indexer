@@ -1,7 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- DOM references ---
     const sidebar = document.getElementById('sidebar');
-    const menuOverlay = document.getElementById('menu-overlay');
     const selectAllCheckbox = document.getElementById('selectAll');
     const tableBody = document.querySelector('table tbody'); 
     const downloadSelectedBtn = document.getElementById('downloadSelectedBtn');
