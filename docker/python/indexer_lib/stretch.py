@@ -54,7 +54,7 @@ def normalize_channel(data, black_point=None, white_point=None):
 
 def stf_autostretch(img,
                                      k_black=2.8,
-                                     k_white=10.0,
+                                     k_white=20.0,
                                      target_mid=0.25,
                                      clip_output=True):
     """

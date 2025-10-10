@@ -51,10 +51,11 @@ The indexer includes a powerful suite for identifying and managing duplicate fil
 - **Interactive Management Modal:** A dedicated interface to view, hide, and restore duplicate files.
 - **Sort by Duplicates:** The main table can be sorted by the number of visible duplicates, making it easy to find and manage files with the most copies.
 
-### 🗃️ Resilient Indexing & Soft-Delete
+### 🗃️ Resilient & High-Performance Indexing
 
-The indexing engine is designed to be both efficient and resilient, making it suitable for managing large and dynamic data archives.
+The indexing engine is designed to be fast, efficient, and resilient, making it suitable for managing large and dynamic data archives.
 
+- **Parallel Processing:** The indexer uses parallel processing to take advantage of modern multi-core CPUs, allowing faster initial scans and full re-indexing, even when handling large sets of files.
 - **Fast Rescans:** The indexer uses a combination of file modification time (`mtime`) and size to quickly skip files that have not changed since the last scan. This makes subsequent indexing runs extremely fast.
 - **Content-Based Identification:** Files are uniquely identified by their `xxhash`, a high-speed hashing algorithm.
 - **Soft-Delete Recovery:** When a file is removed from the filesystem, it is not immediately deleted from the database. Instead, it is marked as "deleted" for a configurable retention period (default: 30 days). This provides a safety net against accidental deletions or temporary filesystem unavailability. If the file reappears within the retention period, it is instantly restored without need of full reindexing and hash calculation.
@@ -130,6 +131,7 @@ These variables control the behavior of the Python indexing and watching scripts
 | `RETENTION_DAYS` | The number of days to keep a record of a deleted file in the database before it is permanently purged. Set to `0` to disable purging. | `30` |
 | `DEBUG` | Enables verbose debug logging for the indexing scripts. Set to `true` or `false`. | `false` |
 | `THUMB_SIZE` | The size (width and height) in pixels for generated thumbnails. | `300` |
+| `INDEXER_WORKERS` | The number of parallel worker processes for indexing. The default is safe for most systems. Increase it on powerful machines with a lot of RAM, or decrease it if you encounter memory-related issues. | `4` |
 
 ### 🗄️ Database Connection
 
