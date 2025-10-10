@@ -54,7 +54,7 @@ services:
       - THUMB_SIZE=${THUMB_SIZE:-300}
       - INDEXER_WORKERS=${INDEXER_WORKERS:-4}
       - RETENTION_DAYS=${RETENTION_DAYS:-30}
-      - DEBUG=${DEBUG:-true}
+      - DEBUG=${DEBUG:-false}
     restart: unless-stopped
     depends_on:
       mariadb:
