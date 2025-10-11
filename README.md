@@ -109,6 +109,7 @@ This method uses pre-built Docker images and is the recommended way to get start
 5.  **Access the Application**
     - Open your browser and navigate to http://localhost:2080 (or the port you configured in `.env`). The first indexing process will start automatically in the background.
 
+ > **Note:** If you need remote access always use a VPN or configure a reverse proxy via nginx. Don't directly expose the application port to public internet.
 
 ## ⚙️ Configuration
 

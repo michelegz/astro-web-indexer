@@ -18,7 +18,7 @@ return [
     'reset_filters' => 'Réinitialiser les filtres',
     'file_name' => 'Nom du fichier',
     'object' => 'Objet',
-    'date_obs' => 'Date d'observation',
+    'date_obs' => 'Date d\'observation',
     'exposure' => 'Exposition',
     'filter' => 'Filtre',
     'type' => 'Type',
