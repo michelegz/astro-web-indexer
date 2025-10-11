@@ -47,7 +47,6 @@ The `build.sh` script provides several commands to manage the application's life
 - `./build.sh logs`: Follows the logs from all running containers.
 - `./build.sh save`: Exports the versioned Docker images to a `.tar` archive for manual transfer.
 - `./build.sh push`: Pushes the built images to GitHub Container Registry. Options: `--tag-latest`, `--tag-dev`.
-- `./build.sh push`: Pushes the built images to GitHub Container Registry. Options: `--tag-latest`, `--tag-dev`.
 
 ### Frontend Development
 The project uses Tailwind CSS for styling. The `build.sh` script automatically compiles the required CSS file (`output.css`) from the source files.
