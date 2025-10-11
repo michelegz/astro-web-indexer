@@ -28,59 +28,59 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('object')"><?php echo __('object') ?> <?php echoIcon('object', $sortBy, $sortOrder); ?></th>
                 
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('date_obs')"><?php echo __('date_obs') ?> <?php echoIcon('date_obs', $sortBy, $sortOrder); ?></th>
-                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('moon_phase')"><?php echo __('moon_phase') ?> <?php echoIcon('moon_phase', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('moon_phase')" title="<?php echo __('calculated_by_app'); ?>"><?php echo __('moon_phase') ?> <?php echoIcon('moon_phase', $sortBy, $sortOrder); ?></th>
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('exptime')"><?php echo __('exposure') ?> <?php echoIcon('exptime', $sortBy, $sortOrder); ?></th>
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('filter')"><?php echo __('filter') ?> <?php echoIcon('filter', $sortBy, $sortOrder); ?></th>
                 <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('imgtype')"><?php echo __('type') ?> <?php echoIcon('imgtype', $sortBy, $sortOrder); ?></th>
                 <th class="p-3 whitespace-nowrap"><?php echo __('smart_frame_finder') ?></th>
                 <?php if ($showAdvanced): ?>
                 <!-- Sensor Data -->
-                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('xbinning')">XBINNING <?php echoIcon('xbinning', $sortBy, $sortOrder); ?></th>
-                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('ybinning')">YBINNING <?php echoIcon('ybinning', $sortBy, $sortOrder); ?></th>
-                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('egain')">EGAIN <?php echoIcon('egain', $sortBy, $sortOrder); ?></th>
-                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('offset')">OFFSET <?php echoIcon('offset', $sortBy, $sortOrder); ?></th>
-                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('xpixsz')">XPIXSZ <?php echoIcon('xpixsz', $sortBy, $sortOrder); ?></th>
-                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('ypixsz')">YPIXSZ <?php echoIcon('ypixsz', $sortBy, $sortOrder); ?></th>
-                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('set_temp')">SET-TEMP <?php echoIcon('set_temp', $sortBy, $sortOrder); ?></th>
-                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('ccd_temp')">CCD-TEMP <?php echoIcon('ccd_temp', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('xbinning')" title="[ XBINNING ]"><?php echo __('xbinning') ?> <?php echoIcon('xbinning', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('ybinning')" title="[ YBINNING ]"><?php echo __('ybinning') ?> <?php echoIcon('ybinning', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('egain')" title="[ EGAIN ]"><?php echo __('egain') ?> <?php echoIcon('egain', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('offset')" title="[ OFFSET ]"><?php echo __('offset') ?> <?php echoIcon('offset', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('xpixsz')" title="[ XPIXSZ ]"><?php echo __('xpixsz') ?> <?php echoIcon('xpixsz', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('ypixsz')" title="[ YPIXSZ ]"><?php echo __('ypixsz') ?> <?php echoIcon('ypixsz', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('set_temp')" title="[ SET-TEMP ]"><?php echo __('set_temp') ?> <?php echoIcon('set_temp', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('ccd_temp')" title="[ CCD-TEMP ]"><?php echo __('ccd_temp') ?> <?php echoIcon('ccd_temp', $sortBy, $sortOrder); ?></th>
                     
                 <!-- Equipment Data -->
-                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('instrume')">INSTRUME <?php echoIcon('instrume', $sortBy, $sortOrder); ?></th>
-                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('cameraid')">CAMERAID <?php echoIcon('cameraid', $sortBy, $sortOrder); ?></th>
-                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('usblimit')">USBLIMIT <?php echoIcon('usblimit', $sortBy, $sortOrder); ?></th>
-                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('fwheel')">FWHEEL <?php echoIcon('fwheel', $sortBy, $sortOrder); ?></th>
-                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('telescop')">TELESCOP <?php echoIcon('telescop', $sortBy, $sortOrder); ?></th>
-                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('focallen')">FOCALLEN <?php echoIcon('focallen', $sortBy, $sortOrder); ?></th>
-                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('focratio')">FOCRATIO <?php echoIcon('focratio', $sortBy, $sortOrder); ?></th>
-                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('focname')">FOCNAME <?php echoIcon('focname', $sortBy, $sortOrder); ?></th>
-                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('focpos')">FOCPOS <?php echoIcon('focpos', $sortBy, $sortOrder); ?></th>
-                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('focussz')">FOCUSSZ <?php echoIcon('focussz', $sortBy, $sortOrder); ?></th>
-                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('foctemp')">FOCTEMP <?php echoIcon('foctemp', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('instrume')" title="[ INSTRUME ]"><?php echo __('instrume') ?> <?php echoIcon('instrume', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('cameraid')" title="[ CAMERAID ]"><?php echo __('cameraid') ?> <?php echoIcon('cameraid', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('usblimit')" title="[ USBLIMIT ]"><?php echo __('usblimit') ?> <?php echoIcon('usblimit', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('fwheel')" title="[ FWHEEL ]"><?php echo __('fwheel') ?> <?php echoIcon('fwheel', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('telescop')" title="[ TELESCOP ]"><?php echo __('telescop') ?> <?php echoIcon('telescop', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('focallen')" title="[ FOCALLEN ]"><?php echo __('focallen') ?> <?php echoIcon('focallen', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('focratio')" title="[ FOCRATIO ]"><?php echo __('focratio') ?> <?php echoIcon('focratio', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('focname')" title="[ FOCNAME ]"><?php echo __('focname') ?> <?php echoIcon('focname', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('focpos')" title="[ FOCPOS ]"><?php echo __('focpos') ?> <?php echoIcon('focpos', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('focussz')" title="[ FOCUSSZ ]"><?php echo __('focussz') ?> <?php echoIcon('focussz', $sortBy, $sortOrder); ?></th>
+                <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('foctemp')" title="[ FOCTEMP ]"><?php echo __('foctemp') ?> <?php echoIcon('foctemp', $sortBy, $sortOrder); ?></th>
 
                     <!-- Pointing & Position Data -->
-                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('ra')">RA <?php echoIcon('ra', $sortBy, $sortOrder); ?></th>
-                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('dec')">DEC <?php echoIcon('dec', $sortBy, $sortOrder); ?></th>
-                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('centalt')">CENTALT <?php echoIcon('centalt', $sortBy, $sortOrder); ?></th>
-                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('centaz')">CENTAZ <?php echoIcon('centaz', $sortBy, $sortOrder); ?></th>
-                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('airmass')">AIRMASS <?php echoIcon('airmass', $sortBy, $sortOrder); ?></th>
-                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('pierside')">PIERSIDE <?php echoIcon('pierside', $sortBy, $sortOrder); ?></th>
-                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('objctrot')">OBJCTROT <?php echoIcon('objctrot', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('ra')" title="[ RA ]"><?php echo __('ra') ?> <?php echoIcon('ra', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('dec')" title="[ DEC ]"><?php echo __('dec') ?> <?php echoIcon('dec', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('centalt')" title="[ CENTALT ]"><?php echo __('centalt') ?> <?php echoIcon('centalt', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('centaz')" title="[ CENTAZ ]"><?php echo __('centaz') ?> <?php echoIcon('centaz', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('airmass')" title="[ AIRMASS ]"><?php echo __('airmass') ?> <?php echoIcon('airmass', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('pierside')" title="[ PIERSIDE ]"><?php echo __('pierside') ?> <?php echoIcon('pierside', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('objctrot')" title="[ OBJCTROT ]"><?php echo __('objctrot') ?> <?php echoIcon('objctrot', $sortBy, $sortOrder); ?></th>
                     
                     <!-- Observatory Site Data -->
-                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('siteelev')">SITEELEV <?php echoIcon('siteelev', $sortBy, $sortOrder); ?></th>
-                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('sitelat')">SITELAT <?php echoIcon('sitelat', $sortBy, $sortOrder); ?></th>
-                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('sitelong')">SITELONG <?php echoIcon('sitelong', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('siteelev')" title="[ SITEELEV ]"><?php echo __('siteelev') ?> <?php echoIcon('siteelev', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('sitelat')" title="[ SITELAT ]"><?php echo __('sitelat') ?> <?php echoIcon('sitelat', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('sitelong')" title="[ SITELONG ]"><?php echo __('sitelong') ?> <?php echoIcon('sitelong', $sortBy, $sortOrder); ?></th>
 
                     <!-- File Metadata -->
-                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('swcreate')">SWCREATE <?php echoIcon('swcreate', $sortBy, $sortOrder); ?></th>
-                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('roworder')">ROWORDER <?php echoIcon('roworder', $sortBy, $sortOrder); ?></th>
-                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('equinox')">EQUINOX <?php echoIcon('equinox', $sortBy, $sortOrder); ?></th>
-                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('date_avg')">DATE-AVG <?php echoIcon('date_avg', $sortBy, $sortOrder); ?></th>
-                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('objctra')">OBJCTRA <?php echoIcon('objctra', $sortBy, $sortOrder); ?></th>
-                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('objctdec')">OBJCTDEC <?php echoIcon('objctdec', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('swcreate')" title="[ SWCREATE ]"><?php echo __('swcreate') ?> <?php echoIcon('swcreate', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('roworder')" title="[ ROWORDER ]"><?php echo __('roworder') ?> <?php echoIcon('roworder', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('equinox')" title="[ EQUINOX ]"><?php echo __('equinox') ?> <?php echoIcon('equinox', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('date_avg')" title="[ DATE-AVG ]"><?php echo __('date_avg') ?> <?php echoIcon('date_avg', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('objctra')" title="[ OBJCTRA ]"><?php echo __('objctra') ?> <?php echoIcon('objctra', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('objctdec')" title="[ OBJCTDEC ]"><?php echo __('objctdec') ?> <?php echoIcon('objctdec', $sortBy, $sortOrder); ?></th>
                     <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('width')"><?php echo __('dimensions') ?> <?php echoIcon('width', $sortBy, $sortOrder); ?></th>
-                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('resolution')"><?php echo __('resolution') ?> <?php echoIcon('resolution', $sortBy, $sortOrder); ?></th>
-                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('fov_w')"><?php echo __('field_of_view') ?> <?php echoIcon('fov_w', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('resolution')" title="<?php echo __('calculated_by_app'); ?>"><?php echo __('resolution') ?> <?php echoIcon('resolution', $sortBy, $sortOrder); ?></th>
+                    <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('fov_w')" title="<?php echo __('calculated_by_app'); ?>"><?php echo __('field_of_view') ?> <?php echoIcon('fov_w', $sortBy, $sortOrder); ?></th>
                     <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('file_size')"><?php echo __('size') ?> <?php echoIcon('file_size', $sortBy, $sortOrder); ?></th>
                     <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('mtime')"><?php echo __('modification_time') ?> <?php echoIcon('mtime', $sortBy, $sortOrder); ?></th>
                     <th class="p-3 whitespace-nowrap cursor-pointer hover:bg-gray-600" onclick="sortTable('file_hash')"><?php echo __('hash') ?> <?php echoIcon('file_hash', $sortBy, $sortOrder); ?></th>
