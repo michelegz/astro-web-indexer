@@ -1,6 +1,6 @@
 # Contributing to Astro Web Indexer
 
-This document provides guidelines for developers who want to build the project from source, make changes, or contribute back to the community.
+This document provides guidelines for developers who want to build the project from source, make changes, or contribute to the project.
 
 ## Development Environment Setup
 
@@ -29,21 +29,11 @@ If you want to build the project from the source code instead of using the pre-b
     ```bash
     npm install
     ```
-
-4.  Prepare your FITS/XISF data directory.
-    By default, the application looks for images inside a `./data/fits` directory. If you want to use this default, create it now:
-    ```bash
-    mkdir -p data/fits
-    ```
-    **Alternatively**, if you already have an image folder, you can edit the `.env` file and set `FITS_DATA_PATH` to your custom path (e.g., `FITS_DATA_PATH=/path/to/my/images`).
-
-5.  Build and start the application using the provided script:
+4.  Build and start the application using the provided script:
     ```bash
     ./build.sh build
     ```
-    This command handles the entire build process, including compiling the CSS, building all Docker images with the correct version tag, and starting the services.
-
-6.  Access the application at http://localhost:2080
+    > **Note:** This command handles the entire build process, including compiling the CSS, building all Docker images with the correct version tag, and starting the services.
 
 ### Managing the Application with `build.sh`
 
@@ -82,9 +72,31 @@ This is the core script that scans the data directory, extracts metadata from FI
 docker exec -it python-awi python /opt/scripts/reindex.py /var/fits --force
 ```
 
-**Key Manual Options:**
-- `--force`: Forces the script to re-process every file.
-- `--skip-cleanup`: Prevents the script from marking files as deleted if they are no longer found on disk.
+**Manual Execution and Options**
+
+You can run the script manually for specific tasks using `docker exec`. The script accepts several command-line arguments to override default behaviors.
+
+**Example: Forcing a full re-index with 8 workers**
+```bash
+docker exec -it python-awi python /opt/scripts/reindex.py /var/fits --debug --force --workers 8
+```
+
+**Command-Line Arguments:**
+
+| Argument | Environment Variable | Description | Default |
+|---|---|---|---|
+| `fits_root` | - | **(Required)** The root directory containing image files. Inside the container, this is always `/var/fits`. | - |
+| `--host` | `DB_HOST` | The MariaDB host. | `mariadb` |
+| `--user` | `DB_USER` | The database username. | `awi_user` |
+| `--password` | `DB_PASS` | The database password. | `awi_password` |
+| `--database` | `DB_NAME` | The database name. | `awi_db` |
+| `--force` | - | Forces the script to re-process every file, ignoring modification times and hashes. | `false` |
+| `--workers` | `INDEXER_WORKERS` | The number of parallel worker processes to use for indexing. | `4` |
+| `--thumb-size` | `THUMB_SIZE` | The size (width and height) in pixels for generated thumbnails. | `300` |
+| `--skip-cleanup` | - | Prevents the script from marking files as deleted if they are no longer found on disk. | `false` |
+| `--retention-days`| `RETENTION_DAYS` | The number of days to keep a soft-deleted file record before it is permanently purged. | `30` |
+| `--debug` | `DEBUG` | Enables verbose debug logging for the indexing script. | `false` |
+
 
 ## 📁 Directory Structure
 ```
