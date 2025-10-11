@@ -37,8 +37,10 @@ document.addEventListener('DOMContentLoaded', () => {
         sffTotalExposure.textContent = '';
         sffDownloadBtn.disabled = true;
 
+        const currentLang = document.documentElement.lang || 'en';
+
         // Fetch the filters panel HTML from the backend
-        fetch(`/api/sff_get_filters.php?id=${fileId}&type=${searchType}`)
+        fetch(`/api/sff_get_filters.php?id=${fileId}&type=${searchType}&lang=${currentLang}`)
             .then(response => {
                 if (!response.ok) {
                     throw new Error('Network response was not ok');
