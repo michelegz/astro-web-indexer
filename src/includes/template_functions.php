@@ -46,7 +46,7 @@ function getMoonPhaseMarkup(?float $angle, ?float $phase): string {
    
     
     //return "<div class=\"flex flex-col items-center \"></span><span>{$emoji}</span><span class=\"text-xs\">"  . number_format($phase, 0) . "% - " . number_format($angle, 0) . "°</span></div>";
-    return "<div class=\"flex flex-col items-center gap-2\"></span><span>{$emoji}</span><span class=\"text-xs \">"  . number_format($phase, 0) . "%</span></div>";
+    return "<div class=\"flex flex-col items-center gap-2\"><span title=\"" . number_format($angle, 0) . "°\">{$emoji}</span><span class=\"text-xs\">" . number_format($phase, 0) . "%</span></div>";
 }
 
 ?>
