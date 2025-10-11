@@ -53,6 +53,7 @@ docker-save.bat
 /docker-compose.override.yml
 /docker-compose.override.yml.off
 /src/VERSION
+/releases/
 
 # Node.js
 /node_modules
