@@ -47,6 +47,13 @@ $sqlParams = [];
 $sqlWhere[] = "is_hidden = 0";
 $sqlWhere[] = "deleted_at IS NULL";
 
+// Apply directory-level permission filter
+list($permSql, $permParams) = buildDirPermissionFilter('cf');
+if ($permSql !== null) {
+    $sqlWhere[] = $permSql;
+    $sqlParams = array_merge($sqlParams, $permParams);
+}
+
 // Base IMGTYPE filter
 $imgTypes = [
     'lights'         => 'LIGHT',

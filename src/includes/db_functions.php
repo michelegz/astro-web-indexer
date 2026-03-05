@@ -20,6 +20,10 @@ function getFolders(PDO $conn, string $currentDir): array
     $dirPattern = $currentDir === '' ? '%' : $currentDir . '/%';
     $dirPrefix = $currentDir === '' ? '' : $currentDir . '/';
 
+    // Build permission filter
+    list($permSql, $permParams) = buildDirPermissionFilter('fd');
+    $permClause = $permSql !== null ? ' AND ' . $permSql : '';
+
     $stmt = $conn->prepare("
         SELECT DISTINCT
             CASE
@@ -31,7 +35,7 @@ function getFolders(PDO $conn, string $currentDir): array
                 ELSE SUBSTRING_INDEX(SUBSTRING(path, LENGTH(:dir_prefix) + 1), '/', 1)
             END as folder
         FROM files
-        WHERE path LIKE :like_pattern AND deleted_at IS NULL AND SUBSTRING(path, LENGTH(:dir_prefix2) + 1) LIKE '%/%'
+        WHERE path LIKE :like_pattern AND deleted_at IS NULL AND SUBSTRING(path, LENGTH(:dir_prefix2) + 1) LIKE '%/%'" . $permClause . "
         HAVING folder IS NOT NULL AND folder != ''
         ORDER BY folder
     ");
@@ -39,6 +43,9 @@ function getFolders(PDO $conn, string $currentDir): array
     $stmt->bindValue(':dir_prefix', $dirPrefix, PDO::PARAM_STR);
     $stmt->bindValue(':dir_prefix2', $dirPrefix, PDO::PARAM_STR);
     $stmt->bindValue(':like_pattern', $dirPattern, PDO::PARAM_STR);
+    foreach ($permParams as $key => $value) {
+        $stmt->bindValue($key, $value, PDO::PARAM_STR);
+    }
     $stmt->execute();
     
     while ($row = $stmt->fetch()) {
@@ -117,6 +124,12 @@ function getDistinctValues(PDO $conn, string $column, string $dir, string $curre
     // Costruisci la query base con i filtri già attivi
     $sql = "SELECT DISTINCT " . $column . " FROM files WHERE path LIKE :dir_pattern AND deleted_at IS NULL";
 
+    // Apply directory-level permission filter
+    list($permSql, $permParams) = buildDirPermissionFilter('dv');
+    if ($permSql !== null) {
+        $sql .= " AND " . $permSql;
+    }
+
     // Aggiungi gli altri filtri, ma escludi la colonna che stiamo filtrando ora
     if ($column !== 'object' && $currentObject !== '') $sql .= " AND object = :object";
     if ($column !== 'filter' && $currentFilter !== '') $sql .= " AND filter = :filter";
@@ -126,6 +139,9 @@ function getDistinctValues(PDO $conn, string $column, string $dir, string $curre
     
     $stmt = $conn->prepare($sql);
     $stmt->bindValue(':dir_pattern', $dirPattern, PDO::PARAM_STR);
+    foreach ($permParams as $key => $value) {
+        $stmt->bindValue($key, $value, PDO::PARAM_STR);
+    }
     
     if ($column !== 'object' && $currentObject !== '') $stmt->bindValue(':object', $currentObject, PDO::PARAM_STR);
     if ($column !== 'filter' && $currentFilter !== '') $stmt->bindValue(':filter', $currentFilter, PDO::PARAM_STR);
@@ -164,6 +180,13 @@ function buildQueryParts(string $dir, string $object, string $filter, string $im
     $params = [
         ':dir_pattern' => ($dir === '' ? '%' : $dir . '/%')
     ];
+
+    // Apply directory-level permission filter
+    list($permSql, $permParams) = buildDirPermissionFilter();
+    if ($permSql !== null) {
+        $sql[] = $permSql;
+        $params = array_merge($params, $permParams);
+    }
 
     if ($object !== '') {
         $sql[] = "object = :object";
@@ -205,12 +228,20 @@ function getDuplicatesByHash(PDO $conn, string $hash): array
  */
 function getAllFoldersAsTree(PDO $conn): array
 {
-    $stmt = $conn->query("
+    // Build permission filter
+    list($permSql, $permParams) = buildDirPermissionFilter('td');
+    $permClause = $permSql !== null ? ' AND ' . $permSql : '';
+
+    $stmt = $conn->prepare("
         SELECT DISTINCT LEFT(path, LENGTH(path) - LENGTH(SUBSTRING_INDEX(path, '/', -1)) - 1) as dir_path
         FROM files
-        WHERE path LIKE '%/%' AND deleted_at IS NULL
+        WHERE path LIKE '%/%' AND deleted_at IS NULL" . $permClause . "
         ORDER BY dir_path
     ");
+    foreach ($permParams as $key => $value) {
+        $stmt->bindValue($key, $value, PDO::PARAM_STR);
+    }
+    $stmt->execute();
     
     $paths = $stmt->fetchAll(PDO::FETCH_COLUMN);
     

@@ -7,9 +7,11 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
     <button id="exportAstroBinBtn" class="bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50" disabled>
         <?php echo __('export_astrobin_csv') ?>
     </button>
+    <?php if (canDownload()): ?>
     <button id="downloadSelectedBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50" disabled>
         <?php echo __('download_selected') ?>
     </button>
+    <?php endif; ?>
 </div>
 
 <!-- View container -->

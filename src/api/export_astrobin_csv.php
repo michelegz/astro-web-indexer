@@ -5,7 +5,10 @@ require_once '../includes/config.php';
 require_once '../includes/db_functions.php';
 require_once '../includes/language_functions.php';
 require_once '../includes/language.php';
+session_start();
+require_once '../includes/auth.php';
 ob_end_clean();
+requireAuthApi();
 
 /**
  * Calculates the "astro session date" for a given observation timestamp.

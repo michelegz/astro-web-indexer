@@ -6,12 +6,17 @@ require_once __DIR__ . '/config.php';
 
 require_once __DIR__ . '/db_functions.php';
 
-require_once __DIR__ . '/language_functions.php';
-require_once __DIR__ . '/language.php';
-// Start session for language preference
+// Start session before language (so session-stored preference is available)
 session_start();
 
+require_once __DIR__ . '/language_functions.php';
+require_once __DIR__ . '/language.php';
+
+require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/template_functions.php';
+
+// Enforce authentication
+requireAuth();
 
 
 
