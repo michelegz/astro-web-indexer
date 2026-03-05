@@ -127,6 +127,7 @@ if (!empty($lights)) {
             
             // Populate with available data
             $sessions[$key]['date'] = $session_date;
+            $sessions[$key]['filter'] = $light['filter'] ?? '';
             $sessions[$key]['number'] = 0;
             $sessions[$key]['duration'] = $light['exptime'] ?? 0;
             $sessions[$key]['binning'] = $light['xbinning'] ?? 1;

@@ -21,22 +21,24 @@
                     <img src="<?= $logoPath ?>" alt="Logo" class="h-16 w-16">
                     <h1 class="text-2xl font-bold tracking-wide"><?php echo __('header_title') ?></h1>
                 </div>
-                <!-- Language selector -->
-                <?php include __DIR__ . '/language_selector.php'; ?>
+                <!-- Right-side controls: language selector + auth -->
+                <div class="flex items-center gap-4">
+                    <?php include __DIR__ . '/language_selector.php'; ?>
 
-                <!-- Auth controls -->
-                <?php if (isAuthEnabled()): ?>
-                    <div class="flex items-center gap-3 text-sm">
-                        <?php if (isLoggedIn()): ?>
-                            <span class="text-gray-400"><?= __('logged_in_as', ['username' => htmlspecialchars($_SESSION['username'])]) ?></span>
-                            <?php if (isAdmin()): ?>
-                                <a href="/admin.php" class="text-yellow-400 hover:text-yellow-300">&#9881;</a>
+                    <!-- Auth controls -->
+                    <?php if (isAuthEnabled()): ?>
+                        <div class="flex items-center gap-3 text-sm">
+                            <?php if (isLoggedIn()): ?>
+                                <span class="text-gray-400"><?= __('logged_in_as', ['username' => htmlspecialchars($_SESSION['username'])]) ?></span>
+                                <?php if (isAdmin()): ?>
+                                    <a href="/admin.php" class="text-yellow-400 hover:text-yellow-300">&#9881;</a>
+                                <?php endif; ?>
+                                <a href="/logout.php" class="text-gray-300 hover:text-white"><?= __('logout') ?></a>
+                            <?php else: ?>
+                                <a href="/login.php" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"><?= __('login_button') ?></a>
                             <?php endif; ?>
-                            <a href="/logout.php" class="text-gray-300 hover:text-white"><?= __('logout') ?></a>
-                        <?php else: ?>
-                            <a href="/login.php" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"><?= __('login_button') ?></a>
-                        <?php endif; ?>
-                    </div>
-                <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
             </div>
         </header>
