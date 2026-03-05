@@ -18,6 +18,7 @@ if (!canDownload()) {
 }
 
 use ZipStream\ZipStream;
+use ZipStream\CompressionMethod;
 
 $fitsRoot = FITS_ROOT;
 
@@ -56,14 +57,14 @@ if (empty($validFiles)) {
 // Crea ZIP
 $zip = new ZipStream(
     outputName: 'fits_files.zip',
-
+    defaultCompressionMethod: CompressionMethod::STORE,
 );
 
 try {
     foreach ($validFiles as $relativePath => $fullPath) {
         $zip->addFileFromPath(
             fileName: $relativePath,
-            path: $fullPath
+            path: $fullPath,
         );
     }
     
