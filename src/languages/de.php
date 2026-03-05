@@ -152,7 +152,6 @@ return [
     'login_password' => 'Passwort',
     'login_button' => 'Anmelden',
     'login_error' => 'Ungültiger Benutzername oder Passwort.',
-    'login_continue_guest' => 'Als Gast fortfahren',
     'logout' => 'Abmelden',
     'logged_in_as' => 'Angemeldet als {username}',
     'download_not_allowed' => 'Sie haben keine Berechtigung zum Herunterladen von Dateien.',

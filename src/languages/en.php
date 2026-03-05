@@ -153,7 +153,6 @@ return [
     'login_password' => 'Password',
     'login_button' => 'Sign In',
     'login_error' => 'Invalid username or password.',
-    'login_continue_guest' => 'Continue as Guest',
     'logout' => 'Logout',
     'logged_in_as' => 'Logged in as {username}',
     'download_not_allowed' => 'You do not have permission to download files.',

@@ -175,7 +175,6 @@ return [
     'login_password' => 'Contraseña',
     'login_button' => 'Acceder',
     'login_error' => 'Nombre de usuario o contraseña inválidos.',
-    'login_continue_guest' => 'Continuar como Invitado',
     'logout' => 'Cerrar sesión',
     'logged_in_as' => 'Conectado como {username}',
     'download_not_allowed' => 'No tiene permiso para descargar archivos.',

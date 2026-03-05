@@ -153,7 +153,6 @@ return [
     'login_password' => 'Password',
     'login_button' => 'Accedi',
     'login_error' => 'Nome utente o password non validi.',
-    'login_continue_guest' => 'Continua come Ospite',
     'logout' => 'Esci',
     'logged_in_as' => 'Connesso come {username}',
     'download_not_allowed' => 'Non hai il permesso di scaricare file.',

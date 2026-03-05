@@ -24,10 +24,6 @@ define('DEFAULT_PER_PAGE', (int)(getenv('DEFAULT_PER_PAGE') ?: 20)); // Default 
 define('PER_PAGE_OPTIONS', [10, 20, 50, 100, 500, 1000]); // Available options for items per page
 
 // Authentication configuration
-// AUTH_MODE: 'none' = no auth (default, legacy), 'open' = guest + optional login, 'full' = login required
+// AUTH_MODE: 'none' = no auth (default, legacy), 'full' = login required with directory permissions
 define('AUTH_MODE', getenv('AUTH_MODE') ?: 'none');
-// Guest settings (only used when AUTH_MODE = 'open')
-define('GUEST_CAN_DOWNLOAD', filter_var(getenv('GUEST_CAN_DOWNLOAD') ?: 'false', FILTER_VALIDATE_BOOLEAN));
-// Comma-separated list of root directories accessible to guests. Empty = all directories.
-define('GUEST_ALLOWED_DIRS', getenv('GUEST_ALLOWED_DIRS') ?: '');
 ?>

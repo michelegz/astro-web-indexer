@@ -2,10 +2,9 @@
 /**
  * Authentication and authorization functions.
  *
- * Supports three modes controlled by AUTH_MODE:
+ * Supports two modes controlled by AUTH_MODE:
  *   'none'  – No authentication, full access (legacy behavior).
- *   'open'  – Guest read-only access + optional login for more permissions.
- *   'full'  – Login required for everyone.
+ *   'full'  – Login required for everyone, with directory-level permissions.
  */
 
 /**
@@ -33,23 +32,13 @@ function isAdmin(): bool
 }
 
 /**
- * Return true if the current session is a guest (not logged in but access allowed).
- */
-function isGuest(): bool
-{
-    return !isLoggedIn();
-}
-
-/**
  * Return true if the current user can download files.
  */
 function canDownload(): bool
 {
     if (!isAuthEnabled()) return true;
     if (isAdmin()) return true;
-    if (isLoggedIn()) return !empty($_SESSION['can_download']);
-    // Guest
-    return defined('GUEST_CAN_DOWNLOAD') && GUEST_CAN_DOWNLOAD;
+    return isLoggedIn() && !empty($_SESSION['can_download']);
 }
 
 /**
@@ -61,17 +50,7 @@ function getAllowedDirs(): ?array
     if (!isAuthEnabled()) return null;
     if (isAdmin()) return null;
 
-    if (isLoggedIn()) {
-        return $_SESSION['allowed_dirs'] ?? [];
-    }
-
-    // Guest: use GUEST_ALLOWED_DIRS
-    if (defined('GUEST_ALLOWED_DIRS') && GUEST_ALLOWED_DIRS !== '') {
-        return array_map('trim', explode(',', GUEST_ALLOWED_DIRS));
-    }
-
-    // Guest with no restriction configured → full read access
-    return null;
+    return $_SESSION['allowed_dirs'] ?? [];
 }
 
 /**
@@ -163,11 +142,10 @@ function requireAuth(): void
 {
     if (!isAuthEnabled()) return;
 
-    if (AUTH_MODE === 'full' && !isLoggedIn()) {
+    if (!isLoggedIn()) {
         header('Location: /login.php');
         exit;
     }
-    // 'open' mode allows guest access, no redirect needed
 }
 
 /**
@@ -178,7 +156,7 @@ function requireAuthApi(): void
 {
     if (!isAuthEnabled()) return;
 
-    if (AUTH_MODE === 'full' && !isLoggedIn()) {
+    if (!isLoggedIn()) {
         http_response_code(401);
         header('Content-Type: application/json');
         echo json_encode(['error' => 'Authentication required.']);

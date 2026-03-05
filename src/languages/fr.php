@@ -153,7 +153,6 @@ return [
     'login_password' => 'Mot de passe',
     'login_button' => 'Se connecter',
     'login_error' => 'Nom d\'utilisateur ou mot de passe invalide.',
-    'login_continue_guest' => 'Continuer en tant qu\'invité',
     'logout' => 'Déconnexion',
     'logged_in_as' => 'Connecté en tant que {username}',
     'download_not_allowed' => 'Vous n\'êtes pas autorisé à télécharger des fichiers.',

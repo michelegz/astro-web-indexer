@@ -33,6 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!str_starts_with($redirect, '/') || str_starts_with($redirect, '//')) {
                 $redirect = '/';
             }
+            session_write_close();
             header('Location: ' . $redirect);
             exit;
         } else {
@@ -41,8 +42,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Generate CSRF token
-$_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+// Generate CSRF token only if not already present
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 $csrfToken = $_SESSION['csrf_token'];
 ?>
 <!DOCTYPE html>
@@ -89,11 +92,6 @@ $csrfToken = $_SESSION['csrf_token'];
             </button>
         </form>
 
-        <?php if (AUTH_MODE === 'open'): ?>
-            <div class="mt-4 text-center">
-                <a href="/" class="text-sm text-gray-400 hover:text-gray-200"><?= __('login_continue_guest') ?></a>
-            </div>
-        <?php endif; ?>
     </div>
 </body>
 </html>

@@ -34,8 +34,6 @@ services:
       - DB_USER=${DB_USER:-awi_user}
       - DB_PASSWORD=${DB_PASSWORD:-awi_password}
       - AUTH_MODE=${AUTH_MODE:-none}
-      - GUEST_CAN_DOWNLOAD=${GUEST_CAN_DOWNLOAD:-false}
-      - GUEST_ALLOWED_DIRS=${GUEST_ALLOWED_DIRS:-}
       - ADMIN_USER=${ADMIN_USER:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-changeme}
     restart: unless-stopped
