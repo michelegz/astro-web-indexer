@@ -111,7 +111,8 @@ return [
     // FITS keywords
     'xbinning' => 'X-Binning',
     'ybinning' => 'Y-Binning',
-    'egain' => 'Gain',
+    'egain' => 'E-Gain',
+    'gain' => 'Gain',
     'offset' => 'Offset',
     'xpixsz' => 'Pixelgröße X',
     'ypixsz' => 'Pixelgröße Y',

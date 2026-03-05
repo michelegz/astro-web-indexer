@@ -77,7 +77,7 @@ function getFiles(PDO $conn, string $dir, string $object, string $filter, string
         // Validazione e sanitizzazione di sortBy e sortOrder
     $allowedSortBy = [
         'name', 'path', 'object', 'date_obs', 'exptime', 'filter', 'imgtype', 
-        'xbinning', 'ybinning', 'egain', 'offset', 'xpixsz', 'ypixsz', 'instrume', 
+        'xbinning', 'ybinning', 'egain', 'gain', 'offset', 'xpixsz', 'ypixsz', 'instrume', 
         'set_temp', 'ccd_temp', 'telescop', 'focallen', 'focratio', 'ra', 'dec', 
         'centalt', 'centaz', 'airmass', 'pierside', 'siteelev', 'sitelat', 'sitelong', 
                 'focpos', 'visible_duplicate_count', 'mtime', 'file_hash', 'file_size',

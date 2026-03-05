@@ -45,7 +45,7 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
 
         if ($showAdvanced) {
             $advancedHeaders = [
-                'xbinning' => ['xbinning', false], 'ybinning' => ['ybinning', false], 'egain' => ['egain', false], 
+                'xbinning' => ['xbinning', false], 'ybinning' => ['ybinning', false], 'egain' => ['egain', false], 'gain' => ['gain', false],
                 'offset' => ['offset', false], 'xpixsz' => ['xpixsz', false], 'ypixsz' => ['ypixsz', false], 
                 'set_temp' => ['set_temp', false], 'ccd_temp' => ['ccd_temp', false], 'instrume' => ['instrume', false], 
                 'cameraid' => ['cameraid', false], 'usblimit' => ['usblimit', false], 'fwheel' => ['fwheel', false], 
@@ -147,6 +147,7 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                     <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['xbinning'] ?? '') ?></td>
                     <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ybinning'] ?? '') ?></td>
                     <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['egain'] ?? '') ?></td>
+                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['gain'] ?? '') ?></td>
                     <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['offset'] ?? '') ?></td>
                     <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['xpixsz'] ?? '') ?></td>
                     <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ypixsz'] ?? '') ?></td>

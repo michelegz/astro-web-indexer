@@ -112,7 +112,8 @@ return [
     // FITS keywords
     'xbinning' => 'Binning X',
     'ybinning' => 'Binning Y',
-    'egain' => 'Gain',
+    'egain' => 'E-Gain',
+    'gain' => 'Gain',
     'offset' => 'Offset',
     'xpixsz' => 'Taille Pixel X',
     'ypixsz' => 'Taille Pixel Y',
