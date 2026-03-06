@@ -20,6 +20,10 @@ function getFolders(PDO $conn, string $currentDir): array
     $dirPattern = $currentDir === '' ? '%' : $currentDir . '/%';
     $dirPrefix = $currentDir === '' ? '' : $currentDir . '/';
 
+    // Build permission filter
+    list($permSql, $permParams) = buildDirPermissionFilter('fd');
+    $permClause = $permSql !== null ? ' AND ' . $permSql : '';
+
     $stmt = $conn->prepare("
         SELECT DISTINCT
             CASE
@@ -31,7 +35,7 @@ function getFolders(PDO $conn, string $currentDir): array
                 ELSE SUBSTRING_INDEX(SUBSTRING(path, LENGTH(:dir_prefix) + 1), '/', 1)
             END as folder
         FROM files
-        WHERE path LIKE :like_pattern AND deleted_at IS NULL AND SUBSTRING(path, LENGTH(:dir_prefix2) + 1) LIKE '%/%'
+        WHERE path LIKE :like_pattern AND deleted_at IS NULL AND SUBSTRING(path, LENGTH(:dir_prefix2) + 1) LIKE '%/%'" . $permClause . "
         HAVING folder IS NOT NULL AND folder != ''
         ORDER BY folder
     ");
@@ -39,6 +43,9 @@ function getFolders(PDO $conn, string $currentDir): array
     $stmt->bindValue(':dir_prefix', $dirPrefix, PDO::PARAM_STR);
     $stmt->bindValue(':dir_prefix2', $dirPrefix, PDO::PARAM_STR);
     $stmt->bindValue(':like_pattern', $dirPattern, PDO::PARAM_STR);
+    foreach ($permParams as $key => $value) {
+        $stmt->bindValue($key, $value, PDO::PARAM_STR);
+    }
     $stmt->execute();
     
     while ($row = $stmt->fetch()) {
@@ -70,7 +77,7 @@ function getFiles(PDO $conn, string $dir, string $object, string $filter, string
         // Validazione e sanitizzazione di sortBy e sortOrder
     $allowedSortBy = [
         'name', 'path', 'object', 'date_obs', 'exptime', 'filter', 'imgtype', 
-        'xbinning', 'ybinning', 'egain', 'offset', 'xpixsz', 'ypixsz', 'instrume', 
+        'xbinning', 'ybinning', 'egain', 'gain', 'offset', 'xpixsz', 'ypixsz', 'instrume', 
         'set_temp', 'ccd_temp', 'telescop', 'focallen', 'focratio', 'ra', 'dec', 
         'centalt', 'centaz', 'airmass', 'pierside', 'siteelev', 'sitelat', 'sitelong', 
                 'focpos', 'visible_duplicate_count', 'mtime', 'file_hash', 'file_size',
@@ -85,12 +92,42 @@ function getFiles(PDO $conn, string $dir, string $object, string $filter, string
     $sortOrder = in_array(strtoupper($sortOrder), $allowedSortOrder) ? strtoupper($sortOrder) : 'ASC';
 
     list($sqlConditions, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo);
+
+    // When directory permissions are active, compute permission-aware duplicate counts
+    // via correlated subqueries so the badge only reflects accessible files.
+    $allowedDirs = getAllowedDirs();
+    $selectClause = 'files.*';
+    $subqParams = [];
+    if ($allowedDirs !== null && !empty($allowedDirs)) {
+        $dirConditionsA = [];
+        $dirConditionsB = [];
+        foreach ($allowedDirs as $i => $d) {
+            $keyA = ':sq_a' . $i;
+            $keyB = ':sq_b' . $i;
+            $dirConditionsA[] = "SUBSTRING_INDEX(d.path, '/', 1) = {$keyA}";
+            $dirConditionsB[] = "SUBSTRING_INDEX(d.path, '/', 1) = {$keyB}";
+            $subqParams[$keyA] = $d;
+            $subqParams[$keyB] = $d;
+        }
+        $dirFilterA = implode(' OR ', $dirConditionsA);
+        $dirFilterB = implode(' OR ', $dirConditionsB);
+        $selectClause = "files.*, "
+            . "CASE WHEN files.total_duplicate_count > 1 THEN (SELECT COUNT(*) FROM files d WHERE d.file_hash = files.file_hash AND d.deleted_at IS NULL AND ({$dirFilterA})) ELSE files.total_duplicate_count END AS total_duplicate_count, "
+            . "CASE WHEN files.total_duplicate_count > 1 THEN (SELECT COUNT(*) FROM files d WHERE d.file_hash = files.file_hash AND d.deleted_at IS NULL AND d.is_hidden = 0 AND ({$dirFilterB})) ELSE files.visible_duplicate_count END AS visible_duplicate_count";
+    }
     
-    $sql = "SELECT * FROM files WHERE " . implode(' AND ', $sqlConditions) . " ORDER BY " . $sortBy . " " . $sortOrder . " LIMIT :per_page OFFSET :offset";
+    $orderClause = $sortBy . " " . $sortOrder;
+    if ($sortBy === 'visible_duplicate_count') {
+        $orderClause .= ", total_duplicate_count " . $sortOrder;
+    }
+    $sql = "SELECT {$selectClause} FROM files WHERE " . implode(' AND ', $sqlConditions) . " ORDER BY " . $orderClause . " LIMIT :per_page OFFSET :offset";
 
     $stmt = $conn->prepare($sql);
     foreach ($params as $key => $value) {
         $stmt->bindValue($key, $value);
+    }
+    foreach ($subqParams as $key => $value) {
+        $stmt->bindValue($key, $value, PDO::PARAM_STR);
     }
     $stmt->bindValue(':per_page', $perPage, PDO::PARAM_INT);
     $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
@@ -117,6 +154,12 @@ function getDistinctValues(PDO $conn, string $column, string $dir, string $curre
     // Costruisci la query base con i filtri già attivi
     $sql = "SELECT DISTINCT " . $column . " FROM files WHERE path LIKE :dir_pattern AND deleted_at IS NULL";
 
+    // Apply directory-level permission filter
+    list($permSql, $permParams) = buildDirPermissionFilter('dv');
+    if ($permSql !== null) {
+        $sql .= " AND " . $permSql;
+    }
+
     // Aggiungi gli altri filtri, ma escludi la colonna che stiamo filtrando ora
     if ($column !== 'object' && $currentObject !== '') $sql .= " AND object = :object";
     if ($column !== 'filter' && $currentFilter !== '') $sql .= " AND filter = :filter";
@@ -126,6 +169,9 @@ function getDistinctValues(PDO $conn, string $column, string $dir, string $curre
     
     $stmt = $conn->prepare($sql);
     $stmt->bindValue(':dir_pattern', $dirPattern, PDO::PARAM_STR);
+    foreach ($permParams as $key => $value) {
+        $stmt->bindValue($key, $value, PDO::PARAM_STR);
+    }
     
     if ($column !== 'object' && $currentObject !== '') $stmt->bindValue(':object', $currentObject, PDO::PARAM_STR);
     if ($column !== 'filter' && $currentFilter !== '') $stmt->bindValue(':filter', $currentFilter, PDO::PARAM_STR);
@@ -165,6 +211,13 @@ function buildQueryParts(string $dir, string $object, string $filter, string $im
         ':dir_pattern' => ($dir === '' ? '%' : $dir . '/%')
     ];
 
+    // Apply directory-level permission filter
+    list($permSql, $permParams) = buildDirPermissionFilter();
+    if ($permSql !== null) {
+        $sql[] = $permSql;
+        $params = array_merge($params, $permParams);
+    }
+
     if ($object !== '') {
         $sql[] = "object = :object";
         $params[':object'] = $object;
@@ -191,8 +244,14 @@ function buildQueryParts(string $dir, string $object, string $filter, string $im
 
 function getDuplicatesByHash(PDO $conn, string $hash): array
 {
-    $stmt = $conn->prepare("SELECT id, path, name, file_hash, mtime, is_hidden FROM files WHERE file_hash = :hash AND deleted_at IS NULL ORDER BY path");
+    list($permSql, $permParams) = buildDirPermissionFilter('dup');
+    $permClause = $permSql !== null ? ' AND ' . $permSql : '';
+
+    $stmt = $conn->prepare("SELECT id, path, name, file_hash, mtime, is_hidden FROM files WHERE file_hash = :hash AND deleted_at IS NULL" . $permClause . " ORDER BY path");
     $stmt->bindValue(':hash', $hash, PDO::PARAM_STR);
+    foreach ($permParams as $key => $value) {
+        $stmt->bindValue($key, $value, PDO::PARAM_STR);
+    }
     $stmt->execute();
     return $stmt->fetchAll();
 }
@@ -205,12 +264,20 @@ function getDuplicatesByHash(PDO $conn, string $hash): array
  */
 function getAllFoldersAsTree(PDO $conn): array
 {
-    $stmt = $conn->query("
+    // Build permission filter
+    list($permSql, $permParams) = buildDirPermissionFilter('td');
+    $permClause = $permSql !== null ? ' AND ' . $permSql : '';
+
+    $stmt = $conn->prepare("
         SELECT DISTINCT LEFT(path, LENGTH(path) - LENGTH(SUBSTRING_INDEX(path, '/', -1)) - 1) as dir_path
         FROM files
-        WHERE path LIKE '%/%' AND deleted_at IS NULL
+        WHERE path LIKE '%/%' AND deleted_at IS NULL" . $permClause . "
         ORDER BY dir_path
     ");
+    foreach ($permParams as $key => $value) {
+        $stmt->bindValue($key, $value, PDO::PARAM_STR);
+    }
+    $stmt->execute();
     
     $paths = $stmt->fetchAll(PDO::FETCH_COLUMN);
     

@@ -22,4 +22,8 @@ define('HEADER_TITLE', getenv('HEADER_TITLE') ?: 'Astro Web Indexer'); // Site t
 
 define('DEFAULT_PER_PAGE', (int)(getenv('DEFAULT_PER_PAGE') ?: 20)); // Default number of items per page
 define('PER_PAGE_OPTIONS', [10, 20, 50, 100, 500, 1000]); // Available options for items per page
+
+// Authentication configuration
+// AUTH_MODE: 'none' = no auth (default, legacy), 'full' = login required with directory permissions
+define('AUTH_MODE', getenv('AUTH_MODE') ?: 'none');
 ?>

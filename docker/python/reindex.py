@@ -19,6 +19,7 @@ from indexer_lib.image_processing import make_thumbnail, make_crop_preview
 from indexer_lib.file_utils import calculate_hash, get_header_value, get_xisf_header_value
 from indexer_lib.db_utils import soft_delete_missing_files, purge_deleted_files, update_duplicate_counts
 from indexer_lib.ephemeris import get_moon_ephemeris
+from indexer_lib.schema_upgrade import SCHEMA_VERSION_FIELDS, schema_upgrade_worker
 from datetime import datetime, timezone
 
 # Configure logging
@@ -63,17 +64,6 @@ if not os.path.isdir(fits_root):
     sys.exit(1)
 
 commit_interval = 50
-
-# --- Hash function ---
-from indexer_lib.file_utils import calculate_hash, get_header_value, get_xisf_header_value
-
-# --- Thumbnail function ---
-from indexer_lib.image_processing import make_thumbnail, make_crop_preview
-
-# --- Database cleanup functions ---
-from indexer_lib.db_utils import soft_delete_missing_files, purge_deleted_files, update_duplicate_counts
-
-
 
 
 # --- Worker function for multiprocessing ---
@@ -160,6 +150,8 @@ def process_file_worker(full_path, fits_root, thumb_size):
         siteelev = get_value(header, 'SITEELEV', None, float)
         sitelat = get_value(header, 'SITELAT', None, float)
         sitelong = get_value(header, 'SITELONG', None, float)
+        gain = get_value(header, 'GAIN', None, float)
+
         focpos = get_value(header, 'FOCPOS', None, int)
         if focpos is None:
             focpos = get_value(header, 'FOCUSPOS', None, int)
@@ -206,7 +198,7 @@ def process_file_worker(full_path, fits_root, thumb_size):
             'width': width, 'height': height, 'resolution': resolution, 'fov_w': fov_w, 'fov_h': fov_h,
             'object': object_name, 'objctra': objct_ra, 'objctdec': objct_dec,
             'imgtype': imgtype, 'exptime': exptime, 'date_obs': date_obs, 'date_avg': date_avg, 'filter': filt,
-            'xbinning': xbinning, 'ybinning': ybinning, 'egain': egain, 'offset': offset, 'xpixsz': xpixsz, 'ypixsz': ypixsz, 'set_temp': set_temp, 'ccd_temp': ccd_temp,
+            'xbinning': xbinning, 'ybinning': ybinning, 'egain': egain, 'gain': gain, 'offset': offset, 'xpixsz': xpixsz, 'ypixsz': ypixsz, 'set_temp': set_temp, 'ccd_temp': ccd_temp,
             'instrume': instrume, 'cameraid': camera_id, 'usblimit': usb_limit, 'fwheel': fwheel, 'telescop': telescop, 'focallen': focallen, 'focratio': focratio,
             'focname': foc_name, 'focpos': focpos, 'focussz': focus_sz, 'foctemp': foc_temp,
             'ra': ra, 'dec': dec, 'centalt': centalt, 'centaz': centaz, 'airmass': airmass, 'pierside': pierside, 'objctrot': objctrot,
@@ -228,12 +220,15 @@ def main():
         conn = mysql.connector.connect(host=args.host, user=args.user, password=args.password, database=args.database)
         cur = conn.cursor()
 
+        current_schema_version = 2
+
         logger.info("Loading existing file data from database...")
-        cur.execute("SELECT path, file_hash, mtime, file_size, deleted_at FROM files")
-        db_files = {row[0]: {'hash': row[1], 'mtime': row[2], 'size': row[3], 'deleted_at': row[4]} for row in cur.fetchall()}
+        cur.execute("SELECT path, file_hash, mtime, file_size, deleted_at, data_schema_version FROM files")
+        db_files = {row[0]: {'hash': row[1], 'mtime': row[2], 'size': row[3], 'deleted_at': row[4], 'schema_version': row[5]} for row in cur.fetchall()}
         logger.info(f"Loaded {len(db_files)} records from the database.")
 
         tasks = []
+        schema_upgrade_tasks = []
         skipped_count = 0
         error_count = 0
         disk_files = {}
@@ -271,8 +266,13 @@ def main():
                         size_match = db_entry.get('size') is not None and int(db_entry.get('size')) == file_size
 
                         if not is_deleted and mtime_match and size_match:
-                            skipped_count += 1
-                            continue
+                            if db_entry.get('schema_version') == current_schema_version:
+                                skipped_count += 1
+                                continue
+                            else:
+                                logger.debug(f"Queueing '{rel_path}' for schema upgrade. Reason: schema version changed.")
+                                schema_upgrade_tasks.append((full_path, db_entry.get('schema_version') or 1))
+                                continue
                         
                         file_hash = calculate_hash(full_path)
                         
@@ -310,7 +310,7 @@ def main():
                     path, file_hash, name, mtime, file_size, width, height, resolution, fov_w, fov_h,
                     object, objctra, objctdec,
                     imgtype, exptime, date_obs, date_avg, filter,
-                    xbinning, ybinning, egain, `offset`, xpixsz, ypixsz, set_temp, ccd_temp,
+                    xbinning, ybinning, egain, gain, `offset`, xpixsz, ypixsz, set_temp, ccd_temp,
                     instrume, cameraid, usblimit, fwheel, telescop, focallen, focratio, 
                     focname, focpos, focussz, foctemp,
                     ra, `dec`, centalt, centaz, airmass, pierside, objctrot,
@@ -322,20 +322,20 @@ def main():
                     %(path)s, %(file_hash)s, %(name)s, %(mtime)s, %(file_size)s, %(width)s, %(height)s, %(resolution)s, %(fov_w)s, %(fov_h)s,
                     %(object)s, %(objctra)s, %(objctdec)s,
                     %(imgtype)s, %(exptime)s, %(date_obs)s, %(date_avg)s, %(filter)s,
-                    %(xbinning)s, %(ybinning)s, %(egain)s, %(offset)s, %(xpixsz)s, %(ypixsz)s, %(set_temp)s, %(ccd_temp)s,
+                    %(xbinning)s, %(ybinning)s, %(egain)s, %(gain)s, %(offset)s, %(xpixsz)s, %(ypixsz)s, %(set_temp)s, %(ccd_temp)s,
                     %(instrume)s, %(cameraid)s, %(usblimit)s, %(fwheel)s, %(telescop)s, %(focallen)s, %(focratio)s,
                     %(focname)s, %(focpos)s, %(focussz)s, %(foctemp)s,
                     %(ra)s, %(dec)s, %(centalt)s, %(centaz)s, %(airmass)s, %(pierside)s, %(objctrot)s,
                     %(siteelev)s, %(sitelat)s, %(sitelong)s,
                     %(swcreate)s, %(roworder)s, %(equinox)s,
-                    %(thumb)s, %(thumb_crop)s, NULL, 0, 1,
+                    %(thumb)s, %(thumb_crop)s, NULL, 0, 2,
                     %(moon_phase)s, %(moon_angle)s
                 )
                 ON DUPLICATE KEY UPDATE
                     file_hash=VALUES(file_hash), mtime=VALUES(mtime), file_size=VALUES(file_size), width=VALUES(width), height=VALUES(height), resolution=VALUES(resolution), fov_w=VALUES(fov_w), fov_h=VALUES(fov_h), name=VALUES(name),
                     object=VALUES(object), objctra=VALUES(objctra), objctdec=VALUES(objctdec),
                     imgtype=VALUES(imgtype), exptime=VALUES(exptime), date_obs=VALUES(date_obs), date_avg=VALUES(date_avg), filter=VALUES(filter),
-                    xbinning=VALUES(xbinning), ybinning=VALUES(ybinning), egain=VALUES(egain), `offset`=VALUES(`offset`), xpixsz=VALUES(xpixsz), ypixsz=VALUES(ypixsz), set_temp=VALUES(set_temp), ccd_temp=VALUES(ccd_temp),
+                    xbinning=VALUES(xbinning), ybinning=VALUES(ybinning), egain=VALUES(egain), gain=VALUES(gain), `offset`=VALUES(`offset`), xpixsz=VALUES(xpixsz), ypixsz=VALUES(ypixsz), set_temp=VALUES(set_temp), ccd_temp=VALUES(ccd_temp),
                     instrume=VALUES(instrume), cameraid=VALUES(cameraid), usblimit=VALUES(usblimit), fwheel=VALUES(fwheel), telescop=VALUES(telescop), focallen=VALUES(focallen), focratio=VALUES(focratio),
                     focname=VALUES(focname), focpos=VALUES(focpos), focussz=VALUES(focussz), foctemp=VALUES(foctemp),
                     ra=VALUES(ra), `dec`=VALUES(`dec`), centalt=VALUES(centalt), centaz=VALUES(centaz), airmass=VALUES(airmass), pierside=VALUES(pierside), objctrot=VALUES(objctrot),
@@ -343,7 +343,7 @@ def main():
                     swcreate=VALUES(swcreate), roworder=VALUES(roworder), equinox=VALUES(equinox),
                     thumb=COALESCE(VALUES(thumb), thumb),
                     thumb_crop=COALESCE(VALUES(thumb_crop), thumb_crop),
-                    deleted_at=NULL, is_hidden=is_hidden,
+                    deleted_at=NULL, is_hidden=is_hidden, data_schema_version=VALUES(data_schema_version),
                     moon_phase=VALUES(moon_phase),
                     moon_angle=VALUES(moon_angle)
             '''
@@ -396,6 +396,37 @@ def main():
         
         conn.commit()
 
+        schema_upgraded_count = 0
+        if schema_upgrade_tasks:
+            logger.info(f"Performing lightweight schema upgrade for {len(schema_upgrade_tasks)} files (header-only, no thumbnail regeneration)...")
+            upgrade_worker_func = partial(schema_upgrade_worker, fits_root=fits_root)
+            with concurrent.futures.ProcessPoolExecutor(max_workers=args.workers) as executor:
+                for result in executor.map(upgrade_worker_func, schema_upgrade_tasks):
+                    if result['status'] == 'error':
+                        error_count += 1
+                        logger.error(f"Schema upgrade failed for {result['path']}: {result['reason']}")
+                        continue
+                    # Build the SET clause only for fields added between old_version and current
+                    old_v = result['old_version']
+                    set_parts = []
+                    vals = []
+                    for step_v in sorted(SCHEMA_VERSION_FIELDS.keys()):
+                        if step_v > old_v:
+                            for field in SCHEMA_VERSION_FIELDS[step_v]:
+                                if field in result:
+                                    set_parts.append(f"`{field}` = %s")
+                                    vals.append(result[field])
+                    set_parts.append("`data_schema_version` = %s")
+                    vals.append(current_schema_version)
+                    vals.append(result['path'])
+                    cur.execute(f"UPDATE files SET {', '.join(set_parts)} WHERE path = %s", tuple(vals))
+                    schema_upgraded_count += 1
+                    if schema_upgraded_count % commit_interval == 0:
+                        conn.commit()
+                        logger.info(f"Schema upgrade progress: {schema_upgraded_count} files updated.")
+            conn.commit()
+            logger.info(f"Schema upgrade complete: {schema_upgraded_count} files updated.")
+
         soft_deleted_count = 0
         purged_count = 0
         if not args.skip_cleanup:
@@ -405,7 +436,8 @@ def main():
         duration = datetime.now() - start_time
         logger.info("=== Indexing Complete ===")
         logger.info(f"Duration: {duration}")
-        logger.info(f"Files processed: {processed_count}")
+        logger.info(f"Files fully processed: {processed_count}")
+        logger.info(f"Files schema-upgraded (header-only): {schema_upgraded_count}")
         logger.info(f"Files skipped: {skipped_count}")
         logger.info(f"Files soft-deleted: {soft_deleted_count}")
         logger.info(f"Files purged: {purged_count}")

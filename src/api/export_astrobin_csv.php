@@ -5,7 +5,10 @@ require_once '../includes/config.php';
 require_once '../includes/db_functions.php';
 require_once '../includes/language_functions.php';
 require_once '../includes/language.php';
+session_start();
+require_once '../includes/auth.php';
 ob_end_clean();
+requireAuthApi();
 
 /**
  * Calculates the "astro session date" for a given observation timestamp.
@@ -56,7 +59,7 @@ try {
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
     
     $stmt = $conn->prepare(
-        "SELECT id, object, date_obs, exptime, filter, imgtype, xbinning, egain, ccd_temp, focratio
+        "SELECT id, object, date_obs, exptime, filter, imgtype, xbinning, gain, ccd_temp, focratio
          FROM files WHERE id IN ($placeholders)"
     );
     $stmt->execute($ids);
@@ -115,7 +118,7 @@ if (!empty($lights)) {
             $light['filter'] ?? 'N/A',
             (string)($light['exptime'] ?? 0),
             (string)($light['xbinning'] ?? 1),
-            (string)($light['egain'] ?? 'N/A')
+            (string)($light['gain'] ?? 'N/A')
         );
         
         if (!isset($sessions[$key])) {
@@ -124,10 +127,11 @@ if (!empty($lights)) {
             
             // Populate with available data
             $sessions[$key]['date'] = $session_date;
+            $sessions[$key]['filter'] = $light['filter'] ?? '';
             $sessions[$key]['number'] = 0;
             $sessions[$key]['duration'] = $light['exptime'] ?? 0;
             $sessions[$key]['binning'] = $light['xbinning'] ?? 1;
-            $sessions[$key]['gain'] = $light['egain'] ?? '';
+            $sessions[$key]['gain'] = $light['gain'] ?? '';
             $sessions[$key]['sensorCooling'] = !is_null($light['ccd_temp']) ? round($light['ccd_temp']) : '';
             $sessions[$key]['fNumber'] = $light['focratio'] ?? '';
         }

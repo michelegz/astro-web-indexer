@@ -33,6 +33,9 @@ services:
       - DB_NAME=${DB_NAME:-awi_db}
       - DB_USER=${DB_USER:-awi_user}
       - DB_PASSWORD=${DB_PASSWORD:-awi_password}
+      - AUTH_MODE=${AUTH_MODE:-none}
+      - ADMIN_USER=${ADMIN_USER:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-changeme}
     restart: unless-stopped
     depends_on:
       mariadb:

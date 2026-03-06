@@ -23,7 +23,9 @@
                 <div class="flex items-center justify-end gap-4 w-full md:w-auto">
                     <span id="sffResultCount" class="text-sm text-gray-400"></span>
                     <span id="sffTotalExposure" class="text-sm text-gray-400"></span>
+                    <?php if (canDownload()): ?>
                     <button id="sffDownloadBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50" disabled><?php echo __('download_selected'); ?></button>
+                    <?php endif; ?>
                 </div>
             </div>
 

@@ -2,6 +2,8 @@
 // Include only necessary files for database connection
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/db_functions.php';
+session_start();
+require_once __DIR__ . '/includes/auth.php';
 
 // Establish database connection
 $conn = connectDB();
@@ -20,13 +22,21 @@ if (!$id || !is_numeric($id)) {
 
 try {
     // Fetch the image data from the database
-    $stmt = $conn->prepare("SELECT thumb, thumb_crop FROM files WHERE id = :id");
+    $stmt = $conn->prepare("SELECT path, thumb, thumb_crop FROM files WHERE id = :id");
     $stmt->execute(['id' => $id]);
     $file = $stmt->fetch();
 
     if (!$file) {
         http_response_code(404);
         // Return a transparent 1x1 pixel GIF
+        header('Content-Type: image/gif');
+        echo base64_decode('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
+        exit;
+    }
+
+    // Check directory permission
+    if (!canAccessPath($file['path'])) {
+        http_response_code(403);
         header('Content-Type: image/gif');
         echo base64_decode('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
         exit;

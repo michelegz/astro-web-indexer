@@ -7,9 +7,11 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
     <button id="exportAstroBinBtn" class="bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50" disabled>
         <?php echo __('export_astrobin_csv') ?>
     </button>
+    <?php if (canDownload()): ?>
     <button id="downloadSelectedBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50" disabled>
         <?php echo __('download_selected') ?>
     </button>
+    <?php endif; ?>
 </div>
 
 <!-- View container -->
@@ -43,7 +45,7 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
 
         if ($showAdvanced) {
             $advancedHeaders = [
-                'xbinning' => ['xbinning', false], 'ybinning' => ['ybinning', false], 'egain' => ['egain', false], 
+                'xbinning' => ['xbinning', false], 'ybinning' => ['ybinning', false], 'egain' => ['egain', false], 'gain' => ['gain', false],
                 'offset' => ['offset', false], 'xpixsz' => ['xpixsz', false], 'ypixsz' => ['ypixsz', false], 
                 'set_temp' => ['set_temp', false], 'ccd_temp' => ['ccd_temp', false], 'instrume' => ['instrume', false], 
                 'cameraid' => ['cameraid', false], 'usblimit' => ['usblimit', false], 'fwheel' => ['fwheel', false], 
@@ -145,6 +147,7 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                     <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['xbinning'] ?? '') ?></td>
                     <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ybinning'] ?? '') ?></td>
                     <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['egain'] ?? '') ?></td>
+                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['gain'] ?? '') ?></td>
                     <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['offset'] ?? '') ?></td>
                     <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['xpixsz'] ?? '') ?></td>
                     <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ypixsz'] ?? '') ?></td>

@@ -6,8 +6,19 @@
 // includes/config.php
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/includes/language_functions.php';
+require_once __DIR__ . '/includes/language.php';
+session_start();
+require_once __DIR__ . '/includes/auth.php';
+
+// Check download permission
+if (!canDownload()) {
+    http_response_code(403);
+    die(__('download_not_allowed'));
+}
 
 use ZipStream\ZipStream;
+use ZipStream\CompressionMethod;
 
 $fitsRoot = FITS_ROOT;
 
@@ -31,7 +42,8 @@ foreach ($selectedRelativePaths as $relativePath) {
     if ($fullPath && 
         str_starts_with($fullPath, realpath($fitsRoot)) && 
         is_file($fullPath) &&
-        is_readable($fullPath)) {
+        is_readable($fullPath) &&
+        canAccessPath($relativePath)) {
         $validFiles[$relativePath] = $fullPath;
     }
 }
@@ -45,14 +57,14 @@ if (empty($validFiles)) {
 // Crea ZIP
 $zip = new ZipStream(
     outputName: 'fits_files.zip',
-
+    defaultCompressionMethod: CompressionMethod::STORE,
 );
 
 try {
     foreach ($validFiles as $relativePath => $fullPath) {
         $zip->addFileFromPath(
             fileName: $relativePath,
-            path: $fullPath
+            path: $fullPath,
         );
     }
     

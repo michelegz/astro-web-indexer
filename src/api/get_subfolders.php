@@ -2,6 +2,9 @@
 header('Content-Type: application/json');
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/db_functions.php';
+session_start();
+require_once __DIR__ . '/../includes/auth.php';
+requireAuthApi();
 
 $baseDir = $_GET['dir'] ?? '';
 
