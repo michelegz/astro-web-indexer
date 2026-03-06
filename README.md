@@ -66,10 +66,15 @@ The indexing engine is designed to be fast, efficient, and resilient, making it 
 - 🎨 Modern, dark-themed interface
 - ⚡ Fast and efficient file browsing
 
+### 🔒 Authentication & Access Control
+- Optional user authentication with two modes: `none` (open access) and `full` (login required)
+- Directory-level permissions to restrict user access to specific folders
+- Admin panel for user management
+- Direct file download protection via nginx
+
 ### Technical Features
 - 🐳 Dockerized deployment for easy setup
 - 🗄️ MariaDB backend with schema migrations managed by **Phinx**.
-- 🔒 Secure file handling and access control
 - 📊 Extensive FITS/XISF header metadata extraction and indexing.
 
 ## 📋 Requirements
@@ -145,6 +150,14 @@ These variables are shared across all services to connect to the MariaDB contain
 | `DB_USER` | The username for the database. | `awi_user` |
 | `DB_PASSWORD` | The password for the database user. | `awi_password` |
 | `MYSQL_ROOT_PASSWORD` | The root password for the MariaDB server. **It is highly recommended to change this.** | `rootpassword` |
+
+### 🔒 Authentication
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `AUTH_MODE` | Set to `full` to enable login and directory permissions. Set to `none` to disable authentication. | `none` |
+| `ADMIN_USER` | Username for the initial admin account (created on first startup). | `admin` |
+| `ADMIN_PASSWORD` | Password for the initial admin account. **Change this immediately.** | `changeme` |
 
 ### 🎨 Custom Logo
 
