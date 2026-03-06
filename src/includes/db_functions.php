@@ -116,7 +116,11 @@ function getFiles(PDO $conn, string $dir, string $object, string $filter, string
             . "CASE WHEN files.total_duplicate_count > 1 THEN (SELECT COUNT(*) FROM files d WHERE d.file_hash = files.file_hash AND d.deleted_at IS NULL AND d.is_hidden = 0 AND ({$dirFilterB})) ELSE files.visible_duplicate_count END AS visible_duplicate_count";
     }
     
-    $sql = "SELECT {$selectClause} FROM files WHERE " . implode(' AND ', $sqlConditions) . " ORDER BY " . $sortBy . " " . $sortOrder . " LIMIT :per_page OFFSET :offset";
+    $orderClause = $sortBy . " " . $sortOrder;
+    if ($sortBy === 'visible_duplicate_count') {
+        $orderClause .= ", total_duplicate_count " . $sortOrder;
+    }
+    $sql = "SELECT {$selectClause} FROM files WHERE " . implode(' AND ', $sqlConditions) . " ORDER BY " . $orderClause . " LIMIT :per_page OFFSET :offset";
 
     $stmt = $conn->prepare($sql);
     foreach ($params as $key => $value) {
