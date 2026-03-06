@@ -141,10 +141,12 @@ $rootDirs = getAllRootDirs($conn);
                 </div>
                 <div>
                     <label class="block text-sm text-gray-300 mb-1"><?= __('admin_allowed_dirs') ?></label>
-                    <div class="flex flex-wrap gap-3">
+                    <div class="flex flex-wrap gap-3" id="create_dirs_list">
                         <?php foreach ($rootDirs as $rd): ?>
                             <label class="flex items-center gap-1 text-sm bg-gray-700 px-2 py-1 rounded">
-                                <input type="checkbox" name="dirs[]" value="<?= htmlspecialchars($rd) ?>" class="rounded bg-gray-600 border-gray-500">
+                                <input type="checkbox" name="dirs[]" value="<?= htmlspecialchars($rd) ?>"
+                                       class="rounded bg-gray-600 border-gray-500<?= $rd === '/' ? ' root-toggle' : ' dir-toggle' ?>"
+                                       onchange="<?= $rd === '/' ? 'toggleAllDirs(this,&apos;create_dirs_list&apos;)' : 'uncheckRoot(&apos;create_dirs_list&apos;)' ?>">
                                 <?= htmlspecialchars($rd) ?>
                             </label>
                         <?php endforeach; ?>
@@ -180,7 +182,15 @@ $rootDirs = getAllRootDirs($conn);
                                     <td class="py-2 px-3 font-medium"><?= htmlspecialchars($u['username']) ?></td>
                                     <td class="py-2 px-3"><?= $u['is_admin'] ? '✓' : '' ?></td>
                                     <td class="py-2 px-3"><?= $u['can_download'] ? '✓' : '' ?></td>
-                                    <td class="py-2 px-3 text-xs text-gray-400"><?= $u['is_admin'] ? __('admin_all_dirs') : htmlspecialchars($u['allowed_dirs'] ?? __('admin_all_dirs')) ?></td>
+                                    <td class="py-2 px-3 text-xs text-gray-400"><?php
+                                        if ($u['is_admin']) {
+                                            echo __('admin_all_dirs');
+                                        } elseif (str_contains($u['allowed_dirs'] ?? '', '/')) {
+                                            echo __('admin_all_dirs');
+                                        } else {
+                                            echo htmlspecialchars($u['allowed_dirs'] ?: '—');
+                                        }
+                                    ?></td>
                                     <td class="py-2 px-3">
                                         <div class="flex gap-2">
                                             <button onclick="openEditModal(<?= htmlspecialchars(json_encode($u)) ?>, <?= htmlspecialchars(json_encode($rootDirs)) ?>)"
@@ -240,12 +250,28 @@ $rootDirs = getAllRootDirs($conn);
     </div>
 
     <script>
+    function toggleAllDirs(rootCb, containerId) {
+        const container = document.getElementById(containerId);
+        const dirCbs = container.querySelectorAll('.dir-toggle');
+        dirCbs.forEach(cb => {
+            cb.checked = rootCb.checked;
+            cb.disabled = rootCb.checked;
+        });
+    }
+
+    function uncheckRoot(containerId) {
+        const container = document.getElementById(containerId);
+        const rootCb = container.querySelector('.root-toggle');
+        if (rootCb) rootCb.checked = false;
+    }
+
     function openEditModal(user, rootDirs) {
         document.getElementById('edit_user_id').value = user.id;
         document.getElementById('edit_is_admin').checked = !!parseInt(user.is_admin);
         document.getElementById('edit_can_download').checked = !!parseInt(user.can_download);
 
         const userDirs = user.allowed_dirs ? user.allowed_dirs.split(', ') : [];
+        const hasRoot = userDirs.includes('/');
         const container = document.getElementById('edit_dirs_list');
         container.innerHTML = '';
         rootDirs.forEach(dir => {
@@ -255,8 +281,15 @@ $rootDirs = getAllRootDirs($conn);
             cb.type = 'checkbox';
             cb.name = 'dirs[]';
             cb.value = dir;
-            cb.className = 'rounded bg-gray-600 border-gray-500';
-            cb.checked = userDirs.includes(dir);
+            cb.className = 'rounded bg-gray-600 border-gray-500' + (dir === '/' ? ' root-toggle' : ' dir-toggle');
+            if (dir === '/') {
+                cb.checked = hasRoot;
+                cb.onchange = function() { toggleAllDirs(this, 'edit_dirs_list'); };
+            } else {
+                cb.checked = hasRoot || userDirs.includes(dir);
+                cb.disabled = hasRoot;
+                cb.onchange = function() { uncheckRoot('edit_dirs_list'); };
+            }
             label.appendChild(cb);
             label.appendChild(document.createTextNode(' ' + dir));
             container.appendChild(label);

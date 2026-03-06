@@ -50,7 +50,7 @@ try {
     $params = array_merge([$newState], $ids);
     $stmt->execute($params);
 
-    // After updating, recalculate both duplicate counts for the hash
+    // After updating, recalculate both duplicate counts for the hash (global, for denormalized columns)
     $totalStmt = $conn->prepare("SELECT COUNT(*) as count FROM files WHERE file_hash = ? AND deleted_at IS NULL");
     $totalStmt->execute([$hash]);
     $newTotalCount = (int)($totalStmt->fetch()['count'] ?? 0);
@@ -64,6 +64,26 @@ try {
     $updateCountsStmt->execute([$newTotalCount, $newVisibleCount, $hash]);
 
     $conn->commit();
+
+    // Return permission-aware counts for the current user's badge
+    $allowedDirs = getAllowedDirs();
+    if ($allowedDirs !== null && !empty($allowedDirs)) {
+        $dirConditions = [];
+        $dirValues = [$hash];
+        foreach ($allowedDirs as $d) {
+            $dirConditions[] = "SUBSTRING_INDEX(path, '/', 1) = ?";
+            $dirValues[] = $d;
+        }
+        $dirFilter = implode(' OR ', $dirConditions);
+
+        $ptotal = $conn->prepare("SELECT COUNT(*) as count FROM files WHERE file_hash = ? AND deleted_at IS NULL AND ({$dirFilter})");
+        $ptotal->execute($dirValues);
+        $newTotalCount = (int)($ptotal->fetch()['count'] ?? 0);
+
+        $pvis = $conn->prepare("SELECT COUNT(*) as count FROM files WHERE file_hash = ? AND is_hidden = 0 AND deleted_at IS NULL AND ({$dirFilter})");
+        $pvis->execute($dirValues);
+        $newVisibleCount = (int)($pvis->fetch()['count'] ?? 0);
+    }
 
     echo json_encode([
         'success' => true, 

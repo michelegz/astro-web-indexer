@@ -50,7 +50,10 @@ function getAllowedDirs(): ?array
     if (!isAuthEnabled()) return null;
     if (isAdmin()) return null;
 
-    return $_SESSION['allowed_dirs'] ?? [];
+    $dirs = $_SESSION['allowed_dirs'] ?? [];
+    // '/' means full access
+    if (in_array('/', $dirs, true)) return null;
+    return $dirs;
 }
 
 /**
@@ -265,8 +268,10 @@ function deleteUser(PDO $conn, int $userId): void
  */
 function getAllRootDirs(PDO $conn): array
 {
-    $stmt = $conn->query("SELECT DISTINCT SUBSTRING_INDEX(path, '/', 1) as root_dir FROM files WHERE deleted_at IS NULL ORDER BY root_dir");
-    return $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $stmt = $conn->query("SELECT DISTINCT SUBSTRING_INDEX(path, '/', 1) as root_dir FROM files WHERE path LIKE '%/%' AND deleted_at IS NULL ORDER BY root_dir");
+    $dirs = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    array_unshift($dirs, '/');
+    return $dirs;
 }
 
 /**
