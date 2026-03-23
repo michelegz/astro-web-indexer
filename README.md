@@ -114,7 +114,9 @@ This method uses pre-built Docker images and is the recommended way to get start
 5.  **Access the Application**
     - Open your browser and navigate to http://localhost:2080 (or the port you configured in `.env`). The first indexing process will start automatically in the background.
 
- > **Note:** If you need remote access always use a VPN or configure a reverse proxy via nginx. Don't directly expose the application port to public internet.
+ > [!CAUTION]
+ > **Never expose this application directly to the public internet.**
+ > The built-in HTTP server is not hardened for public exposure. For remote access, always use a **VPN** or place the application behind a **reverse proxy with HTTPS** (e.g., nginx with a valid certificate). Exposing it directly may put your data and credentials at risk.
 
 ## ⚙️ Configuration
 
@@ -138,6 +140,8 @@ These variables control the behavior of the Python indexing and watching scripts
 | `DEBUG` | Enables verbose debug logging for the indexing scripts. Set to `true` or `false`. | `false` |
 | `THUMB_SIZE` | The size (width and height) in pixels for generated thumbnails. | `300` |
 | `INDEXER_WORKERS` | The number of parallel worker processes for indexing. The default is safe for most systems. Increase it on powerful machines with a lot of RAM, or decrease it if you encounter memory-related issues. | `4` |
+| `POLL_INTERVAL` | Polling interval in seconds for the filesystem watcher, used when inotify is not supported (e.g. Docker Desktop on Windows). Has no effect when native inotify is used. | `30` |
+| `FORCE_POLLING` | Set to `true` to force the polling-based watcher even on systems that support inotify (e.g. NFS mounts). | `false` |
 
 ### 🗄️ Database Connection
 

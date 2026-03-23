@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.2.1
+
+### Fixes & Improvements
+- **Reduced watcher CPU usage** — `watch_fs.py` now auto-detects filesystem inotify support via `/proc/mounts`; uses native inotify on Linux (zero CPU idle) and falls back to `PollingObserver` on Docker Desktop/Windows (`fuse.grpcfuse`) or other FUSE/network mounts. Polling interval configurable via `POLL_INTERVAL` env var (default: 30s)
+- **Container renamed** from `xyz-awi` to `awi-xyz` (e.g. `awi-mariadb`, `awi-php`, `awi-nginx`, `awi-python`)
+- **HTTP security headers** added to nginx: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `Content-Security-Policy`, `X-Robots-Tag`
+
+> **Note for existing users:** run `docker compose down && docker compose up -d` (not just restart) to apply the container rename.
+
 ## v1.2.0
 
 ### Authentication & Security

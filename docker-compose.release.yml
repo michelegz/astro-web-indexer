@@ -4,7 +4,7 @@
 
 services:
   nginx:
-    image: ghcr.io/michelegz/astro-web-indexer-nginx:v1.2.0
+    image: ghcr.io/michelegz/astro-web-indexer-nginx:v1.2.1
     container_name: awi-nginx
     ports:
       - "${NGINX_PORT:-2080}:80"
@@ -15,7 +15,7 @@ services:
       - php
 
   php:
-    image: ghcr.io/michelegz/astro-web-indexer-php:v1.2.0
+    image: ghcr.io/michelegz/astro-web-indexer-php:v1.2.1
     container_name: awi-php
     volumes:
       - ${FITS_DATA_PATH:-./data/fits}:/var/fits:ro
@@ -38,7 +38,7 @@ services:
         condition: service_healthy
 
   python:
-    image: ghcr.io/michelegz/astro-web-indexer-python:v1.2.0
+    image: ghcr.io/michelegz/astro-web-indexer-python:v1.2.1
     container_name: awi-python
     volumes:
       - ${FITS_DATA_PATH:-./data/fits}:/var/fits:ro
@@ -51,13 +51,15 @@ services:
       - INDEXER_WORKERS=${INDEXER_WORKERS:-4}
       - RETENTION_DAYS=${RETENTION_DAYS:-30}
       - DEBUG=${DEBUG:-false}
+      - POLL_INTERVAL=${POLL_INTERVAL:-30}
+      - FORCE_POLLING=${FORCE_POLLING:-false}
     restart: unless-stopped
     depends_on:
       mariadb:
         condition: service_healthy
 
   mariadb:
-    image: ghcr.io/michelegz/astro-web-indexer-mariadb:v1.2.0
+    image: ghcr.io/michelegz/astro-web-indexer-mariadb:v1.2.1
     container_name: awi-mariadb
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}

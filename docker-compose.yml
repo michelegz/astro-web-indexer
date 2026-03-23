@@ -58,6 +58,8 @@ services:
       - INDEXER_WORKERS=${INDEXER_WORKERS:-4}
       - RETENTION_DAYS=${RETENTION_DAYS:-30}
       - DEBUG=${DEBUG:-false}
+      - POLL_INTERVAL=${POLL_INTERVAL:-30}
+      - FORCE_POLLING=${FORCE_POLLING:-false}
     restart: unless-stopped
     depends_on:
       mariadb:
