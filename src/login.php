@@ -54,6 +54,8 @@ $csrfToken = $_SESSION['csrf_token'];
     <meta charset="UTF-8">
     <title><?= __('login_title') ?> - <?= __('site_title') ?></title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="description" content="Private astrophotography file manager - login">
     <link href="/assets/css/output.css" rel="stylesheet">
 </head>
 <body class="flex items-center justify-center min-h-screen bg-gray-900 text-gray-100 font-sans">
