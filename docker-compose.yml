@@ -4,7 +4,7 @@ services:
     build:
       context: .
       dockerfile: docker/nginx/Dockerfile
-    container_name: nginx-awi
+    container_name: awi-nginx
     ports:
       - "${NGINX_PORT:-2080}:80"
     volumes:
@@ -20,7 +20,7 @@ services:
       dockerfile: docker/php/Dockerfile
       args:
         AWI_VERSION: "" # placeholder, will be overridden in build.sh
-    container_name: php-awi
+    container_name: awi-php
     volumes:
       - ${FITS_DATA_PATH:-./data/fits}:/var/fits:ro
       # To use a custom logo, uncomment the following line and
@@ -46,7 +46,7 @@ services:
     build:
       context: .
       dockerfile: docker/python/Dockerfile
-    container_name: python-awi
+    container_name: awi-python
     volumes:
       - ${FITS_DATA_PATH:-./data/fits}:/var/fits:ro
     environment:
@@ -68,7 +68,7 @@ services:
     build:
       context: ./docker/mariadb
       dockerfile: Dockerfile
-    container_name: mariadb-awi
+    container_name: awi-mariadb
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
       MYSQL_DATABASE: ${DB_NAME:-awi_db}

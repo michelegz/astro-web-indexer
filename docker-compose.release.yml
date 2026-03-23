@@ -5,7 +5,7 @@
 services:
   nginx:
     image: ghcr.io/michelegz/astro-web-indexer-nginx:v1.2.0
-    container_name: nginx-awi
+    container_name: awi-nginx
     ports:
       - "${NGINX_PORT:-2080}:80"
     volumes:
@@ -16,7 +16,7 @@ services:
 
   php:
     image: ghcr.io/michelegz/astro-web-indexer-php:v1.2.0
-    container_name: php-awi
+    container_name: awi-php
     volumes:
       - ${FITS_DATA_PATH:-./data/fits}:/var/fits:ro
       # To use a custom logo, uncomment the following line and
@@ -39,7 +39,7 @@ services:
 
   python:
     image: ghcr.io/michelegz/astro-web-indexer-python:v1.2.0
-    container_name: python-awi
+    container_name: awi-python
     volumes:
       - ${FITS_DATA_PATH:-./data/fits}:/var/fits:ro
     environment:
@@ -58,7 +58,7 @@ services:
 
   mariadb:
     image: ghcr.io/michelegz/astro-web-indexer-mariadb:v1.2.0
-    container_name: mariadb-awi
+    container_name: awi-mariadb
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
       MYSQL_DATABASE: ${DB_NAME:-awi_db}

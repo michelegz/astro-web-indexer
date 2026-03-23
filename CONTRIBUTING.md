@@ -68,7 +68,7 @@ This is the core script that scans the data directory, extracts metadata from FI
 
 **Example: Forcing a full re-index**
 ```bash
-docker exec -it python-awi python /opt/scripts/reindex.py /var/fits --force
+docker exec -it awi-python python /opt/scripts/reindex.py /var/fits --force
 ```
 
 **Manual Execution and Options**
@@ -77,7 +77,7 @@ You can run the script manually for specific tasks using `docker exec`. The scri
 
 **Example: Forcing a full re-index with 8 workers**
 ```bash
-docker exec -it python-awi python /opt/scripts/reindex.py /var/fits --debug --force --workers 8
+docker exec -it awi-python python /opt/scripts/reindex.py /var/fits --debug --force --workers 8
 ```
 
 **Command-Line Arguments:**
@@ -126,7 +126,7 @@ This project uses **Phinx** to manage database schema changes. Migrations are ap
 
 If you need to make schema changes, you should create a new migration file using the Phinx CLI. You can run Phinx commands inside the `php` container:
 ```bash
-docker exec -it php-awi vendor/bin/phinx create MyNewMigration
+docker exec -it awi-php vendor/bin/phinx create MyNewMigration
 ```
 
 ### Versioning
