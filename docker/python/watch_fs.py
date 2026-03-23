@@ -23,6 +23,34 @@ logging.basicConfig(
 
 VALID_EXTS = {".fits", ".fit", ".xisf"}
 
+# Filesystems that do not propagate inotify events (network/virtualized mounts).
+# Docker Desktop on Windows exposes bind mounts via fuse.grpcfuse (gRPC-FUSE), 9p, or
+# virtiofs depending on the backend; inotify never fires even though Observer starts fine.
+# Any fuse.* type is also treated as incompatible since most FUSE drivers don't implement
+# inotify, and the specific variant can change across Docker Desktop versions.
+_NO_INOTIFY_FS = {"9p", "virtiofs", "vboxsf", "cifs", "smbfs", "nfs", "nfs4"}
+
+def _inotify_supported(path: str) -> bool:
+    """Return True if the filesystem hosting *path* supports inotify."""
+    try:
+        real = os.path.realpath(path)
+        best_mp, best_fs = "", ""
+        with open("/proc/mounts") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 3:
+                    mp, fs = parts[1], parts[2]
+                    if real.startswith(mp) and len(mp) > len(best_mp):
+                        best_mp, best_fs = mp, fs
+        fs_lower = best_fs.lower()
+        if fs_lower in _NO_INOTIFY_FS or fs_lower.startswith("fuse."):
+            logging.info(f"Filesystem type '{best_fs}' detected at '{best_mp}' — inotify not supported.")
+            return False
+    except Exception:
+        pass  # /proc/mounts not available (non-Linux); default to True
+    return True
+
+
 class FitsHandler(FileSystemEventHandler):
     def __init__(self, fits_dir, reindex_script, db_params, rescan_interval=5, debug=False, retention_days=30, thumb_size=300):
         self.fits_dir = Path(fits_dir)
@@ -173,6 +201,8 @@ def main():
     parser.add_argument("--db-password", default=os.getenv("DB_PASS", "awi_password"), help="Database password")
     parser.add_argument("--db-name", default=os.getenv("DB_NAME", "awi_db"), help="Database name")
     parser.add_argument("--rescan-interval", default=float(os.getenv("RESCAN_INTERVAL", 5)), type=float,help="Interval in seconds for periodic directory rescan to detect deletions (default: 5s)")
+    parser.add_argument("--poll-interval", default=float(os.getenv("POLL_INTERVAL", 30)), type=float, help="Polling interval in seconds when using PollingObserver (default: 30s)")
+    parser.add_argument("--force-polling", action="store_true", default=os.getenv("FORCE_POLLING", "false").lower() in ("true", "1"), help="Force use of PollingObserver even if inotify is available")
     args = parser.parse_args()
 
     is_debug = os.getenv('DEBUG', 'false').lower() in ('true', '1')
@@ -187,12 +217,22 @@ def main():
         sys.exit(1)
     db_params = { "host": args.db_host, "user": args.db_user, "password": args.db_password, "database": args.db_name }
 
-    # Force PollingObserver for reliability in Docker environments
     if PollingObserver is None:
-        logging.error("PollingObserver not available. Please install watchdog.")
+        logging.error("PollingObserver not available. Please reinstall watchdog.")
         sys.exit(1)
-    observer = PollingObserver()
-    logging.info("Using PollingObserver for reliability across all platforms.")
+
+    # Use inotify (native Observer) only when the filesystem actually supports it.
+    # Docker Desktop on Windows exposes bind mounts via 9p/virtiofs: inotify is present
+    # in the kernel but events from the Windows host are never delivered, so we must
+    # fall back to PollingObserver in that case.
+    use_polling = args.force_polling or not _inotify_supported(args.fits_dir)
+    if use_polling:
+        observer = PollingObserver(timeout=args.poll_interval)
+        reason = "forced via --force-polling" if args.force_polling else "filesystem does not support inotify"
+        logging.info(f"Using PollingObserver ({reason}, interval: {args.poll_interval}s).")
+    else:
+        observer = Observer()
+        logging.info("Using native Observer (inotify). Zero CPU overhead in idle.")
     
     event_handler = FitsHandler(
         args.fits_dir, args.reindex_script, db_params,
@@ -205,8 +245,6 @@ def main():
     try:
         while True:
             event_handler.check_and_reindex()
-            # The polling observer handles this, but we keep the scan for safety
-            event_handler.scan_and_detect()
             time.sleep(1)
     except KeyboardInterrupt:
         observer.stop()
