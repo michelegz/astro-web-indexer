@@ -87,7 +87,7 @@ docker exec -it awi-python python /opt/scripts/reindex.py /var/fits --debug --fo
 | `fits_root` | - | **(Required)** The root directory containing image files. Inside the container, this is always `/var/fits`. | - |
 | `--host` | `DB_HOST` | The MariaDB host. | `mariadb` |
 | `--user` | `DB_USER` | The database username. | `awi_user` |
-| `--password` | `DB_PASS` | The database password. | `awi_password` |
+| `--password` | `DB_PASSWORD` (`DB_PASS` legacy fallback) | The database password. | `awi_password` |
 | `--database` | `DB_NAME` | The database name. | `awi_db` |
 | `--force` | - | Forces the script to re-process every file, ignoring modification times and hashes. | `false` |
 | `--workers` | `INDEXER_WORKERS` | The number of parallel worker processes to use for indexing. | `4` |
