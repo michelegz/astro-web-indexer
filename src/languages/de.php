@@ -60,6 +60,7 @@ return [
     'astrobin_modal_explanation' => 'Kopieren Sie den folgenden Text und fügen Sie ihn in den AstroBin-Sitzungsimporteur ein.',
     'copy_to_clipboard' => 'In die Zwischenablage kopieren',
     'observation_date' => 'Beobachtungsdatum',
+    'exposure_time' => 'Belichtungszeit (s)',
     'thumbnail_size' => 'Vorschaubildgröße',
     'list_view' => 'Listenansicht',
     'thumbnail_view' => 'Miniaturansicht',
@@ -183,5 +184,13 @@ return [
     'admin_error_csrf' => 'Ungültiges Formular-Token. Bitte versuchen Sie es erneut.',
     'admin_password_placeholder' => 'Leer lassen, um das aktuelle beizubehalten',
     'admin_error_last_admin' => 'Der letzte Admin-Benutzer kann nicht entfernt werden.',
+
+    // Filterstatistik
+    'statistics_by_filter' => 'Statistik pro Filter',
+    'statistics_summary' => '{count} Filter',
+    'statistics_images' => 'Bilder',
+    'statistics_exposure' => 'Gesamtbelichtung',
+    'statistics_percentage' => '%',
+    'statistics_no_filter' => 'Kein Filter',
 
 ];

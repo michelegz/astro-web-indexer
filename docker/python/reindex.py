@@ -39,7 +39,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument("fits_root", help="Root directory containing image files")
 parser.add_argument("--host", default=os.getenv("DB_HOST", "mariadb"), help="MariaDB host")
 parser.add_argument("--user", default=os.getenv("DB_USER", "awi_user"), help="Database username")
-parser.add_argument("--password", default=os.getenv("DB_PASS", "awi_password"), help="Database password")
+parser.add_argument("--password", default=os.getenv("DB_PASSWORD", os.getenv("DB_PASS", "awi_password")), help="Database password")
 parser.add_argument("--database", default=os.getenv("DB_NAME", "awi_db"), help="Database name")
 parser.add_argument("--force", action="store_true", help="Force reindexing of existing files")
 parser.add_argument("--thumb-size", type=int, default=thumb_size_default, help="Thumbnail size in pixels (e.g., 300)")

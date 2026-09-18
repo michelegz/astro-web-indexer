@@ -100,6 +100,7 @@ return [
     'astrobin_modal_explanation' => 'Copy the text below and paste it into the AstroBin session importer.',
     'copy_to_clipboard' => 'Copy to Clipboard',
     'observation_date' => 'Observation Date',
+    'exposure_time' => 'Exposure time (s)',
     'thumbnail_size' => 'Thumbnail Size',
     'list_view' => 'List View',
     'thumbnail_view' => 'Thumbnail View',
@@ -185,5 +186,12 @@ return [
     'admin_password_placeholder' => 'Leave blank to keep current',
     'admin_error_last_admin' => 'Cannot remove the last admin user.',
 
+    // Filter statistics
+    'statistics_by_filter' => 'Filter statistics',
+    'statistics_summary' => '{count} filters',
+    'statistics_images' => 'Images',
+    'statistics_exposure' => 'Total exposure',
+    'statistics_percentage' => '%',
+    'statistics_no_filter' => 'No filter',
 
 ];

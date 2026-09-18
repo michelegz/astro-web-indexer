@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.3.0
+
+### New Features
+- **Per-filter exposure statistics** - new collapsible card showing total exposure and percentage for each filter on the currently filtered image set, with color-coded progress bars for easy comparison
+- **Exposure time range filter** - new min/max filter in seconds (open-ended: set only the minimum or only the maximum), applied to counts, table, total exposure and per-filter statistics
+
+### Fixes & Improvements
+- **Python DB password fallback** - `watch_fs.py` and `reindex.py` now use `DB_PASSWORD` with `DB_PASS` fallback
+
 ## v1.2.1
 
 ### Fixes & Improvements

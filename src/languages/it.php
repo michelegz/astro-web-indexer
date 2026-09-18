@@ -100,6 +100,7 @@ return [
     'astrobin_modal_explanation' => 'Copia il testo qui sotto e incollalo nell\'importatore di sessioni di AstroBin.',
     'copy_to_clipboard' => 'Copia negli Appunti',
     'observation_date' => 'Data di Osservazione',
+    'exposure_time' => 'Tempo di esposizione (s)',
     'thumbnail_size' => 'Dimensione miniature',
     'list_view' => 'Vista elenco',
     'thumbnail_view' => 'Vista miniature',
@@ -184,5 +185,13 @@ return [
     'admin_error_csrf' => 'Token del modulo non valido. Riprova.',
     'admin_password_placeholder' => 'Lascia vuoto per mantenere la corrente',
     'admin_error_last_admin' => 'Impossibile rimuovere l\'ultimo utente admin.',
+
+    // Statistiche per filtro
+    'statistics_by_filter' => 'Statistiche per filtro',
+    'statistics_summary' => '{count} filtri',
+    'statistics_images' => 'Immagini',
+    'statistics_exposure' => 'Esposizione totale',
+    'statistics_percentage' => '%',
+    'statistics_no_filter' => 'Senza filtro',
 
 ];

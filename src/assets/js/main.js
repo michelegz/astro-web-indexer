@@ -396,6 +396,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 filtersForm.submit();
             });
         }
+
+        // Gestione filtro tempo di esposizione con logica di sincronizzazione
+        const exptimeMin = document.getElementById('exptime_min');
+        const exptimeMax = document.getElementById('exptime_max');
+        if (exptimeMin && exptimeMax) {
+            exptimeMin.addEventListener('change', () => {
+                if (exptimeMin.value && exptimeMax.value && parseFloat(exptimeMin.value) > parseFloat(exptimeMax.value)) {
+                    exptimeMax.value = exptimeMin.value;
+                }
+                filtersForm.submit();
+            });
+
+            exptimeMax.addEventListener('change', () => {
+                if (exptimeMin.value && exptimeMax.value && parseFloat(exptimeMax.value) < parseFloat(exptimeMin.value)) {
+                    exptimeMin.value = exptimeMax.value;
+                }
+                filtersForm.submit();
+            });
+        }
     }
 
     // --- CONVERSIONE DATE UTC -> LOCAL ---

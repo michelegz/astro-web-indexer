@@ -60,6 +60,7 @@ return [
     'astrobin_modal_explanation' => 'Copiez le texte ci-dessous et collez-le dans l\'importateur de session d\'AstroBin.',
     'copy_to_clipboard' => 'Copier dans le Presse-papiers',
     'observation_date' => 'Date d\'observation',
+    'exposure_time' => 'Temps d\'exposition (s)',
     'thumbnail_size' => 'Taille des vignettes',
     'list_view' => 'Vue liste',
     'thumbnail_view' => 'Vue vignettes',
@@ -184,5 +185,13 @@ return [
     'admin_error_csrf' => 'Jeton de formulaire invalide. Veuillez réessayer.',
     'admin_password_placeholder' => 'Laisser vide pour conserver le mot de passe actuel',
     'admin_error_last_admin' => 'Impossible de supprimer le dernier administrateur.',
+
+    // Statistiques par filtre
+    'statistics_by_filter' => 'Statistiques par filtre',
+    'statistics_summary' => '{count} filtres',
+    'statistics_images' => 'Images',
+    'statistics_exposure' => 'Exposition totale',
+    'statistics_percentage' => '%',
+    'statistics_no_filter' => 'Sans filtre',
 
 ];

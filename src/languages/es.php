@@ -61,6 +61,7 @@ return [
     'astrobin_modal_explanation' => 'Copie el texto a continuación y péguelo en el importador de sesiones de AstroBin.',
     'copy_to_clipboard' => 'Copiar al Portapapeles',
     'observation_date' => 'Fecha de observación',
+    'exposure_time' => 'Tiempo de exposición (s)',
     'thumbnail_size' => 'Tamaño de Miniaturas',
     'list_view' => 'Vista de Lista',
     'thumbnail_view' => 'Vista de Miniaturas',
@@ -184,5 +185,13 @@ return [
     'admin_error_csrf' => 'Token de formulario inválido. Inténtelo de nuevo.',
     'admin_password_placeholder' => 'Dejar en blanco para mantener la actual',
     'admin_error_last_admin' => 'No se puede eliminar el último usuario administrador.',
+
+    // Estadísticas por filtro
+    'statistics_by_filter' => 'Estadísticas por filtro',
+    'statistics_summary' => '{count} filtros',
+    'statistics_images' => 'Imágenes',
+    'statistics_exposure' => 'Exposición total',
+    'statistics_percentage' => '%',
+    'statistics_no_filter' => 'Sin filtro',
 
 ];

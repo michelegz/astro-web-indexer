@@ -56,9 +56,9 @@ function getFolders(PDO $conn, string $currentDir): array
     return $folders;
 }
 
-function countFiles(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo): int
+function countFiles(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin = '', string $exptimeMax = ''): int
 {
-    list($sql, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo);
+    list($sql, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
     
     $countSql = "SELECT COUNT(*) as cnt FROM files WHERE " . implode(' AND ', $sql);
 
@@ -72,7 +72,7 @@ function countFiles(PDO $conn, string $dir, string $object, string $filter, stri
     return (int)($result['cnt'] ?? 0);
 }
 
-function getFiles(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, int $perPage, int $offset, string $sortBy, string $sortOrder): array
+function getFiles(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin, string $exptimeMax, int $perPage, int $offset, string $sortBy, string $sortOrder): array
 {
         // Validazione e sanitizzazione di sortBy e sortOrder
     $allowedSortBy = [
@@ -91,7 +91,7 @@ function getFiles(PDO $conn, string $dir, string $object, string $filter, string
     $sortBy = in_array($sortBy, $allowedSortBy) ? $sortBy : 'name';
     $sortOrder = in_array(strtoupper($sortOrder), $allowedSortOrder) ? strtoupper($sortOrder) : 'ASC';
 
-    list($sqlConditions, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo);
+    list($sqlConditions, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
 
     // When directory permissions are active, compute permission-aware duplicate counts
     // via correlated subqueries so the badge only reflects accessible files.
@@ -184,9 +184,9 @@ function getDistinctValues(PDO $conn, string $column, string $dir, string $curre
     return $values;
 }
 
-function sumExposureTime(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo): float
+function sumExposureTime(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin = '', string $exptimeMax = ''): float
 {
-    list($sql, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo);
+    list($sql, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
     
     $sumSql = "SELECT SUM(exptime) as total_exposure FROM files WHERE " . implode(' AND ', $sql);
 
@@ -200,7 +200,41 @@ function sumExposureTime(PDO $conn, string $dir, string $object, string $filter,
     return (float)($result['total_exposure'] ?? 0);
 }
 
-function buildQueryParts(string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo): array
+/**
+ * Exposure breakdown grouped by filter on the currently filtered image set.
+ * Respects ALL active filters (dir, object, filter, imgtype, dates + permissions),
+ * so percentages always refer to the images actually displayed.
+ *
+ * @return array List of ['filter_name' => string, 'cnt' => int, 'total' => float]
+ */
+function getExposureStatsByFilter(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin = '', string $exptimeMax = ''): array
+{
+    list($sql, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
+
+    $statsSql = "SELECT filter AS filter_name, COUNT(*) as cnt, COALESCE(SUM(exptime), 0) as total "
+        . "FROM files WHERE " . implode(' AND ', $sql)
+        . " GROUP BY filter ORDER BY total DESC";
+
+    $stmt = $conn->prepare($statsSql);
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
+
+    $stmt->execute();
+    $rows = $stmt->fetchAll();
+
+    $stats = [];
+    foreach ($rows as $r) {
+        $stats[] = [
+            'filter_name' => $r['filter_name'] ?? '',
+            'cnt' => (int)($r['cnt'] ?? 0),
+            'total' => (float)($r['total'] ?? 0),
+        ];
+    }
+    return $stats;
+}
+
+function buildQueryParts(string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin = '', string $exptimeMax = ''): array
 {
     $sql = [
         "is_hidden = 0",
@@ -237,6 +271,14 @@ function buildQueryParts(string $dir, string $object, string $filter, string $im
     if ($dateObsTo !== '') {
         $sql[] = "DATE(date_obs) <= :date_obs_to";
         $params[':date_obs_to'] = $dateObsTo;
+    }
+    if ($exptimeMin !== '' && is_numeric($exptimeMin)) {
+        $sql[] = "exptime >= :exptime_min";
+        $params[':exptime_min'] = (float)$exptimeMin;
+    }
+    if ($exptimeMax !== '' && is_numeric($exptimeMax)) {
+        $sql[] = "exptime <= :exptime_max";
+        $params[':exptime_max'] = (float)$exptimeMax;
     }
 
     return [$sql, $params];
