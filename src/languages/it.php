@@ -100,6 +100,7 @@ return [
     'astrobin_modal_explanation' => 'Copia il testo qui sotto e incollalo nell\'importatore di sessioni di AstroBin.',
     'copy_to_clipboard' => 'Copia negli Appunti',
     'observation_date' => 'Data di Osservazione',
+    'exposure_time' => 'Tempo di esposizione (s)',
     'thumbnail_size' => 'Dimensione miniature',
     'list_view' => 'Vista elenco',
     'thumbnail_view' => 'Vista miniature',

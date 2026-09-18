@@ -28,6 +28,8 @@ $filterFilter = $_GET['filter'] ?? '';
 $filterImgtype = $_GET['imgtype'] ?? '';
 $dateObsFrom = $_GET['date_obs_from'] ?? '';
 $dateObsTo = $_GET['date_obs_to'] ?? '';
+$exptimeMin = (isset($_GET['exptime_min']) && is_numeric($_GET['exptime_min'])) ? (string)$_GET['exptime_min'] : '';
+$exptimeMax = (isset($_GET['exptime_max']) && is_numeric($_GET['exptime_max'])) ? (string)$_GET['exptime_max'] : '';
 $page = max(1, intval($_GET['page'] ?? 1));
 $perPage = max(10, intval($_GET['per_page'] ?? DEFAULT_PER_PAGE));
 $sortBy = $_GET['sort_by'] ?? 'name';
@@ -40,11 +42,11 @@ $conn = connectDB();
 $folders = getAllFoldersAsTree($conn);
 
 // Count total files for pagination
-$totalRecords = countFiles($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo);
-$totalExposure = sumExposureTime($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo);
+$totalRecords = countFiles($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
+$totalExposure = sumExposureTime($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
 // Exposure breakdown per filter on the currently filtered image set
-$filterStats = getExposureStatsByFilter($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo);
+$filterStats = getExposureStatsByFilter($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
 $totalPages = max(1, ceil($totalRecords / $perPage));
 
 // Query for files with filters, LIMIT and sorting
-$files = getFiles($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo, $perPage, ($page - 1) * $perPage, $sortBy, $sortOrder);
+$files = getFiles($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax, $perPage, ($page - 1) * $perPage, $sortBy, $sortOrder);

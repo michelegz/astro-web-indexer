@@ -61,6 +61,16 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                 </div>
     </div>
 
+        <!-- Exposure Time Filter (seconds) -->
+    <div class="md:border-l md:border-gray-600 md:pl-4">
+        <label for="exptime_min" class="block text-sm font-medium text-gray-300 mb-1"><?php echo __('exposure_time'); ?>:</label>
+        <div class="flex items-center gap-2">
+            <input type="number" id="exptime_min" name="exptime_min" min="0" step="any" value="<?= htmlspecialchars($exptimeMin ?? '') ?>" class="bg-gray-700 border border-gray-600 text-gray-100 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5 w-28">
+            <span class="text-gray-400">-</span>
+            <input type="number" id="exptime_max" name="exptime_max" min="0" step="any" value="<?= htmlspecialchars($exptimeMax ?? '') ?>" class="bg-gray-700 border border-gray-600 text-gray-100 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5 w-28">
+                </div>
+    </div>
+
     <!-- Items per page -->
         <div class="md:border-l md:border-gray-600 md:pl-4">
         <label for="per_page-select" class="block text-sm font-medium text-gray-300 mb-1"><?php echo __('elements_per_page') ?>:</label>
