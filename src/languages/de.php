@@ -184,4 +184,12 @@ return [
     'admin_password_placeholder' => 'Leer lassen, um das aktuelle beizubehalten',
     'admin_error_last_admin' => 'Der letzte Admin-Benutzer kann nicht entfernt werden.',
 
+    // Filterstatistik
+    'statistics_by_filter' => 'Statistik pro Filter',
+    'statistics_summary' => '{count} Filter',
+    'statistics_images' => 'Bilder',
+    'statistics_exposure' => 'Gesamtbelichtung',
+    'statistics_percentage' => '%',
+    'statistics_no_filter' => 'Kein Filter',
+
 ];

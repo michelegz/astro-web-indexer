@@ -200,6 +200,40 @@ function sumExposureTime(PDO $conn, string $dir, string $object, string $filter,
     return (float)($result['total_exposure'] ?? 0);
 }
 
+/**
+ * Exposure breakdown grouped by filter on the currently filtered image set.
+ * Respects ALL active filters (dir, object, filter, imgtype, dates + permissions),
+ * so percentages always refer to the images actually displayed.
+ *
+ * @return array List of ['filter_name' => string, 'cnt' => int, 'total' => float]
+ */
+function getExposureStatsByFilter(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo): array
+{
+    list($sql, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo);
+
+    $statsSql = "SELECT filter AS filter_name, COUNT(*) as cnt, COALESCE(SUM(exptime), 0) as total "
+        . "FROM files WHERE " . implode(' AND ', $sql)
+        . " GROUP BY filter ORDER BY total DESC";
+
+    $stmt = $conn->prepare($statsSql);
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
+
+    $stmt->execute();
+    $rows = $stmt->fetchAll();
+
+    $stats = [];
+    foreach ($rows as $r) {
+        $stats[] = [
+            'filter_name' => $r['filter_name'] ?? '',
+            'cnt' => (int)($r['cnt'] ?? 0),
+            'total' => (float)($r['total'] ?? 0),
+        ];
+    }
+    return $stats;
+}
+
 function buildQueryParts(string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo): array
 {
     $sql = [

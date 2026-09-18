@@ -42,6 +42,8 @@ $folders = getAllFoldersAsTree($conn);
 // Count total files for pagination
 $totalRecords = countFiles($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo);
 $totalExposure = sumExposureTime($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo);
+// Exposure breakdown per filter on the currently filtered image set
+$filterStats = getExposureStatsByFilter($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo);
 $totalPages = max(1, ceil($totalRecords / $perPage));
 
 // Query for files with filters, LIMIT and sorting

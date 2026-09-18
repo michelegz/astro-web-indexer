@@ -185,5 +185,12 @@ return [
     'admin_password_placeholder' => 'Leave blank to keep current',
     'admin_error_last_admin' => 'Cannot remove the last admin user.',
 
+    // Filter statistics
+    'statistics_by_filter' => 'Filter statistics',
+    'statistics_summary' => '{count} filters',
+    'statistics_images' => 'Images',
+    'statistics_exposure' => 'Total exposure',
+    'statistics_percentage' => '%',
+    'statistics_no_filter' => 'No filter',
 
 ];

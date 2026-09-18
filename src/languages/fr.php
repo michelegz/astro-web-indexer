@@ -185,4 +185,12 @@ return [
     'admin_password_placeholder' => 'Laisser vide pour conserver le mot de passe actuel',
     'admin_error_last_admin' => 'Impossible de supprimer le dernier administrateur.',
 
+    // Statistiques par filtre
+    'statistics_by_filter' => 'Statistiques par filtre',
+    'statistics_summary' => '{count} filtres',
+    'statistics_images' => 'Images',
+    'statistics_exposure' => 'Exposition totale',
+    'statistics_percentage' => '%',
+    'statistics_no_filter' => 'Sans filtre',
+
 ];

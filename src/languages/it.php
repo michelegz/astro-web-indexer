@@ -185,4 +185,12 @@ return [
     'admin_password_placeholder' => 'Lascia vuoto per mantenere la corrente',
     'admin_error_last_admin' => 'Impossibile rimuovere l\'ultimo utente admin.',
 
+    // Statistiche per filtro
+    'statistics_by_filter' => 'Statistiche per filtro',
+    'statistics_summary' => '{count} filtri',
+    'statistics_images' => 'Immagini',
+    'statistics_exposure' => 'Esposizione totale',
+    'statistics_percentage' => '%',
+    'statistics_no_filter' => 'Senza filtro',
+
 ];
