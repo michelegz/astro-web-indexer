@@ -24,58 +24,19 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
     <tr>
         <th class="p-3 whitespace-nowrap"><input type="checkbox" id="selectAll" class="form-checkbox h-4 w-4 text-blue-600 rounded"></th>
         <?php
-        // Define headers: sort_key => [label_key, is_calculated_flag]
-        $headers = [
-            'preview' => ['preview', true],
-            'name' => ['file_name', null],
-            'visible_duplicate_count' => ['duplicates', true],
-            'path' => ['path', null],
-            'object' => ['object', false],
-            'date_obs' => ['date_obs', false],
-            'moon_phase' => ['moon_phase', true],
-            'exptime' => ['exposure', false],
-            'filter' => ['filter', false],
-            'imgtype' => ['type', false],
-            'smart_frame_finder' => ['smart_frame_finder', null],
-        ];
+        // Base headers (always visible) + toggleable groups from the registry.
+        // Hidden columns are skipped server-side (see showCol()).
+        $headers = getBaseColumns();
 
         foreach ($headers as $sortKey => [$labelKey, $isCalculated]) {
             render_header_with_tooltip($sortKey, $labelKey, $sortBy, $sortOrder, $isCalculated);
         }
 
-        if ($showAdvanced && ($showStarMetrics ?? true)) {
-            $starHeaders = [
-                'hfr_avg' => ['hfr', true], 'fwhm_avg' => ['fwhm', true],
-                'ecc_avg' => ['eccentricity', true], 'star_count' => ['star_count', true],
-                'snr_weight' => ['snr_weight', true], 'psf_signal' => ['psf_signal', true],
-            ];
-            foreach ($starHeaders as $sortKey => [$labelKey, $isCalculated]) {
-                render_header_with_tooltip($sortKey, $labelKey, $sortBy, $sortOrder, $isCalculated);
-            }
-        }
-
-        if ($showAdvanced) {
-            $advancedHeaders = [
-                'xbinning' => ['xbinning', false], 'ybinning' => ['ybinning', false], 'egain' => ['egain', false], 'gain' => ['gain', false],
-                'offset' => ['offset', false], 'xpixsz' => ['xpixsz', false], 'ypixsz' => ['ypixsz', false], 
-                'set_temp' => ['set_temp', false], 'ccd_temp' => ['ccd_temp', false], 'instrume' => ['instrume', false], 
-                'cameraid' => ['cameraid', false], 'usblimit' => ['usblimit', false], 'fwheel' => ['fwheel', false], 
-                'telescop' => ['telescop', false], 'focallen' => ['focallen', false], 'focratio' => ['focratio', false], 
-                'focname' => ['focname', false], 'focpos' => ['focpos', false], 'focussz' => ['focussz', false], 
-                'foctemp' => ['foctemp', false], 'ra' => ['ra', false], 'dec' => ['dec', false], 
-                'centalt' => ['centalt', false], 'centaz' => ['centaz', false], 'airmass' => ['airmass', false], 
-                'pierside' => ['pierside', false], 'objctrot' => ['objctrot', false], 'siteelev' => ['siteelev', false], 
-                'sitelat' => ['sitelat', false], 'sitelong' => ['sitelong', false], 'swcreate' => ['swcreate', false], 
-                'roworder' => ['roworder', false], 'equinox' => ['equinox', false], 'date_avg' => ['date_avg', false], 
-                'objctra' => ['objctra', false], 'objctdec' => ['objctdec', false],
-                'width' => ['dimensions', true], 
-                'resolution' => ['resolution', true], 
-                'fov_w' => ['field_of_view', true], 
-                'file_size' => ['size', null], 
-                'mtime' => ['modification_time', null], 
-                'file_hash' => ['hash', true],
-            ];
-            foreach ($advancedHeaders as $sortKey => [$labelKey, $isCalculated]) {
+        foreach (getColumnGroups() as $groupKey => $group) {
+            if ($groupKey === 'star' && empty($visibleStarKeys ?? [])) continue;
+            if ($groupKey !== 'star' && empty($visibleAdvKeys ?? [])) continue;
+            foreach ($group['columns'] as $sortKey => [$labelKey, $isCalculated]) {
+                if (!showCol($sortKey)) continue;
                 render_header_with_tooltip($sortKey, $labelKey, $sortBy, $sortOrder, $isCalculated);
             }
         }
@@ -153,71 +114,76 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                         </div>
                     <?php endif; ?>
                 </td>
-                <?php if ($showAdvanced && ($showStarMetrics ?? true)): ?>
-                    <td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['hfr_avg']) && $f['hfr_avg'] !== '' ? number_format((float)$f['hfr_avg'], 2) : '' ?></td>
-                    <td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['fwhm_avg']) && $f['fwhm_avg'] !== '' ? number_format((float)$f['fwhm_avg'], 2) : '' ?></td>
-                    <td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['ecc_avg']) && $f['ecc_avg'] !== '' ? number_format((float)$f['ecc_avg'], 2) : '' ?></td>
-                    <td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['star_count']) && $f['star_count'] !== '' ? (int)$f['star_count'] : '' ?></td>
-                    <td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['snr_weight']) && $f['snr_weight'] !== '' ? number_format((float)$f['snr_weight'], 2) : '' ?></td>
-                    <td class="p-3 text-sm text-gray-300 text-right" title="<?= isset($f['psf_signal']) ? htmlspecialchars((string)$f['psf_signal']) : '' ?>"><?= isset($f['psf_signal']) && $f['psf_signal'] !== '' ? sprintf('%.6g', (float)$f['psf_signal']) : '' ?></td>
+                <?php if (!empty($visibleStarKeys ?? [])): ?>
+                    <?php if (showCol('hfr_avg')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['hfr_avg']) && $f['hfr_avg'] !== '' ? number_format((float)$f['hfr_avg'], 2) : '' ?></td><?php endif; ?>
+                    <?php if (showCol('fwhm_avg')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['fwhm_avg']) && $f['fwhm_avg'] !== '' ? number_format((float)$f['fwhm_avg'], 2) : '' ?></td><?php endif; ?>
+                    <?php if (showCol('ecc_avg')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['ecc_avg']) && $f['ecc_avg'] !== '' ? number_format((float)$f['ecc_avg'], 2) : '' ?></td><?php endif; ?>
+                    <?php if (showCol('star_count')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['star_count']) && $f['star_count'] !== '' ? (int)$f['star_count'] : '' ?></td><?php endif; ?>
+                    <?php if (showCol('snr_weight')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['snr_weight']) && $f['snr_weight'] !== '' ? number_format((float)$f['snr_weight'], 2) : '' ?></td><?php endif; ?>
+                    <?php if (showCol('psf_signal')): ?><td class="p-3 text-sm text-gray-300 text-right" title="<?= isset($f['psf_signal']) ? htmlspecialchars((string)$f['psf_signal']) : '' ?>"><?= isset($f['psf_signal']) && $f['psf_signal'] !== '' ? sprintf('%.6g', (float)$f['psf_signal']) : '' ?></td><?php endif; ?>
                 <?php endif; ?>
-                                <?php if ($showAdvanced): ?>
+                                <?php if (!empty($visibleAdvKeys ?? [])): ?>
                     <!-- Sensor Data -->
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['xbinning'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ybinning'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['egain'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['gain'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['offset'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['xpixsz'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ypixsz'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['set_temp'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ccd_temp'] ?? '') ?></td>
+                    <?php if (showCol('xbinning')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['xbinning'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('ybinning')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ybinning'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('egain')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['egain'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('gain')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['gain'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('offset')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['offset'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('xpixsz')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['xpixsz'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('ypixsz')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ypixsz'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('set_temp')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['set_temp'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('ccd_temp')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ccd_temp'] ?? '') ?></td><?php endif; ?>
                     
                     <!-- Equipment Data -->
-                    <td class="p-3 text-gray-200"><?= htmlspecialchars($f['instrume'] ?? '') ?></td>
-                    <td class="p-3 text-gray-200"><?= htmlspecialchars($f['cameraid'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['usblimit'] ?? '') ?></td>
-                    <td class="p-3 text-gray-200"><?= htmlspecialchars($f['fwheel'] ?? '') ?></td>
-                    <td class="p-3 text-gray-200"><?= htmlspecialchars($f['telescop'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['focallen'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['focratio'] ?? '') ?></td>
-                    <td class="p-3 text-gray-200"><?= htmlspecialchars($f['focname'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['focpos'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['focussz'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['foctemp'] ?? '') ?></td>
+                    <?php if (showCol('instrume')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['instrume'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('cameraid')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['cameraid'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('usblimit')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['usblimit'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('fwheel')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['fwheel'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('telescop')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['telescop'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('focallen')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['focallen'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('focratio')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['focratio'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('focname')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['focname'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('focpos')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['focpos'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('focussz')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['focussz'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('foctemp')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['foctemp'] ?? '') ?></td><?php endif; ?>
 
                     <!-- Pointing & Position Data -->
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ra'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['dec'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['centalt'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['centaz'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['airmass'] ?? '') ?></td>
-                    <td class="p-3 text-gray-200"><?= htmlspecialchars($f['pierside'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['objctrot'] ?? '') ?></td>
+                    <?php if (showCol('ra')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ra'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('dec')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['dec'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('centalt')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['centalt'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('centaz')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['centaz'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('airmass')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['airmass'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('pierside')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['pierside'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('objctrot')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['objctrot'] ?? '') ?></td><?php endif; ?>
 
                     <!-- Observatory Site Data -->
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['siteelev'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['sitelat'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['sitelong'] ?? '') ?></td>
+                    <?php if (showCol('siteelev')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['siteelev'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('sitelat')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['sitelat'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('sitelong')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['sitelong'] ?? '') ?></td><?php endif; ?>
 
                     <!-- File Metadata -->
-                    <td class="p-3 text-gray-200"><?= htmlspecialchars($f['swcreate'] ?? '') ?></td>
-                    <td class="p-3 text-gray-200"><?= htmlspecialchars($f['roworder'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['equinox'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><span class="utc-date" data-timestamp="<?= !empty($f['date_avg']) ? strtotime($f['date_avg']) : '' ?>"><?= htmlspecialchars($f['date_avg'] ?? '') ?></span></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['objctra'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['objctdec'] ?? '') ?></td>
+                    <?php if (showCol('swcreate')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['swcreate'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('roworder')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['roworder'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('equinox')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['equinox'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('date_avg')): ?><td class="p-3 text-sm text-gray-300"><span class="utc-date" data-timestamp="<?= !empty($f['date_avg']) ? strtotime($f['date_avg']) : '' ?>"><?= htmlspecialchars($f['date_avg'] ?? '') ?></span></td><?php endif; ?>
+                    <?php if (showCol('objctra')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['objctra'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('objctdec')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['objctdec'] ?? '') ?></td><?php endif; ?>
 
+                    <?php if (showCol('width')): ?>
                     <td class="p-3 text-sm text-gray-300">
                         <?php if (!empty($f['width']) && !empty($f['height'])): ?>
                             <?= htmlspecialchars($f['width']) ?>x<?= htmlspecialchars($f['height']) ?>
                         <?php endif; ?>
                     </td>
+                    <?php endif; ?>
+                    <?php if (showCol('resolution')): ?>
                     <td class="p-3 text-sm text-gray-300">
                         <?php if (!empty($f['resolution'])): ?>
                             <?= number_format($f['resolution'], 2) ?>"/px
                         <?php endif; ?>
                     </td>
+                    <?php endif; ?>
+                    <?php if (showCol('fov_w')): ?>
                                         <td class="p-3 text-sm text-gray-300">
                         <?php if (!empty($f['fov_w']) && !empty($f['fov_h'])): 
                             $fov_w_deg = $f['fov_w'] / 60;
@@ -228,22 +194,29 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                             </span>
                         <?php endif; ?>
                     </td>
+                    <?php endif; ?>
+                    <?php if (showCol('file_size')): ?>
                     <td class="p-3 text-sm text-gray-300 text-right">
                         <?php if (!empty($f['file_size'])): ?>
                             <?= number_format($f['file_size'] / (1024 * 1024), 2) ?> MB
                         <?php endif; ?>
                     </td>
+                    <?php endif; ?>
+                    <?php if (showCol('mtime')): ?>
                     <td class="p-3 text-sm text-gray-300">
                         <span class="utc-date" data-timestamp="<?= !empty($f['mtime']) ? (int)$f['mtime'] : '' ?>">
                             <?= !empty($f['mtime']) ? date('Y-m-d H:i:s', (int)$f['mtime']) : '' ?>
                         </span>
                     </td>
+                    <?php endif; ?>
+                    <?php if (showCol('file_hash')): ?>
                     <td class="p-3 text-sm text-gray-300 font-mono text-xs"><?= htmlspecialchars($f['file_hash'] ?? '') ?></td>
+                    <?php endif; ?>
                 <?php endif; ?>
             </tr>
             <?php endforeach; ?>
                         <?php if (empty($files)): ?>
-                <tr><td colspan="<?= 9 + ($showAdvanced ? 24 : 0) + (($showAdvanced && ($showStarMetrics ?? true)) ? 6 : 0) ?>" class="p-4 text-center text-gray-500"><?php echo __('no_files_found') ?></td></tr>
+                <tr><td colspan="<?= (int)($tableColspan ?? 12) ?>" class="p-4 text-center text-gray-500"><?php echo __('no_files_found') ?></td></tr>
             <?php endif; ?>
 </tbody>
     </table>

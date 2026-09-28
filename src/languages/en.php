@@ -38,6 +38,16 @@ return [
     'seconds' => 'seconds',
     'download_selected' => 'Download Selected (.zip)',
     'show_advanced_fields' => 'Show advanced fields',
+    'columns' => 'Columns',
+    'columns_show_all' => 'Show all',
+    'columns_reset' => 'Reset',
+    'colgroup_sensor' => 'Sensor',
+    'colgroup_equipment' => 'Equipment',
+    'colgroup_pointing' => 'Pointing',
+    'colgroup_site' => 'Observatory site',
+    'colgroup_filemeta' => 'File & metadata',
+    'colgroup_calculated' => 'Calculated',
+    'colgroup_star' => 'Star metrics',
     'footer_credits' => 'Astro Web Indexer - Created by Michele Guzzini - Released under GPL',
     'db_connection_error' => 'Unable to connect to database: {0}',
     'no_files_selected' => 'No files selected for download.',
@@ -152,6 +162,11 @@ return [
     'star_count' => 'Star count',
     'snr_weight' => 'SNR weight',
     'psf_signal' => 'PSF signal',
+
+    // Star metrics trend
+    'metrics_trend' => 'Metrics trend',
+    'metrics_trend_summary' => '{count} frames • follows table ordering',
+    'metrics_median' => 'Median',
     'filter_by_folder' => 'Filtra by Folder',
     'no_subfolders' => 'No Subfolders',
 

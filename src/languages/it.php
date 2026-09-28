@@ -38,6 +38,16 @@ return [
     'seconds' => 'secondi',
     'download_selected' => 'Scarica Selezionati (.zip)',
     'show_advanced_fields' => 'Mostra campi avanzati',
+    'columns' => 'Colonne',
+    'columns_show_all' => 'Mostra tutte',
+    'columns_reset' => 'Reimposta',
+    'colgroup_sensor' => 'Sensore',
+    'colgroup_equipment' => 'Strumentazione',
+    'colgroup_pointing' => 'Puntamento',
+    'colgroup_site' => 'Sito osservativo',
+    'colgroup_filemeta' => 'File e metadati',
+    'colgroup_calculated' => 'Calcolati',
+    'colgroup_star' => 'Metriche stellari',
     'footer_credits' => 'Astro Web Indexer - Creato da Michele Guzzini - Rilasciato con licenza GPL',
     'db_connection_error' => 'Impossibile connettersi al database: {0}',
     'no_files_selected' => 'Nessun file selezionato per il download.',
@@ -152,6 +162,11 @@ return [
     'star_count' => 'N° stelle',
     'snr_weight' => 'Peso SNR',
     'psf_signal' => 'Segnale PSF',
+
+    // Andamento metriche stellari
+    'metrics_trend' => 'Andamento metriche',
+    'metrics_trend_summary' => '{count} frame • segue l\'ordinamento della tabella',
+    'metrics_median' => 'Mediana',
     'filter_by_folder' => 'Filtra per Cartella',
     'no_subfolders' => 'Nessuna sottocartella',
 
