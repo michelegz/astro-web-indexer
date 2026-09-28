@@ -167,7 +167,7 @@ return [
 
     // Andamento metriche stellari
     'metrics_trend' => 'Andamento metriche',
-    'metrics_trend_summary' => '{count} frame • segue l\'ordinamento della tabella',
+    'metrics_trend_summary' => '{count} light frame',
     'metrics_median' => 'Mediana',
     'filter_by_folder' => 'Filtra per Cartella',
     'no_subfolders' => 'Nessuna sottocartella',

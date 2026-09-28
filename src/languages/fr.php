@@ -127,7 +127,7 @@ return [
 
     // Évolution des métriques stellaires
     'metrics_trend' => 'Évolution des métriques',
-    'metrics_trend_summary' => '{count} images • suit l\'ordre du tableau',
+    'metrics_trend_summary' => '{count} images LIGHT',
     'metrics_median' => 'Médiane',
     'filter_by_folder' => 'Filtrer par Dossier',
     'no_subfolders' => 'Aucun sous-dossier',

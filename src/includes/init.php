@@ -73,6 +73,8 @@ $starTrend = [];
 if ($showStarMetrics) {
     $starTrend = getStarTrend($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax, $sortBy, $sortOrder, 10000);
 }
+// LIGHT frames in the current filter set (trend card header)
+$lightRecords = countFiles($conn, $dir, $filterObject, $filterFilter, 'LIGHT', $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
 $totalPages = max(1, ceil($totalRecords / $perPage));
 
 // Query for files with filters, LIMIT and sorting

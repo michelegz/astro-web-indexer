@@ -127,7 +127,7 @@ return [
 
     // Evolución de métricas estelares
     'metrics_trend' => 'Evolución de métricas',
-    'metrics_trend_summary' => '{count} fotogramas • sigue el orden de la tabla',
+    'metrics_trend_summary' => '{count} fotogramas LIGHT',
     'metrics_median' => 'Mediana',
     'filter_by_folder' => 'Filtrar por Carpeta',
     'no_subfolders' => 'No hay subcarpetas',

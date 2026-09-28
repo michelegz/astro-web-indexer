@@ -126,7 +126,7 @@ return [
 
     // Sternmetrik-Verlauf
     'metrics_trend' => 'Metrik-Verlauf',
-    'metrics_trend_summary' => '{count} Bilder • folgt der Tabellensortierung',
+    'metrics_trend_summary' => '{count} Light-Frames',
     'metrics_median' => 'Median',
     'filter_by_folder' => 'Nach Ordner filtern',
     'no_subfolders' => 'Keine Unterordner',

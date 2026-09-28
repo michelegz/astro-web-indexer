@@ -10,7 +10,7 @@ foreach ($starTrend as $row) {
     }
 }
 if ($hasTrendData):
-    $trendCount = count($starTrend);
+    $trendCount = $lightRecords ?? count($starTrend);
     $trendConfig = [
         ['key' => 'hfr_avg',    'label' => __('hfr') . ' (px)', 'color' => '#60a5fa'],
         ['key' => 'fwhm_avg',   'label' => __('fwhm') . ' (px)', 'color' => '#34d399'],
