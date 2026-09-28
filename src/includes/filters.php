@@ -140,7 +140,11 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
             <?php foreach (getColumnGroups() as $groupKey => $group): ?>
                 <?php if ($groupKey === 'star' && !$showStarMetrics) continue; ?>
                 <div style="flex: 1 1 14rem;">
-                <div class="text-xs font-semibold uppercase tracking-wide text-gray-400 mt-2 mb-1"><?php echo __($group['label']); ?></div>
+                <div class="flex items-center gap-2 mt-2 mb-1">
+                    <input type="checkbox" data-group-toggle="<?= htmlspecialchars($groupKey) ?>"
+                           class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-600 ring-offset-gray-800 focus:ring-2">
+                    <span class="text-xs font-semibold uppercase tracking-wide text-gray-400"><?php echo __($group['label']); ?></span>
+                </div>
                 <?php foreach ($group['columns'] as $sortKey => [$labelKey, $_]): ?>
                     <label class="flex items-center gap-2 py-1 text-sm text-gray-200 cursor-pointer hover:bg-gray-600 rounded px-1">
                         <input type="checkbox" data-col="<?= htmlspecialchars($sortKey) ?>" data-group="<?= htmlspecialchars($groupKey) ?>"
@@ -198,6 +202,31 @@ document.addEventListener('DOMContentLoaded', function() {
         document.cookie = 'hiddenCols=' + hidden.join(',') + ';path=/;max-age=31536000;samesite=Lax';
         window.location.href = currentUrlWithoutAdvanced();
     }
+    function groupBoxes(group) {
+        return panel.querySelectorAll('input[data-col][data-group="' + group + '"]');
+    }
+    function refreshGroupToggles() {
+        panel.querySelectorAll('input[data-group-toggle]').forEach(function(toggle) {
+            var boxes = groupBoxes(toggle.getAttribute('data-group-toggle'));
+            var checked = 0;
+            boxes.forEach(function(box) { if (box.checked) checked++; });
+            toggle.checked = boxes.length > 0 && checked === boxes.length;
+            toggle.indeterminate = checked > 0 && checked < boxes.length;
+        });
+    }
+    panel.querySelectorAll('input[data-group-toggle]').forEach(function(toggle) {
+        toggle.addEventListener('change', function() {
+            var on = toggle.checked;
+            groupBoxes(toggle.getAttribute('data-group-toggle')).forEach(function(box) {
+                box.checked = on;
+            });
+            toggle.indeterminate = false;
+        });
+    });
+    panel.querySelectorAll('input[data-col]').forEach(function(box) {
+        box.addEventListener('change', refreshGroupToggles);
+    });
+    refreshGroupToggles();
     function readHiddenCols() {
         var m = document.cookie.match(/(?:^|;\s*)hiddenCols=([^;]*)/);
         return m ? m[1].split(',').filter(Boolean) : null; // null = no cookie yet

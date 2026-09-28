@@ -388,9 +388,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- FILTRI ---
     if (filtersForm) {
-        // NOTE: column-chooser checkboxes (data-col) are staged and applied
-        // via the Applica button — they must NOT auto-submit the form.
-        const filters = filtersForm.querySelectorAll('select, input[type="checkbox"]:not([data-col])');
+        // NOTE: column-chooser checkboxes (data-col, data-group-toggle) are staged
+        // and applied via the Applica button — they must NOT auto-submit the form.
+        const filters = filtersForm.querySelectorAll('select, input[type="checkbox"]:not([data-col]):not([data-group-toggle])');
         filters.forEach(filter => {
             filter.addEventListener('change', () => {
                 filtersForm.submit();
