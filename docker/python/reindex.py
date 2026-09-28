@@ -15,7 +15,7 @@ from functools import partial
 import multiprocessing
 
 # Corrected imports for the new structure
-from indexer_lib.image_processing import make_thumbnail, make_crop_preview
+from indexer_lib.image_processing import make_thumbnail, make_crop_preview, frame_statistics
 from indexer_lib.star_analysis import analyze_frame
 from indexer_lib.file_utils import calculate_hash, get_header_value, get_xisf_header_value
 from indexer_lib.db_utils import soft_delete_missing_files, purge_deleted_files, update_duplicate_counts
@@ -220,6 +220,36 @@ def process_file_worker(full_path, fits_root, thumb_size, star_metrics=True):
                 star['snr_weight'] = computed['snr_weight']
                 star['psf_signal'] = computed['psf_signal']
 
+        # Frame-level pixel statistics and sensor metadata (all frame types,
+        # lights and calibrations alike: bias level, flat exposure, Bayer...).
+        fstats = {'background_mean': None, 'min_pixel': None, 'max_pixel': None,
+                  'mean_pixel': None, 'median_pixel': None}
+        if data is not None:
+            fstats.update(frame_statistics(data))
+
+        bitpix = get_value(header, 'BITPIX', None, int)
+        bit_depth = abs(bitpix) if bitpix is not None else None
+        sq = np.squeeze(data) if data is not None else None
+        channels = None
+        if sq is not None:
+            if sq.ndim == 2:
+                channels = 1
+            elif sq.ndim == 3:
+                if sq.shape[0] in (3, 4):
+                    channels = int(sq.shape[0])
+                elif sq.shape[-1] in (3, 4):
+                    channels = int(sq.shape[-1])
+        bayer = get_value(header, 'BAYERPAT', None, str)
+        bayer = bayer.strip().upper() if bayer else None
+        if bayer:
+            color_type = 'OSC'
+        elif channels == 3:
+            color_type = 'RGB'
+        elif channels == 1:
+            color_type = 'MONO'
+        else:
+            color_type = None
+
         params = {
             'path': rel_path, 'file_hash': file_hash, 'name': file_name, 'mtime': int(mtime), 'file_size': file_size,
             'width': width, 'height': height, 'resolution': resolution, 'fov_w': fov_w, 'fov_h': fov_h,
@@ -235,7 +265,12 @@ def process_file_worker(full_path, fits_root, thumb_size, star_metrics=True):
             'moon_phase': moon_phase, 'moon_angle': moon_angle,
             'hfr': star['hfr'], 'fwhm': star['fwhm'], 'hfr_sd': star['hfr_sd'],
             'eccentricity': star['eccentricity'], 'star_count': star['star_count'],
-            'snr_weight': star['snr_weight'], 'psf_signal': star['psf_signal']
+            'snr_weight': star['snr_weight'], 'psf_signal': star['psf_signal'],
+            'background_mean': fstats['background_mean'], 'min_pixel': fstats['min_pixel'],
+            'max_pixel': fstats['max_pixel'], 'mean_pixel': fstats['mean_pixel'],
+            'median_pixel': fstats['median_pixel'], 'bit_depth': bit_depth,
+            'image_channels': channels, 'image_color_type': color_type,
+            'bayer_pattern': bayer
         }
         return {'status': 'success', 'path': rel_path, 'params': params}
 
@@ -250,7 +285,7 @@ def main():
         conn = mysql.connector.connect(host=args.host, user=args.user, password=args.password, database=args.database)
         cur = conn.cursor()
 
-        current_schema_version = 3
+        current_schema_version = 4
 
         logger.info("Loading existing file data from database...")
         cur.execute("SELECT path, file_hash, mtime, file_size, deleted_at, data_schema_version FROM files")
@@ -348,7 +383,9 @@ def main():
                     swcreate, roworder, equinox,
                     thumb, thumb_crop, deleted_at, is_hidden, data_schema_version,
                     moon_phase, moon_angle,
-                    hfr, fwhm, hfr_sd, eccentricity, star_count, snr_weight, psf_signal
+                    hfr, fwhm, hfr_sd, eccentricity, star_count, snr_weight, psf_signal,
+                    background_mean, min_pixel, max_pixel, mean_pixel, median_pixel,
+                    bit_depth, image_channels, image_color_type, bayer_pattern
                 ) VALUES (
                     %(path)s, %(file_hash)s, %(name)s, %(mtime)s, %(file_size)s, %(width)s, %(height)s, %(resolution)s, %(fov_w)s, %(fov_h)s,
                     %(object)s, %(objctra)s, %(objctdec)s,
@@ -361,7 +398,9 @@ def main():
                     %(swcreate)s, %(roworder)s, %(equinox)s,
                     %(thumb)s, %(thumb_crop)s, NULL, 0, 3,
                     %(moon_phase)s, %(moon_angle)s,
-                    %(hfr)s, %(fwhm)s, %(hfr_sd)s, %(eccentricity)s, %(star_count)s, %(snr_weight)s, %(psf_signal)s
+                    %(hfr)s, %(fwhm)s, %(hfr_sd)s, %(eccentricity)s, %(star_count)s, %(snr_weight)s, %(psf_signal)s,
+                    %(background_mean)s, %(min_pixel)s, %(max_pixel)s, %(mean_pixel)s, %(median_pixel)s,
+                    %(bit_depth)s, %(image_channels)s, %(image_color_type)s, %(bayer_pattern)s
                 )
                 ON DUPLICATE KEY UPDATE
                     file_hash=VALUES(file_hash), mtime=VALUES(mtime), file_size=VALUES(file_size), width=VALUES(width), height=VALUES(height), resolution=VALUES(resolution), fov_w=VALUES(fov_w), fov_h=VALUES(fov_h), name=VALUES(name),
@@ -380,7 +419,12 @@ def main():
                     moon_angle=VALUES(moon_angle),
                     hfr=VALUES(hfr), fwhm=VALUES(fwhm), hfr_sd=VALUES(hfr_sd),
                     eccentricity=VALUES(eccentricity), star_count=VALUES(star_count),
-                    snr_weight=VALUES(snr_weight), psf_signal=VALUES(psf_signal)
+                    snr_weight=VALUES(snr_weight), psf_signal=VALUES(psf_signal),
+                    background_mean=VALUES(background_mean), min_pixel=VALUES(min_pixel),
+                    max_pixel=VALUES(max_pixel), mean_pixel=VALUES(mean_pixel),
+                    median_pixel=VALUES(median_pixel), bit_depth=VALUES(bit_depth),
+                    image_channels=VALUES(image_channels), image_color_type=VALUES(image_color_type),
+                    bayer_pattern=VALUES(bayer_pattern)
             '''
             worker_func = partial(process_file_worker, fits_root=fits_root, thumb_size=thumb_size,
                                    star_metrics=args.star_metrics)
@@ -471,17 +515,20 @@ def main():
             if not args.star_metrics:
                 logger.warning("Backfill requested but star metrics are disabled (STAR_METRICS_ENABLED=false), skipping.")
             else:
-                logger.info("Backfilling star metrics for LIGHT frames with no computed values...")
+                logger.info("Backfilling star/frame metrics for files with no computed values...")
                 cur.execute(
-                    "SELECT path FROM files WHERE imgtype = 'LIGHT' AND hfr IS NULL AND deleted_at IS NULL"
+                    "SELECT path FROM files WHERE deleted_at IS NULL AND thumb IS NOT NULL AND ("
+                    "(imgtype = 'LIGHT' AND hfr IS NULL) OR background_mean IS NULL)"
                 )
                 backfill_tasks = [os.path.join(fits_root, row[0]) for row in cur.fetchall()
                                   if os.path.isfile(os.path.join(fits_root, row[0]))]
-                logger.info(f"Found {len(backfill_tasks)} LIGHT files missing star metrics.")
+                logger.info(f"Found {len(backfill_tasks)} files missing metrics.")
                 if backfill_tasks:
                     backfill_sql = (
                         "UPDATE files SET hfr=%s, fwhm=%s, hfr_sd=%s, eccentricity=%s, star_count=%s, "
-                        "snr_weight=%s, psf_signal=%s, data_schema_version=%s WHERE path=%s"
+                        "snr_weight=%s, psf_signal=%s, background_mean=%s, min_pixel=%s, max_pixel=%s, "
+                        "mean_pixel=%s, median_pixel=%s, bit_depth=%s, image_channels=%s, "
+                        "image_color_type=%s, bayer_pattern=%s, data_schema_version=%s WHERE path=%s"
                     )
                     backfill_func = partial(process_file_worker, fits_root=fits_root,
                                             thumb_size=thumb_size, star_metrics=True)
@@ -496,6 +543,11 @@ def main():
                                 cur.execute(backfill_sql, (p['hfr'], p['fwhm'], p['hfr_sd'],
                                                            p['eccentricity'], p['star_count'],
                                                            p['snr_weight'], p['psf_signal'],
+                                                           p['background_mean'], p['min_pixel'],
+                                                           p['max_pixel'], p['mean_pixel'],
+                                                           p['median_pixel'], p['bit_depth'],
+                                                           p['image_channels'], p['image_color_type'],
+                                                           p['bayer_pattern'],
                                                            current_schema_version, result['path']))
                                 backfilled_count += 1
                                 if backfilled_count % commit_interval == 0:

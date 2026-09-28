@@ -59,7 +59,7 @@ try {
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
     
     $stmt = $conn->prepare(
-        "SELECT id, object, date_obs, exptime, filter, imgtype, xbinning, gain, ccd_temp, focratio
+        "SELECT id, object, date_obs, exptime, filter, imgtype, xbinning, gain, ccd_temp, focratio, fwhm
          FROM files WHERE id IN ($placeholders)"
     );
     $stmt->execute($ids);
@@ -114,6 +114,7 @@ $full_header = [
     'darks', 'flats', 'flatDarks', 'bias', 'bortle', 'meanSqm', 'meanFwhm', 'temperature'
 ];
 $sessions = [];
+$fwhmAcc = []; // session key => ['sum' => float, 'n' => int] for meanFwhm
 if (!empty($lights)) {
     foreach ($lights as $light) {
         $session_date = get_astro_session_date($light['date_obs']);
@@ -145,6 +146,15 @@ if (!empty($lights)) {
             $sessions[$key]['fNumber'] = $light['focratio'] ?? '';
         }
         $sessions[$key]['number']++;
+        // Accumulate FWHM (arcsec) for the session meanFwhm (max 2 decimals per docs)
+        $fwhm = $light['fwhm'] ?? null;
+        if (is_numeric($fwhm) && (float)$fwhm > 0) {
+            if (!isset($fwhmAcc[$key])) {
+                $fwhmAcc[$key] = ['sum' => 0.0, 'n' => 0];
+            }
+            $fwhmAcc[$key]['sum'] += (float)$fwhm;
+            $fwhmAcc[$key]['n']++;
+        }
     }
 }
 
@@ -162,8 +172,11 @@ if (empty($sessions)) {
     fputcsv($output, $cal_only_row);
 } else {
     // Add calibration data to *every* session found
-    foreach ($sessions as $session) {
+    foreach ($sessions as $key => $session) {
         $session = array_merge($session, $cal_frames);
+        if (!empty($fwhmAcc[$key]['n'])) {
+            $session['meanFwhm'] = round($fwhmAcc[$key]['sum'] / $fwhmAcc[$key]['n'], 2);
+        }
         // Ensure all columns are present, even if empty
         $row_to_write = array_merge(array_fill_keys($full_header, ''), $session);
         fputcsv($output, $row_to_write);

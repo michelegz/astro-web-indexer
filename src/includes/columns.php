@@ -83,6 +83,13 @@ function getColumnGroups(): array
             'mtime' => ['modification_time', null],
             'file_hash' => ['hash', true],
         ]],
+        'frame' => ['label' => 'colgroup_frame', 'columns' => [
+            'background_mean' => ['background_mean', true],
+            'min_pixel' => ['min_pixel', true], 'max_pixel' => ['max_pixel', true],
+            'mean_pixel' => ['mean_pixel', true], 'median_pixel' => ['median_pixel', true],
+            'bit_depth' => ['bit_depth', false], 'image_channels' => ['image_channels', false],
+            'image_color_type' => ['image_color_type', true], 'bayer_pattern' => ['bayer_pattern', false],
+        ]],
     ];
 }
 

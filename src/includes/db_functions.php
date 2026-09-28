@@ -89,7 +89,10 @@ function buildOrderClause(string $sortBy, string $sortOrder): string
         'date_avg', 'swcreate', 'objctra', 'objctdec', 'cameraid', 'usblimit',
         'fwheel', 'focname', 'focussz', 'foctemp', 'objctrot', 'roworder', 'equinox', 'moon_phase',
         // Star/quality metrics (advanced)
-        'hfr', 'fwhm', 'hfr_sd', 'eccentricity', 'star_count', 'snr_weight', 'psf_signal'
+        'hfr', 'fwhm', 'hfr_sd', 'eccentricity', 'star_count', 'snr_weight', 'psf_signal',
+        // Frame statistics (advanced)
+        'background_mean', 'min_pixel', 'max_pixel', 'mean_pixel', 'median_pixel',
+        'bit_depth', 'image_channels', 'image_color_type', 'bayer_pattern'
     ];
     $allowedSortOrder = ['ASC', 'DESC'];
 

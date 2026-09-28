@@ -4,6 +4,8 @@
 
 ### New Features
 - **Star & frame quality metrics** - per-LIGHT-frame HFR, FWHM, eccentricity, star count, SNR weight and PSF signal (SubframeSelector-style estimators) computed at index time with `sep`, shown as sortable advanced columns. Master switch via `STAR_METRICS_ENABLED` (default `true`)
+- **Frame statistics for all frame types** - background, min/max/mean/median pixel values plus bit depth, channel count, color type and Bayer pattern (useful for calibration-frame QA); backfilled together with the star metrics
+- **AstroBin filter ID mapping** - map each FITS filter name to its numeric AstroBin equipment ID via the new management page; the CSV export writes IDs (with unmapped-filter warning) and per-session `meanFwhm` in arcseconds
 - **Python image switched from Alpine to slim** (`python:3.9-slim-bookworm`) to support scientific `manylinux` wheels
 
 > **Note for existing archives:** LIGHT frames indexed before this version show empty

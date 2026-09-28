@@ -30,7 +30,7 @@ This project is developed and maintained in my spare time. If you find it useful
 - 🌘 Calculates Moon phase for each image at the time of acquisition
 - 📥 Bulk download functionality with ZIP compression
 - 📊 Per-filter exposure statistics: a collapsible card showing total exposure and percentage for each filter on the currently filtered images, with progress bars for easy comparison
-- ⭐ Star & frame quality metrics: per-LIGHT-frame HFR, FWHM, eccentricity, star count, SNR weight and PSF signal (SubframeSelector-style estimators) in the advanced columns, computed at index time with [`sep`](https://github.com/sep-developers/sep)
+- ⭐ Star & frame quality metrics: per-LIGHT-frame HFR, FWHM, eccentricity, star count, SNR weight and PSF signal (SubframeSelector-style estimators) in the advanced columns, computed at index time with [`sep`](https://github.com/sep-developers/sep), plus per-frame pixel statistics (background, min/max/mean/median) and sensor metadata (bit depth, channels, color type, Bayer pattern) for all frame types
 
 ### 🔬 Smart Frame Finder (SFF)
 A powerful search engine to find matching calibration frames (darks, flats, bias) or similar, stackable `LIGHT` frames using a flexible, tolerance-based rules engine.

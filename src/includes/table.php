@@ -36,7 +36,8 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
         foreach (getColumnGroups() as $groupKey => $group) {
             if ($groupKey === 'base') continue; // rendered above, in body order
             if ($groupKey === 'star' && empty($visibleStarKeys ?? [])) continue;
-            if ($groupKey !== 'star' && empty($visibleAdvKeys ?? [])) continue;
+            if ($groupKey === 'frame' && empty($visibleFrameKeys ?? [])) continue;
+            if ($groupKey !== 'star' && $groupKey !== 'frame' && empty($visibleAdvKeys ?? [])) continue;
             foreach ($group['columns'] as $sortKey => [$labelKey, $isCalculated]) {
                 if (!showCol($sortKey)) continue;
                 render_header_with_tooltip($sortKey, $labelKey, $sortBy, $sortOrder, $isCalculated);
@@ -135,7 +136,7 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                     <?php if (showCol('snr_weight')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['snr_weight']) && $f['snr_weight'] !== '' ? number_format((float)$f['snr_weight'], 2) : '' ?></td><?php endif; ?>
                     <?php if (showCol('psf_signal')): ?><td class="p-3 text-sm text-gray-300 text-right" title="<?= isset($f['psf_signal']) ? htmlspecialchars((string)$f['psf_signal']) : '' ?>"><?= isset($f['psf_signal']) && $f['psf_signal'] !== '' ? sprintf('%.6g', (float)$f['psf_signal']) : '' ?></td><?php endif; ?>
                 <?php endif; ?>
-                                <?php if (!empty($visibleAdvKeys ?? [])): ?>
+                                <?php if (!empty($visibleAdvKeys ?? []) || !empty($visibleFrameKeys ?? [])): ?>
                     <!-- Sensor Data -->
                     <?php if (showCol('xbinning')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['xbinning'] ?? '') ?></td><?php endif; ?>
                     <?php if (showCol('ybinning')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ybinning'] ?? '') ?></td><?php endif; ?>
@@ -225,6 +226,15 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                     <?php if (showCol('file_hash')): ?>
                     <td class="p-3 text-sm text-gray-300 font-mono text-xs"><?= htmlspecialchars($f['file_hash'] ?? '') ?></td>
                     <?php endif; ?>
+                    <?php if (showCol('background_mean')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['background_mean']) && $f['background_mean'] !== '' ? number_format((float)$f['background_mean'], 1) : '' ?></td><?php endif; ?>
+                    <?php if (showCol('min_pixel')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['min_pixel']) && $f['min_pixel'] !== '' ? (int)$f['min_pixel'] : '' ?></td><?php endif; ?>
+                    <?php if (showCol('max_pixel')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['max_pixel']) && $f['max_pixel'] !== '' ? (int)$f['max_pixel'] : '' ?></td><?php endif; ?>
+                    <?php if (showCol('mean_pixel')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['mean_pixel']) && $f['mean_pixel'] !== '' ? number_format((float)$f['mean_pixel'], 1) : '' ?></td><?php endif; ?>
+                    <?php if (showCol('median_pixel')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['median_pixel']) && $f['median_pixel'] !== '' ? number_format((float)$f['median_pixel'], 1) : '' ?></td><?php endif; ?>
+                    <?php if (showCol('bit_depth')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['bit_depth']) && $f['bit_depth'] !== '' ? (int)$f['bit_depth'] : '' ?></td><?php endif; ?>
+                    <?php if (showCol('image_channels')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['image_channels']) && $f['image_channels'] !== '' ? (int)$f['image_channels'] : '' ?></td><?php endif; ?>
+                    <?php if (showCol('image_color_type')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['image_color_type'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('bayer_pattern')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['bayer_pattern'] ?? '') ?></td><?php endif; ?>
                 <?php endif; ?>
             </tr>
             <?php endforeach; ?>

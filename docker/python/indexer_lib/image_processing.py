@@ -73,3 +73,52 @@ def make_crop_preview(data, size):
     except Exception as e:
         logger.warning(f"Crop preview generation failed: {e}")
         return None
+
+def frame_statistics(data):
+    """Pixel-level frame statistics for any frame type (lights and calibrations).
+
+    Returns a dict with background_mean, min_pixel, max_pixel, mean_pixel and
+    median_pixel (None values when not measurable). Never raises: any failure
+    yields all-None (the caller stores NULLs).
+
+    Notes:
+    - background_mean is a robust median-based estimate (not the sep background
+      used for star detection), so it is defined for calibration frames too.
+    - min/max map to INT UNSIGNED columns: float-normalized data (e.g. 0-1
+      calibrated XISF) is truncated via int(), which is expected to collapse
+      to 0/1 — an accepted limitation of the schema.
+    - NaN/Inf pixels (e.g. astropy BLANK handling) are excluded, not zeroed,
+      to avoid biasing the statistics.
+    """
+    empty = {
+        'background_mean': None, 'min_pixel': None, 'max_pixel': None,
+        'mean_pixel': None, 'median_pixel': None,
+    }
+    try:
+        arr = np.squeeze(data)
+        if arr.ndim == 2:
+            flat = arr
+        elif arr.ndim == 3 and (arr.shape[0] in (3, 4) or arr.shape[-1] in (3, 4)):
+            flat = arr
+        else:
+            return dict(empty)
+        if flat.size == 0:
+            return dict(empty)
+        if flat.dtype.kind == 'f':
+            finite = np.isfinite(flat)
+            if not np.any(finite):
+                return dict(empty)
+            flat = flat[finite]
+        flat = flat.ravel()
+        median = float(np.median(flat))
+        return {
+            'background_mean': median,
+            # INT UNSIGNED columns: clamp at zero (calibrated floats can be negative)
+            'min_pixel': max(0, int(np.min(flat))),
+            'max_pixel': max(0, int(np.max(flat))),
+            'mean_pixel': float(np.mean(flat)),
+            'median_pixel': median,
+        }
+    except Exception as e:
+        logger.warning(f"Frame statistics computation failed: {e}")
+        return dict(empty)

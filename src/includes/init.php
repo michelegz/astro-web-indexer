@@ -48,15 +48,17 @@ $hiddenCols = resolveHiddenColumns($toggleableKeys);
 $columnGroups = getColumnGroups();
 $advKeys = [];
 foreach ($columnGroups as $groupKey => $group) {
-    if ($groupKey !== 'star') {
+    if ($groupKey !== 'star' && $groupKey !== 'frame') {
         $advKeys = array_merge($advKeys, array_keys($group['columns']));
     }
 }
 $starKeys = array_keys($columnGroups['star']['columns']);
 $visibleAdvKeys = array_values(array_diff($advKeys, $hiddenCols));
 $visibleStarKeys = $showStarMetrics ? array_values(array_diff($starKeys, $hiddenCols)) : [];
+$frameKeys = array_keys($columnGroups['frame']['columns']);
+$visibleFrameKeys = array_values(array_diff($frameKeys, $hiddenCols));
 $visibleBaseKeys = array_values(array_diff(array_keys(getBaseColumns()), $hiddenCols)); // 'name' can never be hidden
-$tableColspan = 1 + count($visibleBaseKeys) + count($visibleAdvKeys) + count($visibleStarKeys);
+$tableColspan = 1 + count($visibleBaseKeys) + count($visibleAdvKeys) + count($visibleStarKeys) + count($visibleFrameKeys);
 
 $conn = connectDB();
 
