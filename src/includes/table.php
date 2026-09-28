@@ -131,9 +131,9 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                     <?php if (showCol('hfr')): ?><td class="p-3 text-sm text-gray-300 text-right whitespace-nowrap"><?= isset($f['hfr']) && $f['hfr'] !== '' ? number_format((float)$f['hfr'], 2) . ' px' : '' ?></td><?php endif; ?>
                     <?php if (showCol('fwhm')): ?><td class="p-3 text-sm text-gray-300 text-right whitespace-nowrap"><?= isset($f['fwhm']) && $f['fwhm'] !== '' ? number_format((float)$f['fwhm'], 2) . '"' : '' ?></td><?php endif; ?>
                     <?php if (showCol('hfr_sd')): ?><td class="p-3 text-sm text-gray-300 text-right whitespace-nowrap"><?= isset($f['hfr_sd']) && $f['hfr_sd'] !== '' ? number_format((float)$f['hfr_sd'], 2) . ' px' : '' ?></td><?php endif; ?>
-                    <?php if (showCol('eccentricity')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['eccentricity']) && $f['eccentricity'] !== '' ? number_format((float)$f['eccentricity'], 2) : '' ?></td><?php endif; ?>
+                    <?php if (showCol('eccentricity')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['eccentricity']) && $f['eccentricity'] !== '' ? number_format((float)$f['eccentricity'], 3) : '' ?></td><?php endif; ?>
                     <?php if (showCol('star_count')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['star_count']) && $f['star_count'] !== '' ? (int)$f['star_count'] : '' ?></td><?php endif; ?>
-                    <?php if (showCol('snr_weight')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['snr_weight']) && $f['snr_weight'] !== '' ? number_format((float)$f['snr_weight'], 2) : '' ?></td><?php endif; ?>
+                    <?php if (showCol('snr_weight')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['snr_weight']) && $f['snr_weight'] !== '' ? number_format((float)$f['snr_weight'], 3) : '' ?></td><?php endif; ?>
                     <?php if (showCol('psf_signal')): ?><td class="p-3 text-sm text-gray-300 text-right" title="<?= isset($f['psf_signal']) ? htmlspecialchars((string)$f['psf_signal']) : '' ?>"><?= isset($f['psf_signal']) && $f['psf_signal'] !== '' ? sprintf('%.6g', (float)$f['psf_signal']) : '' ?></td><?php endif; ?>
                 <?php endif; ?>
                                 <?php if (!empty($visibleAdvKeys ?? []) || !empty($visibleFrameKeys ?? [])): ?>
