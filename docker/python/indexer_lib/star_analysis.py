@@ -105,36 +105,47 @@ def analyze_frame(data):
         if len(objs) == 0:
             return dict(empty)
 
-        x = objs['x']
-        y = objs['y']
+        x = np.asarray(objs['x'])
+        y = np.asarray(objs['y'])
         a = objs['a'].astype(np.float64)
         b = objs['b'].astype(np.float64)
+        theta = np.asarray(objs['theta'], dtype=np.float64)
 
-        ok = (objs['flag'] & _BAD_FLAG_BITS) == 0
-        ok &= np.isfinite(a) & np.isfinite(b) & (a > 0) & (b >= 0)
+        # Pre-filter on extract-only fields, so degenerate objects never reach
+        # the photometry calls below (a single NaN there would abort the whole
+        # frame with "invalid aperture parameters").
+        pre = (objs['flag'] & _BAD_FLAG_BITS) == 0
+        pre &= np.isfinite(a) & np.isfinite(b) & np.isfinite(theta)
+        pre &= (a > 0) & (b >= 0)
         ecc = np.sqrt(np.clip(1.0 - (b / np.where(a > 0, a, 1.0)) ** 2, 0.0, 1.0))
-        ok &= np.isfinite(ecc) & (ecc <= MAX_ECCENTRICITY)
-        if not np.any(ok):
+        pre &= np.isfinite(ecc) & (ecc <= MAX_ECCENTRICITY)
+        if not np.any(pre):
             return dict(empty)
+        x, y, a, b, theta, ecc = x[pre], y[pre], a[pre], b[pre], theta[pre], ecc[pre]
 
         # AUTO flux via Kron radius, then half-flux radius (HFR).
-        kronrad, _ = sep.kron_radius(sub, x, y, objs['a'], objs['b'], objs['theta'], 6.0)
-        kronrad = np.maximum(kronrad, 1e-3)
-        flux, _, _ = sep.sum_ellipse(
-            sub, x, y, objs['a'], objs['b'], objs['theta'],
-            2.5 * kronrad, err=noise, subpix=1)
-        ok &= np.isfinite(flux) & (flux > 0)
-        hfr, _ = sep.flux_radius(
-            sub, x, y, 6.0 * objs['a'], 0.5, normflux=np.maximum(flux, 1e-9),
-            subpix=5)
-        hfr = np.asarray(hfr, dtype=np.float64)
-        ok &= np.isfinite(hfr) & (hfr > 0)
-
-        hfr = hfr[ok]
-        ecc = ecc[ok]
-        flux = flux[ok].astype(np.float64)
-        if hfr.size == 0:
+        # Each stage gates on finite/positive values before the next sep call.
+        kronrad, _ = sep.kron_radius(sub, x, y, a, b, theta, 6.0)
+        kronrad = np.asarray(kronrad, dtype=np.float64)
+        m = np.isfinite(kronrad) & (kronrad > 0)
+        if not np.any(m):
             return dict(empty)
+        x, y, a, b, theta, ecc = x[m], y[m], a[m], b[m], theta[m], ecc[m]
+        kronrad = np.maximum(kronrad[m], 1e-3)
+        flux, _, _ = sep.sum_ellipse(
+            sub, x, y, a, b, theta, 2.5 * kronrad, err=noise, subpix=1)
+        flux = np.asarray(flux, dtype=np.float64)
+        m = np.isfinite(flux) & (flux > 0)
+        if not np.any(m):
+            return dict(empty)
+        x, y, a, flux, ecc = x[m], y[m], a[m], flux[m], ecc[m]
+        hfr, _ = sep.flux_radius(sub, x, y, 6.0 * a, 0.5, normflux=flux, subpix=5)
+        hfr = np.asarray(hfr, dtype=np.float64)
+        m = np.isfinite(hfr) & (hfr > 0)
+        if not np.any(m):
+            return dict(empty)
+        hfr, ecc, flux = hfr[m], ecc[m], flux[m]
+        logger.debug(f"sep: {len(objs)} detections, {hfr.size} accepted stars")
 
         # NINA-style outlier rejection on radii (+/-1.5 sigma).
         if hfr.size >= 3:
