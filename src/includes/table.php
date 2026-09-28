@@ -67,6 +67,16 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
             foreach ($advancedHeaders as $sortKey => [$labelKey, $isCalculated]) {
                 render_header_with_tooltip($sortKey, $labelKey, $sortBy, $sortOrder, $isCalculated);
             }
+            if ($showStarMetrics ?? true) {
+                $starHeaders = [
+                    'hfr_avg' => ['hfr', true], 'fwhm_avg' => ['fwhm', true],
+                    'ecc_avg' => ['eccentricity', true], 'star_count' => ['star_count', true],
+                    'snr_weight' => ['snr_weight', true], 'psf_signal' => ['psf_signal', true],
+                ];
+                foreach ($starHeaders as $sortKey => [$labelKey, $isCalculated]) {
+                    render_header_with_tooltip($sortKey, $labelKey, $sortBy, $sortOrder, $isCalculated);
+                }
+            }
         }
         ?>
     </tr>
@@ -220,11 +230,19 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                         </span>
                     </td>
                     <td class="p-3 text-sm text-gray-300 font-mono text-xs"><?= htmlspecialchars($f['file_hash'] ?? '') ?></td>
+                    <?php if ($showStarMetrics ?? true): ?>
+                        <td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['hfr_avg']) && $f['hfr_avg'] !== '' ? number_format((float)$f['hfr_avg'], 2) : '' ?></td>
+                        <td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['fwhm_avg']) && $f['fwhm_avg'] !== '' ? number_format((float)$f['fwhm_avg'], 2) : '' ?></td>
+                        <td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['ecc_avg']) && $f['ecc_avg'] !== '' ? number_format((float)$f['ecc_avg'], 2) : '' ?></td>
+                        <td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['star_count']) && $f['star_count'] !== '' ? (int)$f['star_count'] : '' ?></td>
+                        <td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['snr_weight']) && $f['snr_weight'] !== '' ? number_format((float)$f['snr_weight'], 2) : '' ?></td>
+                        <td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['psf_signal']) && $f['psf_signal'] !== '' ? number_format((float)$f['psf_signal'], 3) : '' ?></td>
+                    <?php endif; ?>
                 <?php endif; ?>
             </tr>
             <?php endforeach; ?>
                         <?php if (empty($files)): ?>
-                <tr><td colspan="<?= $showAdvanced ? '33' : '9' ?>" class="p-4 text-center text-gray-500"><?php echo __('no_files_found') ?></td></tr>
+                <tr><td colspan="<?= 9 + ($showAdvanced ? 24 : 0) + (($showAdvanced && ($showStarMetrics ?? true)) ? 6 : 0) ?>" class="p-4 text-center text-gray-500"><?php echo __('no_files_found') ?></td></tr>
             <?php endif; ?>
 </tbody>
     </table>

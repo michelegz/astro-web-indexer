@@ -36,6 +36,11 @@ $sortBy = $_GET['sort_by'] ?? 'name';
 $sortOrder = $_GET['sort_order'] ?? 'ASC';
 $showAdvanced = isset($_GET['show_advanced']);
 
+// Star metrics master switch (STAR_METRICS_ENABLED=false hides the columns)
+$starMetricsEnv = getenv('STAR_METRICS_ENABLED');
+$showStarMetrics = $starMetricsEnv === false
+    || !in_array(strtolower(trim((string)$starMetricsEnv)), ['0', 'false', 'no', 'off'], true);
+
 $conn = connectDB();
 
 // Get the complete folder tree for navigation

@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### New Features
+- **Star & frame quality metrics** - per-LIGHT-frame HFR, FWHM, eccentricity, star count, SNR weight and PSF signal (SubframeSelector-style estimators) computed at index time with `sep`, shown as sortable advanced columns. Master switch via `STAR_METRICS_ENABLED` (default `true`)
+- **Python image switched from Alpine to slim** (`python:3.9-slim-bookworm`) to support scientific `manylinux` wheels
+
+> **Note for existing archives:** LIGHT frames indexed before this version show empty
+> metric columns until backfilled (new files are computed automatically). To backfill,
+> run once:
+> ```bash
+> docker compose run --rm python python reindex.py /var/fits --backfill-star-metrics
+> ```
+> Depending on archive size this can take a while; the live watcher is not affected.
+
 ## v1.3.0
 
 ### New Features

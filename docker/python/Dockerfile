@@ -1,7 +1,8 @@
-FROM python:3.9-alpine
+FROM python:3.9-slim-bookworm
 
-# Install system dependencies required to compile Python packages
-RUN apk add --no-cache build-base
+# NOTE: slim (glibc) instead of alpine (musl) on purpose: scientific wheels
+# (numpy, astropy, sep) ship manylinux binaries which do not install on musl.
+# No compiler toolchain needed as long as all requirements have wheels.
 
 WORKDIR /opt/scripts
 

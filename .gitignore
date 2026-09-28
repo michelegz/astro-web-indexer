@@ -74,3 +74,6 @@ publish.sh
 
 #vite
 /awi-vite-project
+
+#temporary files
+/tmp

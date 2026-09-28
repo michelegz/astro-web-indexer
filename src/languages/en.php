@@ -146,6 +146,12 @@ return [
     'sff_filters_tab' => 'Filters',
 
     'moon_phase' => 'Moon Phase',
+    'hfr' => 'HFR',
+    'fwhm' => 'FWHM',
+    'eccentricity' => 'Eccentricity',
+    'star_count' => 'Star count',
+    'snr_weight' => 'SNR weight',
+    'psf_signal' => 'PSF signal',
     'filter_by_folder' => 'Filtra by Folder',
     'no_subfolders' => 'No Subfolders',
 

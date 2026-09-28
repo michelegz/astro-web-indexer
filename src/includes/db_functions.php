@@ -84,7 +84,9 @@ function getFiles(PDO $conn, string $dir, string $object, string $filter, string
                 'width', 'height', 'resolution', 'fov_w', 'fov_h',
         // New sortable columns
         'date_avg', 'swcreate', 'objctra', 'objctdec', 'cameraid', 'usblimit', 
-        'fwheel', 'focname', 'focussz', 'foctemp', 'objctrot', 'roworder', 'equinox', 'moon_phase'
+        'fwheel', 'focname', 'focussz', 'foctemp', 'objctrot', 'roworder', 'equinox', 'moon_phase',
+        // Star/quality metrics (advanced)
+        'hfr_avg', 'fwhm_avg', 'ecc_avg', 'star_count', 'snr_weight', 'psf_signal'
     ];
     $allowedSortOrder = ['ASC', 'DESC'];
 

@@ -146,6 +146,12 @@ return [
     'sff_filters_tab' => 'Filtri',
 
     'moon_phase' => 'Fase Lunare',
+    'hfr' => 'HFR',
+    'fwhm' => 'FWHM',
+    'eccentricity' => 'Eccentricità',
+    'star_count' => 'N° stelle',
+    'snr_weight' => 'Peso SNR',
+    'psf_signal' => 'Segnale PSF',
     'filter_by_folder' => 'Filtra per Cartella',
     'no_subfolders' => 'Nessuna sottocartella',
 

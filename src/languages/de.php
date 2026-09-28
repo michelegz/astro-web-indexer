@@ -105,6 +105,12 @@ return [
     'sff_filters_tab' => 'Filter',
 
     'moon_phase' => 'Mondphase',
+    'hfr' => 'HFR',
+    'fwhm' => 'FWHM',
+    'eccentricity' => 'Exzentrizität',
+    'star_count' => 'Sternanzahl',
+    'snr_weight' => 'SNR-Gewicht',
+    'psf_signal' => 'PSF-Signal',
     'filter_by_folder' => 'Nach Ordner filtern',
     'no_subfolders' => 'Keine Unterordner',
     'calculated_by_app' => 'Berechnet von Astro Web Indexer',

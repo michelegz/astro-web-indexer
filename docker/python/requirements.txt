@@ -5,3 +5,6 @@ watchdog
 xxhash
 pyephem
 numpy
+# Star detection/photometry (SExtractor algorithms). Pinned: needs manylinux
+# wheels (glibc), which is why the image is slim-based instead of alpine.
+sep==1.4.1
