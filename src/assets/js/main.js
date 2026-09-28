@@ -373,7 +373,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- FILTRI ---
     if (filtersForm) {
-        const filters = filtersForm.querySelectorAll('select, input[type="checkbox"]');
+        // NOTE: column-chooser checkboxes (data-col) are staged and applied
+        // via the Applica button — they must NOT auto-submit the form.
+        const filters = filtersForm.querySelectorAll('select, input[type="checkbox"]:not([data-col])');
         filters.forEach(filter => {
             filter.addEventListener('change', () => {
                 filtersForm.submit();

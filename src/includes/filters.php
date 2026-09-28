@@ -120,34 +120,52 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
         <?php echo __('reset_filters') ?>
     </a>
 
-    <div class="relative">
+    <div>
         <button type="button" id="columns-btn"
            class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">
-            <?php echo __('columns') ?> ▾
+            <?php echo __('columns') ?>
         </button>
-        <div id="columns-panel" class="hidden absolute right-0 mt-2 w-72 max-h-96 overflow-y-auto bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-40 p-3">
-            <div class="flex gap-2 mb-3">
-                <button type="button" id="columns-all"
-                   class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-1 px-2 rounded transition duration-200">
-                    <?php echo __('columns_show_all') ?>
-                </button>
-                <button type="button" id="columns-reset"
-                   class="flex-1 bg-gray-600 hover:bg-gray-500 text-white text-sm font-bold py-1 px-2 rounded transition duration-200">
-                    <?php echo __('columns_reset') ?>
-                </button>
-            </div>
+    </div>
+</div>
+
+<!-- Columns Modal -->
+<div id="columns-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50">
+    <div class="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-6xl transform transition-all">
+        <div class="flex justify-between items-center border-b border-gray-700 pb-3">
+            <h3 class="text-xl font-semibold text-white"><?php echo __('columns') ?></h3>
+            <button type="button" id="columns-close" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+        </div>
+        <div id="columns-panel" class="mt-4 max-h-[75vh] overflow-y-auto">
+            <div class="flex flex-wrap gap-6">
             <?php foreach (getColumnGroups() as $groupKey => $group): ?>
                 <?php if ($groupKey === 'star' && !$showStarMetrics) continue; ?>
+                <div style="flex: 1 1 14rem;">
                 <div class="text-xs font-semibold uppercase tracking-wide text-gray-400 mt-2 mb-1"><?php echo __($group['label']); ?></div>
                 <?php foreach ($group['columns'] as $sortKey => [$labelKey, $_]): ?>
                     <label class="flex items-center gap-2 py-1 text-sm text-gray-200 cursor-pointer hover:bg-gray-600 rounded px-1">
-                        <input type="checkbox" data-col="<?= htmlspecialchars($sortKey) ?>"
+                        <input type="checkbox" data-col="<?= htmlspecialchars($sortKey) ?>" data-group="<?= htmlspecialchars($groupKey) ?>"
                                <?= showCol($sortKey) ? 'checked' : '' ?>
                                class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-600 ring-offset-gray-800 focus:ring-2">
                         <?php echo __($labelKey); ?>
                     </label>
                 <?php endforeach; ?>
+                </div>
             <?php endforeach; ?>
+            </div>
+        </div>
+        <div class="flex gap-2 pt-4 border-t border-gray-700 mt-4">
+            <button type="button" id="columns-all"
+               class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-2 px-4 rounded transition duration-200">
+                <?php echo __('columns_show_all') ?>
+            </button>
+            <button type="button" id="columns-reset"
+               class="flex-1 bg-gray-600 hover:bg-gray-500 text-white text-sm font-bold py-2 px-4 rounded transition duration-200">
+                <?php echo __('columns_reset') ?>
+            </button>
+            <button type="button" id="columns-apply"
+               class="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-2 px-4 rounded transition duration-200">
+                <?php echo __('columns_apply') ?>
+            </button>
         </div>
     </div>
 </div>
@@ -159,14 +177,16 @@ document.addEventListener('DOMContentLoaded', function() {
     var panel = document.getElementById('columns-panel');
     if (!btn || !panel) return;
 
-    btn.addEventListener('click', function(event) {
-        event.stopPropagation();
-        panel.classList.toggle('hidden');
+    var modal = document.getElementById('columns-modal');
+    var closeBtn = document.getElementById('columns-close');
+    btn.addEventListener('click', function() {
+        if (modal) modal.classList.remove('hidden');
     });
-    document.addEventListener('click', function(event) {
-        if (!panel.classList.contains('hidden') && !panel.contains(event.target)) {
-            panel.classList.add('hidden');
-        }
+    if (closeBtn) closeBtn.addEventListener('click', function() {
+        if (modal) modal.classList.add('hidden');
+    });
+    if (modal) modal.addEventListener('click', function(event) {
+        if (event.target === modal) modal.classList.add('hidden');
     });
 
     function currentUrlWithoutAdvanced() {
@@ -178,23 +198,42 @@ document.addEventListener('DOMContentLoaded', function() {
         document.cookie = 'hiddenCols=' + hidden.join(',') + ';path=/;max-age=31536000;samesite=Lax';
         window.location.href = currentUrlWithoutAdvanced();
     }
-
-    panel.querySelectorAll('input[data-col]').forEach(function(cb) {
-        cb.addEventListener('change', function() {
-            var hidden = [];
-            panel.querySelectorAll('input[data-col]').forEach(function(box) {
-                if (!box.checked) hidden.push(box.getAttribute('data-col'));
-            });
-            saveAndReload(hidden);
+    function readHiddenCols() {
+        var m = document.cookie.match(/(?:^|;\s*)hiddenCols=([^;]*)/);
+        return m ? m[1].split(',').filter(Boolean) : null; // null = no cookie yet
+    }
+    function stagedHidden() {
+        var hidden = [];
+        var listed = {};
+        panel.querySelectorAll('input[data-col]').forEach(function(box) {
+            var k = box.getAttribute('data-col');
+            listed[k] = true;
+            if (!box.checked) hidden.push(k);
         });
+        // Preserve hidden keys not currently listed (e.g. star group while metrics are off)
+        var current = readHiddenCols();
+        if (current !== null) {
+            current.forEach(function(k) {
+                if (!listed[k] && hidden.indexOf(k) === -1) hidden.push(k);
+            });
+        }
+        return hidden;
+    }
+
+    document.getElementById('columns-apply').addEventListener('click', function() {
+        saveAndReload(stagedHidden());
     });
 
     document.getElementById('columns-all').addEventListener('click', function() {
-        saveAndReload([]);
+        panel.querySelectorAll('input[data-col]').forEach(function(box) {
+            box.checked = true;
+        });
     });
     document.getElementById('columns-reset').addEventListener('click', function() {
-        document.cookie = 'hiddenCols=;path=/;expires=Thu, 01 Jan 1970 00:00:00 GMT;samesite=Lax';
-        window.location.href = currentUrlWithoutAdvanced();
+        // Default: base columns visible, everything else hidden
+        panel.querySelectorAll('input[data-col]').forEach(function(box) {
+            box.checked = (box.getAttribute('data-group') === 'base');
+        });
     });
 });
 </script>

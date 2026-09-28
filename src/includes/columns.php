@@ -27,14 +27,18 @@ function getBaseColumns(): array
 
 /**
  * Toggleable column groups.
- * Order = chooser display order (star metrics first). NOTE: the table body
- * renders star cells right after the SFF column and the rest afterwards —
- * table.php renders headers in this same group order, so the two stay aligned.
+ * Order = chooser display order. NOTE: the table body renders star cells right
+ * after the SFF column and the rest afterwards — table.php renders headers in
+ * this same group order, so the two stay aligned.
  * groupKey => ['label' => groupLabelKey, 'columns' => [sortKey => [labelKey, isCalculated]]].
  */
 function getColumnGroups(): array
 {
+    // Main columns (all except 'name', which is mandatory and has no checkbox).
+    $base = getBaseColumns();
+    unset($base['name']);
     return [
+        'base' => ['label' => 'colgroup_base', 'columns' => $base],
         'star' => ['label' => 'colgroup_star', 'columns' => [
             'hfr_avg' => ['hfr', true], 'fwhm_avg' => ['fwhm', true],
             'ecc_avg' => ['eccentricity', true], 'star_count' => ['star_count', true],
@@ -98,7 +102,8 @@ function getToggleableKeys(): array
 /**
  * Resolve hidden columns: legacy ?show_advanced=1 forces everything visible
  * (old bookmarks); otherwise the `hiddenCols` cookie (CSV of sortKeys);
- * when the cookie is absent, hide everything (legacy default).
+ * when the cookie is absent, hide everything except the base columns
+ * (legacy default: base visible, advanced/star hidden).
  */
 function resolveHiddenColumns(array $toggleable): array
 {
@@ -112,14 +117,19 @@ function resolveHiddenColumns(array $toggleable): array
         }
         return array_values(array_intersect(explode(',', $raw), $toggleable));
     }
-    return $toggleable;
+    $baseKeys = array_diff(array_keys(getBaseColumns()), ['name']);
+    return array_values(array_diff($toggleable, $baseKeys));
 }
 
 /**
  * Per-cell visibility check for table.php. Relies on $hiddenCols from init.php.
+ * The file name column has no checkbox and is always visible.
  */
 function showCol(string $sortKey): bool
 {
+    if ($sortKey === 'name') {
+        return true;
+    }
     global $hiddenCols;
     return !in_array($sortKey, $hiddenCols ?? [], true);
 }

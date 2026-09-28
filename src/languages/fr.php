@@ -40,6 +40,8 @@ return [
     'columns' => 'Colonnes',
     'columns_show_all' => 'Tout afficher',
     'columns_reset' => 'Réinitialiser',
+    'columns_apply' => 'Appliquer',
+    'colgroup_base' => 'Colonnes principales',
     'colgroup_sensor' => 'Capteur',
     'colgroup_equipment' => 'Équipement',
     'colgroup_pointing' => 'Pointage',

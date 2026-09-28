@@ -40,6 +40,8 @@ return [
     'columns' => 'Spalten',
     'columns_show_all' => 'Alle anzeigen',
     'columns_reset' => 'Zurücksetzen',
+    'columns_apply' => 'Anwenden',
+    'colgroup_base' => 'Hauptspalten',
     'colgroup_sensor' => 'Sensor',
     'colgroup_equipment' => 'Ausrüstung',
     'colgroup_pointing' => 'Positionierung',

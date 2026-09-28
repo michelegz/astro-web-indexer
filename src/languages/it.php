@@ -41,6 +41,8 @@ return [
     'columns' => 'Colonne',
     'columns_show_all' => 'Mostra tutte',
     'columns_reset' => 'Reimposta',
+    'columns_apply' => 'Applica',
+    'colgroup_base' => 'Colonne principali',
     'colgroup_sensor' => 'Sensore',
     'colgroup_equipment' => 'Strumentazione',
     'colgroup_pointing' => 'Puntamento',

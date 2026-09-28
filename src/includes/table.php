@@ -29,10 +29,12 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
         $headers = getBaseColumns();
 
         foreach ($headers as $sortKey => [$labelKey, $isCalculated]) {
+            if (!showCol($sortKey)) continue;
             render_header_with_tooltip($sortKey, $labelKey, $sortBy, $sortOrder, $isCalculated);
         }
 
         foreach (getColumnGroups() as $groupKey => $group) {
+            if ($groupKey === 'base') continue; // rendered above, in body order
             if ($groupKey === 'star' && empty($visibleStarKeys ?? [])) continue;
             if ($groupKey !== 'star' && empty($visibleAdvKeys ?? [])) continue;
             foreach ($group['columns'] as $sortKey => [$labelKey, $isCalculated]) {
@@ -47,6 +49,7 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
             <?php foreach ($files as $f): ?>
                         <tr data-id="<?= $f['id'] ?>" class="selectable-item border-b border-gray-700 hover:bg-gray-700">
                 <td class="p-3"><input type="checkbox" class="file-checkbox h-4 w-4 text-blue-600 rounded" value="<?= htmlspecialchars($f['path'] ?? '') ?>" data-id="<?= $f['id'] ?>"></td>
+                <?php if (showCol('preview')): ?>
                 <td class="p-3">
                     <div class="thumb-wrapper relative inline-block align-middle" tabindex="0">
                         <?php if ($f['thumb']): ?>
@@ -70,11 +73,13 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                         <?php endif; ?>
                     </div>
                 </td>
+                <?php endif; ?>
                 <td class="p-3">
                     <a href="/fits/<?= rawurlencode($f['path']) ?>" download class="text-blue-400 hover:text-blue-300">
                         <?= htmlspecialchars($f['name'] ?? '') ?>
                     </a>
                 </td>
+                <?php if (showCol('visible_duplicate_count')): ?>
                                 <td class="p-3 text-center">
                     <?php if (($f['total_duplicate_count'] ?? 1) > 1): ?>
                         <?php 
@@ -89,21 +94,27 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                         </span>
                     <?php endif; ?>
                 </td>
-                <td class="p-3 text-sm text-gray-400 break-all"><?= htmlspecialchars(dirname($f['path'] ?? '')) ?></td>
-                <td class="p-3 text-gray-200"><?= htmlspecialchars($f['object'] ?? '') ?></td>
+                <?php endif; ?>
+                <?php if (showCol('path')): ?><td class="p-3 text-sm text-gray-400 break-all"><?= htmlspecialchars(dirname($f['path'] ?? '')) ?></td><?php endif; ?>
+                <?php if (showCol('object')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['object'] ?? '') ?></td><?php endif; ?>
+                <?php if (showCol('date_obs')): ?>
                 <td class="p-3 text-sm text-gray-300">
                     <span class="utc-date" data-timestamp="<?= !empty($f['date_obs']) ? strtotime($f['date_obs']) : '' ?>">
                         <?= htmlspecialchars($f['date_obs'] ?? '') ?>
                     </span>
                 </td>
+                <?php endif; ?>
+                <?php if (showCol('moon_phase')): ?>
                 <td class="p-3 text-xl text-center">
                     <?= getMoonPhaseMarkup($f['moon_angle'] ?? null, $f['moon_phase'] ?? null) ?>
                 </td>
-                <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['exptime'] ?? '') ?>s</td>
-                <td class="p-3 text-gray-200"><?= htmlspecialchars($f['filter'] ?? '') ?></td>
+                <?php endif; ?>
+                <?php if (showCol('exptime')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['exptime'] ?? '') ?>s</td><?php endif; ?>
+                <?php if (showCol('filter')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['filter'] ?? '') ?></td><?php endif; ?>
                 
-                <td class="p-3 text-gray-200"><?= htmlspecialchars($f['imgtype'] ?? '') ?></td>
+                <?php if (showCol('imgtype')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['imgtype'] ?? '') ?></td><?php endif; ?>
                                 
+                                <?php if (showCol('smart_frame_finder')): ?>
                                 <td class="p-3 whitespace-nowrap">
                     <?php if (strtoupper($f['imgtype'] ?? '') === 'LIGHT'): ?>
                         <div class="flex items-center gap-2">
@@ -114,6 +125,7 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                         </div>
                     <?php endif; ?>
                 </td>
+                <?php endif; ?>
                 <?php if (!empty($visibleStarKeys ?? [])): ?>
                     <?php if (showCol('hfr_avg')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['hfr_avg']) && $f['hfr_avg'] !== '' ? number_format((float)$f['hfr_avg'], 2) : '' ?></td><?php endif; ?>
                     <?php if (showCol('fwhm_avg')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['fwhm_avg']) && $f['fwhm_avg'] !== '' ? number_format((float)$f['fwhm_avg'], 2) : '' ?></td><?php endif; ?>

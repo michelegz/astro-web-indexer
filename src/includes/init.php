@@ -55,7 +55,8 @@ foreach ($columnGroups as $groupKey => $group) {
 $starKeys = array_keys($columnGroups['star']['columns']);
 $visibleAdvKeys = array_values(array_diff($advKeys, $hiddenCols));
 $visibleStarKeys = $showStarMetrics ? array_values(array_diff($starKeys, $hiddenCols)) : [];
-$tableColspan = count(getBaseColumns()) + 1 + count($visibleAdvKeys) + count($visibleStarKeys);
+$visibleBaseKeys = array_values(array_diff(array_keys(getBaseColumns()), $hiddenCols)); // 'name' can never be hidden
+$tableColspan = 1 + count($visibleBaseKeys) + count($visibleAdvKeys) + count($visibleStarKeys);
 
 $conn = connectDB();
 

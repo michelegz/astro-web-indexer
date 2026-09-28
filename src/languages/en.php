@@ -41,6 +41,8 @@ return [
     'columns' => 'Columns',
     'columns_show_all' => 'Show all',
     'columns_reset' => 'Reset',
+    'columns_apply' => 'Apply',
+    'colgroup_base' => 'Main columns',
     'colgroup_sensor' => 'Sensor',
     'colgroup_equipment' => 'Equipment',
     'colgroup_pointing' => 'Pointing',
