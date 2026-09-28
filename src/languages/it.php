@@ -14,6 +14,7 @@ return [
     'all_objects' => 'Tutti gli oggetti',
     'all_filters' => 'Tutti i filtri',
     'all_types' => 'Tutti i tipi',
+    'filter_not_in_folder' => 'non in questa cartella',
     'apply_filters' => 'Applica filtri',
     'reset_filters' => 'Reimposta filtri',
     'file_name' => 'Nome file',

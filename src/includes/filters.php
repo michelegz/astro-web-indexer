@@ -19,6 +19,12 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
             <?php
             // Get OBJECT values considering other filters (except OBJECT itself)
             $availableObjects = getDistinctValues($conn, 'object', $dir, '', $filterFilter, $filterImgtype);
+            // Stale filter from another folder: no <option> would match, so the
+            // browser falls back to displaying "All objects" while the query
+            // still filters by it (empty table, misleading). Show it explicitly.
+            if ($filterObject !== '' && !in_array($filterObject, $availableObjects, true)): ?>
+                <option value="<?= htmlspecialchars($filterObject) ?>" selected><?= htmlspecialchars($filterObject) ?> — <?= __('filter_not_in_folder') ?></option>
+            <?php endif;
             foreach($availableObjects as $o): ?>
                 <option value="<?= htmlspecialchars($o) ?>" <?= $o==$filterObject?'selected':'' ?>><?= htmlspecialchars($o) ?></option>
             <?php endforeach; ?>
@@ -32,6 +38,9 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
             <?php
             // Get FILTER values considering other filters (except FILTER itself)
             $availableFilters = getDistinctValues($conn, 'filter', $dir, $filterObject, '', $filterImgtype);
+            if ($filterFilter !== '' && !in_array($filterFilter, $availableFilters, true)): ?>
+                <option value="<?= htmlspecialchars($filterFilter) ?>" selected><?= htmlspecialchars($filterFilter) ?> — <?= __('filter_not_in_folder') ?></option>
+            <?php endif;
             foreach($availableFilters as $f): ?>
                 <option value="<?= htmlspecialchars($f) ?>" <?= $f==$filterFilter?'selected':'' ?>><?= htmlspecialchars($f) ?></option>
             <?php endforeach; ?>
@@ -45,6 +54,9 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
             <?php
             // Get IMGTYPE values considering other filters (except IMGTYPE itself)
             $availableImgtypes = getDistinctValues($conn, 'imgtype', $dir, $filterObject, $filterFilter, '');
+            if ($filterImgtype !== '' && !in_array($filterImgtype, $availableImgtypes, true)): ?>
+                <option value="<?= htmlspecialchars($filterImgtype) ?>" selected><?= htmlspecialchars($filterImgtype) ?> — <?= __('filter_not_in_folder') ?></option>
+            <?php endif;
                         foreach($availableImgtypes as $i): ?>
                 <option value="<?= htmlspecialchars($i) ?>" <?= $i==$filterImgtype?'selected':'' ?>><?= htmlspecialchars($i) ?></option>
             <?php endforeach; ?>
