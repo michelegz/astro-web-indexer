@@ -13,7 +13,7 @@ $baseQueryString = http_build_query($baseQueryParams);
     <nav class="text-sm font-medium text-gray-400" aria-label="Breadcrumb">
     <ol class="list-none p-0 inline-flex flex-wrap">
                 <li class="flex items-center">
-            <a href="?<?= $baseQueryString ?>" class="text-blue-400 hover:text-blue-300">Home</a>
+            <a href="?<?= $baseQueryString ?>" class="text-blue-400 hover:text-blue-300"><?php echo __('home') ?></a>
             <?php if (!empty($dir)): ?>
                 <span class="mx-2 text-gray-500">/</span>
             <?php endif; ?>
