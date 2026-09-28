@@ -131,8 +131,8 @@ return [
     'fwhm' => 'FWHM',
     'eccentricity' => 'Exzentrizität',
     'star_count' => 'Sternanzahl',
-    'snr_weight' => 'SNR-Gewicht',
-    'psf_signal' => 'PSF-Signal',
+    'snr_weight' => 'Stellar-SNR (rel.)',
+    'psf_signal' => 'PSF-Qualität (rel.)',
     'hfr_sd' => 'HFR-StdAbw',
 
     // Sternmetrik-Verlauf

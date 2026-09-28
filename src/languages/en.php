@@ -172,8 +172,8 @@ return [
     'fwhm' => 'FWHM',
     'eccentricity' => 'Eccentricity',
     'star_count' => 'Star count',
-    'snr_weight' => 'SNR weight',
-    'psf_signal' => 'PSF signal',
+    'snr_weight' => 'Stellar SNR (rel.)',
+    'psf_signal' => 'PSF quality (rel.)',
     'hfr_sd' => 'HFR stddev',
 
     // Star metrics trend

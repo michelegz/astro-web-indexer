@@ -204,7 +204,13 @@ def process_file_worker(full_path, fits_root, thumb_size, star_metrics=True, wit
 
         if xpixsz and focallen and width and height:
             if xpixsz > 0 and focallen > 0:
-                resolution = (xpixsz / focallen) * 206.265
+                # Effective pixel size scales with binning (bin2 = 2x pixel width).
+                # Use XBINNING (documented assumption when X/Y differ, rare).
+                xb = xbinning if xbinning and xbinning > 0 else 1
+                resolution = (xpixsz * xb / focallen) * 206.265
+                if resolution < 0.1 or resolution > 10:
+                    logger.warning(f"Unusual resolution {resolution:.3f} arcsec/px in {rel_path} "
+                                   f"(xpixsz={xpixsz}, xbinning={xb}, focallen={focallen})")
                 fov_w = (width * resolution) / 60
                 fov_h = (height * resolution) / 60
 

@@ -11,9 +11,13 @@ Method notes:
   No downscaling (fields can be undersampled — shrinking would erase real
   stars); hot pixels are cut by tiny-area AND extreme-peak signature.
 - HFR: sep.flux_radius(frac=0.5), i.e. the radius enclosing half the AUTO flux.
-- FWHM: approximated as 2xHFR (exact for Gaussian PSFs). Validated against
-  N.I.N.A. logs; see tmp/star-metrics-plan.md for the fallback (radial profile
-  following NINA's Star.CalculateFwhm) if the deviation proves significant.
+- FWHM: radial-profile half-maximum (NINA Star.CalculateFwhm method, numpy
+  reimplementation — no NINA code): azimuthal mean profile on small cutouts,
+  linear interpolation of the half-maximum radius, FWHM = 2x that. Median over
+  the brightest stars; falls back to 2xHFR (exact for Gaussians) when too few
+  stars are measurable. Relative measure for ranking/trends, not absolute.
+- Luminance: mono/Bayer-RAW 2D used as-is; RGB cubes use the best channel by
+  signal score (G on broadband, R on Ha/dual-band).
 - Eccentricity: sqrt(1-(b/a)^2) from the sep ellipse parameters.
 - Star selection mirrors N.I.N.A.'s cuts: reject saturated/truncated/incomplete
   objects (SExtractor flag bits), eccentricity > 0.8, and radius outliers
@@ -58,29 +62,172 @@ MIN_DIMENSION = 32
 # autofocus (NumberOfAFStars: brightest stars only).
 MAX_STARS = 1500
 # Hot-pixel signature: tiny area AND extreme peak (real stars never combine
-# both — faint small stars have modest peaks). Full-resolution units.
+# both at these levels — faint small stars have modest peaks, and even bright
+# undersampled stars rarely exceed ~80 sigma on a single pixel without
+# saturating, which is already caught by the SExtractor saturated flag).
+# Full-resolution units.
 # Note: npix is measured on convolved data, so a 3x3 hot cluster spans ~25px;
-# the threshold accounts for that spread.
+# HOT_NPIX=32 keeps margin above that spread (20 would let them through).
+# True hot clusters typically peak at hundreds of sigma, so 80 sigma keeps
+# margin against bright real stars while still catching them.
 HOT_NPIX = 32
-HOT_PEAK_SIGMA = 30.0
+HOT_PEAK_SIGMA = 80.0
 
 # SExtractor extraction flag bits for objects to reject:
 # 4 = saturated, 8 = truncated at image boundary,
 # 16 = aperture incomplete, 32 = isophotal incomplete.
 _BAD_FLAG_BITS = 4 | 8 | 16 | 32
 
+# FWHM radial-profile sampling (NINA Star.CalculateFwhm method, numpy-only).
+# Only the brightest subset is measured: enough for a robust median, and the
+# per-star cutout cost stays in the milliseconds (vs seconds for sep.extract).
+MAX_FWHM_STARS = 200
+MIN_FWHM_STARS = 20
+
+
+def _channel_score(ch):
+    """Signal score for one color channel: (p99 - median) / MAD.
+
+    Picks the channel carrying the most stellar signal. G wins on broadband
+    RGB (as before), R wins on Ha/dual-band narrowband where G is ~noise.
+    MAD-based denominator stays robust to stars/nebulosity.
+    """
+    try:
+        flat = np.asarray(ch).ravel()
+        if flat.dtype.kind == 'f':
+            flat = flat[np.isfinite(flat)]
+        if flat.size == 0:
+            return -np.inf
+        # Subsample huge channels for speed (percentile on 1M px is plenty).
+        if flat.size > 1_000_000:
+            flat = flat[:: flat.size // 1_000_000]
+        med = float(np.median(flat))
+        mad = float(np.median(np.abs(flat.astype(np.float64) - med)))
+        if not np.isfinite(mad) or mad <= 0:
+            return -np.inf
+        p99 = float(np.percentile(flat, 99))
+        score = (p99 - med) / mad
+        return score if np.isfinite(score) else -np.inf
+    except Exception:
+        return -np.inf
+
 
 def _extract_luminance(data):
-    """Return a 2D luminance array from mono or color data, or None."""
+    """Return a 2D luminance array from mono or color data, or None.
+
+    Mono / OSC RAW with Bayer mosaic (2D): used as-is.
+    RGB cube (3D): best-channel by signal score — G on broadband (as before),
+    R on Ha/dual-band narrowband, G/B on OIII. Averaging would dilute
+    narrowband 3x; per-pixel max would amplify noise.
+    """
     arr = np.squeeze(data)
     if arr.ndim == 2:
         return arr
     if arr.ndim == 3:
         if arr.shape[0] in (3, 4):  # (C, H, W), e.g. FITS RGB cube
-            return arr[1] if arr.shape[0] >= 3 else arr[0]
+            nch = min(3, int(arr.shape[0]))  # ignore alpha if RGBA
+            scores = [_channel_score(arr[i]) for i in range(nch)]
+            best = int(np.argmax(scores))
+            logger.debug("luminance best-channel: %d/%d scores=%s",
+                         best, nch, [f"{s:.2f}" for s in scores])
+            return arr[best]
         if arr.shape[-1] in (3, 4):  # (H, W, C)
-            return arr[..., 1]  # green channel approximates luminance
+            nch = min(3, int(arr.shape[-1]))
+            scores = [_channel_score(arr[..., i]) for i in range(nch)]
+            best = int(np.argmax(scores))
+            logger.debug("luminance best-channel: %d/%d scores=%s",
+                         best, nch, [f"{s:.2f}" for s in scores])
+            return arr[..., best]  # green channel approximates luminance
     return None
+
+
+def _fwhm_from_profile(sub, x, y, hfr_est):
+    """Half-maximum FWHM from azimuthal mean profile (NINA method, numpy-only).
+
+    For one star: cutout of radius R=4*HFR+4 around the integer centroid,
+    local background from the cutout border, azimuthal mean in 0.5px bins,
+    linear interpolation of the radius where the profile drops to half the
+    background-subtracted peak. Returns FWHM = 2*r_half, or NaN if unusable
+    (edge, non-monotonic core, saturated plateau).
+    Pure numpy; ~microseconds per star. NOT a Moffat fit (that would need a
+    per-star non-linear solver, 10-100x heavier, Siril-style — deliberately
+    avoided here).
+    """
+    try:
+        h = float(hfr_est)
+        if not np.isfinite(h) or h <= 0:
+            return np.nan
+        r_box = int(min(25, max(8, round(4.0 * h + 4.0))))
+        xi, yi = int(round(float(x))), int(round(float(y)))
+        h_img, w_img = sub.shape
+        if xi - r_box < 0 or yi - r_box < 0 or xi + r_box >= w_img or yi + r_box >= h_img:
+            return np.nan
+        cut = np.asarray(sub[yi - r_box: yi + r_box + 1, xi - r_box: xi + r_box + 1],
+                         dtype=np.float64)
+        if cut.shape != (2 * r_box + 1, 2 * r_box + 1):
+            return np.nan
+        # Local background: median of the outer 1px border (robust to neighbors
+        # unless the field is extremely crowded, where it degrades gracefully).
+        border = np.concatenate([cut[0, :], cut[-1, :], cut[1:-1, 0], cut[1:-1, -1]])
+        bg = float(np.median(border))
+        if not np.isfinite(bg):
+            return np.nan
+        core = cut[r_box - 1: r_box + 2, r_box - 1: r_box + 2]
+        peak = float(np.max(core)) - bg
+        if not np.isfinite(peak) or peak <= 0:
+            return np.nan
+        half = peak / 2.0
+        yy, xx = np.mgrid[-r_box: r_box + 1, -r_box: r_box + 1]
+        rr = np.sqrt(xx.astype(np.float64) ** 2 + yy.astype(np.float64) ** 2)
+        vals = (cut - bg).ravel()
+        rad = rr.ravel()
+        nbins = int(r_box * 2)  # 0.5px bins up to r_box
+        edges = np.arange(nbins + 1, dtype=np.float64) * 0.5
+        idx = np.digitize(rad, edges) - 1
+        prof = np.full(nbins, np.nan)
+        for b in range(nbins):
+            m = idx == b
+            if np.any(m):
+                prof[b] = float(np.mean(vals[m]))
+        # NOTE: 0.5px bins leave every other bin empty on the pixel grid
+        # (no pixel has e.g. 0.5<=r<1.0), so only finite bins take part.
+        finite = [(edges[b] + 0.25, prof[b]) for b in range(nbins)
+                  if np.isfinite(prof[b])]
+        if len(finite) < 3 or not finite[0][1] > half:
+            return np.nan
+        # Walk outwards from the core: first segment crossing half-max.
+        for (r0, v0), (r1, v1) in zip(finite, finite[1:]):
+            if v0 >= half > v1:
+                if v0 == v1 or r1 <= r0:
+                    return np.nan
+                frac = (v0 - half) / (v0 - v1)
+                r_half = r0 + frac * (r1 - r0)
+                if 0.5 <= r_half <= r_box:
+                    return 2.0 * r_half
+                return np.nan
+        return np.nan
+    except Exception:
+        return np.nan
+
+
+def _median_fwhm(sub, xs, ys, hfrs, fluxes):
+    """Median FWHM over the brightest subset; NaN if too few measurable."""
+    try:
+        n = len(hfrs)
+        if n == 0:
+            return np.nan
+        order = np.argsort(np.asarray(fluxes, dtype=np.float64))[::-1]
+        take = order[: min(MAX_FWHM_STARS, n)]
+        out = []
+        for i in take:
+            v = _fwhm_from_profile(sub, xs[i], ys[i], hfrs[i])
+            if np.isfinite(v) and 0.5 < v < 60.0:
+                out.append(v)
+        if len(out) >= min(MIN_FWHM_STARS, n):
+            return float(np.median(out))
+        return np.nan
+    except Exception:
+        return np.nan
 
 
 def analyze_frame(data):
@@ -149,6 +296,10 @@ def analyze_frame(data):
         # both). No downscaling: fields can be undersampled (HFR < 1px) and
         # shrinking would erase real stars before hot pixels.
         hot = (np.asarray(objs['npix']) <= HOT_NPIX) & (np.asarray(objs['peak'], dtype=np.float64) > HOT_PEAK_SIGMA * noise)
+        n_hot = int(np.count_nonzero(hot))
+        if n_hot:
+            logger.debug("sep hot-pixel cut rejected %d detections (npix<=%d and peak>%.0fσ)",
+                         n_hot, HOT_NPIX, HOT_PEAK_SIGMA)
         pre &= ~hot
         if not np.any(pre):
             return dict(empty)
@@ -189,7 +340,7 @@ def analyze_frame(data):
         m = np.isfinite(hfr) & (hfr > 0)
         if not np.any(m):
             return result
-        hfr, ecc, flux, fluxerr = hfr[m], ecc[m], flux[m], fluxerr[m]
+        x, y, hfr, ecc, flux, fluxerr = x[m], y[m], hfr[m], ecc[m], flux[m], fluxerr[m]
         logger.debug(f"sep: {len(objs)} detections, {n_detected} quality, {hfr.size} measured")
 
         # NINA-style outlier rejection on radii (+/-1.5 sigma).
@@ -199,6 +350,8 @@ def analyze_frame(data):
                 mean = float(np.mean(hfr))
                 keep = np.abs(hfr - mean) <= OUTLIER_SIGMA * std
                 if np.any(keep):
+                    x = x[keep]
+                    y = y[keep]
                     hfr = hfr[keep]
                     ecc = ecc[keep]
                     flux = flux[keep]
@@ -206,9 +359,15 @@ def analyze_frame(data):
 
         n = int(hfr.size)
         hfr_avg = float(np.mean(hfr))
+        fwhm_med = _median_fwhm(sub, x, y, hfr, flux)
+        if np.isfinite(fwhm_med):
+            fwhm_avg = float(fwhm_med)
+        else:  # too few measurable profiles (sparse/tiny frame): exact for Gaussians
+            fwhm_avg = 2.0 * hfr_avg
+            logger.debug("fwhm fallback to 2xHFR (profiles unmeasurable)")
         result.update({
             'hfr_avg': hfr_avg,
-            'fwhm_avg': 2.0 * hfr_avg,  # exact for Gaussian PSFs; see module docstring
+            'fwhm_avg': fwhm_avg,
             'hfr_sd': float(np.std(hfr)) if n > 1 else 0.0,
             'ecc_avg': float(np.mean(ecc)),
         })

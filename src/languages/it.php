@@ -172,8 +172,8 @@ return [
     'fwhm' => 'FWHM',
     'eccentricity' => 'Eccentricità',
     'star_count' => 'N° stelle',
-    'snr_weight' => 'Peso SNR',
-    'psf_signal' => 'Segnale PSF',
+    'snr_weight' => 'SNR stellare (rel.)',
+    'psf_signal' => 'Qualità PSF (rel.)',
     'hfr_sd' => 'Dev. std. HFR',
 
     // Andamento metriche stellari
