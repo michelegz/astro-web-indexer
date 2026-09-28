@@ -58,7 +58,7 @@ return [
     'image_channels' => 'Kanäle',
     'image_color_type' => 'Farbe',
     'bayer_pattern' => 'Bayer',
-    'colgroup_frame' => 'Frame',
+    'colgroup_frame' => 'Statistiken',
     'footer_credits' => 'Astro Web Indexer - Erstellt von Michele Guzzini - Veröffentlicht unter GPL',
     'no_files_selected' => 'Keine Dateien für den Download ausgewählt.',
         'menu_directory' => 'Ordner',

@@ -59,7 +59,7 @@ return [
     'image_channels' => 'Canales',
     'image_color_type' => 'Color',
     'bayer_pattern' => 'Bayer',
-    'colgroup_frame' => 'Fotograma',
+    'colgroup_frame' => 'Estadísticas',
     'footer_credits' => 'Astro Web Indexer - Creado por Michele Guzzini - Publicado bajo GPL',
     'no_files_selected' => 'No se seleccionaron archivos para la descarga.',
     'menu_directory' => 'Carpetas',

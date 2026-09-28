@@ -59,7 +59,7 @@ return [
     'image_channels' => 'Canali',
     'image_color_type' => 'Colore',
     'bayer_pattern' => 'Bayer',
-    'colgroup_frame' => 'Frame',
+    'colgroup_frame' => 'Statistiche',
     'footer_credits' => 'Astro Web Indexer - Creato da Michele Guzzini - Rilasciato con licenza GPL',
     'db_connection_error' => 'Impossibile connettersi al database: {0}',
     'no_files_selected' => 'Nessun file selezionato per il download.',
