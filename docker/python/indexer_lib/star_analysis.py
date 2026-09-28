@@ -28,6 +28,7 @@ All failures return None (never block indexing); the caller stores NULLs.
 """
 
 import logging
+import time
 
 import numpy as np
 
@@ -87,6 +88,7 @@ def analyze_frame(data):
             logger.warning("sep is not installed, skipping star metrics")
             _sep_warning_logged = True
         return None
+    t_start = time.perf_counter()
     try:
         lum = _extract_luminance(data)
         if lum is None or lum.shape[0] < MIN_DIMENSION or lum.shape[1] < MIN_DIMENSION:
@@ -100,8 +102,12 @@ def analyze_frame(data):
         if not np.isfinite(noise) or noise <= 0:
             return None
         sub = img - bkg
+        t_bg = time.perf_counter()
 
         objs = sep.extract(sub, THRESH_SIGMA, err=noise, minarea=MIN_AREA)
+        t_extract = time.perf_counter()
+        logger.debug("sep background+extract: %d detections (bg %.2fs, extract %.2fs)",
+                     len(objs), t_bg - t_start, t_extract - t_bg)
         if len(objs) == 0:
             return dict(empty)
 
@@ -180,6 +186,8 @@ def analyze_frame(data):
             result['psf_signal'] = (
                 (5.326e-6 * total_flux * mean_flux) / (9.0e6 * noise * n)
             )
+        logger.debug("sep star analysis done: %d accepted stars in %.2fs total",
+                     n, time.perf_counter() - t_start)
         return result
     except Exception as e:
         logger.warning(f"Star metrics computation failed: {e}")

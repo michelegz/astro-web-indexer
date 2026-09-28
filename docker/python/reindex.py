@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import mysql.connector
 import xxhash
 from astropy.io import fits
@@ -74,9 +75,14 @@ if not os.path.isdir(fits_root):
 
 commit_interval = 50
 
+# Files slower than this (seconds, full worker incl. hash + thumbnails + metrics)
+# get a WARNING during backfill so slow outliers are visible without --debug.
+SLOW_FILE_SECONDS = 60.0
+
 
 # --- Worker function for multiprocessing ---
-def process_file_worker(full_path, fits_root, thumb_size, star_metrics=True):
+def process_file_worker(full_path, fits_root, thumb_size, star_metrics=True, with_thumbs=True):
+    t_start = time.perf_counter()
     rel_path = os.path.relpath(full_path, fits_root)
     logger.debug(f"Worker[{os.getpid()}] processing: {rel_path}")
     file_lower = full_path.lower()
@@ -103,7 +109,8 @@ def process_file_worker(full_path, fits_root, thumb_size, star_metrics=True):
             images_meta = xisf_file.get_images_metadata()
             if not images_meta:
                 logger.warning(f"No image metadata in XISF file: {rel_path}")
-                return {'status': 'error', 'path': rel_path, 'reason': 'No image metadata in XISF'}
+                return {'status': 'error', 'path': rel_path, 'reason': 'No image metadata in XISF',
+                        'elapsed': time.perf_counter() - t_start}
             header = images_meta[0].get('FITSKeywords', {})
             data = xisf_file.read_image(0)
             get_value = get_xisf_header_value
@@ -119,8 +126,11 @@ def process_file_worker(full_path, fits_root, thumb_size, star_metrics=True):
 
             if thumb_data.ndim >= 2:
                 height, width = thumb_data.shape[:2]
-                thumb = make_thumbnail(thumb_data, thumb_size)
-                thumb_crop = make_crop_preview(data, thumb_size)
+                # Thumbnails are skipped in backfill mode: the backfill UPDATE
+                # never writes them, and STF-stretching full frames is expensive.
+                if with_thumbs:
+                    thumb = make_thumbnail(thumb_data, thumb_size)
+                    thumb_crop = make_crop_preview(data, thumb_size)
 
         object_name = get_value(header, 'OBJECT', 'Unknown', str).strip()
         date_obs_str = get_value(header, 'DATE-OBS', None, str)
@@ -272,11 +282,14 @@ def process_file_worker(full_path, fits_root, thumb_size, star_metrics=True):
             'image_channels': channels, 'image_color_type': color_type,
             'bayer_pattern': bayer
         }
-        return {'status': 'success', 'path': rel_path, 'params': params}
+        elapsed = time.perf_counter() - t_start
+        logger.debug(f"Worker[{os.getpid()}] done: {rel_path} in {elapsed:.1f}s")
+        return {'status': 'success', 'path': rel_path, 'params': params, 'elapsed': elapsed}
 
     except Exception as e:
         logger.error(f"Error processing {rel_path} in worker: {e}")
-        return {'status': 'error', 'path': rel_path, 'reason': str(e)}
+        return {'status': 'error', 'path': rel_path, 'reason': str(e),
+                'elapsed': time.perf_counter() - t_start}
 
 
 def main():
@@ -530,8 +543,10 @@ def main():
                         "mean_pixel=%s, median_pixel=%s, bit_depth=%s, image_channels=%s, "
                         "image_color_type=%s, bayer_pattern=%s, data_schema_version=%s WHERE path=%s"
                     )
+                    backfill_start = datetime.now()
                     backfill_func = partial(process_file_worker, fits_root=fits_root,
-                                            thumb_size=thumb_size, star_metrics=True)
+                                            thumb_size=thumb_size, star_metrics=True,
+                                            with_thumbs=False)
                     with concurrent.futures.ProcessPoolExecutor(max_workers=args.workers) as executor:
                         for result in executor.map(backfill_func, backfill_tasks):
                             try:
@@ -539,6 +554,9 @@ def main():
                                     error_count += 1
                                     logger.error(f"Backfill failed for {result['path']}: {result['reason']}")
                                     continue
+                                elapsed = result.get('elapsed')
+                                if elapsed is not None and elapsed > SLOW_FILE_SECONDS:
+                                    logger.warning(f"Slow file ({elapsed:.0f}s): {result['path']}")
                                 p = result['params']
                                 cur.execute(backfill_sql, (p['hfr'], p['fwhm'], p['hfr_sd'],
                                                            p['eccentricity'], p['star_count'],
@@ -552,7 +570,9 @@ def main():
                                 backfilled_count += 1
                                 if backfilled_count % commit_interval == 0:
                                     conn.commit()
-                                    logger.info(f"Backfill progress: {backfilled_count} files updated.")
+                                    mins = max((datetime.now() - backfill_start).total_seconds() / 60, 1e-6)
+                                    logger.info(f"Backfill progress: {backfilled_count} files updated "
+                                                f"({backfilled_count / mins:.1f} files/min).")
                             except Exception as e:
                                 logger.error(f"Error during backfill for {result.get('path', 'unknown file')}: {e}")
                                 error_count += 1
