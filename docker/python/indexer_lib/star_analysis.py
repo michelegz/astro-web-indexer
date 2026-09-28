@@ -5,8 +5,11 @@ Star and frame quality metrics using `sep` (Source Extraction and Photometry).
 with Python bindings (LGPLv3+, used here as a pip dependency - no code copied).
 
 Method notes:
-- Background/noise: sep.Background. Detection: sep.extract with SExtractor
-  defaults (thresh 1.5 sigma, minarea 5, deblending on).
+- Background/noise: sep.Background. Detection: sep.extract at 5 sigma with
+  minarea 9 (bright, reliable stars only — faint objects add noise, not signal,
+  to a mean HFR), capped to the brightest MAX_STARS by isophotal flux.
+  No downscaling (fields can be undersampled — shrinking would erase real
+  stars); hot pixels are cut by tiny-area AND extreme-peak signature.
 - HFR: sep.flux_radius(frac=0.5), i.e. the radius enclosing half the AUTO flux.
 - FWHM: approximated as 2xHFR (exact for Gaussian PSFs). Validated against
   N.I.N.A. logs; see tmp/star-metrics-plan.md for the fallback (radial profile
@@ -42,11 +45,22 @@ except ImportError:  # pragma: no cover - reindex must survive a missing dep
 logger = logging.getLogger('reindex.star_analysis')
 _sep_warning_logged = False
 
-THRESH_SIGMA = 1.5
-MIN_AREA = 5
+THRESH_SIGMA = 5.0
+MIN_AREA = 9
 MAX_ECCENTRICITY = 0.8
 OUTLIER_SIGMA = 1.5
 MIN_DIMENSION = 32
+# Only the brightest stars are measured: plenty for a robust mean HFR, and it
+# keeps deblending/photometry fast on dense fields (tens of thousands of
+# detections would otherwise take minutes per frame). NINA does the same for
+# autofocus (NumberOfAFStars: brightest stars only).
+MAX_STARS = 1500
+# Hot-pixel signature: tiny area AND extreme peak (real stars never combine
+# both — faint small stars have modest peaks). Full-resolution units.
+# Note: npix is measured on convolved data, so a 3x3 hot cluster spans ~25px;
+# the threshold accounts for that spread.
+HOT_NPIX = 32
+HOT_PEAK_SIGMA = 30.0
 
 # SExtractor extraction flag bits for objects to reject:
 # 4 = saturated, 8 = truncated at image boundary,
@@ -104,6 +118,9 @@ def analyze_frame(data):
         sub = img - bkg
         t_bg = time.perf_counter()
 
+        # NOTE: no downscaling (unlike NINA's maxWidth resize): our fields can be
+        # undersampled (HFR < 1px) and shrinking would erase real stars before
+        # hot pixels. Speed comes from the high threshold + top-N cap instead.
         objs = sep.extract(sub, THRESH_SIGMA, err=noise, minarea=MIN_AREA)
         t_extract = time.perf_counter()
         logger.debug("sep background+extract: %d detections (bg %.2fs, extract %.2fs)",
@@ -125,9 +142,22 @@ def analyze_frame(data):
         pre &= (a > 0) & (b >= 0)
         ecc = np.sqrt(np.clip(1.0 - (b / np.where(a > 0, a, 1.0)) ** 2, 0.0, 1.0))
         pre &= np.isfinite(ecc) & (ecc <= MAX_ECCENTRICITY)
+        # Hot pixels: tiny area AND extreme peak (faint small stars never combine
+        # both). No downscaling: fields can be undersampled (HFR < 1px) and
+        # shrinking would erase real stars before hot pixels.
+        hot = (np.asarray(objs['npix']) <= HOT_NPIX) & (np.asarray(objs['peak'], dtype=np.float64) > HOT_PEAK_SIGMA * noise)
+        pre &= ~hot
         if not np.any(pre):
             return dict(empty)
-        x, y, a, b, theta, ecc = x[pre], y[pre], a[pre], b[pre], theta[pre], ecc[pre]
+        # Keep only the brightest MAX_STARS by isophotal flux: enough for a
+        # robust mean, and deblending/photometry stay fast on dense fields.
+        idx = np.flatnonzero(pre)
+        isoflux = np.asarray(objs['flux'], dtype=np.float64)[idx]
+        isoflux[~np.isfinite(isoflux)] = -np.inf
+        if idx.size > MAX_STARS:
+            part = np.argpartition(isoflux, -MAX_STARS)[-MAX_STARS:]
+            idx = idx[part[np.argsort(isoflux[part])[::-1]]]
+        x, y, a, b, theta, ecc = x[idx], y[idx], a[idx], b[idx], theta[idx], ecc[idx]
 
         # AUTO flux via Kron radius, then half-flux radius (HFR).
         # Each stage gates on finite/positive values before the next sep call.
