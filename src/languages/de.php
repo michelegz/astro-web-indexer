@@ -123,6 +123,7 @@ return [
     'star_count' => 'Sternanzahl',
     'snr_weight' => 'SNR-Gewicht',
     'psf_signal' => 'PSF-Signal',
+    'hfr_sd' => 'HFR-StdAbw',
 
     // Sternmetrik-Verlauf
     'metrics_trend' => 'Metrik-Verlauf',

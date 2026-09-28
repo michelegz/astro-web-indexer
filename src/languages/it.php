@@ -164,6 +164,7 @@ return [
     'star_count' => 'N° stelle',
     'snr_weight' => 'Peso SNR',
     'psf_signal' => 'Segnale PSF',
+    'hfr_sd' => 'Dev. std. HFR',
 
     // Andamento metriche stellari
     'metrics_trend' => 'Andamento metriche',

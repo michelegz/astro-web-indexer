@@ -124,6 +124,7 @@ return [
     'star_count' => 'Nb étoiles',
     'snr_weight' => 'Poids SNR',
     'psf_signal' => 'Signal PSF',
+    'hfr_sd' => 'Écart-type HFR',
 
     // Évolution des métriques stellaires
     'metrics_trend' => 'Évolution des métriques',

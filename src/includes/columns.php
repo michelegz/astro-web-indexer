@@ -40,8 +40,9 @@ function getColumnGroups(): array
     return [
         'base' => ['label' => 'colgroup_base', 'columns' => $base],
         'star' => ['label' => 'colgroup_star', 'columns' => [
-            'hfr_avg' => ['hfr', true], 'fwhm_avg' => ['fwhm', true],
-            'ecc_avg' => ['eccentricity', true], 'star_count' => ['star_count', true],
+            'hfr' => ['hfr', true], 'fwhm' => ['fwhm', true],
+            'hfr_sd' => ['hfr_sd', true], 'eccentricity' => ['eccentricity', true],
+            'star_count' => ['star_count', true],
             'snr_weight' => ['snr_weight', true], 'psf_signal' => ['psf_signal', true],
         ]],
         'sensor' => ['label' => 'colgroup_sensor', 'columns' => [

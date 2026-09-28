@@ -2,7 +2,7 @@
 // Card collapsible con l'andamento delle metriche stellari sulle immagini
 // attualmente filtrate, nello stesso ordinamento della tabella
 // (asse X = posizione nel risultato ordinato). $starTrend da init.php.
-$trendKeys = ['hfr_avg', 'fwhm_avg', 'ecc_avg', 'star_count', 'snr_weight', 'psf_signal'];
+$trendKeys = ['hfr', 'fwhm', 'hfr_sd', 'eccentricity', 'star_count', 'snr_weight', 'psf_signal'];
 $hasTrendData = false;
 foreach ($starTrend as $row) {
     foreach ($trendKeys as $k) {
@@ -12,12 +12,13 @@ foreach ($starTrend as $row) {
 if ($hasTrendData):
     $trendCount = $lightRecords ?? count($starTrend);
     $trendConfig = [
-        ['key' => 'hfr_avg',    'label' => __('hfr') . ' (px)', 'color' => '#60a5fa'],
-        ['key' => 'fwhm_avg',   'label' => __('fwhm') . ' (px)', 'color' => '#34d399'],
-        ['key' => 'ecc_avg',    'label' => __('eccentricity'),   'color' => '#fbbf24'],
-        ['key' => 'star_count', 'label' => __('star_count'),     'color' => '#f472b6'],
-        ['key' => 'snr_weight', 'label' => __('snr_weight'),     'color' => '#22d3ee'],
-        ['key' => 'psf_signal', 'label' => __('psf_signal'),     'color' => '#fb7185'],
+        ['key' => 'hfr',          'label' => __('hfr') . ' (px)',     'color' => '#60a5fa'],
+        ['key' => 'fwhm',         'label' => __('fwhm') . ' (arcsec)', 'color' => '#34d399'],
+        ['key' => 'hfr_sd',       'label' => __('hfr_sd') . ' (px)',  'color' => '#a78bfa'],
+        ['key' => 'eccentricity', 'label' => __('eccentricity'),       'color' => '#fbbf24'],
+        ['key' => 'star_count',   'label' => __('star_count'),         'color' => '#f472b6'],
+        ['key' => 'snr_weight',   'label' => __('snr_weight'),         'color' => '#22d3ee'],
+        ['key' => 'psf_signal',   'label' => __('psf_signal'),         'color' => '#fb7185'],
     ];
     $trendLabels = [];
     foreach ($trendConfig as &$cfg) {

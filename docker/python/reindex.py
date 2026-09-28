@@ -205,12 +205,20 @@ def process_file_worker(full_path, fits_root, thumb_size, star_metrics=True):
         # Star/quality metrics (LIGHT frames only). analyze_frame() never raises:
         # None means "not computed" (all DB columns stay NULL), while a result
         # with star_count == 0 means "computed, no stars found".
-        star = {'hfr_avg': None, 'fwhm_avg': None, 'ecc_avg': None,
+        # Column names follow the initial schema (hfr in pixels, fwhm in arcsec).
+        star = {'hfr': None, 'fwhm': None, 'hfr_sd': None, 'eccentricity': None,
                 'star_count': None, 'snr_weight': None, 'psf_signal': None}
         if star_metrics and imgtype == 'LIGHT' and data is not None:
             computed = analyze_frame(data)
             if computed is not None:
-                star.update(computed)
+                star['hfr'] = computed['hfr_avg']
+                if computed['fwhm_avg'] is not None and resolution:
+                    star['fwhm'] = computed['fwhm_avg'] * resolution
+                star['hfr_sd'] = computed['hfr_sd']
+                star['eccentricity'] = computed['ecc_avg']
+                star['star_count'] = computed['star_count']
+                star['snr_weight'] = computed['snr_weight']
+                star['psf_signal'] = computed['psf_signal']
 
         params = {
             'path': rel_path, 'file_hash': file_hash, 'name': file_name, 'mtime': int(mtime), 'file_size': file_size,
@@ -225,8 +233,8 @@ def process_file_worker(full_path, fits_root, thumb_size, star_metrics=True):
             'swcreate': swcreate, 'roworder': roworder, 'equinox': equinox,
             'thumb': thumb, 'thumb_crop': thumb_crop,
             'moon_phase': moon_phase, 'moon_angle': moon_angle,
-            'hfr_avg': star['hfr_avg'], 'fwhm_avg': star['fwhm_avg'],
-            'ecc_avg': star['ecc_avg'], 'star_count': star['star_count'],
+            'hfr': star['hfr'], 'fwhm': star['fwhm'], 'hfr_sd': star['hfr_sd'],
+            'eccentricity': star['eccentricity'], 'star_count': star['star_count'],
             'snr_weight': star['snr_weight'], 'psf_signal': star['psf_signal']
         }
         return {'status': 'success', 'path': rel_path, 'params': params}
@@ -340,7 +348,7 @@ def main():
                     swcreate, roworder, equinox,
                     thumb, thumb_crop, deleted_at, is_hidden, data_schema_version,
                     moon_phase, moon_angle,
-                    hfr_avg, fwhm_avg, ecc_avg, star_count, snr_weight, psf_signal
+                    hfr, fwhm, hfr_sd, eccentricity, star_count, snr_weight, psf_signal
                 ) VALUES (
                     %(path)s, %(file_hash)s, %(name)s, %(mtime)s, %(file_size)s, %(width)s, %(height)s, %(resolution)s, %(fov_w)s, %(fov_h)s,
                     %(object)s, %(objctra)s, %(objctdec)s,
@@ -353,7 +361,7 @@ def main():
                     %(swcreate)s, %(roworder)s, %(equinox)s,
                     %(thumb)s, %(thumb_crop)s, NULL, 0, 3,
                     %(moon_phase)s, %(moon_angle)s,
-                    %(hfr_avg)s, %(fwhm_avg)s, %(ecc_avg)s, %(star_count)s, %(snr_weight)s, %(psf_signal)s
+                    %(hfr)s, %(fwhm)s, %(hfr_sd)s, %(eccentricity)s, %(star_count)s, %(snr_weight)s, %(psf_signal)s
                 )
                 ON DUPLICATE KEY UPDATE
                     file_hash=VALUES(file_hash), mtime=VALUES(mtime), file_size=VALUES(file_size), width=VALUES(width), height=VALUES(height), resolution=VALUES(resolution), fov_w=VALUES(fov_w), fov_h=VALUES(fov_h), name=VALUES(name),
@@ -370,8 +378,8 @@ def main():
                     deleted_at=NULL, is_hidden=is_hidden, data_schema_version=VALUES(data_schema_version),
                     moon_phase=VALUES(moon_phase),
                     moon_angle=VALUES(moon_angle),
-                    hfr_avg=VALUES(hfr_avg), fwhm_avg=VALUES(fwhm_avg),
-                    ecc_avg=VALUES(ecc_avg), star_count=VALUES(star_count),
+                    hfr=VALUES(hfr), fwhm=VALUES(fwhm), hfr_sd=VALUES(hfr_sd),
+                    eccentricity=VALUES(eccentricity), star_count=VALUES(star_count),
                     snr_weight=VALUES(snr_weight), psf_signal=VALUES(psf_signal)
             '''
             worker_func = partial(process_file_worker, fits_root=fits_root, thumb_size=thumb_size,
@@ -465,14 +473,14 @@ def main():
             else:
                 logger.info("Backfilling star metrics for LIGHT frames with no computed values...")
                 cur.execute(
-                    "SELECT path FROM files WHERE imgtype = 'LIGHT' AND hfr_avg IS NULL AND deleted_at IS NULL"
+                    "SELECT path FROM files WHERE imgtype = 'LIGHT' AND hfr IS NULL AND deleted_at IS NULL"
                 )
                 backfill_tasks = [os.path.join(fits_root, row[0]) for row in cur.fetchall()
                                   if os.path.isfile(os.path.join(fits_root, row[0]))]
                 logger.info(f"Found {len(backfill_tasks)} LIGHT files missing star metrics.")
                 if backfill_tasks:
                     backfill_sql = (
-                        "UPDATE files SET hfr_avg=%s, fwhm_avg=%s, ecc_avg=%s, star_count=%s, "
+                        "UPDATE files SET hfr=%s, fwhm=%s, hfr_sd=%s, eccentricity=%s, star_count=%s, "
                         "snr_weight=%s, psf_signal=%s, data_schema_version=%s WHERE path=%s"
                     )
                     backfill_func = partial(process_file_worker, fits_root=fits_root,
@@ -485,8 +493,9 @@ def main():
                                     logger.error(f"Backfill failed for {result['path']}: {result['reason']}")
                                     continue
                                 p = result['params']
-                                cur.execute(backfill_sql, (p['hfr_avg'], p['fwhm_avg'], p['ecc_avg'],
-                                                           p['star_count'], p['snr_weight'], p['psf_signal'],
+                                cur.execute(backfill_sql, (p['hfr'], p['fwhm'], p['hfr_sd'],
+                                                           p['eccentricity'], p['star_count'],
+                                                           p['snr_weight'], p['psf_signal'],
                                                            current_schema_version, result['path']))
                                 backfilled_count += 1
                                 if backfilled_count % commit_interval == 0:

@@ -164,6 +164,7 @@ return [
     'star_count' => 'Star count',
     'snr_weight' => 'SNR weight',
     'psf_signal' => 'PSF signal',
+    'hfr_sd' => 'HFR stddev',
 
     // Star metrics trend
     'metrics_trend' => 'Metrics trend',

@@ -73,12 +73,12 @@ def analyze_frame(data):
         data: numpy array with pixel data (any shape/dtype/byte order).
 
     Returns:
-        dict with hfr_avg, fwhm_avg, ecc_avg, star_count, snr_weight,
-        psf_signal (None values when not measurable), or None if sep is
-        unavailable or the input is unusable.
+        dict with hfr_avg, fwhm_avg, hfr_sd (pixels), ecc_avg, star_count,
+        snr_weight, psf_signal (None values when not measurable), or None if
+        sep is unavailable or the input is unusable.
     """
     empty = {
-        'hfr_avg': None, 'fwhm_avg': None, 'ecc_avg': None,
+        'hfr_avg': None, 'fwhm_avg': None, 'hfr_sd': None, 'ecc_avg': None,
         'star_count': 0, 'snr_weight': None, 'psf_signal': None,
     }
     if not _SEP_AVAILABLE:
@@ -164,6 +164,7 @@ def analyze_frame(data):
         result.update({
             'hfr_avg': hfr_avg,
             'fwhm_avg': 2.0 * hfr_avg,  # exact for Gaussian PSFs; see module docstring
+            'hfr_sd': float(np.std(hfr)) if n > 1 else 0.0,
             'ecc_avg': float(np.mean(ecc)),
             'star_count': n,
         })

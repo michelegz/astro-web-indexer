@@ -89,7 +89,7 @@ function buildOrderClause(string $sortBy, string $sortOrder): string
         'date_avg', 'swcreate', 'objctra', 'objctdec', 'cameraid', 'usblimit',
         'fwheel', 'focname', 'focussz', 'foctemp', 'objctrot', 'roworder', 'equinox', 'moon_phase',
         // Star/quality metrics (advanced)
-        'hfr_avg', 'fwhm_avg', 'ecc_avg', 'star_count', 'snr_weight', 'psf_signal'
+        'hfr', 'fwhm', 'hfr_sd', 'eccentricity', 'star_count', 'snr_weight', 'psf_signal'
     ];
     $allowedSortOrder = ['ASC', 'DESC'];
 
@@ -250,14 +250,14 @@ function getExposureStatsByFilter(PDO $conn, string $dir, string $object, string
  * Per-file star metrics for the trend chart, on the currently filtered set
  * and in the same ORDER BY as the table (x axis = table position).
  *
- * @return array List of ['name' => string, 'hfr_avg' => ?float, ...]
+ * @return array List of ['name' => string, 'hfr' => ?float, ...]
  */
 function getStarTrend(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin, string $exptimeMax, string $sortBy, string $sortOrder, int $limit = 10000): array
 {
     list($sql, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
     $orderClause = buildOrderClause($sortBy, $sortOrder);
 
-    $trendSql = "SELECT name, hfr_avg, fwhm_avg, ecc_avg, star_count, snr_weight, psf_signal "
+    $trendSql = "SELECT name, hfr, fwhm, hfr_sd, eccentricity, star_count, snr_weight, psf_signal "
         . "FROM files WHERE " . implode(' AND ', $sql)
         . " ORDER BY " . $orderClause . " LIMIT :limit";
 
