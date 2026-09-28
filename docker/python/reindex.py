@@ -608,6 +608,18 @@ def main():
         logger.info(f"Files purged: {purged_count}")
         logger.info(f"Errors encountered: {error_count}")
 
+    except KeyboardInterrupt:
+        # Ctrl+C: don't just crash with a traceback and lose the current batch.
+        # The ProcessPoolExecutor context managers above shut down on the way
+        # out (spawned workers also receive SIGINT and terminate); commit
+        # whatever was already executed so the next run resumes where we stopped.
+        logger.warning("Interrupted by user (Ctrl+C): committing partial progress and exiting...")
+        try:
+            conn.commit()
+            logger.info("Partial progress committed.")
+        except Exception as e:
+            logger.error(f"Could not commit partial progress: {e}")
+        sys.exit(130)
     except mysql.connector.Error as err:
         logger.error(f"Database error: {err}")
         sys.exit(1)
