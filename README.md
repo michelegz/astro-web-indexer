@@ -23,14 +23,16 @@ This project is developed and maintained in my spare time. If you find it useful
 
 ### Core Functionality
 - 📁 Browse and search FITS and XISF files in a directory structure
-- 🔍 Advanced filtering by object, filter type, and image type
+- 🔍 Advanced filtering by object, filter type, image type, observation date and exposure time
 - 🔄 Real-time monitoring and automatic indexing of new files
 - 🖼️ Built-in preview generation (full and 100% crop) with a non-linear MTF stretch
 - 👁️ Calculates Field of View (FoV) and angular resolution based on FITS header data
 - 🌘 Calculates Moon phase for each image at the time of acquisition
 - 📥 Bulk download functionality with ZIP compression
+- 🗂️ Customizable table columns: pick any columns from a grouped dialog
 - 📊 Per-filter exposure statistics: a collapsible card showing total exposure and percentage for each filter on the currently filtered images, with progress bars for easy comparison
-- ⭐ Star & frame quality metrics: per-LIGHT-frame HFR, FWHM, eccentricity, star count, SNR weight and PSF signal (SubframeSelector-style estimators) in the advanced columns, computed at index time with [`sep`](https://github.com/sep-developers/sep), plus per-frame pixel statistics (background, min/max/mean/median) and sensor metadata (bit depth, channels, color type, Bayer pattern) for all frame types
+- ⭐ Star & frame quality metrics: per-LIGHT-frame HFR, FWHM, eccentricity, star count, SNR weight and PSF signal in sortable columns, computed at index time with [`sep`](https://github.com/sep-developers/sep), plus per-frame pixel statistics (background, min/max/mean/median) and sensor metadata (bit depth, channels, color type, Bayer pattern) for all frame types
+- 📈 Metrics trend charts: collapsible card with one chart per metric plus its median line, following the current table order
 
 ### 🔬 Smart Frame Finder (SFF)
 A powerful search engine to find matching calibration frames (darks, flats, bias) or similar, stackable `LIGHT` frames using a flexible, tolerance-based rules engine.
@@ -43,6 +45,7 @@ A powerful search engine to find matching calibration frames (darks, flats, bias
 
 ### 🌌 AstroBin Integration
 - **CSV Export for Sessions:** Select multiple files (lights, darks, flats, bias) and copy a pre-formatted CSV string to your clipboard, ready to be pasted into AstroBin's session importer.
+- **Filter ID Mapping:** Map each of your filter names to its numeric AstroBin equipment ID once, and exports will carry valid IDs instead of raw FITS strings.
 - **Smart Session Aggregation:** The exporter intelligently groups exposures into "astro-nights" (from noon to noon), correctly handling sessions that span across midnight.
 - **Calibration Frame Counting:** Automatically counts the number of selected dark, flat, and bias frames and adds them to the session data.
 
@@ -144,7 +147,7 @@ These variables control the behavior of the Python indexing and watching scripts
 | `INDEXER_WORKERS` | The number of parallel worker processes for indexing. The default is safe for most systems. Increase it on powerful machines with a lot of RAM, or decrease it if you encounter memory-related issues. | `4` |
 | `POLL_INTERVAL` | Polling interval in seconds for the filesystem watcher, used when inotify is not supported (e.g. Docker Desktop on Windows). Has no effect when native inotify is used. | `30` |
 | `FORCE_POLLING` | Set to `true` to force the polling-based watcher even on systems that support inotify (e.g. NFS mounts). | `false` |
-| `STAR_METRICS_ENABLED` | Set to `false` to skip star/quality metrics computation for LIGHT frames (HFR, FWHM, eccentricity, star count, SNR weight, PSF signal) and hide the related columns. | `true` |
+| `STAR_METRICS_ENABLED` | Set to `false` to skip all computed metrics (star quality for LIGHT frames, pixel statistics for every frame) and hide the related table columns, trend charts and chooser entries. | `true` |
 
 ### 🗄️ Database Connection
 

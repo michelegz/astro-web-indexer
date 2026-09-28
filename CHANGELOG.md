@@ -3,20 +3,22 @@
 ## Unreleased
 
 ### New Features
-- **Star & frame quality metrics** - per-LIGHT-frame HFR, FWHM, eccentricity, star count, SNR weight and PSF signal (SubframeSelector-style estimators) computed at index time with `sep`, shown as sortable advanced columns. Master switch via `STAR_METRICS_ENABLED` (default `true`)
-- **Frame statistics for all frame types** - background, min/max/mean/median pixel values plus bit depth, channel count, color type and Bayer pattern (useful for calibration-frame QA); backfilled together with the star metrics
-- **AstroBin filter ID mapping** - map each FITS filter name to its numeric AstroBin equipment ID via the new management page; the CSV export writes IDs (with unmapped-filter warning) and per-session `meanFwhm` in arcseconds
-- **Python image switched from Alpine to slim** (`python:3.9-slim-bookworm`) to support scientific `manylinux` wheels
+- **Image quality metrics** - every light frame now shows HFR, FWHM (in arcseconds), star eccentricity, star count, SNR weight and PSF signal, so you can judge focus and seeing and sort your best frames. Computed automatically during indexing
+- **Metrics trend charts** - collapsible card with one chart per metric plus its median line, following the current table order; the header tells how many light frames are included
+- **Frame statistics for every frame type** - background level, min/max/mean/median pixel values, bit depth, channel count, color type and Bayer pattern. Also useful to check calibration frames (bias level, flat exposure, sensor type)
+- **Choose your table columns** - the old "show advanced fields" checkbox is now a column picker dialog with all advanced and base columns (only the file name stays mandatory). Your choice is remembered via cookie
+- **AstroBin export that AstroBin actually understands** - map each of your filter names to its AstroBin equipment ID once in the new mapping page, and exports will carry numeric filter IDs plus the session's mean FWHM. The export dialog warns about unmapped filters with a direct link to fix them
+- **Folder tree root** - the sidebar now starts from `/` with the same arrow button as the other folders, so you can always go back to the full archive; the breadcrumb home label is now properly translated
 
-> **Note for existing archives:** LIGHT frames indexed before this version show empty
+> **Note for existing archives:** frames indexed before this version show empty
 > metric columns until backfilled (new files are computed automatically). To backfill,
 > run once inside the running python container:
 > ```bash
 > docker exec awi-python python reindex.py /var/fits --backfill-star-metrics
 > ```
-> (on Git Bash, prefix `MSYS_NO_PATHCONV=1` so `/var/fits` is not rewritten as a
-> Windows path). Depending on archive size this can take a while; the live watcher
-> is not affected.
+> Depending on archive size this can take a while; the live watcher
+> is not affected. To skip the analysis entirely (e.g. on slow hardware), set
+> `STAR_METRICS_ENABLED=false` in your `.env`.
 
 ## v1.3.0
 
