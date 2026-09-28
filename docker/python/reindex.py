@@ -60,6 +60,9 @@ parser.add_argument("--star-metrics", dest="star_metrics",
                     help="Compute star metrics for LIGHT frames (default from STAR_METRICS_ENABLED)")
 parser.add_argument("--backfill-star-metrics", action="store_true",
                     help="Reprocess pixel data of LIGHT frames missing star metrics, then exit the backfill phase")
+parser.add_argument("--recompute-star-metrics", action="store_true",
+                    help="Recompute star metrics for ALL LIGHT frames (e.g. after a formula change), "
+                         "not just the ones missing them")
 args = parser.parse_args()
 
 if args.debug:
@@ -521,21 +524,30 @@ def main():
             logger.info(f"Schema upgrade complete: {schema_upgraded_count} files updated.")
 
         backfilled_count = 0
-        if args.backfill_star_metrics:
+        if args.backfill_star_metrics or args.recompute_star_metrics:
             # NOTE: star metrics need pixel data, so they cannot go through the
             # lightweight header-only schema_upgrade_worker above. This dedicated
             # pass reprocesses the pixel data of LIGHT frames still missing them.
             if not args.star_metrics:
                 logger.warning("Backfill requested but star metrics are disabled (STAR_METRICS_ENABLED=false), skipping.")
             else:
-                logger.info("Backfilling star/frame metrics for files with no computed values...")
-                cur.execute(
-                    "SELECT path FROM files WHERE deleted_at IS NULL AND thumb IS NOT NULL AND ("
-                    "(imgtype = 'LIGHT' AND hfr IS NULL) OR background_mean IS NULL)"
-                )
+                if args.recompute_star_metrics:
+                    logger.info("Recomputing star metrics for ALL LIGHT frames...")
+                    cur.execute(
+                        "SELECT path FROM files WHERE imgtype = 'LIGHT' AND deleted_at IS NULL AND thumb IS NOT NULL"
+                    )
+                else:
+                    logger.info("Backfilling star metrics for LIGHT frames with no computed values...")
+                    cur.execute(
+                        "SELECT path FROM files WHERE deleted_at IS NULL AND thumb IS NOT NULL AND ("
+                        "(imgtype = 'LIGHT' AND hfr IS NULL) OR background_mean IS NULL)"
+                    )
                 backfill_tasks = [os.path.join(fits_root, row[0]) for row in cur.fetchall()
                                   if os.path.isfile(os.path.join(fits_root, row[0]))]
-                logger.info(f"Found {len(backfill_tasks)} files missing metrics.")
+                if args.recompute_star_metrics:
+                    logger.info(f"Found {len(backfill_tasks)} LIGHT files to recompute.")
+                else:
+                    logger.info(f"Found {len(backfill_tasks)} files missing metrics.")
                 if backfill_tasks:
                     backfill_sql = (
                         "UPDATE files SET hfr=%s, fwhm=%s, hfr_sd=%s, eccentricity=%s, star_count=%s, "

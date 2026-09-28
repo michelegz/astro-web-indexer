@@ -97,6 +97,7 @@ docker exec -it awi-python python /opt/scripts/reindex.py /var/fits --debug --fo
 | `--debug` | `DEBUG` | Enables verbose debug logging for the indexing script. | `false` |
 | `--star-metrics` / `--no-star-metrics` | `STAR_METRICS_ENABLED` | Compute star/quality metrics for LIGHT frames (plus pixel statistics for every frame). | `true` |
 | `--backfill-star-metrics` | - | Reprocess pixel data of files still missing computed metrics (LIGHT frames without HFR, any frame without pixel statistics), then continue normally. | `false` |
+| `--recompute-star-metrics` | - | Recompute star metrics for ALL LIGHT frames, even ones already computed (e.g. after a formula change). Skips thumbnails like backfill. | `false` |
 
 
 ## 📁 Directory Structure

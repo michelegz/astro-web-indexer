@@ -88,9 +88,10 @@ def analyze_frame(data):
         data: numpy array with pixel data (any shape/dtype/byte order).
 
     Returns:
-        dict with hfr_avg, fwhm_avg, hfr_sd (pixels), ecc_avg, star_count,
-        snr_weight, psf_signal (None values when not measurable), or None if
-        sep is unavailable or the input is unusable.
+        dict with hfr_avg, fwhm_avg, hfr_sd (pixels), ecc_avg, snr_weight,
+        psf_signal (None values when not measurable) plus star_count = stars
+        passing the quality cuts (before the top-N measurement cap),
+        or None if sep is unavailable or the input is unusable.
     """
     empty = {
         'hfr_avg': None, 'fwhm_avg': None, 'hfr_sd': None, 'ecc_avg': None,
@@ -149,6 +150,11 @@ def analyze_frame(data):
         pre &= ~hot
         if not np.any(pre):
             return dict(empty)
+        # Stars passing the quality cuts (this is the reported star_count).
+        # The top-N cap below only limits how many are measured for the means.
+        n_detected = int(np.count_nonzero(pre))
+        result = dict(empty)
+        result['star_count'] = n_detected
         # Keep only the brightest MAX_STARS by isophotal flux: enough for a
         # robust mean, and deblending/photometry stay fast on dense fields.
         idx = np.flatnonzero(pre)
@@ -165,7 +171,7 @@ def analyze_frame(data):
         kronrad = np.asarray(kronrad, dtype=np.float64)
         m = np.isfinite(kronrad) & (kronrad > 0)
         if not np.any(m):
-            return dict(empty)
+            return result
         x, y, a, b, theta, ecc = x[m], y[m], a[m], b[m], theta[m], ecc[m]
         kronrad = np.maximum(kronrad[m], 1e-3)
         flux, _, _ = sep.sum_ellipse(
@@ -173,15 +179,15 @@ def analyze_frame(data):
         flux = np.asarray(flux, dtype=np.float64)
         m = np.isfinite(flux) & (flux > 0)
         if not np.any(m):
-            return dict(empty)
+            return result
         x, y, a, flux, ecc = x[m], y[m], a[m], flux[m], ecc[m]
         hfr, _ = sep.flux_radius(sub, x, y, 6.0 * a, 0.5, normflux=flux, subpix=5)
         hfr = np.asarray(hfr, dtype=np.float64)
         m = np.isfinite(hfr) & (hfr > 0)
         if not np.any(m):
-            return dict(empty)
+            return result
         hfr, ecc, flux = hfr[m], ecc[m], flux[m]
-        logger.debug(f"sep: {len(objs)} detections, {hfr.size} accepted stars")
+        logger.debug(f"sep: {len(objs)} detections, {n_detected} quality, {hfr.size} measured")
 
         # NINA-style outlier rejection on radii (+/-1.5 sigma).
         if hfr.size >= 3:
@@ -196,13 +202,11 @@ def analyze_frame(data):
 
         n = int(hfr.size)
         hfr_avg = float(np.mean(hfr))
-        result = dict(empty)
         result.update({
             'hfr_avg': hfr_avg,
             'fwhm_avg': 2.0 * hfr_avg,  # exact for Gaussian PSFs; see module docstring
             'hfr_sd': float(np.std(hfr)) if n > 1 else 0.0,
             'ecc_avg': float(np.mean(ecc)),
-            'star_count': n,
         })
 
         # Frame-level quality estimators (same catalog, ~zero extra cost).
@@ -216,8 +220,8 @@ def analyze_frame(data):
             result['psf_signal'] = (
                 (5.326e-6 * total_flux * mean_flux) / (9.0e6 * noise * n)
             )
-        logger.debug("sep star analysis done: %d accepted stars in %.2fs total",
-                     n, time.perf_counter() - t_start)
+        logger.debug("sep star analysis done: %d measured of %d quality stars in %.2fs total",
+                     n, n_detected, time.perf_counter() - t_start)
         return result
     except Exception as e:
         logger.warning(f"Star metrics computation failed: {e}")
