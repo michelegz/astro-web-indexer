@@ -25,8 +25,17 @@ include __DIR__ . '/includes/sidebar.php';
 <?php 
 include __DIR__ . '/includes/sff_modal.php'; // Include the SFF modal
 ?>
-<script src="assets/js/main.js"></script>
-<script src="assets/js/sff.js"></script> <!-- Include the new SFF script -->
+<?php
+// Cache-busting for JS bundles: browsers cache /assets/js/* aggressively and
+// a stale main.js (e.g. old auto-submit logic) breaks new UI. The query string
+// changes on every image build, forcing a fresh download.
+$jsVersion = max(
+    @filemtime(__DIR__ . '/assets/js/main.js') ?: 0,
+    @filemtime(__DIR__ . '/assets/js/sff.js') ?: 0
+);
+?>
+<script src="assets/js/main.js?v=<?= $jsVersion ?>"></script>
+<script src="assets/js/sff.js?v=<?= $jsVersion ?>"></script> <!-- Include the new SFF script -->
 
 </body>
 </html>
