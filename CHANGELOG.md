@@ -8,11 +8,13 @@
 
 > **Note for existing archives:** LIGHT frames indexed before this version show empty
 > metric columns until backfilled (new files are computed automatically). To backfill,
-> run once:
+> run once inside the running python container:
 > ```bash
-> docker compose run --rm python python reindex.py /var/fits --backfill-star-metrics
+> docker exec awi-python python reindex.py /var/fits --backfill-star-metrics
 > ```
-> Depending on archive size this can take a while; the live watcher is not affected.
+> (on Git Bash, prefix `MSYS_NO_PATHCONV=1` so `/var/fits` is not rewritten as a
+> Windows path). Depending on archive size this can take a while; the live watcher
+> is not affected.
 
 ## v1.3.0
 
