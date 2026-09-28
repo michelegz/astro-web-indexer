@@ -209,6 +209,21 @@ return [
     'admin_password_placeholder' => 'Dejar en blanco para mantener la actual',
     'admin_error_last_admin' => 'No se puede eliminar el último usuario administrador.',
 
+    // Asignación de filtros AstroBin
+    'filter_mapping' => 'Asignación de filtros AstroBin',
+    'filter_mapping_intro' => 'Asocie cada nombre de filtro de sus FITS con el ID numérico de AstroBin. Encontrará el ID en la URL de la página del filtro en la',
+    'filter_mapping_explorer' => 'base de datos de equipos',
+    'filter_mapping_frames' => 'Fotogramas',
+    'filter_mapping_astrobin_id' => 'ID AstroBin',
+    'filter_mapping_label' => 'Nota',
+    'filter_mapping_save' => 'Guardar',
+    'filter_mapping_saved' => 'Asignaciones guardadas: {count}',
+    'filter_mapping_no_filters' => 'No se encontraron filtros en los archivos indexados.',
+    'filter_mapping_invalid_id' => 'ID inválido para el filtro {name}: se requiere un entero positivo.',
+    'filter_mapping_id_placeholder' => 'p. ej. 4373',
+    'filter_mapping_unmapped' => '{count} filtros sin asignación AstroBin: ',
+    'filter_mapping_manage' => 'Gestionar asignaciones de filtros',
+
     // Estadísticas por filtro
     'statistics_by_filter' => 'Estadísticas por filtro',
     'statistics_summary' => '{count} filtros',

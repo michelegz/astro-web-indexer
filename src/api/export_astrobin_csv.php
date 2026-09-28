@@ -64,6 +64,13 @@ try {
     );
     $stmt->execute($ids);
     $files = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Filter name -> AstroBin numeric ID map (matched case-insensitively).
+    // Unmapped filters fall back to the raw FITS string (legacy behavior).
+    $filterMap = [];
+    foreach ($conn->query("SELECT filter_name, astrobin_id FROM astrobin_filter_map")->fetchAll(PDO::FETCH_ASSOC) as $m) {
+        $filterMap[strtolower(trim((string)$m['filter_name']))] = (int)$m['astrobin_id'];
+    }
     
 } catch (Exception $e) {
     echo "Error: Could not retrieve file data from database.\n";
@@ -124,10 +131,12 @@ if (!empty($lights)) {
         if (!isset($sessions[$key])) {
             // Initialize with all keys from the full header to ensure column order
             $sessions[$key] = array_fill_keys($full_header, '');
-            
+
             // Populate with available data
             $sessions[$key]['date'] = $session_date;
-            $sessions[$key]['filter'] = $light['filter'] ?? '';
+            $rawFilter = $light['filter'] ?? '';
+            $mapKey = strtolower(trim((string)$rawFilter));
+            $sessions[$key]['filter'] = $filterMap[$mapKey] ?? $rawFilter;
             $sessions[$key]['number'] = 0;
             $sessions[$key]['duration'] = $light['exptime'] ?? 0;
             $sessions[$key]['binning'] = $light['xbinning'] ?? 1;

@@ -687,10 +687,14 @@ document.addEventListener('DOMContentLoaded', function() {
             <p class="text-sm text-gray-300 mb-4">
                 <?php echo __('astrobin_modal_explanation'); ?>
             </p>
+            <p id="astrobinMappingWarningText" data-tmpl="<?= htmlspecialchars(__('filter_mapping_unmapped')) ?>" class="hidden text-sm text-yellow-300 mb-2"></p>
             <textarea id="astrobinCsvText" readonly class="w-full h-64 bg-gray-900 text-gray-300 font-mono text-sm p-3 rounded-md border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"></textarea>
         </div>
 
-        <div class="flex justify-end pt-4 border-t border-gray-700 mt-4">
+        <div class="flex justify-end gap-2 pt-4 border-t border-gray-700 mt-4">
+            <?php if (!isAuthEnabled() || isAdmin()): ?>
+                <a href="/filter_mapping.php" target="_blank" rel="noopener" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"><?php echo __('filter_mapping_manage'); ?></a>
+            <?php endif; ?>
             <button id="copyAstrobinCsvBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"><?php echo __('copy_to_clipboard') ?></button>
         </div>
     </div>

@@ -209,6 +209,21 @@ return [
     'admin_password_placeholder' => 'Lascia vuoto per mantenere la corrente',
     'admin_error_last_admin' => 'Impossibile rimuovere l\'ultimo utente admin.',
 
+    // Mapping filtri AstroBin
+    'filter_mapping' => 'Mapping filtri AstroBin',
+    'filter_mapping_intro' => 'Associa ogni nome filtro dei tuoi FITS all\'ID numerico AstroBin. Trovi l\'ID nell\'URL della pagina del filtro nel',
+    'filter_mapping_explorer' => 'database delle apparecchiature',
+    'filter_mapping_frames' => 'Frame',
+    'filter_mapping_astrobin_id' => 'ID AstroBin',
+    'filter_mapping_label' => 'Nota',
+    'filter_mapping_save' => 'Salva mapping',
+    'filter_mapping_saved' => 'Mapping salvati: {count}',
+    'filter_mapping_no_filters' => 'Nessun filtro trovato nei file indicizzati.',
+    'filter_mapping_invalid_id' => 'ID non valido per il filtro {name}: serve un numero intero positivo.',
+    'filter_mapping_id_placeholder' => 'es. 4373',
+    'filter_mapping_unmapped' => '{count} filtri senza mapping AstroBin: ',
+    'filter_mapping_manage' => 'Gestisci mapping filtri',
+
     // Statistiche per filtro
     'statistics_by_filter' => 'Statistiche per filtro',
     'statistics_summary' => '{count} filtri',

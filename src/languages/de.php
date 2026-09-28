@@ -208,6 +208,21 @@ return [
     'admin_password_placeholder' => 'Leer lassen, um das aktuelle beizubehalten',
     'admin_error_last_admin' => 'Der letzte Admin-Benutzer kann nicht entfernt werden.',
 
+    // AstroBin-Filterzuordnung
+    'filter_mapping' => 'AstroBin-Filterzuordnung',
+    'filter_mapping_intro' => 'Ordnen Sie jeden FITS-Filternamen der numerischen AstroBin-ID zu. Die ID finden Sie in der URL der Filterseite in der',
+    'filter_mapping_explorer' => 'Ausrüstungsdatenbank',
+    'filter_mapping_frames' => 'Frames',
+    'filter_mapping_astrobin_id' => 'AstroBin-ID',
+    'filter_mapping_label' => 'Notiz',
+    'filter_mapping_save' => 'Zuordnungen speichern',
+    'filter_mapping_saved' => 'Zuordnungen gespeichert: {count}',
+    'filter_mapping_no_filters' => 'Keine Filter in den indizierten Dateien gefunden.',
+    'filter_mapping_invalid_id' => 'Ungültige ID für Filter {name}: positive Ganzzahl erforderlich.',
+    'filter_mapping_id_placeholder' => 'z.B. 4373',
+    'filter_mapping_unmapped' => '{count} Filter ohne AstroBin-Zuordnung: ',
+    'filter_mapping_manage' => 'Filterzuordnungen verwalten',
+
     // Filterstatistik
     'statistics_by_filter' => 'Statistik pro Filter',
     'statistics_summary' => '{count} Filter',

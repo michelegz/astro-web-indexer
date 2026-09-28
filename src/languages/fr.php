@@ -209,6 +209,21 @@ return [
     'admin_password_placeholder' => 'Laisser vide pour conserver le mot de passe actuel',
     'admin_error_last_admin' => 'Impossible de supprimer le dernier administrateur.',
 
+    // Correspondance filtres AstroBin
+    'filter_mapping' => 'Correspondance filtres AstroBin',
+    'filter_mapping_intro' => 'Associez chaque nom de filtre de vos FITS à l\'ID numérique AstroBin. Vous trouverez l\'ID dans l\'URL de la page du filtre dans la',
+    'filter_mapping_explorer' => 'base d’équipement',
+    'filter_mapping_frames' => 'Images',
+    'filter_mapping_astrobin_id' => 'ID AstroBin',
+    'filter_mapping_label' => 'Note',
+    'filter_mapping_save' => 'Enregistrer',
+    'filter_mapping_saved' => 'Correspondances enregistrées : {count}',
+    'filter_mapping_no_filters' => 'Aucun filtre trouvé dans les fichiers indexés.',
+    'filter_mapping_invalid_id' => 'ID invalide pour le filtre {name} : un entier positif est requis.',
+    'filter_mapping_id_placeholder' => 'ex. 4373',
+    'filter_mapping_unmapped' => '{count} filtres sans correspondance AstroBin : ',
+    'filter_mapping_manage' => 'Gérer les correspondances de filtres',
+
     // Statistiques par filtre
     'statistics_by_filter' => 'Statistiques par filtre',
     'statistics_summary' => '{count} filtres',

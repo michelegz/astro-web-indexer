@@ -304,6 +304,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(csvText => {
                     if (astrobinCsvText) astrobinCsvText.value = csvText;
                     if (astrobinModal) astrobinModal.classList.remove('hidden');
+                    // Warn about FITS filters with no AstroBin ID mapping
+                    const warnTextReset = document.getElementById('astrobinMappingWarningText');
+                    if (warnTextReset) warnTextReset.classList.add('hidden');
+                    fetch(`/api/get_unmapped_filters.php?ids=${idsQueryString}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            const warnText = document.getElementById('astrobinMappingWarningText');
+                            if (!warnText) return;
+                            const list = (data && data.unmapped) || [];
+                            if (list.length === 0) return;
+                            const tmpl = warnText.dataset.tmpl || '{count} unmapped filters';
+                            warnText.textContent = tmpl.replace('{count}', list.length) + ' (' + list.join(', ') + ') ';
+                            warnText.classList.remove('hidden');
+                        })
+                        .catch(() => { /* non-blocking: CSV is already shown */ });
                 })
                 .catch(error => {
                     alert((window.i18n?.error_fetching_csv_data || 'Error fetching CSV data:') + ' ' + error.message);
