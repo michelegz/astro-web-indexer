@@ -29,6 +29,7 @@ This project is developed and maintained in my spare time. If you find it useful
 - 👁️ Calculates Field of View (FoV) and angular resolution based on FITS header data
 - 🌘 Calculates Moon phase for each image at the time of acquisition
 - 📥 Bulk download functionality with ZIP compression
+- 📊 Per-filter exposure statistics: a collapsible card showing total exposure and percentage for each filter on the currently filtered images, with progress bars for easy comparison
 
 ### 🔬 Smart Frame Finder (SFF)
 A powerful search engine to find matching calibration frames (darks, flats, bias) or similar, stackable `LIGHT` frames using a flexible, tolerance-based rules engine.
