@@ -18,9 +18,11 @@ Method notes:
 - Star selection mirrors N.I.N.A.'s cuts: reject saturated/truncated/incomplete
   objects (SExtractor flag bits), eccentricity > 0.8, and radius outliers
   beyond +/-1.5 sigma (NINA's IdentifyStars filter).
-- snr_weight: SubframeSelector-style classic estimator, MAD^2 / noise^2
-  (relative measure, meaningful when comparing frames of the same
-  target/filter/background).
+- snr_weight: stacked SNR of the measured stars, i.e. sum(flux) /
+  sqrt(sum(fluxerr^2)) with fluxerr from the background-noise map. Flux-weighted
+  sums are junk-immune (faint junk contributes negligibly), unlike a median over
+  a junk-dominated catalog. Relative measure for ranking frames; fluxerr ignores
+  the Poisson term (no gain used), so not an absolute SNR.
 - psf_signal: PixInsight PCL PSFSignalEstimator formula (published math, not
   code): (5.326e-6 * totalFlux * totalMeanFlux) / (9.0e+6 * sigmaN * MStar),
   with sep star fluxes and sigmaN = background global RMS. Values are not
@@ -174,19 +176,20 @@ def analyze_frame(data):
             return result
         x, y, a, b, theta, ecc = x[m], y[m], a[m], b[m], theta[m], ecc[m]
         kronrad = np.maximum(kronrad[m], 1e-3)
-        flux, _, _ = sep.sum_ellipse(
+        flux, fluxerr, _ = sep.sum_ellipse(
             sub, x, y, a, b, theta, 2.5 * kronrad, err=noise, subpix=1)
         flux = np.asarray(flux, dtype=np.float64)
-        m = np.isfinite(flux) & (flux > 0)
+        fluxerr = np.asarray(fluxerr, dtype=np.float64)
+        m = np.isfinite(flux) & (flux > 0) & np.isfinite(fluxerr) & (fluxerr > 0)
         if not np.any(m):
             return result
-        x, y, a, flux, ecc = x[m], y[m], a[m], flux[m], ecc[m]
+        x, y, a, flux, fluxerr, ecc = x[m], y[m], a[m], flux[m], fluxerr[m], ecc[m]
         hfr, _ = sep.flux_radius(sub, x, y, 6.0 * a, 0.5, normflux=flux, subpix=5)
         hfr = np.asarray(hfr, dtype=np.float64)
         m = np.isfinite(hfr) & (hfr > 0)
         if not np.any(m):
             return result
-        hfr, ecc, flux = hfr[m], ecc[m], flux[m]
+        hfr, ecc, flux, fluxerr = hfr[m], ecc[m], flux[m], fluxerr[m]
         logger.debug(f"sep: {len(objs)} detections, {n_detected} quality, {hfr.size} measured")
 
         # NINA-style outlier rejection on radii (+/-1.5 sigma).
@@ -199,6 +202,7 @@ def analyze_frame(data):
                     hfr = hfr[keep]
                     ecc = ecc[keep]
                     flux = flux[keep]
+                    fluxerr = fluxerr[keep]
 
         n = int(hfr.size)
         hfr_avg = float(np.mean(hfr))
@@ -210,11 +214,10 @@ def analyze_frame(data):
         })
 
         # Frame-level quality estimators (same catalog, ~zero extra cost).
-        med = float(np.median(sub))
-        mad = float(np.median(np.abs(sub - med)))
-        if mad > 0:
-            result['snr_weight'] = (mad / noise) ** 2
         total_flux = float(np.sum(flux))
+        total_variance = float(np.sum(fluxerr ** 2))
+        if total_variance > 0:
+            result['snr_weight'] = float(total_flux / np.sqrt(total_variance))
         if total_flux > 0:
             mean_flux = total_flux / n
             result['psf_signal'] = (
