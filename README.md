@@ -31,7 +31,7 @@ This project is developed and maintained in my spare time. If you find it useful
 - 📥 Bulk download functionality with ZIP compression
 - 🗂️ Customizable table columns: pick any columns from a grouped dialog
 - 📊 Per-filter exposure statistics: a collapsible card showing total exposure and percentage for each filter on the currently filtered images, with progress bars for easy comparison
-- ⭐ Star & frame quality metrics: per-LIGHT-frame HFR, FWHM, eccentricity, star count, SNR weight and PSF signal in sortable columns, computed at index time with [`sep`](https://github.com/sep-developers/sep), plus per-frame pixel statistics (background, min/max/mean/median) and sensor metadata (bit depth, channels, color type, Bayer pattern) for all frame types
+- ⭐ Star & frame quality metrics: per-LIGHT-frame HFR, measured FWHM, eccentricity, star count, relative stellar SNR and relative PSF quality in sortable columns, computed at index time with [`sep`](https://github.com/sep-developers/sep), plus per-frame pixel statistics (background, min/max/mean/median) and sensor metadata (bit depth, channels, color type, Bayer pattern) for all frame types
 - 📈 Metrics trend charts: collapsible card with one chart per metric plus its median line, following the current table order
 
 ### 🔬 Smart Frame Finder (SFF)
