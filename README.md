@@ -1,4 +1,4 @@
-# <img src="src/assets/logo/default_logo.svg" alt="Astro Web Indexer" width="64" style="vertical-align: middle;"> Astro Web Indexer
+# <img src="src/assets/logo/default_logo.svg" alt="Astro Web Indexer" width="100" style="vertical-align: middle;"> Astro Web Indexer
 
 *Stop navigating folders. Start exploring your sky.*
 
