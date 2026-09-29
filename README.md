@@ -11,7 +11,18 @@ A web-based file indexer and viewer for astronomical data, supporting both FITS 
 **Beta Phase:** All v1.x.x releases are considered beta. During this phase, development may be rapid and include breaking changes. The goal is to gather wider user feedback to achieve a stable v2.0.0 release.
 
 ## ▶️ Preview
-![Preview Screenshot](docs/images/preview.png)
+
+### Main view
+![Preview Screenshot](docs/images/preview1.png)
+
+### Filter statistics
+![Filter statistics](docs/images/preview2.png)
+
+### Star metrics
+![Star metrics](docs/images/preview3.png)
+
+### Smart Frame Finder
+![Smart Frame Finder](docs/images/preview4.png)
 
 ## ❤️ Support the Project
 
