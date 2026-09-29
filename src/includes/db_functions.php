@@ -72,24 +72,43 @@ function countFiles(PDO $conn, string $dir, string $object, string $filter, stri
     return (int)($result['cnt'] ?? 0);
 }
 
-function getFiles(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin, string $exptimeMax, int $perPage, int $offset, string $sortBy, string $sortOrder): array
+/**
+ * Validate sort column/direction and build a safe ORDER BY clause.
+ * Shared by getFiles() and getStarTrend() so the chart follows table ordering.
+ */
+function buildOrderClause(string $sortBy, string $sortOrder): string
 {
-        // Validazione e sanitizzazione di sortBy e sortOrder
     $allowedSortBy = [
-        'name', 'path', 'object', 'date_obs', 'exptime', 'filter', 'imgtype', 
-        'xbinning', 'ybinning', 'egain', 'gain', 'offset', 'xpixsz', 'ypixsz', 'instrume', 
-        'set_temp', 'ccd_temp', 'telescop', 'focallen', 'focratio', 'ra', 'dec', 
-        'centalt', 'centaz', 'airmass', 'pierside', 'siteelev', 'sitelat', 'sitelong', 
-                'focpos', 'visible_duplicate_count', 'mtime', 'file_hash', 'file_size',
-                'width', 'height', 'resolution', 'fov_w', 'fov_h',
+        'name', 'path', 'object', 'date_obs', 'exptime', 'filter', 'imgtype',
+        'xbinning', 'ybinning', 'egain', 'gain', 'offset', 'xpixsz', 'ypixsz', 'instrume',
+        'set_temp', 'ccd_temp', 'telescop', 'focallen', 'focratio', 'ra', 'dec',
+        'centalt', 'centaz', 'airmass', 'pierside', 'siteelev', 'sitelat', 'sitelong',
+        'focpos', 'visible_duplicate_count', 'mtime', 'file_hash', 'file_size',
+        'width', 'height', 'resolution', 'fov_w', 'fov_h',
         // New sortable columns
-        'date_avg', 'swcreate', 'objctra', 'objctdec', 'cameraid', 'usblimit', 
-        'fwheel', 'focname', 'focussz', 'foctemp', 'objctrot', 'roworder', 'equinox', 'moon_phase'
+        'date_avg', 'swcreate', 'objctra', 'objctdec', 'cameraid', 'usblimit',
+        'fwheel', 'focname', 'focussz', 'foctemp', 'objctrot', 'roworder', 'equinox', 'moon_phase',
+        // Star/quality metrics (advanced)
+        'hfr', 'fwhm', 'hfr_sd', 'eccentricity', 'star_count', 'snr_weight', 'psf_signal',
+        // Frame statistics (advanced)
+        'background_mean', 'min_pixel', 'max_pixel', 'mean_pixel', 'median_pixel',
+        'bit_depth', 'image_channels', 'image_color_type', 'bayer_pattern'
     ];
     $allowedSortOrder = ['ASC', 'DESC'];
 
     $sortBy = in_array($sortBy, $allowedSortBy) ? $sortBy : 'name';
     $sortOrder = in_array(strtoupper($sortOrder), $allowedSortOrder) ? strtoupper($sortOrder) : 'ASC';
+
+    $orderClause = $sortBy . " " . $sortOrder;
+    if ($sortBy === 'visible_duplicate_count') {
+        $orderClause .= ", total_duplicate_count " . $sortOrder;
+    }
+    return $orderClause;
+}
+
+function getFiles(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin, string $exptimeMax, int $perPage, int $offset, string $sortBy, string $sortOrder): array
+{
+    $orderClause = buildOrderClause($sortBy, $sortOrder);
 
     list($sqlConditions, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
 
@@ -116,10 +135,6 @@ function getFiles(PDO $conn, string $dir, string $object, string $filter, string
             . "CASE WHEN files.total_duplicate_count > 1 THEN (SELECT COUNT(*) FROM files d WHERE d.file_hash = files.file_hash AND d.deleted_at IS NULL AND d.is_hidden = 0 AND ({$dirFilterB})) ELSE files.visible_duplicate_count END AS visible_duplicate_count";
     }
     
-    $orderClause = $sortBy . " " . $sortOrder;
-    if ($sortBy === 'visible_duplicate_count') {
-        $orderClause .= ", total_duplicate_count " . $sortOrder;
-    }
     $sql = "SELECT {$selectClause} FROM files WHERE " . implode(' AND ', $sqlConditions) . " ORDER BY " . $orderClause . " LIMIT :per_page OFFSET :offset";
 
     $stmt = $conn->prepare($sql);
@@ -232,6 +247,31 @@ function getExposureStatsByFilter(PDO $conn, string $dir, string $object, string
         ];
     }
     return $stats;
+}
+
+/**
+ * Per-file star metrics for the trend chart, on the currently filtered set
+ * and in the same ORDER BY as the table (x axis = table position).
+ *
+ * @return array List of ['name' => string, 'hfr' => ?float, ...]
+ */
+function getStarTrend(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin, string $exptimeMax, string $sortBy, string $sortOrder, int $limit = 10000): array
+{
+    list($sql, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
+    $orderClause = buildOrderClause($sortBy, $sortOrder);
+
+    $trendSql = "SELECT name, hfr, fwhm, hfr_sd, eccentricity, star_count, snr_weight, psf_signal "
+        . "FROM files WHERE " . implode(' AND ', $sql)
+        . " ORDER BY " . $orderClause . " LIMIT :limit";
+
+    $stmt = $conn->prepare($trendSql);
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
+    $stmt->bindValue(':limit', max(1, $limit), PDO::PARAM_INT);
+
+    $stmt->execute();
+    return $stmt->fetchAll();
 }
 
 function buildQueryParts(string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin = '', string $exptimeMax = ''): array

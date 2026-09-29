@@ -63,7 +63,21 @@ document.addEventListener('DOMContentLoaded', () => {
             listViewBtn.classList.remove('bg-blue-600');
             thumbnailViewBtn.classList.add('bg-blue-600');
         }
+        updateHScrollHint();
     }
+
+    // --- HORIZONTAL SCROLL HINT (desktop only, shown when the table overflows) ---
+    // Browsers already scroll horizontally with Shift+wheel; this only toggles
+    // the hint. pointer:fine excludes touch devices (they swipe natively).
+    const hscrollHint = document.getElementById('hscroll-hint');
+    const finePointer = window.matchMedia && window.matchMedia('(pointer: fine)').matches;
+    function updateHScrollHint() {
+        if (!hscrollHint || typeof listView === 'undefined' || !listView) return;
+        const overflows = listView.scrollWidth > listView.clientWidth + 1;
+        const visible = !!finePointer && !listView.classList.contains('hidden') && overflows;
+        hscrollHint.classList.toggle('hidden', !visible);
+    }
+    window.addEventListener('resize', updateHScrollHint);
 
     function setThumbnailSize(size) {
         // Remove all existing size classes
@@ -74,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (thumbnailSizeSlider) {
             thumbnailSizeSlider.value = size;
         }
+        updateHScrollHint();
     }
 
     // Initialize view preferences
@@ -304,6 +319,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(csvText => {
                     if (astrobinCsvText) astrobinCsvText.value = csvText;
                     if (astrobinModal) astrobinModal.classList.remove('hidden');
+                    // Warn about FITS filters with no AstroBin ID mapping
+                    const warnTextReset = document.getElementById('astrobinMappingWarningText');
+                    if (warnTextReset) warnTextReset.classList.add('hidden');
+                    fetch(`/api/get_unmapped_filters.php?ids=${idsQueryString}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            const warnText = document.getElementById('astrobinMappingWarningText');
+                            const warnMsg = document.getElementById('astrobinMappingWarningMsg');
+                            if (!warnText || !warnMsg) return;
+                            const list = (data && data.unmapped) || [];
+                            if (list.length === 0) return;
+                            const tmpl = warnText.dataset.tmpl || '{count} unmapped filters';
+                            warnMsg.textContent = tmpl.replace('{count}', list.length) + ' (' + list.join(', ') + ')';
+                            warnText.classList.remove('hidden');
+                        })
+                        .catch(() => { /* non-blocking: CSV is already shown */ });
                 })
                 .catch(error => {
                     alert((window.i18n?.error_fetching_csv_data || 'Error fetching CSV data:') + ' ' + error.message);
@@ -373,7 +404,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- FILTRI ---
     if (filtersForm) {
-        const filters = filtersForm.querySelectorAll('select, input[type="checkbox"]');
+        // NOTE: column-chooser checkboxes (data-col, data-group-toggle) are staged
+        // and applied via the Applica button — they must NOT auto-submit the form.
+        const filters = filtersForm.querySelectorAll('select, input[type="checkbox"]:not([data-col]):not([data-group-toggle])');
         filters.forEach(filter => {
             filter.addEventListener('change', () => {
                 filtersForm.submit();

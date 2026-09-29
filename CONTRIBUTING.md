@@ -95,6 +95,9 @@ docker exec -it awi-python python /opt/scripts/reindex.py /var/fits --debug --fo
 | `--skip-cleanup` | - | Prevents the script from marking files as deleted if they are no longer found on disk. | `false` |
 | `--retention-days`| `RETENTION_DAYS` | The number of days to keep a soft-deleted file record before it is permanently purged. | `30` |
 | `--debug` | `DEBUG` | Enables verbose debug logging for the indexing script. | `false` |
+| `--star-metrics` / `--no-star-metrics` | `STAR_METRICS_ENABLED` | Compute star/quality metrics for LIGHT frames (plus pixel statistics for every frame). | `true` |
+| `--backfill-star-metrics` | - | Reprocess pixel data of files still missing computed metrics (LIGHT frames without HFR, any frame without pixel statistics), then continue normally. | `false` |
+| `--recompute-star-metrics` | - | Recompute star metrics for ALL LIGHT frames, even ones already computed (e.g. after a formula change). Skips thumbnails like backfill. | `false` |
 
 
 ## 📁 Directory Structure

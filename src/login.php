@@ -66,7 +66,7 @@ $csrfToken = $_SESSION['csrf_token'];
             $defaultLogoPath = 'assets/logo/default_logo.svg';
             $logoPath = file_exists($customLogoPath) ? 'assets/logo/custom_logo.svg' : $defaultLogoPath;
             ?>
-            <img src="<?= $logoPath ?>" alt="Logo" class="h-16 w-16 mb-4">
+            <img src="<?= $logoPath ?>" alt="Logo" class="h-24 w-24 mb-4">
             <div class="text-sm text-gray-300 mb-1"><?= __('site_title') ?></div>
             <h1 class="text-xl font-bold"><?= __('login_title') ?></h1>
         </div>

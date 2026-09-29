@@ -59,11 +59,18 @@ try {
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
     
     $stmt = $conn->prepare(
-        "SELECT id, object, date_obs, exptime, filter, imgtype, xbinning, gain, ccd_temp, focratio
+        "SELECT id, object, date_obs, exptime, filter, imgtype, xbinning, gain, ccd_temp, focratio, fwhm
          FROM files WHERE id IN ($placeholders)"
     );
     $stmt->execute($ids);
     $files = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Filter name -> AstroBin numeric ID map (matched case-insensitively).
+    // Unmapped filters fall back to the raw FITS string (legacy behavior).
+    $filterMap = [];
+    foreach ($conn->query("SELECT filter_name, astrobin_id FROM astrobin_filter_map")->fetchAll(PDO::FETCH_ASSOC) as $m) {
+        $filterMap[strtolower(trim((string)$m['filter_name']))] = (int)$m['astrobin_id'];
+    }
     
 } catch (Exception $e) {
     echo "Error: Could not retrieve file data from database.\n";
@@ -107,6 +114,7 @@ $full_header = [
     'darks', 'flats', 'flatDarks', 'bias', 'bortle', 'meanSqm', 'meanFwhm', 'temperature'
 ];
 $sessions = [];
+$fwhmAcc = []; // session key => ['sum' => float, 'n' => int] for meanFwhm
 if (!empty($lights)) {
     foreach ($lights as $light) {
         $session_date = get_astro_session_date($light['date_obs']);
@@ -124,10 +132,12 @@ if (!empty($lights)) {
         if (!isset($sessions[$key])) {
             // Initialize with all keys from the full header to ensure column order
             $sessions[$key] = array_fill_keys($full_header, '');
-            
+
             // Populate with available data
             $sessions[$key]['date'] = $session_date;
-            $sessions[$key]['filter'] = $light['filter'] ?? '';
+            $rawFilter = $light['filter'] ?? '';
+            $mapKey = strtolower(trim((string)$rawFilter));
+            $sessions[$key]['filter'] = $filterMap[$mapKey] ?? $rawFilter;
             $sessions[$key]['number'] = 0;
             $sessions[$key]['duration'] = $light['exptime'] ?? 0;
             $sessions[$key]['binning'] = $light['xbinning'] ?? 1;
@@ -136,6 +146,15 @@ if (!empty($lights)) {
             $sessions[$key]['fNumber'] = $light['focratio'] ?? '';
         }
         $sessions[$key]['number']++;
+        // Accumulate FWHM (arcsec) for the session meanFwhm (max 2 decimals per docs)
+        $fwhm = $light['fwhm'] ?? null;
+        if (is_numeric($fwhm) && (float)$fwhm > 0) {
+            if (!isset($fwhmAcc[$key])) {
+                $fwhmAcc[$key] = ['sum' => 0.0, 'n' => 0];
+            }
+            $fwhmAcc[$key]['sum'] += (float)$fwhm;
+            $fwhmAcc[$key]['n']++;
+        }
     }
 }
 
@@ -153,8 +172,11 @@ if (empty($sessions)) {
     fputcsv($output, $cal_only_row);
 } else {
     // Add calibration data to *every* session found
-    foreach ($sessions as $session) {
+    foreach ($sessions as $key => $session) {
         $session = array_merge($session, $cal_frames);
+        if (!empty($fwhmAcc[$key]['n'])) {
+            $session['meanFwhm'] = round($fwhmAcc[$key]['sum'] / $fwhmAcc[$key]['n'], 2);
+        }
         // Ensure all columns are present, even if empty
         $row_to_write = array_merge(array_fill_keys($full_header, ''), $session);
         fputcsv($output, $row_to_write);

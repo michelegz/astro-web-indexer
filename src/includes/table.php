@@ -3,7 +3,7 @@
 $viewMode = $_COOKIE['viewMode'] ?? 'list';
 $thumbSize = $_COOKIE['thumbSize'] ?? '3';
 ?>
-<div class="mb-4 flex justify-end gap-2">
+<div class="mb-4 flex flex-wrap justify-end gap-2">
     <button id="exportAstroBinBtn" class="bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50" disabled>
         <?php echo __('export_astrobin_csv') ?>
     </button>
@@ -18,53 +18,29 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
 <div id="selectable-container" class="view-container thumb-size-<?php echo htmlspecialchars($thumbSize); ?>">
     
 <!-- List View -->
+<p id="hscroll-hint" class="hidden text-xs text-gray-500 mb-2"><?php echo __('hscroll_hint'); ?></p>
 <div class="list-view <?php if ($viewMode !== 'list') echo 'hidden'; ?> bg-gray-800 rounded-lg shadow-lg overflow-x-auto">
     <table class="w-full text-left">
         <thead class="bg-gray-700 text-gray-200">
     <tr>
         <th class="p-3 whitespace-nowrap"><input type="checkbox" id="selectAll" class="form-checkbox h-4 w-4 text-blue-600 rounded"></th>
         <?php
-        // Define headers: sort_key => [label_key, is_calculated_flag]
-        $headers = [
-            'preview' => ['preview', true],
-            'name' => ['file_name', null],
-            'visible_duplicate_count' => ['duplicates', true],
-            'path' => ['path', null],
-            'object' => ['object', false],
-            'date_obs' => ['date_obs', false],
-            'moon_phase' => ['moon_phase', true],
-            'exptime' => ['exposure', false],
-            'filter' => ['filter', false],
-            'imgtype' => ['type', false],
-            'smart_frame_finder' => ['smart_frame_finder', null],
-        ];
+        // Base headers (always visible) + toggleable groups from the registry.
+        // Hidden columns are skipped server-side (see showCol()).
+        $headers = getBaseColumns();
 
         foreach ($headers as $sortKey => [$labelKey, $isCalculated]) {
+            if (!showCol($sortKey)) continue;
             render_header_with_tooltip($sortKey, $labelKey, $sortBy, $sortOrder, $isCalculated);
         }
 
-        if ($showAdvanced) {
-            $advancedHeaders = [
-                'xbinning' => ['xbinning', false], 'ybinning' => ['ybinning', false], 'egain' => ['egain', false], 'gain' => ['gain', false],
-                'offset' => ['offset', false], 'xpixsz' => ['xpixsz', false], 'ypixsz' => ['ypixsz', false], 
-                'set_temp' => ['set_temp', false], 'ccd_temp' => ['ccd_temp', false], 'instrume' => ['instrume', false], 
-                'cameraid' => ['cameraid', false], 'usblimit' => ['usblimit', false], 'fwheel' => ['fwheel', false], 
-                'telescop' => ['telescop', false], 'focallen' => ['focallen', false], 'focratio' => ['focratio', false], 
-                'focname' => ['focname', false], 'focpos' => ['focpos', false], 'focussz' => ['focussz', false], 
-                'foctemp' => ['foctemp', false], 'ra' => ['ra', false], 'dec' => ['dec', false], 
-                'centalt' => ['centalt', false], 'centaz' => ['centaz', false], 'airmass' => ['airmass', false], 
-                'pierside' => ['pierside', false], 'objctrot' => ['objctrot', false], 'siteelev' => ['siteelev', false], 
-                'sitelat' => ['sitelat', false], 'sitelong' => ['sitelong', false], 'swcreate' => ['swcreate', false], 
-                'roworder' => ['roworder', false], 'equinox' => ['equinox', false], 'date_avg' => ['date_avg', false], 
-                'objctra' => ['objctra', false], 'objctdec' => ['objctdec', false],
-                'width' => ['dimensions', true], 
-                'resolution' => ['resolution', true], 
-                'fov_w' => ['field_of_view', true], 
-                'file_size' => ['size', null], 
-                'mtime' => ['modification_time', null], 
-                'file_hash' => ['hash', true],
-            ];
-            foreach ($advancedHeaders as $sortKey => [$labelKey, $isCalculated]) {
+        foreach (getColumnGroups() as $groupKey => $group) {
+            if ($groupKey === 'base') continue; // rendered above, in body order
+            if ($groupKey === 'star' && empty($visibleStarKeys ?? [])) continue;
+            if ($groupKey === 'frame' && empty($visibleFrameKeys ?? [])) continue;
+            if ($groupKey !== 'star' && $groupKey !== 'frame' && empty($visibleAdvKeys ?? [])) continue;
+            foreach ($group['columns'] as $sortKey => [$labelKey, $isCalculated]) {
+                if (!showCol($sortKey)) continue;
                 render_header_with_tooltip($sortKey, $labelKey, $sortBy, $sortOrder, $isCalculated);
             }
         }
@@ -75,6 +51,7 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
             <?php foreach ($files as $f): ?>
                         <tr data-id="<?= $f['id'] ?>" class="selectable-item border-b border-gray-700 hover:bg-gray-700">
                 <td class="p-3"><input type="checkbox" class="file-checkbox h-4 w-4 text-blue-600 rounded" value="<?= htmlspecialchars($f['path'] ?? '') ?>" data-id="<?= $f['id'] ?>"></td>
+                <?php if (showCol('preview')): ?>
                 <td class="p-3">
                     <div class="thumb-wrapper relative inline-block align-middle" tabindex="0">
                         <?php if ($f['thumb']): ?>
@@ -98,11 +75,13 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                         <?php endif; ?>
                     </div>
                 </td>
+                <?php endif; ?>
                 <td class="p-3">
                     <a href="/fits/<?= rawurlencode($f['path']) ?>" download class="text-blue-400 hover:text-blue-300">
                         <?= htmlspecialchars($f['name'] ?? '') ?>
                     </a>
                 </td>
+                <?php if (showCol('visible_duplicate_count')): ?>
                                 <td class="p-3 text-center">
                     <?php if (($f['total_duplicate_count'] ?? 1) > 1): ?>
                         <?php 
@@ -117,21 +96,27 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                         </span>
                     <?php endif; ?>
                 </td>
-                <td class="p-3 text-sm text-gray-400 break-all"><?= htmlspecialchars(dirname($f['path'] ?? '')) ?></td>
-                <td class="p-3 text-gray-200"><?= htmlspecialchars($f['object'] ?? '') ?></td>
+                <?php endif; ?>
+                <?php if (showCol('path')): ?><td class="p-3 text-sm text-gray-400 break-all"><?= htmlspecialchars(dirname($f['path'] ?? '')) ?></td><?php endif; ?>
+                <?php if (showCol('object')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['object'] ?? '') ?></td><?php endif; ?>
+                <?php if (showCol('date_obs')): ?>
                 <td class="p-3 text-sm text-gray-300">
                     <span class="utc-date" data-timestamp="<?= !empty($f['date_obs']) ? strtotime($f['date_obs']) : '' ?>">
                         <?= htmlspecialchars($f['date_obs'] ?? '') ?>
                     </span>
                 </td>
+                <?php endif; ?>
+                <?php if (showCol('moon_phase')): ?>
                 <td class="p-3 text-xl text-center">
                     <?= getMoonPhaseMarkup($f['moon_angle'] ?? null, $f['moon_phase'] ?? null) ?>
                 </td>
-                <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['exptime'] ?? '') ?>s</td>
-                <td class="p-3 text-gray-200"><?= htmlspecialchars($f['filter'] ?? '') ?></td>
+                <?php endif; ?>
+                <?php if (showCol('exptime')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['exptime'] ?? '') ?>s</td><?php endif; ?>
+                <?php if (showCol('filter')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['filter'] ?? '') ?></td><?php endif; ?>
                 
-                <td class="p-3 text-gray-200"><?= htmlspecialchars($f['imgtype'] ?? '') ?></td>
+                <?php if (showCol('imgtype')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['imgtype'] ?? '') ?></td><?php endif; ?>
                                 
+                                <?php if (showCol('smart_frame_finder')): ?>
                                 <td class="p-3 whitespace-nowrap">
                     <?php if (strtoupper($f['imgtype'] ?? '') === 'LIGHT'): ?>
                         <div class="flex items-center gap-2">
@@ -142,63 +127,89 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                         </div>
                     <?php endif; ?>
                 </td>
-                                <?php if ($showAdvanced): ?>
+                <?php endif; ?>
+                <?php if (!empty($visibleStarKeys ?? [])): ?>
+                    <?php if (showCol('hfr')): ?><td class="p-3 text-sm text-gray-300 text-right whitespace-nowrap"><?= isset($f['hfr']) && $f['hfr'] !== '' ? number_format((float)$f['hfr'], 2) . ' px' : '' ?></td><?php endif; ?>
+                    <?php if (showCol('fwhm')): ?><td class="p-3 text-sm text-gray-300 text-right whitespace-nowrap"><?= isset($f['fwhm']) && $f['fwhm'] !== '' ? number_format((float)$f['fwhm'], 2) . '"' : '' ?></td><?php endif; ?>
+                    <?php if (showCol('hfr_sd')): ?><td class="p-3 text-sm text-gray-300 text-right whitespace-nowrap"><?= isset($f['hfr_sd']) && $f['hfr_sd'] !== '' ? number_format((float)$f['hfr_sd'], 2) . ' px' : '' ?></td><?php endif; ?>
+                    <?php if (showCol('eccentricity')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['eccentricity']) && $f['eccentricity'] !== '' ? number_format((float)$f['eccentricity'], 3) : '' ?></td><?php endif; ?>
+                    <?php if (showCol('star_count')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['star_count']) && $f['star_count'] !== '' ? (int)$f['star_count'] : '' ?></td><?php endif; ?>
+                    <?php if (showCol('snr_weight')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['snr_weight']) && $f['snr_weight'] !== '' ? number_format((float)$f['snr_weight'], 3) : '' ?></td><?php endif; ?>
+                    <?php if (showCol('psf_signal')): ?><td class="p-3 text-sm text-gray-300 text-right" title="<?= isset($f['psf_signal']) ? htmlspecialchars((string)$f['psf_signal']) : '' ?>"><?= isset($f['psf_signal']) && $f['psf_signal'] !== '' ? sprintf('%.6g', (float)$f['psf_signal']) : '' ?></td><?php endif; ?>
+                <?php endif; ?>
+                <?php if (!empty($visibleFrameKeys ?? [])): ?>
+                    <?php if (showCol('background_mean')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['background_mean']) && $f['background_mean'] !== '' ? number_format((float)$f['background_mean'], 1) : '' ?></td><?php endif; ?>
+                    <?php if (showCol('min_pixel')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['min_pixel']) && $f['min_pixel'] !== '' ? (int)$f['min_pixel'] : '' ?></td><?php endif; ?>
+                    <?php if (showCol('max_pixel')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['max_pixel']) && $f['max_pixel'] !== '' ? (int)$f['max_pixel'] : '' ?></td><?php endif; ?>
+                    <?php if (showCol('mean_pixel')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['mean_pixel']) && $f['mean_pixel'] !== '' ? number_format((float)$f['mean_pixel'], 1) : '' ?></td><?php endif; ?>
+                    <?php if (showCol('median_pixel')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['median_pixel']) && $f['median_pixel'] !== '' ? number_format((float)$f['median_pixel'], 1) : '' ?></td><?php endif; ?>
+                    <?php if (showCol('bit_depth')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['bit_depth']) && $f['bit_depth'] !== '' ? (int)$f['bit_depth'] : '' ?></td><?php endif; ?>
+                    <?php if (showCol('image_channels')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['image_channels']) && $f['image_channels'] !== '' ? (int)$f['image_channels'] : '' ?></td><?php endif; ?>
+                    <?php if (showCol('image_color_type')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['image_color_type'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('bayer_pattern')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['bayer_pattern'] ?? '') ?></td><?php endif; ?>
+                <?php endif; ?>
+                                <?php if (!empty($visibleAdvKeys ?? [])): ?>
                     <!-- Sensor Data -->
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['xbinning'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ybinning'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['egain'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['gain'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['offset'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['xpixsz'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ypixsz'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['set_temp'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ccd_temp'] ?? '') ?></td>
+                    <?php if (showCol('xbinning')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['xbinning'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('ybinning')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ybinning'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('egain')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['egain'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('gain')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['gain'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('offset')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['offset'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('xpixsz')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['xpixsz'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('ypixsz')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ypixsz'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('set_temp')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['set_temp'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('ccd_temp')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ccd_temp'] ?? '') ?></td><?php endif; ?>
                     
                     <!-- Equipment Data -->
-                    <td class="p-3 text-gray-200"><?= htmlspecialchars($f['instrume'] ?? '') ?></td>
-                    <td class="p-3 text-gray-200"><?= htmlspecialchars($f['cameraid'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['usblimit'] ?? '') ?></td>
-                    <td class="p-3 text-gray-200"><?= htmlspecialchars($f['fwheel'] ?? '') ?></td>
-                    <td class="p-3 text-gray-200"><?= htmlspecialchars($f['telescop'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['focallen'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['focratio'] ?? '') ?></td>
-                    <td class="p-3 text-gray-200"><?= htmlspecialchars($f['focname'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['focpos'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['focussz'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['foctemp'] ?? '') ?></td>
+                    <?php if (showCol('instrume')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['instrume'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('cameraid')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['cameraid'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('usblimit')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['usblimit'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('fwheel')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['fwheel'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('telescop')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['telescop'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('focallen')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['focallen'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('focratio')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['focratio'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('focname')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['focname'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('focpos')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['focpos'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('focussz')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['focussz'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('foctemp')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['foctemp'] ?? '') ?></td><?php endif; ?>
 
                     <!-- Pointing & Position Data -->
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ra'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['dec'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['centalt'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['centaz'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['airmass'] ?? '') ?></td>
-                    <td class="p-3 text-gray-200"><?= htmlspecialchars($f['pierside'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['objctrot'] ?? '') ?></td>
+                    <?php if (showCol('ra')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ra'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('dec')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['dec'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('centalt')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['centalt'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('centaz')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['centaz'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('airmass')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['airmass'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('pierside')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['pierside'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('objctrot')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['objctrot'] ?? '') ?></td><?php endif; ?>
 
                     <!-- Observatory Site Data -->
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['siteelev'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['sitelat'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['sitelong'] ?? '') ?></td>
+                    <?php if (showCol('siteelev')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['siteelev'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('sitelat')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['sitelat'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('sitelong')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['sitelong'] ?? '') ?></td><?php endif; ?>
 
                     <!-- File Metadata -->
-                    <td class="p-3 text-gray-200"><?= htmlspecialchars($f['swcreate'] ?? '') ?></td>
-                    <td class="p-3 text-gray-200"><?= htmlspecialchars($f['roworder'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['equinox'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><span class="utc-date" data-timestamp="<?= !empty($f['date_avg']) ? strtotime($f['date_avg']) : '' ?>"><?= htmlspecialchars($f['date_avg'] ?? '') ?></span></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['objctra'] ?? '') ?></td>
-                    <td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['objctdec'] ?? '') ?></td>
+                    <?php if (showCol('swcreate')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['swcreate'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('roworder')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['roworder'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('equinox')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['equinox'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('date_avg')): ?><td class="p-3 text-sm text-gray-300"><span class="utc-date" data-timestamp="<?= !empty($f['date_avg']) ? strtotime($f['date_avg']) : '' ?>"><?= htmlspecialchars($f['date_avg'] ?? '') ?></span></td><?php endif; ?>
+                    <?php if (showCol('objctra')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['objctra'] ?? '') ?></td><?php endif; ?>
+                    <?php if (showCol('objctdec')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['objctdec'] ?? '') ?></td><?php endif; ?>
 
+                    <?php if (showCol('width')): ?>
                     <td class="p-3 text-sm text-gray-300">
                         <?php if (!empty($f['width']) && !empty($f['height'])): ?>
                             <?= htmlspecialchars($f['width']) ?>x<?= htmlspecialchars($f['height']) ?>
                         <?php endif; ?>
                     </td>
+                    <?php endif; ?>
+                    <?php if (showCol('resolution')): ?>
                     <td class="p-3 text-sm text-gray-300">
                         <?php if (!empty($f['resolution'])): ?>
                             <?= number_format($f['resolution'], 2) ?>"/px
                         <?php endif; ?>
                     </td>
+                    <?php endif; ?>
+                    <?php if (showCol('fov_w')): ?>
                                         <td class="p-3 text-sm text-gray-300">
                         <?php if (!empty($f['fov_w']) && !empty($f['fov_h'])): 
                             $fov_w_deg = $f['fov_w'] / 60;
@@ -209,22 +220,29 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                             </span>
                         <?php endif; ?>
                     </td>
+                    <?php endif; ?>
+                    <?php if (showCol('file_size')): ?>
                     <td class="p-3 text-sm text-gray-300 text-right">
                         <?php if (!empty($f['file_size'])): ?>
                             <?= number_format($f['file_size'] / (1024 * 1024), 2) ?> MB
                         <?php endif; ?>
                     </td>
+                    <?php endif; ?>
+                    <?php if (showCol('mtime')): ?>
                     <td class="p-3 text-sm text-gray-300">
                         <span class="utc-date" data-timestamp="<?= !empty($f['mtime']) ? (int)$f['mtime'] : '' ?>">
                             <?= !empty($f['mtime']) ? date('Y-m-d H:i:s', (int)$f['mtime']) : '' ?>
                         </span>
                     </td>
+                    <?php endif; ?>
+                    <?php if (showCol('file_hash')): ?>
                     <td class="p-3 text-sm text-gray-300 font-mono text-xs"><?= htmlspecialchars($f['file_hash'] ?? '') ?></td>
+                    <?php endif; ?>
                 <?php endif; ?>
             </tr>
             <?php endforeach; ?>
                         <?php if (empty($files)): ?>
-                <tr><td colspan="<?= $showAdvanced ? '33' : '9' ?>" class="p-4 text-center text-gray-500"><?php echo __('no_files_found') ?></td></tr>
+                <tr><td colspan="<?= (int)($tableColspan ?? 12) ?>" class="p-4 text-center text-gray-500"><?php echo __('no_files_found') ?></td></tr>
             <?php endif; ?>
 </tbody>
     </table>
@@ -683,10 +701,16 @@ document.addEventListener('DOMContentLoaded', function() {
             <p class="text-sm text-gray-300 mb-4">
                 <?php echo __('astrobin_modal_explanation'); ?>
             </p>
+            <p class="text-sm mb-2">
+                <span id="astrobinMappingWarningText" data-tmpl="<?= htmlspecialchars(__('filter_mapping_unmapped')) ?>" class="hidden text-yellow-300 font-semibold"><span aria-hidden="true">⚠️ </span><span id="astrobinMappingWarningMsg"></span></span>
+            </p>
             <textarea id="astrobinCsvText" readonly class="w-full h-64 bg-gray-900 text-gray-300 font-mono text-sm p-3 rounded-md border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"></textarea>
         </div>
 
-        <div class="flex justify-end pt-4 border-t border-gray-700 mt-4">
+        <div class="flex justify-end gap-2 pt-4 border-t border-gray-700 mt-4">
+            <?php if (!isAuthEnabled() || isAdmin()): ?>
+                <a href="/filter_mapping.php" target="_blank" rel="noopener" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"><?php echo __('filter_mapping_manage'); ?></a>
+            <?php endif; ?>
             <button id="copyAstrobinCsvBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"><?php echo __('copy_to_clipboard') ?></button>
         </div>
     </div>

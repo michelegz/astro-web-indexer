@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import mysql.connector
 import xxhash
 from astropy.io import fits
@@ -15,7 +16,8 @@ from functools import partial
 import multiprocessing
 
 # Corrected imports for the new structure
-from indexer_lib.image_processing import make_thumbnail, make_crop_preview
+from indexer_lib.image_processing import make_thumbnail, make_crop_preview, frame_statistics
+from indexer_lib.star_analysis import analyze_frame
 from indexer_lib.file_utils import calculate_hash, get_header_value, get_xisf_header_value
 from indexer_lib.db_utils import soft_delete_missing_files, purge_deleted_files, update_duplicate_counts
 from indexer_lib.ephemeris import get_moon_ephemeris
@@ -50,6 +52,17 @@ default_workers = int(os.getenv("INDEXER_WORKERS", 4))
 
 parser.add_argument("--workers", type=int, default=default_workers, help="Number of worker processes for parallel indexing")
 parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+# Master switch for star/quality metrics (HFR, FWHM, ...). Default from env;
+# watch_fs.py inherits the environment when it respawns this script.
+parser.add_argument("--star-metrics", dest="star_metrics",
+                    action=argparse.BooleanOptionalAction,
+                    default=os.getenv("STAR_METRICS_ENABLED", "true").lower() in ("true", "1"),
+                    help="Compute star metrics for LIGHT frames (default from STAR_METRICS_ENABLED)")
+parser.add_argument("--backfill-star-metrics", action="store_true",
+                    help="Reprocess pixel data of LIGHT frames missing star metrics, then exit the backfill phase")
+parser.add_argument("--recompute-star-metrics", action="store_true",
+                    help="Recompute star metrics for ALL LIGHT frames (e.g. after a formula change), "
+                         "not just the ones missing them")
 args = parser.parse_args()
 
 if args.debug:
@@ -65,9 +78,14 @@ if not os.path.isdir(fits_root):
 
 commit_interval = 50
 
+# Files slower than this (seconds, full worker incl. hash + thumbnails + metrics)
+# get a WARNING during backfill so slow outliers are visible without --debug.
+SLOW_FILE_SECONDS = 60.0
+
 
 # --- Worker function for multiprocessing ---
-def process_file_worker(full_path, fits_root, thumb_size):
+def process_file_worker(full_path, fits_root, thumb_size, star_metrics=True, with_thumbs=True):
+    t_start = time.perf_counter()
     rel_path = os.path.relpath(full_path, fits_root)
     logger.debug(f"Worker[{os.getpid()}] processing: {rel_path}")
     file_lower = full_path.lower()
@@ -94,7 +112,8 @@ def process_file_worker(full_path, fits_root, thumb_size):
             images_meta = xisf_file.get_images_metadata()
             if not images_meta:
                 logger.warning(f"No image metadata in XISF file: {rel_path}")
-                return {'status': 'error', 'path': rel_path, 'reason': 'No image metadata in XISF'}
+                return {'status': 'error', 'path': rel_path, 'reason': 'No image metadata in XISF',
+                        'elapsed': time.perf_counter() - t_start}
             header = images_meta[0].get('FITSKeywords', {})
             data = xisf_file.read_image(0)
             get_value = get_xisf_header_value
@@ -110,8 +129,11 @@ def process_file_worker(full_path, fits_root, thumb_size):
 
             if thumb_data.ndim >= 2:
                 height, width = thumb_data.shape[:2]
-                thumb = make_thumbnail(thumb_data, thumb_size)
-                thumb_crop = make_crop_preview(data, thumb_size)
+                # Thumbnails are skipped in backfill mode: the backfill UPDATE
+                # never writes them, and STF-stretching full frames is expensive.
+                if with_thumbs:
+                    thumb = make_thumbnail(thumb_data, thumb_size)
+                    thumb_crop = make_crop_preview(data, thumb_size)
 
         object_name = get_value(header, 'OBJECT', 'Unknown', str).strip()
         date_obs_str = get_value(header, 'DATE-OBS', None, str)
@@ -182,7 +204,13 @@ def process_file_worker(full_path, fits_root, thumb_size):
 
         if xpixsz and focallen and width and height:
             if xpixsz > 0 and focallen > 0:
-                resolution = (xpixsz / focallen) * 206.265
+                # Effective pixel size scales with binning (bin2 = 2x pixel width).
+                # Use XBINNING (documented assumption when X/Y differ, rare).
+                xb = xbinning if xbinning and xbinning > 0 else 1
+                resolution = (xpixsz * xb / focallen) * 206.265
+                if resolution < 0.1 or resolution > 10:
+                    logger.warning(f"Unusual resolution {resolution:.3f} arcsec/px in {rel_path} "
+                                   f"(xpixsz={xpixsz}, xbinning={xb}, focallen={focallen})")
                 fov_w = (width * resolution) / 60
                 fov_h = (height * resolution) / 60
 
@@ -192,6 +220,54 @@ def process_file_worker(full_path, fits_root, thumb_size):
             date_obs_aware = date_obs.replace(tzinfo=timezone.utc)
             timestamp = date_obs_aware.timestamp()
             moon_phase, moon_angle = get_moon_ephemeris(timestamp)
+
+        # Star/quality metrics (LIGHT frames only). analyze_frame() never raises:
+        # None means "not computed" (all DB columns stay NULL), while a result
+        # with star_count == 0 means "computed, no stars found".
+        # Column names follow the initial schema (hfr in pixels, fwhm in arcsec).
+        star = {'hfr': None, 'fwhm': None, 'hfr_sd': None, 'eccentricity': None,
+                'star_count': None, 'snr_weight': None, 'psf_signal': None}
+        if star_metrics and imgtype == 'LIGHT' and data is not None:
+            computed = analyze_frame(data)
+            if computed is not None:
+                star['hfr'] = computed['hfr_avg']
+                if computed['fwhm_avg'] is not None and resolution:
+                    star['fwhm'] = computed['fwhm_avg'] * resolution
+                star['hfr_sd'] = computed['hfr_sd']
+                star['eccentricity'] = computed['ecc_avg']
+                star['star_count'] = computed['star_count']
+                star['snr_weight'] = computed['snr_weight']
+                star['psf_signal'] = computed['psf_signal']
+
+        # Frame-level pixel statistics and sensor metadata (all frame types,
+        # lights and calibrations alike: bias level, flat exposure, Bayer...).
+        fstats = {'background_mean': None, 'min_pixel': None, 'max_pixel': None,
+                  'mean_pixel': None, 'median_pixel': None}
+        if data is not None:
+            fstats.update(frame_statistics(data))
+
+        bitpix = get_value(header, 'BITPIX', None, int)
+        bit_depth = abs(bitpix) if bitpix is not None else None
+        sq = np.squeeze(data) if data is not None else None
+        channels = None
+        if sq is not None:
+            if sq.ndim == 2:
+                channels = 1
+            elif sq.ndim == 3:
+                if sq.shape[0] in (3, 4):
+                    channels = int(sq.shape[0])
+                elif sq.shape[-1] in (3, 4):
+                    channels = int(sq.shape[-1])
+        bayer = get_value(header, 'BAYERPAT', None, str)
+        bayer = bayer.strip().upper() if bayer else None
+        if bayer:
+            color_type = 'OSC'
+        elif channels == 3:
+            color_type = 'RGB'
+        elif channels == 1:
+            color_type = 'MONO'
+        else:
+            color_type = None
 
         params = {
             'path': rel_path, 'file_hash': file_hash, 'name': file_name, 'mtime': int(mtime), 'file_size': file_size,
@@ -205,13 +281,24 @@ def process_file_worker(full_path, fits_root, thumb_size):
             'siteelev': siteelev, 'sitelat': sitelat, 'sitelong': sitelong,
             'swcreate': swcreate, 'roworder': roworder, 'equinox': equinox,
             'thumb': thumb, 'thumb_crop': thumb_crop,
-            'moon_phase': moon_phase, 'moon_angle': moon_angle
+            'moon_phase': moon_phase, 'moon_angle': moon_angle,
+            'hfr': star['hfr'], 'fwhm': star['fwhm'], 'hfr_sd': star['hfr_sd'],
+            'eccentricity': star['eccentricity'], 'star_count': star['star_count'],
+            'snr_weight': star['snr_weight'], 'psf_signal': star['psf_signal'],
+            'background_mean': fstats['background_mean'], 'min_pixel': fstats['min_pixel'],
+            'max_pixel': fstats['max_pixel'], 'mean_pixel': fstats['mean_pixel'],
+            'median_pixel': fstats['median_pixel'], 'bit_depth': bit_depth,
+            'image_channels': channels, 'image_color_type': color_type,
+            'bayer_pattern': bayer
         }
-        return {'status': 'success', 'path': rel_path, 'params': params}
+        elapsed = time.perf_counter() - t_start
+        logger.debug(f"Worker[{os.getpid()}] done: {rel_path} in {elapsed:.1f}s")
+        return {'status': 'success', 'path': rel_path, 'params': params, 'elapsed': elapsed}
 
     except Exception as e:
         logger.error(f"Error processing {rel_path} in worker: {e}")
-        return {'status': 'error', 'path': rel_path, 'reason': str(e)}
+        return {'status': 'error', 'path': rel_path, 'reason': str(e),
+                'elapsed': time.perf_counter() - t_start}
 
 
 def main():
@@ -220,7 +307,7 @@ def main():
         conn = mysql.connector.connect(host=args.host, user=args.user, password=args.password, database=args.database)
         cur = conn.cursor()
 
-        current_schema_version = 2
+        current_schema_version = 4
 
         logger.info("Loading existing file data from database...")
         cur.execute("SELECT path, file_hash, mtime, file_size, deleted_at, data_schema_version FROM files")
@@ -317,7 +404,10 @@ def main():
                     siteelev, sitelat, sitelong,
                     swcreate, roworder, equinox,
                     thumb, thumb_crop, deleted_at, is_hidden, data_schema_version,
-                    moon_phase, moon_angle
+                    moon_phase, moon_angle,
+                    hfr, fwhm, hfr_sd, eccentricity, star_count, snr_weight, psf_signal,
+                    background_mean, min_pixel, max_pixel, mean_pixel, median_pixel,
+                    bit_depth, image_channels, image_color_type, bayer_pattern
                 ) VALUES (
                     %(path)s, %(file_hash)s, %(name)s, %(mtime)s, %(file_size)s, %(width)s, %(height)s, %(resolution)s, %(fov_w)s, %(fov_h)s,
                     %(object)s, %(objctra)s, %(objctdec)s,
@@ -328,8 +418,11 @@ def main():
                     %(ra)s, %(dec)s, %(centalt)s, %(centaz)s, %(airmass)s, %(pierside)s, %(objctrot)s,
                     %(siteelev)s, %(sitelat)s, %(sitelong)s,
                     %(swcreate)s, %(roworder)s, %(equinox)s,
-                    %(thumb)s, %(thumb_crop)s, NULL, 0, 2,
-                    %(moon_phase)s, %(moon_angle)s
+                    %(thumb)s, %(thumb_crop)s, NULL, 0, 3,
+                    %(moon_phase)s, %(moon_angle)s,
+                    %(hfr)s, %(fwhm)s, %(hfr_sd)s, %(eccentricity)s, %(star_count)s, %(snr_weight)s, %(psf_signal)s,
+                    %(background_mean)s, %(min_pixel)s, %(max_pixel)s, %(mean_pixel)s, %(median_pixel)s,
+                    %(bit_depth)s, %(image_channels)s, %(image_color_type)s, %(bayer_pattern)s
                 )
                 ON DUPLICATE KEY UPDATE
                     file_hash=VALUES(file_hash), mtime=VALUES(mtime), file_size=VALUES(file_size), width=VALUES(width), height=VALUES(height), resolution=VALUES(resolution), fov_w=VALUES(fov_w), fov_h=VALUES(fov_h), name=VALUES(name),
@@ -345,9 +438,18 @@ def main():
                     thumb_crop=COALESCE(VALUES(thumb_crop), thumb_crop),
                     deleted_at=NULL, is_hidden=is_hidden, data_schema_version=VALUES(data_schema_version),
                     moon_phase=VALUES(moon_phase),
-                    moon_angle=VALUES(moon_angle)
+                    moon_angle=VALUES(moon_angle),
+                    hfr=VALUES(hfr), fwhm=VALUES(fwhm), hfr_sd=VALUES(hfr_sd),
+                    eccentricity=VALUES(eccentricity), star_count=VALUES(star_count),
+                    snr_weight=VALUES(snr_weight), psf_signal=VALUES(psf_signal),
+                    background_mean=VALUES(background_mean), min_pixel=VALUES(min_pixel),
+                    max_pixel=VALUES(max_pixel), mean_pixel=VALUES(mean_pixel),
+                    median_pixel=VALUES(median_pixel), bit_depth=VALUES(bit_depth),
+                    image_channels=VALUES(image_channels), image_color_type=VALUES(image_color_type),
+                    bayer_pattern=VALUES(bayer_pattern)
             '''
-            worker_func = partial(process_file_worker, fits_root=fits_root, thumb_size=thumb_size)
+            worker_func = partial(process_file_worker, fits_root=fits_root, thumb_size=thumb_size,
+                                   star_metrics=args.star_metrics)
             batch_params = []
             hashes_to_update = set()
             
@@ -427,6 +529,74 @@ def main():
             conn.commit()
             logger.info(f"Schema upgrade complete: {schema_upgraded_count} files updated.")
 
+        backfilled_count = 0
+        if args.backfill_star_metrics or args.recompute_star_metrics:
+            # NOTE: star metrics need pixel data, so they cannot go through the
+            # lightweight header-only schema_upgrade_worker above. This dedicated
+            # pass reprocesses the pixel data of LIGHT frames still missing them.
+            if not args.star_metrics:
+                logger.warning("Backfill requested but star metrics are disabled (STAR_METRICS_ENABLED=false), skipping.")
+            else:
+                if args.recompute_star_metrics:
+                    logger.info("Recomputing star metrics for ALL LIGHT frames...")
+                    cur.execute(
+                        "SELECT path FROM files WHERE imgtype = 'LIGHT' AND deleted_at IS NULL AND thumb IS NOT NULL"
+                    )
+                else:
+                    logger.info("Backfilling star metrics for LIGHT frames with no computed values...")
+                    cur.execute(
+                        "SELECT path FROM files WHERE deleted_at IS NULL AND thumb IS NOT NULL AND ("
+                        "(imgtype = 'LIGHT' AND hfr IS NULL) OR background_mean IS NULL)"
+                    )
+                backfill_tasks = [os.path.join(fits_root, row[0]) for row in cur.fetchall()
+                                  if os.path.isfile(os.path.join(fits_root, row[0]))]
+                if args.recompute_star_metrics:
+                    logger.info(f"Found {len(backfill_tasks)} LIGHT files to recompute.")
+                else:
+                    logger.info(f"Found {len(backfill_tasks)} files missing metrics.")
+                if backfill_tasks:
+                    backfill_sql = (
+                        "UPDATE files SET hfr=%s, fwhm=%s, hfr_sd=%s, eccentricity=%s, star_count=%s, "
+                        "snr_weight=%s, psf_signal=%s, background_mean=%s, min_pixel=%s, max_pixel=%s, "
+                        "mean_pixel=%s, median_pixel=%s, bit_depth=%s, image_channels=%s, "
+                        "image_color_type=%s, bayer_pattern=%s, data_schema_version=%s WHERE path=%s"
+                    )
+                    backfill_start = datetime.now()
+                    backfill_func = partial(process_file_worker, fits_root=fits_root,
+                                            thumb_size=thumb_size, star_metrics=True,
+                                            with_thumbs=False)
+                    with concurrent.futures.ProcessPoolExecutor(max_workers=args.workers) as executor:
+                        for result in executor.map(backfill_func, backfill_tasks):
+                            try:
+                                if result['status'] == 'error':
+                                    error_count += 1
+                                    logger.error(f"Backfill failed for {result['path']}: {result['reason']}")
+                                    continue
+                                elapsed = result.get('elapsed')
+                                if elapsed is not None and elapsed > SLOW_FILE_SECONDS:
+                                    logger.warning(f"Slow file ({elapsed:.0f}s): {result['path']}")
+                                p = result['params']
+                                cur.execute(backfill_sql, (p['hfr'], p['fwhm'], p['hfr_sd'],
+                                                           p['eccentricity'], p['star_count'],
+                                                           p['snr_weight'], p['psf_signal'],
+                                                           p['background_mean'], p['min_pixel'],
+                                                           p['max_pixel'], p['mean_pixel'],
+                                                           p['median_pixel'], p['bit_depth'],
+                                                           p['image_channels'], p['image_color_type'],
+                                                           p['bayer_pattern'],
+                                                           current_schema_version, result['path']))
+                                backfilled_count += 1
+                                if backfilled_count % commit_interval == 0:
+                                    conn.commit()
+                                    mins = max((datetime.now() - backfill_start).total_seconds() / 60, 1e-6)
+                                    logger.info(f"Backfill progress: {backfilled_count} files updated "
+                                                f"({backfilled_count / mins:.1f} files/min).")
+                            except Exception as e:
+                                logger.error(f"Error during backfill for {result.get('path', 'unknown file')}: {e}")
+                                error_count += 1
+                    conn.commit()
+                    logger.info(f"Backfill complete: {backfilled_count} files updated.")
+
         soft_deleted_count = 0
         purged_count = 0
         if not args.skip_cleanup:
@@ -438,11 +608,24 @@ def main():
         logger.info(f"Duration: {duration}")
         logger.info(f"Files fully processed: {processed_count}")
         logger.info(f"Files schema-upgraded (header-only): {schema_upgraded_count}")
+        logger.info(f"Files backfilled (star metrics): {backfilled_count}")
         logger.info(f"Files skipped: {skipped_count}")
         logger.info(f"Files soft-deleted: {soft_deleted_count}")
         logger.info(f"Files purged: {purged_count}")
         logger.info(f"Errors encountered: {error_count}")
 
+    except KeyboardInterrupt:
+        # Ctrl+C: don't just crash with a traceback and lose the current batch.
+        # The ProcessPoolExecutor context managers above shut down on the way
+        # out (spawned workers also receive SIGINT and terminate); commit
+        # whatever was already executed so the next run resumes where we stopped.
+        logger.warning("Interrupted by user (Ctrl+C): committing partial progress and exiting...")
+        try:
+            conn.commit()
+            logger.info("Partial progress committed.")
+        except Exception as e:
+            logger.error(f"Could not commit partial progress: {e}")
+        sys.exit(130)
     except mysql.connector.Error as err:
         logger.error(f"Database error: {err}")
         sys.exit(1)

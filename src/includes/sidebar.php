@@ -10,6 +10,28 @@
     
                     <nav id="folder-tree">
         <?php
+        // Root entry as a parent folder: the "/" toggle collapses the tree
+        // below, the arrow link clears the directory filter.
+        $rootParams = $_GET;
+        unset($rootParams['dir']);
+        $rootParams['page'] = 1;
+        $rootHref = '?' . http_build_query($rootParams);
+        $isRoot = ($dir ?? '') === '';
+        $rootToggleClasses = 'folder-toggle flex-grow cursor-pointer p-2 hover:bg-gray-700 rounded-l-md truncate';
+        if ($isRoot) {
+            $rootToggleClasses .= ' bg-blue-800 font-semibold text-white';
+        }
+        ?>
+        <div class="folder-item flex justify-between items-center text-gray-300 rounded-md">
+            <span class="<?= $rootToggleClasses ?>">
+                /
+            </span>
+            <a href="<?= htmlspecialchars($rootHref) ?>" class="filter-link p-2 hover:bg-gray-600 rounded-r-md text-white" title="<?= __('filter_by_folder') ?>">
+            ▶️
+            </a>
+        </div>
+        <div class="subfolders ml-4">
+        <?php
         /**
          * Renders the folder tree recursively.
          *
@@ -70,5 +92,6 @@
             echo '<p class="text-gray-500 text-sm p-2">' . __('no_files_found') . '</p>';
         }
         ?>
+        </div>
     </nav>
 </div>

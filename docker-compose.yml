@@ -36,6 +36,7 @@ services:
       - AUTH_MODE=${AUTH_MODE:-none}
       - ADMIN_USER=${ADMIN_USER:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-changeme}
+      - STAR_METRICS_ENABLED=${STAR_METRICS_ENABLED:-true}
     restart: unless-stopped
     depends_on:
       mariadb:
@@ -60,6 +61,7 @@ services:
       - DEBUG=${DEBUG:-false}
       - POLL_INTERVAL=${POLL_INTERVAL:-30}
       - FORCE_POLLING=${FORCE_POLLING:-false}
+      - STAR_METRICS_ENABLED=${STAR_METRICS_ENABLED:-true}
     restart: unless-stopped
     depends_on:
       mariadb:
