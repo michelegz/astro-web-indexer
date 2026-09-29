@@ -311,11 +311,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         .then(response => response.json())
                         .then(data => {
                             const warnText = document.getElementById('astrobinMappingWarningText');
-                            if (!warnText) return;
+                            const warnMsg = document.getElementById('astrobinMappingWarningMsg');
+                            if (!warnText || !warnMsg) return;
                             const list = (data && data.unmapped) || [];
                             if (list.length === 0) return;
                             const tmpl = warnText.dataset.tmpl || '{count} unmapped filters';
-                            warnText.textContent = tmpl.replace('{count}', list.length) + ' (' + list.join(', ') + ') ';
+                            warnMsg.textContent = tmpl.replace('{count}', list.length) + ' (' + list.join(', ') + ')';
                             warnText.classList.remove('hidden');
                         })
                         .catch(() => { /* non-blocking: CSV is already shown */ });

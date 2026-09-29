@@ -700,7 +700,9 @@ document.addEventListener('DOMContentLoaded', function() {
             <p class="text-sm text-gray-300 mb-4">
                 <?php echo __('astrobin_modal_explanation'); ?>
             </p>
-            <p id="astrobinMappingWarningText" data-tmpl="<?= htmlspecialchars(__('filter_mapping_unmapped')) ?>" class="hidden text-sm text-yellow-300 mb-2"></p>
+            <p class="text-sm mb-2">
+                <span id="astrobinMappingWarningText" data-tmpl="<?= htmlspecialchars(__('filter_mapping_unmapped')) ?>" class="hidden text-yellow-300 font-semibold"><span aria-hidden="true">⚠️ </span><span id="astrobinMappingWarningMsg"></span></span>
+            </p>
             <textarea id="astrobinCsvText" readonly class="w-full h-64 bg-gray-900 text-gray-300 font-mono text-sm p-3 rounded-md border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"></textarea>
         </div>
 
