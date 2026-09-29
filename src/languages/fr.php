@@ -15,6 +15,7 @@ return [
     'all_filters' => 'Tous les filtres',
     'all_types' => 'Tous les types',
     'filters' => 'Filtres de recherche',
+    'hscroll_hint' => 'Maj + molette : défilement horizontal',
     'filter_not_in_folder' => 'pas dans ce dossier',
     'apply_filters' => 'Appliquer les filtres',
     'reset_filters' => 'Réinitialiser les filtres',

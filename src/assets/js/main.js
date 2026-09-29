@@ -63,7 +63,21 @@ document.addEventListener('DOMContentLoaded', () => {
             listViewBtn.classList.remove('bg-blue-600');
             thumbnailViewBtn.classList.add('bg-blue-600');
         }
+        updateHScrollHint();
     }
+
+    // --- HORIZONTAL SCROLL HINT (desktop only, shown when the table overflows) ---
+    // Browsers already scroll horizontally with Shift+wheel; this only toggles
+    // the hint. pointer:fine excludes touch devices (they swipe natively).
+    const hscrollHint = document.getElementById('hscroll-hint');
+    const finePointer = window.matchMedia && window.matchMedia('(pointer: fine)').matches;
+    function updateHScrollHint() {
+        if (!hscrollHint || typeof listView === 'undefined' || !listView) return;
+        const overflows = listView.scrollWidth > listView.clientWidth + 1;
+        const visible = !!finePointer && !listView.classList.contains('hidden') && overflows;
+        hscrollHint.classList.toggle('hidden', !visible);
+    }
+    window.addEventListener('resize', updateHScrollHint);
 
     function setThumbnailSize(size) {
         // Remove all existing size classes
@@ -74,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (thumbnailSizeSlider) {
             thumbnailSizeSlider.value = size;
         }
+        updateHScrollHint();
     }
 
     // Initialize view preferences

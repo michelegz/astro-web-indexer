@@ -15,6 +15,7 @@ return [
     'all_filters' => 'Todos los filtros',
     'all_types' => 'Todos los tipos',
     'filters' => 'Filtros de búsqueda',
+    'hscroll_hint' => 'Mayús + rueda: desplazamiento horizontal',
     'filter_not_in_folder' => 'no en esta carpeta',
     'apply_filters' => 'Aplicar filtros',
     'reset_filters' => 'Restablecer filtros',

@@ -15,6 +15,7 @@ return [
     'all_filters' => 'Alle Filter',
     'all_types' => 'Alle Typen',
     'filters' => 'Suchfilter',
+    'hscroll_hint' => 'Umschalt + Rad: horizontal scrollen',
     'filter_not_in_folder' => 'nicht in diesem Ordner',
     'apply_filters' => 'Filter anwenden',
     'reset_filters' => 'Filter zurücksetzen',
