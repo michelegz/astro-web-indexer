@@ -283,12 +283,14 @@ document.addEventListener('DOMContentLoaded', function() {
         panel.querySelectorAll('input[data-col]').forEach(function(box) {
             box.checked = true;
         });
+        refreshGroupToggles();
     });
     document.getElementById('columns-reset').addEventListener('click', function() {
         // Default: base columns visible, everything else hidden
         panel.querySelectorAll('input[data-col]').forEach(function(box) {
             box.checked = (box.getAttribute('data-group') === 'base');
         });
+        refreshGroupToggles();
     });
 });
 </script>
