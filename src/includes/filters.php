@@ -3,7 +3,21 @@
 $viewMode = $_COOKIE['viewMode'] ?? 'list';
 $thumbSize = $_COOKIE['thumbSize'] ?? '3';
 ?>
-<form id="filters-form" method="get" class="bg-gray-800 p-4 rounded-lg shadow-md flex flex-wrap gap-4 items-end mb-6">
+<div class="bg-gray-800 rounded-lg shadow-md mb-6 overflow-hidden">
+    <button type="button"
+            id="filters-toggle"
+            aria-expanded="true"
+            aria-controls="filters-body"
+            class="w-full flex flex-wrap items-center justify-between gap-2 p-4 hover:bg-gray-700/50 transition-colors text-left">
+        <span class="flex items-center gap-2 font-semibold text-gray-100">
+            <span aria-hidden="true">🔍</span>
+            <span><?php echo __('filters'); ?></span>
+        </span>
+        <svg id="filters-chevron" class="w-5 h-5 text-gray-400 transition-transform duration-200" style="transform: rotate(180deg)" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+    </button>
+
+    <div id="filters-body" class="border-t border-gray-700">
+<form id="filters-form" method="get" class="flex flex-wrap gap-4 items-end p-4">
     <input type="hidden" name="dir" value="<?= htmlspecialchars($dir) ?>">
     <input type="hidden" name="page" value="1"> <!-- Resetta la pagina quando si applicano i filtri -->
     <input type="hidden" name="lang" value="<?= htmlspecialchars($lang) ?>">
@@ -66,7 +80,7 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
         <!-- Date OBS Filter -->
     <div class="md:border-l md:border-gray-600 md:pl-4">
         <label for="date_obs_from" class="block text-sm font-medium text-gray-300 mb-1"><?php echo __('observation_date'); ?>:</label>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
             <input type="date" id="date_obs_from" name="date_obs_from" value="<?= htmlspecialchars($_GET['date_obs_from'] ?? '') ?>" class="bg-gray-700 border border-gray-600 text-gray-100 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5">
             <span class="text-gray-400">-</span>
             <input type="date" id="date_obs_to" name="date_obs_to" value="<?= htmlspecialchars($_GET['date_obs_to'] ?? '') ?>" class="bg-gray-700 border border-gray-600 text-gray-100 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5">
@@ -76,7 +90,7 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
         <!-- Exposure Time Filter (seconds) -->
     <div class="md:border-l md:border-gray-600 md:pl-4">
         <label for="exptime_min" class="block text-sm font-medium text-gray-300 mb-1"><?php echo __('exposure_time'); ?>:</label>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
             <input type="number" id="exptime_min" name="exptime_min" min="0" step="any" value="<?= htmlspecialchars($exptimeMin ?? '') ?>" class="bg-gray-700 border border-gray-600 text-gray-100 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5 w-28">
             <span class="text-gray-400">-</span>
             <input type="number" id="exptime_max" name="exptime_max" min="0" step="any" value="<?= htmlspecialchars($exptimeMax ?? '') ?>" class="bg-gray-700 border border-gray-600 text-gray-100 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5 w-28">
@@ -279,3 +293,18 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 </form>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var toggle = document.getElementById('filters-toggle');
+    var body = document.getElementById('filters-body');
+    var chevron = document.getElementById('filters-chevron');
+    if (!toggle || !body) return;
+    toggle.addEventListener('click', function() {
+        var isHidden = body.classList.toggle('hidden');
+        toggle.setAttribute('aria-expanded', isHidden ? 'false' : 'true');
+        if (chevron) chevron.style.transform = isHidden ? '' : 'rotate(180deg)';
+    });
+});
+</script>

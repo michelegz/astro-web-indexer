@@ -3,7 +3,7 @@
 $viewMode = $_COOKIE['viewMode'] ?? 'list';
 $thumbSize = $_COOKIE['thumbSize'] ?? '3';
 ?>
-<div class="mb-4 flex justify-end gap-2">
+<div class="mb-4 flex flex-wrap justify-end gap-2">
     <button id="exportAstroBinBtn" class="bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50" disabled>
         <?php echo __('export_astrobin_csv') ?>
     </button>

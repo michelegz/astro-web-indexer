@@ -13,6 +13,7 @@
 ### Fixes & Improvements
 - **Filter dropdowns show stale selections** - an active object/filter/type that doesn't exist in the current folder is now shown explicitly ("not in this folder") instead of misleadingly displaying "All" with an empty table
 - **Folder tree root** - the sidebar now starts from `/` with the same arrow button as the other folders, so you can always go back to the full archive; the breadcrumb home label is now properly translated
+- **Responsive page** - filters, statistics, charts and pagination now adapt to the screen width with no horizontal overflow; the file table scrolls horizontally on mobile while using full width on desktop
 
 > **Note for existing archives:** frames indexed before this version show empty
 > metric columns until backfilled (new files are computed automatically). To backfill,

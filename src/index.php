@@ -6,7 +6,7 @@ include __DIR__ . '/includes/sidebar.php';
 
     <div class="flex flex-col md:flex-row min-h-screen">
 
-        <div class="flex-1 transition-all duration-300 ease-in-out">        
+        <div class="flex-1 min-w-0 transition-all duration-300 ease-in-out">        
             <main class="p-4">
                 <?php 
                 include __DIR__ . '/includes/breadcrumbs.php';

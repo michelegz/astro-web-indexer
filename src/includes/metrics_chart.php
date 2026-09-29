@@ -41,7 +41,7 @@ if ($hasTrendData):
             id="trend-toggle"
             aria-expanded="false"
             aria-controls="trend-body"
-            class="w-full flex items-center justify-between p-4 hover:bg-gray-700/50 transition-colors text-left">
+            class="w-full flex flex-wrap items-center justify-between gap-2 p-4 hover:bg-gray-700/50 transition-colors text-left">
         <span class="flex items-center gap-2 font-semibold text-gray-100">
             <span aria-hidden="true">📈</span>
             <span><?php echo __('metrics_trend'); ?></span>
