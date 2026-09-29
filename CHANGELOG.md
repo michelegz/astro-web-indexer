@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.4.0
 
 ### New Features
 - **Image quality metrics** - every light frame now shows HFR, measured FWHM (in arcseconds), HFR spread, star eccentricity, star count, relative stellar SNR and relative PSF quality, so you can judge focus and seeing and sort your best frames. Computed automatically during indexing
