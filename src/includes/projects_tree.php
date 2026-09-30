@@ -1,7 +1,9 @@
 <?php
 // Project tree partial. Expects $projectTree (getProjectTree) and $projectDiag (diagnoseProjectTree).
 // Every linked file row carries a checkbox (value "fileId:level:nodeId") for the
-// bulk form in projects.php; group headers carry a toggle for their subtree.
+// bulk form in projects.php; group checkboxes sit OUTSIDE <summary> elements
+// (clicks inside <summary> are swallowed by the details toggle in browsers)
+// inside a .tnode wrapper that scopes their subtree.
 function fmtExp(float $seconds): string
 {
     if ($seconds >= 3600) {
@@ -73,95 +75,111 @@ if (empty($projectTree['setups'])): ?>
     <p class="text-sm text-gray-500"><?= __('projects_no_tree') ?></p>
 <?php else: ?>
     <?php foreach ($projectTree['setups'] as $setup): ?>
-        <details open class="mb-3 border border-gray-700 rounded-lg">
-            <summary class="cursor-pointer px-4 py-2 bg-gray-700/50 rounded-t-lg font-semibold">
-                <input type="checkbox" class="pgroup-check rounded bg-gray-600 border-gray-500 mr-2" title="<?= __('projects_select_group') ?>">
-                <?= __('projects_setup') ?>: <?= htmlspecialchars($setup['label'] !== null && $setup['label'] !== '' ? $setup['label'] : substr((string)$setup['fingerprint'], 0, 48)) ?>
-                <span class="ml-2 text-xs font-normal text-gray-400"><?= htmlspecialchars(calibSummary($setup['calibrations'])) ?></span>
-            </summary>
-            <div class="px-4 py-2">
-                <?php renderCalRows($setup['calibrations'], 'setup', (int)$setup['id']); ?>
-                <?php foreach ($setup['panels'] as $panel): ?>
-                    <?php
-                    $coords = ($panel['ra'] !== null && $panel['dec'] !== null)
-                        ? number_format((float)$panel['ra'], 3) . ' / ' . number_format((float)$panel['dec'], 3) : '?';
-                    $plabel = 'P' . (int)($panel['panel_no'] ?? $panel['id']) . ' (' . $coords . ')';
-                    if ($panel['label_object'] !== null && $panel['label_object'] !== '') {
-                        $plabel .= ' ' . $panel['label_object'];
-                    }
-                    ?>
-                    <details class="mb-2 border border-gray-700/60 rounded">
-                        <summary class="cursor-pointer px-3 py-1.5 hover:bg-gray-700/40 rounded font-medium">
-                            <input type="checkbox" class="pgroup-check rounded bg-gray-600 border-gray-500 mr-2" title="<?= __('projects_select_group') ?>">
-                            <?= __('projects_panel') ?> <?= htmlspecialchars($plabel) ?>
-                            <span class="ml-2 text-xs font-normal text-gray-400"><?= htmlspecialchars(calibSummary($panel['calibrations'])) ?></span>
-                        </summary>
-                        <div class="px-3 py-2">
-                            <?php renderCalRows($panel['calibrations'], 'panel', (int)$panel['id']); ?>
-                            <?php foreach ($panel['sessions'] as $session): ?>
-                                <details class="mb-2 border border-gray-700/40 rounded">
-                                    <summary class="cursor-pointer px-3 py-1.5 hover:bg-gray-700/40 rounded text-sm">
-                                        <input type="checkbox" class="pgroup-check rounded bg-gray-600 border-gray-500 mr-2" title="<?= __('projects_select_group') ?>">
-                                        <?= __('projects_session') ?> <?= htmlspecialchars((string)$session['astro_night']) ?>
-                                        <span class="ml-2 text-xs text-gray-400"><?= htmlspecialchars(calibSummary($session['calibrations'])) ?></span>
-                                    </summary>
-                                    <div class="px-3 py-2">
-                                        <?php renderCalRows($session['calibrations'], 'session', (int)$session['id']); ?>
-                                        <?php foreach ($session['filters'] as $filter): ?>
-                                            <?php
-                                            $realLights = array_values(array_filter($filter['lights'], fn($li) => empty($li['pending']) && !empty($li['enabled'])));
-                                            $pendLights = array_values(array_filter($filter['lights'], fn($li) => !empty($li['pending'])));
-                                            $offLights = array_values(array_filter($filter['lights'], fn($li) => empty($li['pending']) && empty($li['enabled'])));
-                                            $worst = null;
-                                            foreach ($realLights as $li) {
-                                                $d = $projectDiag[(int)$li['file_id']] ?? ['dark' => 'red', 'flat' => 'red', 'bias' => 'red'];
-                                                $w = diagWorst($d['dark'], diagWorst($d['flat'], $d['bias']));
-                                                $worst = $worst === null ? $w : diagWorst($worst, $w);
-                                            }
-                                            $realExp = 0.0;
-                                            foreach ($realLights as $li) {
-                                                $realExp += (float)($li['exptime'] ?? 0);
-                                            }
-                                            ?>
-                                            <div class="mb-2">
-                                                <div class="text-sm font-medium mb-1">
-                                                    <input type="checkbox" class="pgroup-check rounded bg-gray-600 border-gray-500 mr-2" title="<?= __('projects_select_group') ?>">
-                                                    <?= $worst === null ? (empty($pendLights) ? '' : '⏳') : diagDot($worst) ?> <?= __('projects_filter') ?> <?= htmlspecialchars($filter['name'] !== '' ? $filter['name'] : '—') ?>
-                                                    <span class="ml-2 text-xs font-normal text-gray-400">
-                                                        <?= htmlspecialchars(__('projects_lights_count', ['count' => count($realLights)])) ?> · <?= htmlspecialchars(fmtExp($realExp)) ?><?php if (!empty($pendLights)): ?> · <?= htmlspecialchars('+' . count($pendLights) . ' ⏳') ?><?php endif; ?><?php if (!empty($offLights)): ?> · <?= htmlspecialchars('+' . count($offLights) . ' ' . __('projects_link_off')) ?><?php endif; ?>
-                                                    </span>
+        <div class="tnode mb-3">
+            <div class="flex items-start gap-2">
+                <input type="checkbox" class="pgroup-check mt-3 rounded bg-gray-600 border-gray-500" title="<?= __('projects_select_group') ?>">
+                <details open class="flex-1 min-w-0 border border-gray-700 rounded-lg">
+                    <summary class="cursor-pointer px-4 py-2 bg-gray-700/50 rounded-t-lg font-semibold">
+                        <?= __('projects_setup') ?>: <?= htmlspecialchars($setup['label'] !== null && $setup['label'] !== '' ? $setup['label'] : substr((string)$setup['fingerprint'], 0, 48)) ?>
+                        <span class="ml-2 text-xs font-normal text-gray-400"><?= htmlspecialchars(calibSummary($setup['calibrations'])) ?></span>
+                    </summary>
+                    <div class="px-4 py-2">
+                        <?php renderCalRows($setup['calibrations'], 'setup', (int)$setup['id']); ?>
+                        <?php foreach ($setup['panels'] as $panel): ?>
+                            <?php
+                            $coords = ($panel['ra'] !== null && $panel['dec'] !== null)
+                                ? number_format((float)$panel['ra'], 3) . ' / ' . number_format((float)$panel['dec'], 3) : '?';
+                            $plabel = 'P' . (int)($panel['panel_no'] ?? $panel['id']) . ' (' . $coords . ')';
+                            if ($panel['label_object'] !== null && $panel['label_object'] !== '') {
+                                $plabel .= ' ' . $panel['label_object'];
+                            }
+                            ?>
+                            <div class="tnode mb-2">
+                                <div class="flex items-start gap-2">
+                                    <input type="checkbox" class="pgroup-check mt-2 rounded bg-gray-600 border-gray-500" title="<?= __('projects_select_group') ?>">
+                                    <details class="flex-1 min-w-0 border border-gray-700/60 rounded">
+                                        <summary class="cursor-pointer px-3 py-1.5 hover:bg-gray-700/40 rounded font-medium">
+                                            <?= __('projects_panel') ?> <?= htmlspecialchars($plabel) ?>
+                                            <span class="ml-2 text-xs font-normal text-gray-400"><?= htmlspecialchars(calibSummary($panel['calibrations'])) ?></span>
+                                        </summary>
+                                        <div class="px-3 py-2">
+                                            <?php renderCalRows($panel['calibrations'], 'panel', (int)$panel['id']); ?>
+                                            <?php foreach ($panel['sessions'] as $session): ?>
+                                                <div class="tnode mb-2">
+                                                    <div class="flex items-start gap-2">
+                                                        <input type="checkbox" class="pgroup-check mt-2 rounded bg-gray-600 border-gray-500" title="<?= __('projects_select_group') ?>">
+                                                        <details class="flex-1 min-w-0 border border-gray-700/40 rounded">
+                                                            <summary class="cursor-pointer px-3 py-1.5 hover:bg-gray-700/40 rounded text-sm">
+                                                                <?= __('projects_session') ?> <?= htmlspecialchars((string)$session['astro_night']) ?>
+                                                                <span class="ml-2 text-xs text-gray-400"><?= htmlspecialchars(calibSummary($session['calibrations'])) ?></span>
+                                                            </summary>
+                                                            <div class="px-3 py-2">
+                                                                <?php renderCalRows($session['calibrations'], 'session', (int)$session['id']); ?>
+                                                                <?php foreach ($session['filters'] as $filter): ?>
+                                                                    <?php
+                                                                    $realLights = array_values(array_filter($filter['lights'], fn($li) => empty($li['pending']) && !empty($li['enabled'])));
+                                                                    $pendLights = array_values(array_filter($filter['lights'], fn($li) => !empty($li['pending'])));
+                                                                    $offLights = array_values(array_filter($filter['lights'], fn($li) => empty($li['pending']) && empty($li['enabled'])));
+                                                                    $worst = null;
+                                                                    foreach ($realLights as $li) {
+                                                                        $d = $projectDiag[(int)$li['file_id']] ?? ['dark' => 'red', 'flat' => 'red', 'bias' => 'red'];
+                                                                        $w = diagWorst($d['dark'], diagWorst($d['flat'], $d['bias']));
+                                                                        $worst = $worst === null ? $w : diagWorst($worst, $w);
+                                                                    }
+                                                                    $realExp = 0.0;
+                                                                    foreach ($realLights as $li) {
+                                                                        $realExp += (float)($li['exptime'] ?? 0);
+                                                                    }
+                                                                    ?>
+                                                                    <div class="tnode mb-2">
+                                                                        <div class="flex items-start gap-2">
+                                                                            <input type="checkbox" class="pgroup-check mt-1 rounded bg-gray-600 border-gray-500" title="<?= __('projects_select_group') ?>">
+                                                                            <div class="flex-1 min-w-0">
+                                                                                <div class="text-sm font-medium mb-1">
+                                                                                    <?= $worst === null ? (empty($pendLights) ? '' : '⏳') : diagDot($worst) ?> <?= __('projects_filter') ?> <?= htmlspecialchars($filter['name'] !== '' ? $filter['name'] : '—') ?>
+                                                                                    <span class="ml-2 text-xs font-normal text-gray-400">
+                                                                                        <?= htmlspecialchars(__('projects_lights_count', ['count' => count($realLights)])) ?> · <?= htmlspecialchars(fmtExp($realExp)) ?><?php if (!empty($pendLights)): ?> · <?= htmlspecialchars('+' . count($pendLights) . ' ⏳') ?><?php endif; ?><?php if (!empty($offLights)): ?> · <?= htmlspecialchars('+' . count($offLights) . ' ' . __('projects_link_off')) ?><?php endif; ?>
+                                                                                    </span>
+                                                                                </div>
+                                                                                <?php renderCalRows($filter['calibrations'], 'filter', (int)$session['id']); ?>
+                                                                                <div class="overflow-x-auto">
+                                                                                    <table class="w-full text-xs text-left">
+                                                                                        <tbody>
+                                                                                            <?php foreach ($filter['lights'] as $li): ?>
+                                                                                                <?php $isPend = !empty($li['pending']); ?>
+                                                                                                <?php $isOff = !$isPend && empty($li['enabled']); ?>
+                                                                                                <?php $d = ($isPend || $isOff) ? null : ($projectDiag[(int)$li['file_id']] ?? ['dark' => 'red', 'flat' => 'red', 'bias' => 'red']); ?>
+                                                                                                <tr class="border-b border-gray-700/40<?= ($isPend || $isOff) ? ' opacity-60' : '' ?>">
+                                                                                                    <td class="py-1 px-2">
+                                                                                                        <?php if (!$isPend): ?>
+                                                                                                            <input type="checkbox" name="link_keys[]" value="<?= htmlspecialchars(linkKey($li, 'filter', (int)$session['id'])) ?>" class="pfl-check rounded bg-gray-600 border-gray-500 mr-1">
+                                                                                                        <?php endif; ?>
+                                                                                                        <?= htmlspecialchars($li['name']) ?><?php if ($isPend): ?> <span title="<?= __('projects_pending_hypo') ?>">⏳</span><?php endif; ?><?php if ($isOff): ?> <span class="text-gray-500">(<?= __('projects_link_off') ?>)</span><?php endif; ?>
+                                                                                                    </td>
+                                                                                                    <td class="py-1 px-2 text-right text-gray-400"><?= htmlspecialchars((string)($li['exptime'] ?? '')) ?>s</td>
+                                                                                                    <td class="py-1 px-2 whitespace-nowrap" title="dark/flat/bias"><?= $isPend ? '⏳' : ($isOff ? '—' : (diagDot($d['dark']) . diagDot($d['flat']) . diagDot($d['bias']))) ?></td>
+                                                                                                </tr>
+                                                                                            <?php endforeach; ?>
+                                                                                        </tbody>
+                                                                                    </table>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                <?php endforeach; ?>
+                                                            </div>
+                                                        </details>
+                                                    </div>
                                                 </div>
-                                                <?php renderCalRows($filter['calibrations'], 'filter', (int)$session['id']); ?>
-                                                <div class="overflow-x-auto">
-                                                    <table class="w-full text-xs text-left">
-                                                        <tbody>
-                                                            <?php foreach ($filter['lights'] as $li): ?>
-                                                                <?php $isPend = !empty($li['pending']); ?>
-                                                                <?php $isOff = !$isPend && empty($li['enabled']); ?>
-                                                                <?php $d = ($isPend || $isOff) ? null : ($projectDiag[(int)$li['file_id']] ?? ['dark' => 'red', 'flat' => 'red', 'bias' => 'red']); ?>
-                                                                <tr class="border-b border-gray-700/40<?= ($isPend || $isOff) ? ' opacity-60' : '' ?>">
-                                                                    <td class="py-1 px-2">
-                                                                        <?php if (!$isPend): ?>
-                                                                            <input type="checkbox" name="link_keys[]" value="<?= htmlspecialchars(linkKey($li, 'filter', (int)$session['id'])) ?>" class="pfl-check rounded bg-gray-600 border-gray-500 mr-1">
-                                                                        <?php endif; ?>
-                                                                        <?= htmlspecialchars($li['name']) ?><?php if ($isPend): ?> <span title="<?= __('projects_pending_hypo') ?>">⏳</span><?php endif; ?><?php if ($isOff): ?> <span class="text-gray-500">(<?= __('projects_link_off') ?>)</span><?php endif; ?>
-                                                                    </td>
-                                                                    <td class="py-1 px-2 text-right text-gray-400"><?= htmlspecialchars((string)($li['exptime'] ?? '')) ?>s</td>
-                                                                    <td class="py-1 px-2 whitespace-nowrap" title="dark/flat/bias"><?= $isPend ? '⏳' : ($isOff ? '—' : (diagDot($d['dark']) . diagDot($d['flat']) . diagDot($d['bias']))) ?></td>
-                                                                </tr>
-                                                            <?php endforeach; ?>
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                </details>
-                            <?php endforeach; ?>
-                        </div>
-                    </details>
-                <?php endforeach; ?>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </details>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </details>
+                </div>
             </div>
-        </details>
     <?php endforeach; ?>
 <?php endif; ?>

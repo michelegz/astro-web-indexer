@@ -420,13 +420,12 @@ if ($projectBlocked) {
         (function () {
             const form = document.getElementById('treeBulkForm');
             if (!form) return;
-            // Group checkbox toggles every file checkbox in its own <details> subtree.
-            // preventDefault: a click inside <summary> would also collapse the details.
-            form.addEventListener('click', (e) => {
+            // Group checkbox toggles every file checkbox in its own .tnode subtree.
+            // (Group boxes live outside <summary> on purpose: clicks inside
+            // <summary> are swallowed by the details toggle in browsers.)
+            form.addEventListener('change', (e) => {
                 if (!e.target.classList.contains('pgroup-check')) return;
-                e.preventDefault();
-                e.target.checked = !e.target.checked;
-                const scope = e.target.closest('details');
+                const scope = e.target.closest('.tnode');
                 if (!scope) return;
                 scope.querySelectorAll('.pfl-check').forEach(cb => { cb.checked = e.target.checked; });
                 scope.querySelectorAll('.pgroup-check').forEach(cb => { if (cb !== e.target) cb.checked = e.target.checked; });
