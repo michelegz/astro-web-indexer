@@ -147,6 +147,7 @@ foreach ($defs as $tkey => $tdef) {
 }
 $tolExpFrac = parseTolFraction((string)($projectTols['tol_exp'] ?? '1%'), 0.01);
 $projectDiag = $projectTree !== null ? diagnoseProjectTree($projectTree, $projectTols) : [];
+$intGroups = $projectTree !== null ? getIntegrationGroups($projectTree, $tolExpFrac) : [];
 $projectBlocked = $detail !== null && !canAccessProject($conn, (int)$detail['id']);
 if ($projectBlocked) {
     http_response_code(403);
@@ -424,6 +425,85 @@ if ($projectBlocked) {
                 <span>(<?= __('projects_link_off') ?>) = <?= htmlspecialchars(__('projects_disable_selected')) ?></span>
             </div>
         </section>
+
+        <section class="bg-gray-800 rounded-lg p-6">
+            <h2 class="text-lg font-semibold mb-2"><?= __('projects_igroups') ?></h2>
+            <?php if (empty($intGroups)): ?>
+                <p class="text-sm text-gray-500"><?= __('projects_igroups_empty') ?></p>
+            <?php else: ?>
+                <?php foreach ($intGroups as $gi => $grp): ?>
+                    <details class="mb-2 border border-gray-700 rounded-lg">
+                        <summary class="cursor-pointer px-4 py-2 hover:bg-gray-700/40 rounded font-medium text-sm">
+                            <?= htmlspecialchars($grp['setup_label']) ?> · <?= htmlspecialchars($grp['panel_label']) ?> · <?= __('projects_filter') ?> <?= htmlspecialchars($grp['filter'] !== '' ? $grp['filter'] : '—') ?> · <?= htmlspecialchars(fmtExpShort($grp['exptime'])) ?>
+                            <span class="ml-2 text-xs font-normal text-gray-400">
+                                <?= htmlspecialchars(__('projects_lights_count', ['count' => $grp['count']])) ?> · <?= htmlspecialchars(fmtExp((float)$grp['exposure'])) ?> · <?= htmlspecialchars(__('projects_igroup_nights', ['count' => count($grp['nights'])])) ?>: <?= htmlspecialchars(implode(', ', $grp['nights'])) ?>
+                            </span>
+                        </summary>
+                        <div class="px-4 py-2 overflow-x-auto">
+                            <table class="w-full text-xs text-left igroup-table" data-group="<?= (int)$gi ?>">
+                                <thead class="text-gray-400 border-b border-gray-700">
+                                    <tr>
+                                        <th class="py-1 px-2 cursor-pointer hover:text-white" data-type="text"><?= __('projects_igroup_file') ?> ↕</th>
+                                        <th class="py-1 px-2 cursor-pointer hover:text-white" data-type="text"><?= __('projects_igroup_night') ?> ↕</th>
+                                        <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('projects_igroup_exp') ?> ↕</th>
+                                        <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('hfr') ?> ↕</th>
+                                        <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('fwhm') ?> ↕</th>
+                                        <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('eccentricity') ?> ↕</th>
+                                        <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('star_count') ?> ↕</th>
+                                        <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('snr_weight') ?> ↕</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($grp['lights'] as $li): ?>
+                                        <tr class="border-b border-gray-700/40">
+                                            <td class="py-1 px-2" data-val="<?= htmlspecialchars((string)$li['name']) ?>"><?= htmlspecialchars($li['name']) ?></td>
+                                            <td class="py-1 px-2" data-val="<?= htmlspecialchars((string)($li['night'] ?? '')) ?>"><?= htmlspecialchars((string)($li['night'] ?? '')) ?></td>
+                                            <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['exptime'] ?? '')) ?>"><?= htmlspecialchars((string)($li['exptime'] ?? '')) ?></td>
+                                            <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['hfr'] ?? '')) ?>"><?= htmlspecialchars($li['hfr'] !== null && $li['hfr'] !== '' ? number_format((float)$li['hfr'], 2) : '—') ?></td>
+                                            <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['fwhm'] ?? '')) ?>"><?= htmlspecialchars($li['fwhm'] !== null && $li['fwhm'] !== '' ? number_format((float)$li['fwhm'], 2) : '—') ?></td>
+                                            <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['eccentricity'] ?? '')) ?>"><?= htmlspecialchars($li['eccentricity'] !== null && $li['eccentricity'] !== '' ? number_format((float)$li['eccentricity'], 3) : '—') ?></td>
+                                            <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['star_count'] ?? '')) ?>"><?= htmlspecialchars($li['star_count'] !== null && $li['star_count'] !== '' ? (string)$li['star_count'] : '—') ?></td>
+                                            <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['snr_weight'] ?? '')) ?>"><?= htmlspecialchars($li['snr_weight'] !== null && $li['snr_weight'] !== '' ? number_format((float)$li['snr_weight'], 2) : '—') ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </details>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </section>
+        <script>
+        (function () {
+            // Clickable headers sort each integration group table (numeric-aware).
+            document.querySelectorAll('.igroup-table thead th').forEach(th => {
+                th.addEventListener('click', () => {
+                    const table = th.closest('table');
+                    const idx = Array.from(th.parentNode.children).indexOf(th);
+                    const numeric = th.dataset.type === 'num';
+                    const asc = th.dataset.asc !== '1';
+                    table.querySelectorAll('thead th').forEach(h => delete h.dataset.asc);
+                    th.dataset.asc = asc ? '1' : '0';
+                    const rows = Array.from(table.querySelectorAll('tbody tr'));
+                    rows.sort((a, b) => {
+                        const va = a.children[idx]?.dataset.val ?? '';
+                        const vb = b.children[idx]?.dataset.val ?? '';
+                        if (numeric) {
+                            const na = parseFloat(va);
+                            const nb = parseFloat(vb);
+                            if (isNaN(na) && isNaN(nb)) return 0;
+                            if (isNaN(na)) return 1;
+                            if (isNaN(nb)) return -1;
+                            return asc ? na - nb : nb - na;
+                        }
+                        return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+                    });
+                    const tb = table.querySelector('tbody');
+                    rows.forEach(r => tb.appendChild(r));
+                });
+            });
+        })();
+        </script>
         <script>
         (function () {
             const form = document.getElementById('treeBulkForm');

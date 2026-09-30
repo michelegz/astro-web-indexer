@@ -178,7 +178,8 @@ function getProjectTree(PDO $conn, int $projectId, bool $includePending = false)
     $links = $conn->prepare(
         "SELECT pf.level, pf.node_id, pf.filter_name, pf.role, pf.is_light, pf.enabled, "
         . "f.id AS file_id, f.name, f.path, f.imgtype, f.filter, f.exptime, f.date_obs, "
-        . "f.xbinning, f.ybinning, f.gain, f.ccd_temp "
+        . "f.xbinning, f.ybinning, f.gain, f.ccd_temp, "
+        . "f.hfr, f.fwhm, f.hfr_sd, f.eccentricity, f.star_count, f.snr_weight, f.psf_signal "
         . "FROM project_files pf JOIN files f ON f.id = pf.file_id "
         . "WHERE (pf.level = 'project' AND pf.node_id = :pid) "
         . "OR (pf.level = 'setup' AND pf.node_id IN (SELECT id FROM project_setups WHERE project_id = :pid2)) "
@@ -474,6 +475,85 @@ function diagnoseProjectTree(array $tree, array $tols): array
         }
     }
     return $out;
+}
+
+/**
+ * Integration groups: enabled linked LIGHTS sharing setup + panel + filter +
+ * exposure (tolerance), transversal to sessions (i.e. stackable sets).
+ * Returns stable-sorted groups with covered nights and total exposure.
+ */
+function getIntegrationGroups(array $tree, float $tolExpFrac): array
+{
+    $pools = [];
+    foreach ($tree['setups'] ?? [] as $setup) {
+        $setupLabel = ($setup['label'] !== null && $setup['label'] !== '')
+            ? (string)$setup['label'] : substr((string)$setup['fingerprint'], 0, 48);
+        foreach ($setup['panels'] as $panel) {
+            $coords = ($panel['ra'] !== null && $panel['dec'] !== null)
+                ? number_format((float)$panel['ra'], 3) . ' / ' . number_format((float)$panel['dec'], 3) : '?';
+            $panelLabel = 'P' . (int)($panel['panel_no'] ?? $panel['id']) . ' (' . $coords . ')';
+            if ($panel['label_object'] !== null && $panel['label_object'] !== '') {
+                $panelLabel .= ' ' . $panel['label_object'];
+            }
+            foreach ($panel['sessions'] as $session) {
+                foreach ($session['filters'] as $filter) {
+                    foreach ($filter['lights'] as $li) {
+                        if (!empty($li['pending']) || empty($li['enabled'])) {
+                            continue;
+                        }
+                        if (strtoupper((string)($li['imgtype'] ?? '')) !== 'LIGHT') {
+                            continue;
+                        }
+                        $fname = trim((string)($li['filter_name'] ?? $li['filter'] ?? ''));
+                        $key = $setup['id'] . '|' . $panel['id'] . '|' . strtoupper($fname);
+                        if (!isset($pools[$key])) {
+                            $pools[$key] = [
+                                'setup_id' => (int)$setup['id'],
+                                'setup_label' => $setupLabel,
+                                'panel_id' => (int)$panel['id'],
+                                'panel_no' => (int)($panel['panel_no'] ?? $panel['id']),
+                                'panel_label' => $panelLabel,
+                                'filter' => $fname,
+                                'lights' => [],
+                            ];
+                        }
+                        $li['night'] = (string)$session['astro_night'];
+                        $pools[$key]['lights'][] = $li;
+                    }
+                }
+            }
+        }
+    }
+    $groups = [];
+    foreach ($pools as $pool) {
+        foreach (clusterExposures($pool['lights'], $tolExpFrac) as $eg) {
+            $nights = [];
+            $exp = 0.0;
+            foreach ($eg['lights'] as $li) {
+                $exp += (float)($li['exptime'] ?? 0);
+                if (isset($li['night'])) {
+                    $nights[$li['night']] = true;
+                }
+            }
+            $nightList = array_keys($nights);
+            sort($nightList);
+            $groups[] = [
+                'setup_label' => $pool['setup_label'],
+                'panel_label' => $pool['panel_label'],
+                'panel_no' => $pool['panel_no'],
+                'filter' => $pool['filter'],
+                'exptime' => $eg['exptime'],
+                'nights' => $nightList,
+                'lights' => $eg['lights'],
+                'count' => count($eg['lights']),
+                'exposure' => $exp,
+            ];
+        }
+    }
+    usort($groups, fn($a, $b) =>
+        [$a['setup_label'], $a['panel_no'], $a['filter'], (float)($a['exptime'] ?? -1)]
+        <=> [$b['setup_label'], $b['panel_no'], $b['filter'], (float)($b['exptime'] ?? -1)]);
+    return $groups;
 }
 
 function diagWorst(string $a, string $b): string
