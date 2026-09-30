@@ -277,6 +277,7 @@ return [
     'projects_no_tree' => 'Proyecto vacío: acepta las sugerencias de arriba para llenarlo.',
     'projects_pending_hypo' => 'Sugerencia pendiente — mostrada como si aceptada',
     'projects_select_all' => 'Seleccionar todo',
+    'projects_no_access' => 'Este proyecto contiene archivos fuera de tus directorios permitidos. Contacta a tu administrador.',
     'projects_tol_tol_exp_dark' => 'Coincidencia expo dark',
     'projects_tol_tol_temp' => 'Coincidencia temperatura sensor',
     'projects_tol_tol_rot' => 'Separación rotación panel',

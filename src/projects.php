@@ -14,6 +14,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $action = $_POST['action'] ?? '';
         try {
+            // Project-scoped actions require an accessible project first.
+            $needsProject = ['update', 'save_mode', 'delete', 'accept_suggestions', 'dismiss_suggestions', 'save_tolerances'];
+            if (in_array($action, $needsProject, true)) {
+                $gid = (int)($_POST['project_id'] ?? 0);
+                $gproj = $gid > 0 ? getProject($conn, $gid) : null;
+                if ($gproj === null) {
+                    throw new InvalidArgumentException(__('projects_error_name'));
+                }
+                if (!canAccessProject($conn, $gid)) {
+                    http_response_code(403);
+                    throw new InvalidArgumentException(__('projects_no_access'));
+                }
+            }
             if ($action === 'create') {
                 $name = trim((string)($_POST['name'] ?? ''));
                 $notes = trim((string)($_POST['notes'] ?? ''));
@@ -121,6 +134,10 @@ foreach ($defs as $tkey => $tdef) {
     $projectTols[$tkey] = $detail !== null ? resolve_tol($conn, (int)$detail['id'], $tkey) : $tdef['default'];
 }
 $projectDiag = $projectTree !== null ? diagnoseProjectTree($projectTree, $projectTols) : [];
+$projectBlocked = $detail !== null && !canAccessProject($conn, (int)$detail['id']);
+if ($projectBlocked) {
+    http_response_code(403);
+}
 ?>
 <!DOCTYPE html>
 <html lang="<?= htmlspecialchars($lang) ?>">
@@ -153,7 +170,7 @@ $projectDiag = $projectTree !== null ? diagnoseProjectTree($projectTree, $projec
             <p class="text-sm text-gray-300"><?= __('projects_intro') ?></p>
         </section>
 
-        <?php if ($detail === null): ?>
+        <?php if ($detail === null && !$projectBlocked): ?>
         <section class="mb-6 bg-gray-800 rounded-lg p-6">
             <h2 class="text-lg font-semibold mb-4"><?= __('projects_new') ?></h2>
             <form method="POST" class="flex flex-col gap-3">
@@ -210,6 +227,15 @@ $projectDiag = $projectTree !== null ? diagnoseProjectTree($projectTree, $projec
                     </table>
                 </div>
             <?php endif; ?>
+        </section>
+        <?php elseif ($projectBlocked): ?>
+        <section class="bg-gray-800 rounded-lg p-6">
+            <div class="p-3 rounded text-sm bg-red-900/50 border border-red-700 text-red-300">
+                <?= htmlspecialchars(__('projects_no_access')) ?>
+            </div>
+            <div class="mt-4">
+                <a href="/projects.php" class="text-sm text-gray-300 hover:text-white">&larr; <?= __('back') ?></a>
+            </div>
         </section>
         <?php else: ?>
         <section class="mb-6 bg-gray-800 rounded-lg p-6">

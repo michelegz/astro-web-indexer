@@ -34,6 +34,11 @@ $ids = array_slice($ids, 0, 2000);
 
 try {
     $conn = connectDB();
+    if ($projectId > 0 && getProject($conn, $projectId) !== null && !canAccessProject($conn, $projectId)) {
+        http_response_code(403);
+        echo json_encode(['error' => __('projects_no_access')]);
+        exit;
+    }
     $preview = projectPreviewFiles($conn, $projectId > 0 ? $projectId : null, $ids);
     $setups = $projectId > 0 ? getProjectSetups($conn, $projectId) : [];
     $frozen = false;

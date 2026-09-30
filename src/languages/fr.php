@@ -277,6 +277,7 @@ return [
     'projects_no_tree' => 'Projet vide : acceptez les suggestions ci-dessus pour le remplir.',
     'projects_pending_hypo' => 'Suggestion en attente — affichée comme si acceptée',
     'projects_select_all' => 'Tout sélectionner',
+    'projects_no_access' => 'Ce projet contient des fichiers hors de vos dossiers autorisés. Contactez votre administrateur.',
     'projects_tol_tol_exp_dark' => 'Correspondance expo dark',
     'projects_tol_tol_temp' => 'Correspondance température capteur',
     'projects_tol_tol_rot' => 'Séparation rotation panneau',

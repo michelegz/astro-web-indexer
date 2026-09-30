@@ -88,6 +88,11 @@ $reasonKeys = [
 
 try {
     $conn = connectDB();
+    if ($projectId > 0 && getProject($conn, $projectId) !== null && !canAccessProject($conn, $projectId)) {
+        http_response_code(403);
+        echo json_encode(['error' => __('projects_no_access')]);
+        exit;
+    }
     if ($newProject !== null) {
         $projectId = createProject($conn, $newProject['name'], $newProject['notes']);
     }

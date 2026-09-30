@@ -121,13 +121,17 @@ function getSuggestionNodeLabel(PDO $conn, string $level, int $nodeId, ?string $
 function acceptSuggestion(PDO $conn, int $projectId, int $suggestionId): bool
 {
     $stmt = $conn->prepare(
-        "SELECT s.file_id, s.level, s.node_id, s.filter_name, s.role, f.imgtype "
+        "SELECT s.file_id, s.level, s.node_id, s.filter_name, s.role, f.imgtype, f.path "
         . "FROM project_suggestions s JOIN files f ON f.id = s.file_id "
         . "WHERE s.id = :sid AND s.project_id = :pid AND s.status = 'pending'"
     );
     $stmt->execute([':sid' => $suggestionId, ':pid' => $projectId]);
     $row = $stmt->fetch();
     if ($row === false) {
+        return false;
+    }
+    if (function_exists('getAllowedDirs') && getAllowedDirs() !== null
+        && function_exists('canAccessPath') && !canAccessPath((string)$row['path'])) {
         return false;
     }
     $conn->beginTransaction();
@@ -163,12 +167,17 @@ function acceptSuggestion(PDO $conn, int $projectId, int $suggestionId): bool
 function dismissSuggestion(PDO $conn, int $projectId, int $suggestionId): bool
 {
     $stmt = $conn->prepare(
-        "SELECT level, node_id FROM project_suggestions "
-        . "WHERE id = :sid AND project_id = :pid AND status = 'pending'"
+        "SELECT s.level, s.node_id, f.path FROM project_suggestions s "
+        . "JOIN files f ON f.id = s.file_id "
+        . "WHERE s.id = :sid AND s.project_id = :pid AND s.status = 'pending'"
     );
     $stmt->execute([':sid' => $suggestionId, ':pid' => $projectId]);
     $row = $stmt->fetch();
     if ($row === false) {
+        return false;
+    }
+    if (function_exists('getAllowedDirs') && getAllowedDirs() !== null
+        && function_exists('canAccessPath') && !canAccessPath((string)$row['path'])) {
         return false;
     }
     $conn->beginTransaction();
@@ -332,7 +341,59 @@ function getToleranceDefs(): array
 function getProjects(PDO $conn): array
 {
     $stmt = $conn->query("SELECT id, name, notes, tolerances, assign_mode, created_at FROM projects ORDER BY id ASC");
-    return $stmt->fetchAll();
+    $rows = $stmt->fetchAll();
+    // A project containing any out-of-scope file is invisible as a whole:
+    // no names, no counts, no leak. Admins and auth-off see everything.
+    if (function_exists('getAllowedDirs') && getAllowedDirs() !== null) {
+        $rows = array_values(array_filter(
+            $rows,
+            fn($r) => canAccessProject($conn, (int)$r['id'])
+        ));
+    }
+    return $rows;
+}
+
+/**
+ * Project-level access gate. A project is accessible iff every linked file
+ * and every live suggestion (pending/accepted) lives inside the user's
+ * allowed directories. Empty projects are always visible. Returns true for
+ * admins, disabled auth, or missing auth layer.
+ */
+function canAccessProject(PDO $conn, int $projectId): bool
+{
+    if (!function_exists('getAllowedDirs') || !function_exists('canAccessPath')) {
+        return true;
+    }
+    if (getAllowedDirs() === null) {
+        return true;
+    }
+    $links = $conn->prepare(
+        "SELECT DISTINCT f.path FROM project_files pf JOIN files f ON f.id = pf.file_id "
+        . "WHERE f.deleted_at IS NULL AND ((pf.level = 'project' AND pf.node_id = :pid) "
+        . "OR (pf.level = 'setup' AND pf.node_id IN (SELECT id FROM project_setups WHERE project_id = :pid2)) "
+        . "OR (pf.level = 'panel' AND pf.node_id IN (SELECT pp.id FROM project_panels pp "
+        . "JOIN project_setups ps ON ps.id = pp.setup_id WHERE ps.project_id = :pid3)) "
+        . "OR (pf.level IN ('session','filter') AND pf.node_id IN (SELECT ss.id FROM project_sessions ss "
+        . "JOIN project_panels pp ON pp.id = ss.panel_id "
+        . "JOIN project_setups ps ON ps.id = pp.setup_id WHERE ps.project_id = :pid4)))"
+    );
+    $links->execute([':pid' => $projectId, ':pid2' => $projectId, ':pid3' => $projectId, ':pid4' => $projectId]);
+    foreach ($links->fetchAll(PDO::FETCH_COLUMN) as $path) {
+        if (!canAccessPath((string)$path)) {
+            return false;
+        }
+    }
+    $sugg = $conn->prepare(
+        "SELECT DISTINCT f.path FROM project_suggestions s JOIN files f ON f.id = s.file_id "
+        . "WHERE s.project_id = :pid AND s.status IN ('pending','accepted') AND f.deleted_at IS NULL"
+    );
+    $sugg->execute([':pid' => $projectId]);
+    foreach ($sugg->fetchAll(PDO::FETCH_COLUMN) as $path) {
+        if (!canAccessPath((string)$path)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 function getProject(PDO $conn, int $id): ?array
