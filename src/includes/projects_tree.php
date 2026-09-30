@@ -17,6 +17,16 @@ function linkKey(array $li, string $level, int $node): string
     return (int)$li['file_id'] . ':' . $level . ':' . $node;
 }
 
+/**
+ * Calibration status box: letter (B/D/F) on green/yellow/red background.
+ */
+function diagBox(string $status, string $letter, string $title): string
+{
+    $bg = $status === 'green' ? 'bg-green-700' : ($status === 'yellow' ? 'bg-yellow-700' : 'bg-red-700');
+    return '<span title="' . htmlspecialchars($title) . '" class="inline-block w-5 text-center text-[11px] font-bold text-white rounded ' . $bg . '">'
+        . htmlspecialchars($letter) . '</span>';
+}
+
 function calibSummary(array $cals): string
 {
     $n = ['DARK' => 0, 'FLAT' => 0, 'BIAS' => 0];
@@ -116,16 +126,17 @@ if (empty($projectTree['setups'])): ?>
                                                             <div class="px-3 py-2">
                                                                 <?php renderCalRows($session['calibrations'], 'session', (int)$session['id']); ?>
                                                                 <?php foreach ($session['filters'] as $filter): ?>
-                                                                    <?php
-                                                                    $realLights = array_values(array_filter($filter['lights'], fn($li) => empty($li['pending']) && !empty($li['enabled'])));
-                                                                    $pendLights = array_values(array_filter($filter['lights'], fn($li) => !empty($li['pending'])));
-                                                                    $offLights = array_values(array_filter($filter['lights'], fn($li) => empty($li['pending']) && empty($li['enabled'])));
-                                                                    $worst = null;
-                                                                    foreach ($realLights as $li) {
-                                                                        $d = $projectDiag[(int)$li['file_id']] ?? ['dark' => 'red', 'flat' => 'red', 'bias' => 'red'];
-                                                                        $w = diagWorst($d['dark'], diagWorst($d['flat'], $d['bias']));
-                                                                        $worst = $worst === null ? $w : diagWorst($worst, $w);
-                                                                    }
+                                            <?php
+                                            $realLights = array_values(array_filter($filter['lights'], fn($li) => empty($li['pending']) && !empty($li['enabled'])));
+                                            $pendLights = array_values(array_filter($filter['lights'], fn($li) => !empty($li['pending'])));
+                                            $offLights = array_values(array_filter($filter['lights'], fn($li) => empty($li['pending']) && empty($li['enabled'])));
+                                            $worstB = $worstD = $worstF = null;
+                                            foreach ($realLights as $li) {
+                                                $d = $projectDiag[(int)$li['file_id']] ?? ['dark' => 'red', 'flat' => 'red', 'bias' => 'red'];
+                                                $worstB = $worstB === null ? $d['bias'] : diagWorst($worstB, $d['bias']);
+                                                $worstD = $worstD === null ? $d['dark'] : diagWorst($worstD, $d['dark']);
+                                                $worstF = $worstF === null ? $d['flat'] : diagWorst($worstF, $d['flat']);
+                                            }
                                                                     $realExp = 0.0;
                                                                     foreach ($realLights as $li) {
                                                                         $realExp += (float)($li['exptime'] ?? 0);
@@ -135,8 +146,8 @@ if (empty($projectTree['setups'])): ?>
                                                                         <div class="flex items-start gap-2">
                                                                             <input type="checkbox" class="pgroup-check mt-1 rounded bg-gray-600 border-gray-500" title="<?= __('projects_select_group') ?>">
                                                                             <div class="flex-1 min-w-0">
-                                                                                <div class="text-sm font-medium mb-1">
-                                                                                    <?= $worst === null ? (empty($pendLights) ? '' : '⏳') : diagDot($worst) ?> <?= __('projects_filter') ?> <?= htmlspecialchars($filter['name'] !== '' ? $filter['name'] : '—') ?>
+                                                <div class="text-sm font-medium mb-1">
+                                                    <?php if ($worstB === null): ?><?= empty($pendLights) ? '' : '⏳' ?><?php else: ?><?= diagBox($worstB, 'B', __('projects_cal_bias')) ?><?= diagBox($worstD, 'D', __('projects_cal_dark')) ?><?= diagBox($worstF, 'F', __('projects_cal_flat')) ?><?php endif; ?> <?= __('projects_filter') ?> <?= htmlspecialchars($filter['name'] !== '' ? $filter['name'] : '—') ?>
                                                                                     <span class="ml-2 text-xs font-normal text-gray-400">
                                                                                         <?= htmlspecialchars(__('projects_lights_count', ['count' => count($realLights)])) ?> · <?= htmlspecialchars(fmtExp($realExp)) ?><?php if (!empty($pendLights)): ?> · <?= htmlspecialchars('+' . count($pendLights) . ' ⏳') ?><?php endif; ?><?php if (!empty($offLights)): ?> · <?= htmlspecialchars('+' . count($offLights) . ' ' . __('projects_link_off')) ?><?php endif; ?>
                                                                                     </span>
@@ -157,7 +168,7 @@ if (empty($projectTree['setups'])): ?>
                                                                                                         <?= htmlspecialchars($li['name']) ?><?php if ($isPend): ?> <span title="<?= __('projects_pending_hypo') ?>">⏳</span><?php endif; ?><?php if ($isOff): ?> <span class="text-gray-500">(<?= __('projects_link_off') ?>)</span><?php endif; ?>
                                                                                                     </td>
                                                                                                     <td class="py-1 px-2 text-right text-gray-400"><?= htmlspecialchars((string)($li['exptime'] ?? '')) ?>s</td>
-                                                                                                    <td class="py-1 px-2 whitespace-nowrap" title="dark/flat/bias"><?= $isPend ? '⏳' : ($isOff ? '—' : (diagDot($d['dark']) . diagDot($d['flat']) . diagDot($d['bias']))) ?></td>
+                                                                                                    <td class="py-1 px-2 whitespace-nowrap"><?= $isPend ? '⏳' : ($isOff ? '—' : (diagBox($d['bias'], 'B', __('projects_cal_bias')) . diagBox($d['dark'], 'D', __('projects_cal_dark')) . diagBox($d['flat'], 'F', __('projects_cal_flat')))) ?></td>
                                                                                                 </tr>
                                                                                             <?php endforeach; ?>
                                                                                         </tbody>

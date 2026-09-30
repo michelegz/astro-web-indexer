@@ -404,6 +404,12 @@ function removeProjectLinks(PDO $conn, int $projectId, array $keys): int
             $del->execute([':fid' => $fid, ':level' => $level, ':node' => $node]);
             if ($del->rowCount() > 0) {
                 $removed++;
+                // A removed file becomes a candidate again: drop its accepted
+                // history row so the next scan can re-propose it. Dismissed
+                // rows stay dismissed (explicit rejection wins).
+                $conn->prepare(
+                    "DELETE FROM project_suggestions WHERE project_id = :pid AND file_id = :fid AND status = 'accepted'"
+                )->execute([':pid' => $projectId, ':fid' => $fid]);
             }
             projectPruneUpwards($conn, $level, $node);
             $conn->commit();

@@ -415,6 +415,12 @@ if ($projectBlocked) {
                 </div>
                 <?php include __DIR__ . '/includes/projects_tree.php'; ?>
             </form>
+            <div class="text-xs text-gray-400 mt-4 flex flex-wrap items-center gap-x-4 gap-y-1">
+                <span class="font-semibold"><?= __('projects_legend') ?>:</span>
+                <span><?= diagBox('green', 'B', __('projects_cal_bias')) ?><?= diagBox('green', 'D', __('projects_cal_dark')) ?><?= diagBox('green', 'F', __('projects_cal_flat')) ?> <?= htmlspecialchars(__('projects_legend_calib')) ?></span>
+                <span>⏳ <?= htmlspecialchars(__('projects_pending_hypo')) ?></span>
+                <span>(<?= __('projects_link_off') ?>) = <?= htmlspecialchars(__('projects_disable_selected')) ?></span>
+            </div>
         </section>
         <script>
         (function () {
