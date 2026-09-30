@@ -528,8 +528,11 @@ function getIntegrationGroups(array $tree, float $tolExpFrac, array $thresholdMa
                         if (strtoupper((string)($li['imgtype'] ?? '')) !== 'LIGHT') {
                             continue;
                         }
-                        // Disabled links stay in the group (grey bars in charts)
-                        // but counts, exposure and medians below cover enabled only.
+                        // Manually disabled files are excluded from integration
+                        // groups entirely; threshold-rejected ones stay grey.
+                        if (empty($li['enabled'])) {
+                            continue;
+                        }
                         $fname = trim((string)($li['filter_name'] ?? $li['filter'] ?? ''));
                         $key = $setup['id'] . '|' . $panel['id'] . '|' . strtoupper($fname);
                         if (!isset($pools[$key])) {
@@ -560,17 +563,17 @@ function getIntegrationGroups(array $tree, float $tolExpFrac, array $thresholdMa
                 $pool['filter'] !== '' ? $pool['filter'] : null,
                 $eg['exptime']
             );
-            $tols = $thresholdMap[$tkey] ?? [
-                'hfr' => null, 'fwhm' => null, 'eccentricity' => null,
-                'star_count' => null, 'snr_weight' => null,
-            ];
+            $tols = $thresholdMap[$tkey] ?? array_fill_keys(array_keys(groupThresholdDirs()), null);
             $egLights = [];
             $effective = [];
             foreach ($eg['lights'] as $li) {
-                // Buckets are disjoint: manual-off wins, auto_off only for enabled files.
-                $li['auto_off'] = !empty($li['enabled']) && lightThresholdRejected($li, $tols);
+                // Manually disabled files are excluded from integration groups entirely.
+                if (empty($li['enabled'])) {
+                    continue;
+                }
+                $li['auto_off'] = lightThresholdRejected($li, $tols);
                 $egLights[] = $li;
-                if (!empty($li['enabled']) && empty($li['auto_off'])) {
+                if (empty($li['auto_off'])) {
                     $effective[] = $li;
                 }
             }
@@ -601,9 +604,11 @@ function getIntegrationGroups(array $tree, float $tolExpFrac, array $thresholdMa
                 'medians' => [
                     'hfr' => projectMedian(array_column($effective, 'hfr')),
                     'fwhm' => projectMedian(array_column($effective, 'fwhm')),
+                    'hfr_sd' => projectMedian(array_column($effective, 'hfr_sd')),
                     'eccentricity' => projectMedian(array_column($effective, 'eccentricity')),
                     'star_count' => projectMedian(array_column($effective, 'star_count')),
                     'snr_weight' => projectMedian(array_column($effective, 'snr_weight')),
+                    'psf_signal' => projectMedian(array_column($effective, 'psf_signal')),
                 ],
             ];
         }

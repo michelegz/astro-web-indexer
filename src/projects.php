@@ -463,10 +463,12 @@ if ($projectBlocked) {
                                         <th class="py-1 px-2 cursor-pointer hover:text-white" data-type="text"><?= __('projects_igroup_file') ?> ↕</th>
                                         <th class="py-1 px-2 cursor-pointer hover:text-white" data-type="text"><?= __('date') ?> ↕</th>
                                         <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('hfr') ?> ↕</th>
+                                        <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('hfr_sd') ?> ↕</th>
                                         <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('fwhm') ?> ↕</th>
                                         <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('eccentricity') ?> ↕</th>
                                         <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('star_count') ?> ↕</th>
                                         <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('snr_weight') ?> ↕</th>
+                                        <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('psf_signal') ?> ↕</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -477,10 +479,12 @@ if ($projectBlocked) {
                                             <td class="py-1 px-2" data-val="<?= htmlspecialchars((string)$li['name']) ?>"><?= htmlspecialchars($li['name']) ?><?php if ($liOff): ?> <span class="text-gray-500">(<?= __('projects_link_off') ?>)</span><?php elseif ($liAuto): ?> <span class="text-gray-500">(<?= __('projects_auto_off') ?>)</span><?php endif; ?></td>
                                             <td class="py-1 px-2" data-val="<?= htmlspecialchars((string)($li['date_obs'] ?? '')) ?>"><?= htmlspecialchars((string)($li['date_obs'] ?? '')) ?></td>
                                             <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['hfr'] ?? '')) ?>"><?= htmlspecialchars($li['hfr'] !== null && $li['hfr'] !== '' ? number_format((float)$li['hfr'], 2) : '—') ?></td>
+                                            <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['hfr_sd'] ?? '')) ?>"><?= htmlspecialchars($li['hfr_sd'] !== null && $li['hfr_sd'] !== '' ? number_format((float)$li['hfr_sd'], 2) : '—') ?></td>
                                             <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['fwhm'] ?? '')) ?>"><?= htmlspecialchars($li['fwhm'] !== null && $li['fwhm'] !== '' ? number_format((float)$li['fwhm'], 2) : '—') ?></td>
                                             <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['eccentricity'] ?? '')) ?>"><?= htmlspecialchars($li['eccentricity'] !== null && $li['eccentricity'] !== '' ? number_format((float)$li['eccentricity'], 3) : '—') ?></td>
                                             <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['star_count'] ?? '')) ?>"><?= htmlspecialchars($li['star_count'] !== null && $li['star_count'] !== '' ? (string)$li['star_count'] : '—') ?></td>
                                             <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['snr_weight'] ?? '')) ?>"><?= htmlspecialchars($li['snr_weight'] !== null && $li['snr_weight'] !== '' ? number_format((float)$li['snr_weight'], 2) : '—') ?></td>
+                                            <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['psf_signal'] ?? '')) ?>"><?= htmlspecialchars($li['psf_signal'] !== null && $li['psf_signal'] !== '' ? number_format((float)$li['psf_signal'], 2) : '—') ?></td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -489,19 +493,24 @@ if ($projectBlocked) {
                                         <td class="py-1 px-2"><?= __('projects_igroup_median') ?></td>
                                         <td class="py-1 px-2"></td>
                                         <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['hfr'] !== null ? number_format((float)$grp['medians']['hfr'], 2) : '—') ?></td>
+                                        <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['hfr_sd'] !== null ? number_format((float)$grp['medians']['hfr_sd'], 2) : '—') ?></td>
                                         <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['fwhm'] !== null ? number_format((float)$grp['medians']['fwhm'], 2) : '—') ?></td>
                                         <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['eccentricity'] !== null ? number_format((float)$grp['medians']['eccentricity'], 3) : '—') ?></td>
                                         <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['star_count'] !== null ? number_format((float)$grp['medians']['star_count'], 0) : '—') ?></td>
                                         <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['snr_weight'] !== null ? number_format((float)$grp['medians']['snr_weight'], 2) : '—') ?></td>
+                                        <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['psf_signal'] !== null ? number_format((float)$grp['medians']['psf_signal'], 2) : '—') ?></td>
                                     </tr>
                                 </tfoot>
                             </table>
                             <div class="mt-3 border border-gray-700 rounded p-3 igroup-reject" data-setup="<?= (int)$grp['setup_id'] ?>" data-panel="<?= (int)$grp['panel_id'] ?>" data-filter="<?= htmlspecialchars($grp['filter']) ?>" data-exp="<?= htmlspecialchars((string)($grp['exptime'] ?? '')) ?>">
                                 <div class="text-xs font-semibold text-gray-300 mb-2"><?= __('projects_reject_title') ?></div>
                                 <div class="flex flex-wrap gap-x-4 gap-y-2">
-                                    <?php foreach (['hfr' => 'above', 'fwhm' => 'above', 'eccentricity' => 'above', 'star_count' => 'below', 'snr_weight' => 'below'] as $rk => $rdir): ?>
+                                    <?php
+                                    $rejLabels = ['hfr' => __('hfr'), 'fwhm' => __('fwhm'), 'hfr_sd' => __('hfr_sd'), 'eccentricity' => __('eccentricity'), 'star_count' => __('star_count'), 'snr_weight' => __('snr_weight'), 'psf_signal' => __('psf_signal')];
+                                    ?>
+                                    <?php foreach (groupThresholdDirs() as $rk => $rdir): ?>
                                         <?php
-                                        $rlabel = $rk === 'hfr' ? __('hfr') : ($rk === 'fwhm' ? __('fwhm') : ($rk === 'eccentricity' ? __('eccentricity') : ($rk === 'star_count' ? __('star_count') : __('snr_weight'))));
+                                        $rlabel = $rejLabels[$rk] ?? $rk;
                                         $rmed = $grp['medians'][$rk] ?? null;
                                         $rdec = $rk === 'eccentricity' ? 3 : 2;
                                         $rval = $grp['thresholds'][$rk] ?? null;
@@ -585,15 +594,14 @@ if ($projectBlocked) {
             // when the file is disabled at project level.
             const IGROUP_SERIES = [
                 { key: 'hfr', label: <?= json_encode(__('hfr') . ' (px)') ?>, color: '#60a5fa', cell: 2 },
-                { key: 'fwhm', label: <?= json_encode(__('fwhm') . ' (arcsec)') ?>, color: '#34d399', cell: 3 },
-                { key: 'hfr_sd', label: <?= json_encode(__('hfr_sd') . ' (px)') ?>, color: '#a78bfa', attr: 'hfrSd' },
-                { key: 'eccentricity', label: <?= json_encode(__('eccentricity')) ?>, color: '#fbbf24', cell: 4 },
-                { key: 'star_count', label: <?= json_encode(__('star_count')) ?>, color: '#f472b6', cell: 5 },
-                { key: 'snr_weight', label: <?= json_encode(__('snr_weight')) ?>, color: '#22d3ee', cell: 6 },
-                { key: 'psf_signal', label: <?= json_encode(__('psf_signal')) ?>, color: '#fb7185', attr: 'psf' },
+                { key: 'hfr_sd', label: <?= json_encode(__('hfr_sd') . ' (px)') ?>, color: '#a78bfa', cell: 3 },
+                { key: 'fwhm', label: <?= json_encode(__('fwhm') . ' (arcsec)') ?>, color: '#34d399', cell: 4 },
+                { key: 'eccentricity', label: <?= json_encode(__('eccentricity')) ?>, color: '#fbbf24', cell: 5 },
+                { key: 'star_count', label: <?= json_encode(__('star_count')) ?>, color: '#f472b6', cell: 6 },
+                { key: 'snr_weight', label: <?= json_encode(__('snr_weight')) ?>, color: '#22d3ee', cell: 7 },
+                { key: 'psf_signal', label: <?= json_encode(__('psf_signal')) ?>, color: '#fb7185', cell: 8 },
             ];
             const IGROUP_OFF_COLOR = '#4b5563';
-            const IGROUP_REJECT_COLOR = '#ef4444';
             const IGROUP_MEDIAN_LABEL = <?= json_encode(__('metrics_median')) ?>;
             const igCharts = {};
             function igMedian(values) {
@@ -658,7 +666,7 @@ if ($projectBlocked) {
                     const datasets = [{
                         label: s.label,
                         data,
-                        backgroundColor: rows.map((r, i) => !r.enabled ? IGROUP_OFF_COLOR : (rejected.has(i) ? IGROUP_REJECT_COLOR : s.color)),
+                        backgroundColor: rows.map((r, i) => rejected.has(i) ? IGROUP_OFF_COLOR : s.color),
                         borderWidth: 0,
                     }];
                     if (med !== null) {

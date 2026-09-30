@@ -1163,9 +1163,11 @@ function groupThresholdDirs(): array
     return [
         'hfr' => 'above',
         'fwhm' => 'above',
+        'hfr_sd' => 'above',
         'eccentricity' => 'above',
         'star_count' => 'below',
         'snr_weight' => 'below',
+        'psf_signal' => 'below',
     ];
 }
 
@@ -1174,9 +1176,11 @@ function thresholdDbColumn(string $metric): ?string
     return [
         'hfr' => 'hfr_max',
         'fwhm' => 'fwhm_max',
+        'hfr_sd' => 'hfrsd_max',
         'eccentricity' => 'ecc_max',
         'star_count' => 'stars_min',
         'snr_weight' => 'snr_min',
+        'psf_signal' => 'psf_min',
     ][$metric] ?? null;
 }
 
@@ -1249,16 +1253,18 @@ function saveGroupThresholds(PDO $conn, int $projectId, int $setupId, int $panel
     }
     $ins = $conn->prepare(
         "INSERT INTO project_group_thresholds "
-        . "(project_id, setup_id, panel_id, filter_name, exptime, hfr_max, fwhm_max, ecc_max, stars_min, snr_min) "
-        . "VALUES (:pid, :sid, :panel, :filter, :exp, :hfr, :fwhm, :ecc, :stars, :snr) "
+        . "(project_id, setup_id, panel_id, filter_name, exptime, hfr_max, fwhm_max, hfrsd_max, ecc_max, stars_min, snr_min, psf_min) "
+        . "VALUES (:pid, :sid, :panel, :filter, :exp, :hfr, :fwhm, :hfrsd, :ecc, :stars, :snr, :psf) "
         . "ON DUPLICATE KEY UPDATE hfr_max = VALUES(hfr_max), fwhm_max = VALUES(fwhm_max), "
-        . "ecc_max = VALUES(ecc_max), stars_min = VALUES(stars_min), snr_min = VALUES(snr_min)"
+        . "hfrsd_max = VALUES(hfrsd_max), ecc_max = VALUES(ecc_max), stars_min = VALUES(stars_min), "
+        . "snr_min = VALUES(snr_min), psf_min = VALUES(psf_min)"
     );
     $ins->execute([
         ':pid' => $projectId, ':sid' => $setupId, ':panel' => $panelId,
         ':filter' => $filter, ':exp' => $exp,
-        ':hfr' => $cols['hfr_max'], ':fwhm' => $cols['fwhm_max'], ':ecc' => $cols['ecc_max'],
-        ':stars' => $cols['stars_min'], ':snr' => $cols['snr_min'],
+        ':hfr' => $cols['hfr_max'], ':fwhm' => $cols['fwhm_max'], ':hfrsd' => $cols['hfrsd_max'],
+        ':ecc' => $cols['ecc_max'], ':stars' => $cols['stars_min'], ':snr' => $cols['snr_min'],
+        ':psf' => $cols['psf_min'],
     ]);
 }
 
