@@ -484,7 +484,7 @@ if ($projectBlocked) {
                                             <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['eccentricity'] ?? '')) ?>"><?= htmlspecialchars($li['eccentricity'] !== null && $li['eccentricity'] !== '' ? number_format((float)$li['eccentricity'], 3) : '—') ?></td>
                                             <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['star_count'] ?? '')) ?>"><?= htmlspecialchars($li['star_count'] !== null && $li['star_count'] !== '' ? (string)$li['star_count'] : '—') ?></td>
                                             <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['snr_weight'] ?? '')) ?>"><?= htmlspecialchars($li['snr_weight'] !== null && $li['snr_weight'] !== '' ? number_format((float)$li['snr_weight'], 2) : '—') ?></td>
-                                            <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['psf_signal'] ?? '')) ?>"><?= htmlspecialchars($li['psf_signal'] !== null && $li['psf_signal'] !== '' ? number_format((float)$li['psf_signal'], 2) : '—') ?></td>
+                                            <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['psf_signal'] ?? '')) ?>"><?= htmlspecialchars($li['psf_signal'] !== null && $li['psf_signal'] !== '' ? number_format((float)$li['psf_signal'], 6) : '—') ?></td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -498,7 +498,7 @@ if ($projectBlocked) {
                                         <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['eccentricity'] !== null ? number_format((float)$grp['medians']['eccentricity'], 3) : '—') ?></td>
                                         <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['star_count'] !== null ? number_format((float)$grp['medians']['star_count'], 0) : '—') ?></td>
                                         <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['snr_weight'] !== null ? number_format((float)$grp['medians']['snr_weight'], 2) : '—') ?></td>
-                                        <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['psf_signal'] !== null ? number_format((float)$grp['medians']['psf_signal'], 2) : '—') ?></td>
+                                        <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['psf_signal'] !== null ? number_format((float)$grp['medians']['psf_signal'], 6) : '—') ?></td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -512,7 +512,7 @@ if ($projectBlocked) {
                                         <?php
                                         $rlabel = $rejLabels[$rk] ?? $rk;
                                         $rmed = $grp['medians'][$rk] ?? null;
-                                        $rdec = $rk === 'eccentricity' ? 3 : 2;
+                                        $rdec = $rk === 'eccentricity' ? 3 : ($rk === 'psf_signal' ? 6 : 2);
                                         $rval = $grp['thresholds'][$rk] ?? null;
                                         ?>
                                         <label class="text-xs text-gray-400"><?= htmlspecialchars($rlabel) ?>
@@ -663,12 +663,32 @@ if ($projectBlocked) {
                     if (!data.some(v => v !== null)) return;
                     const rejected = igRejectedIndices(table);
                     const med = igMedian(rows.filter((r, i) => r.enabled && !rejected.has(i)).map(r => r.vals[s.key]));
+                    // Active threshold for this metric (same inputs as evaluation).
+                    let thr = null;
+                    const thrInp = table.parentElement?.querySelector('.igroup-reject input[data-metric="' + s.key + '"]');
+                    if (thrInp && thrInp.value.trim() !== '') {
+                        const tv = parseFloat(thrInp.value);
+                        if (!isNaN(tv)) thr = tv;
+                    }
                     const datasets = [{
                         label: s.label,
                         data,
                         backgroundColor: rows.map((r, i) => rejected.has(i) ? IGROUP_OFF_COLOR : s.color),
                         borderWidth: 0,
+                        order: 1,
                     }];
+                    if (thr !== null) {
+                        datasets.push({
+                            label: (thrInp?.dataset.dir === 'below' ? '≤ ' : '≥ ') + thr,
+                            type: 'line',
+                            data: new Array(data.length).fill(thr),
+                            borderColor: '#ef4444',
+                            borderWidth: 1.5,
+                            borderDash: [6, 4],
+                            pointRadius: 0,
+                            order: 2,
+                        });
+                    }
                     if (med !== null) {
                         datasets.push({
                             label: IGROUP_MEDIAN_LABEL,
@@ -678,6 +698,7 @@ if ($projectBlocked) {
                             borderWidth: 1.5,
                             borderDash: [6, 4],
                             pointRadius: 0,
+                            order: 2,
                         });
                     }
                     igCharts[cid] = new Chart(canvas, {
@@ -690,10 +711,10 @@ if ($projectBlocked) {
                             responsive: true,
                             maintainAspectRatio: false,
                             onClick: (evt, elements) => {
-                                // Clicking a bar sets its value as the threshold
+                                // Clicking a bar sets its exact value as the threshold
                                 // for that metric (median line clicks ignored).
-                                // Rounded OUTWARD at 3 decimals (floor for above,
-                                // ceil for below) so the clicked bar is always included.
+                                // Full precision: with inclusive >= / <= the clicked
+                                // bar is always included, no rounding games.
                                 if (!elements || !elements.length || elements[0].datasetIndex !== 0) return;
                                 const table = document.querySelector('.igroup-table[data-group="' + gi + '"]');
                                 if (!table) return;
@@ -702,10 +723,7 @@ if ($projectBlocked) {
                                 const panel = table.parentElement?.querySelector('.igroup-reject');
                                 const inp = panel?.querySelector('input[data-metric="' + s.key + '"]');
                                 if (!inp) return;
-                                const outward = inp.dataset.dir === 'above'
-                                    ? Math.floor(val * 1000) / 1000
-                                    : Math.ceil(val * 1000) / 1000;
-                                inp.value = outward.toFixed(3);
+                                inp.value = String(val);
                                 igRefreshPanel(panel);
                             },
                             plugins: {
