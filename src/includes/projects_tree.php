@@ -23,7 +23,7 @@ function linkKey(array $li, string $level, int $node): string
 function diagBox(string $status, string $letter, string $title): string
 {
     $bg = $status === 'green' ? 'bg-green-700' : ($status === 'yellow' ? 'bg-yellow-700' : 'bg-red-700');
-    return '<span title="' . htmlspecialchars($title) . '" class="inline-block w-5 text-center text-[11px] font-bold text-white rounded ' . $bg . '">'
+    return '<span title="' . htmlspecialchars($title) . '" class="inline-block w-5 text-center text-xs font-bold text-white rounded ' . $bg . '">'
         . htmlspecialchars($letter) . '</span>';
 }
 
