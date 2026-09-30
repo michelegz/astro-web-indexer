@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = $_POST['action'] ?? '';
         try {
             // Project-scoped actions require an accessible project first.
-            $needsProject = ['update', 'save_mode', 'delete', 'accept_suggestions', 'dismiss_suggestions', 'save_tolerances'];
+            $needsProject = ['update', 'save_mode', 'delete', 'accept_suggestions', 'dismiss_suggestions', 'save_tolerances', 'remove_links', 'disable_links', 'enable_links'];
             if (in_array($action, $needsProject, true)) {
                 $gid = (int)($_POST['project_id'] ?? 0);
                 $gproj = $gid > 0 ? getProject($conn, $gid) : null;
@@ -89,6 +89,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message = $action === 'accept_suggestions'
                     ? __('projects_accepted', ['count' => $done])
                     : __('projects_discarded', ['count' => $done]);
+                $messageType = 'success';
+            } elseif ($action === 'remove_links' || $action === 'disable_links' || $action === 'enable_links') {
+                $id = (int)($_POST['project_id'] ?? 0);
+                $keys = array_values((array)($_POST['link_keys'] ?? []));
+                if ($action === 'remove_links') {
+                    $done = removeProjectLinks($conn, $id, $keys);
+                    $message = __('projects_links_removed', ['count' => $done]);
+                } else {
+                    $done = setProjectLinksEnabled($conn, $id, $keys, $action === 'enable_links');
+                    $message = __('projects_links_set', ['count' => $done]);
+                }
                 $messageType = 'success';
             } elseif ($action === 'save_tolerances') {
                 $id = (int)($_POST['project_id'] ?? 0);
@@ -384,8 +395,44 @@ if ($projectBlocked) {
 
         <section class="bg-gray-800 rounded-lg p-6">
             <h2 class="text-lg font-semibold mb-2"><?= __('projects_tree') ?></h2>
-            <?php include __DIR__ . '/includes/projects_tree.php'; ?>
+            <form method="POST" id="treeBulkForm">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                <input type="hidden" name="project_id" value="<?= (int)$detail['id'] ?>">
+                <div class="flex flex-wrap justify-end gap-2 mb-4">
+                    <button type="submit" name="action" value="enable_links"
+                            class="px-3 py-1 text-sm bg-green-700 hover:bg-green-600 text-white rounded transition-colors">
+                        <?= __('projects_enable_selected') ?>
+                    </button>
+                    <button type="submit" name="action" value="disable_links"
+                            class="px-3 py-1 text-sm bg-yellow-700 hover:bg-yellow-600 text-white rounded transition-colors">
+                        <?= __('projects_disable_selected') ?>
+                    </button>
+                    <button type="submit" name="action" value="remove_links"
+                            onclick="return confirm(<?= htmlspecialchars(json_encode(__('projects_confirm_remove'))) ?>);"
+                            class="px-3 py-1 text-sm bg-red-700 hover:bg-red-600 text-white rounded transition-colors">
+                        <?= __('projects_remove_selected') ?>
+                    </button>
+                </div>
+                <?php include __DIR__ . '/includes/projects_tree.php'; ?>
+            </form>
         </section>
+        <script>
+        (function () {
+            const form = document.getElementById('treeBulkForm');
+            if (!form) return;
+            // Group checkbox toggles every file checkbox in its own <details> subtree.
+            // preventDefault: a click inside <summary> would also collapse the details.
+            form.addEventListener('click', (e) => {
+                if (!e.target.classList.contains('pgroup-check')) return;
+                e.preventDefault();
+                e.target.checked = !e.target.checked;
+                const scope = e.target.closest('details');
+                if (!scope) return;
+                scope.querySelectorAll('.pfl-check').forEach(cb => { cb.checked = e.target.checked; });
+                scope.querySelectorAll('.pgroup-check').forEach(cb => { if (cb !== e.target) cb.checked = e.target.checked; });
+            });
+        })();
+        </script>
         <?php endif; ?>
     </main>
 </body>

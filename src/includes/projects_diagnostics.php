@@ -176,7 +176,7 @@ function getProjectTree(PDO $conn, int $projectId, bool $includePending = false)
 
     // All links of this project with file metadata, one query.
     $links = $conn->prepare(
-        "SELECT pf.level, pf.node_id, pf.filter_name, pf.role, pf.is_light, "
+        "SELECT pf.level, pf.node_id, pf.filter_name, pf.role, pf.is_light, pf.enabled, "
         . "f.id AS file_id, f.name, f.path, f.imgtype, f.filter, f.exptime, f.date_obs, "
         . "f.xbinning, f.ybinning, f.gain, f.ccd_temp "
         . "FROM project_files pf JOIN files f ON f.id = pf.file_id "
@@ -205,6 +205,7 @@ function getProjectTree(PDO $conn, int $projectId, bool $includePending = false)
         $pend->execute([':pid' => $projectId]);
         foreach ($pend->fetchAll() as $prow) {
             $prow['pending'] = true;
+            $prow['enabled'] = 1;
             // Rows pointing at deleted nodes are ignored by construction:
             // the tree walk below only visits existing setup/panel/session rows.
             $linkRows[] = $prow;
@@ -335,9 +336,12 @@ function diagnoseProjectTree(array $tree, array $tols): array
                 $sessionCals = array_merge($panelCals, $session['calibrations']);
                 foreach ($session['filters'] as $filter) {
                     $pool = array_merge($sessionCals, $filter['calibrations']);
-                    $pool = array_values(array_filter($pool, fn($c) => empty($c['pending'])));
+                    $pool = array_values(array_filter(
+                        $pool,
+                        fn($c) => empty($c['pending']) && !empty($c['enabled'])
+                    ));
                     foreach ($filter['lights'] as $light) {
-                        if (!empty($light['pending'])) {
+                        if (!empty($light['pending']) || empty($light['enabled'])) {
                             continue;
                         }
                         $darks = array_values(array_filter($pool, fn($c) => strtoupper((string)$c['imgtype']) === 'DARK'));

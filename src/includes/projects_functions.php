@@ -184,26 +184,8 @@ function dismissSuggestion(PDO $conn, int $projectId, int $suggestionId): bool
     try {
         $conn->prepare("UPDATE project_suggestions SET status = 'dismissed' WHERE id = :sid")
             ->execute([':sid' => $suggestionId]);
-        // Bottom-up prune: session -> panel -> setup (each step resolves its
-        // parent BEFORE deleting, so the chain stays walkable).
-        $level = (string)$row['level'];
-        $nodeId = (int)$row['node_id'];
-        if ($level === 'session' || $level === 'filter') {
-            $panelId = pruneSessionNode($conn, $nodeId);
-            if ($panelId !== null) {
-                $setupId = prunePanelNode($conn, $panelId);
-                if ($setupId !== null) {
-                    pruneEmptySetup($conn, $setupId);
-                }
-            }
-        } elseif ($level === 'panel') {
-            $setupId = prunePanelNode($conn, $nodeId);
-            if ($setupId !== null) {
-                pruneEmptySetup($conn, $setupId);
-            }
-        } elseif ($level === 'setup') {
-            pruneEmptySetup($conn, $nodeId);
-        }
+        // Bottom-up prune chain (shared with manual link removal).
+        projectPruneUpwards($conn, (string)$row['level'], (int)$row['node_id']);
         $conn->commit();
         return true;
     } catch (Exception $e) {
@@ -326,6 +308,139 @@ function pruneEmptySetup(PDO $conn, int $setupId): void
     }
     $conn->prepare("DELETE FROM project_setups WHERE id = :sid")->execute([':sid' => $setupId]);
 }
+/**
+ * Bottom-up prune chain shared by dismiss and manual link removal:
+ * session -> panel -> setup (each step resolves its parent BEFORE deleting,
+ * so the chain stays walkable).
+ */
+function projectPruneUpwards(PDO $conn, string $level, int $nodeId): void
+{
+    if ($level === 'session' || $level === 'filter') {
+        $panelId = pruneSessionNode($conn, $nodeId);
+        if ($panelId !== null) {
+            $setupId = prunePanelNode($conn, $panelId);
+            if ($setupId !== null) {
+                pruneEmptySetup($conn, $setupId);
+            }
+        }
+    } elseif ($level === 'panel') {
+        $setupId = prunePanelNode($conn, $nodeId);
+        if ($setupId !== null) {
+            pruneEmptySetup($conn, $setupId);
+        }
+    } elseif ($level === 'setup') {
+        pruneEmptySetup($conn, $nodeId);
+    }
+}
+
+/**
+ * Verify a (level, node) belongs to the project (prevents cross-project writes).
+ */
+function projectOwnsNode(PDO $conn, int $projectId, string $level, int $nodeId): bool
+{
+    if ($nodeId <= 0) {
+        return false;
+    }
+    if ($level === 'project') {
+        return $nodeId === $projectId;
+    }
+    if ($level === 'setup') {
+        $stmt = $conn->prepare("SELECT 1 FROM project_setups WHERE id = :n AND project_id = :pid LIMIT 1");
+        $stmt->execute([':n' => $nodeId, ':pid' => $projectId]);
+        return $stmt->fetch() !== false;
+    }
+    if ($level === 'panel') {
+        $stmt = $conn->prepare(
+            "SELECT 1 FROM project_panels pp JOIN project_setups ps ON ps.id = pp.setup_id "
+            . "WHERE pp.id = :n AND ps.project_id = :pid LIMIT 1"
+        );
+        $stmt->execute([':n' => $nodeId, ':pid' => $projectId]);
+        return $stmt->fetch() !== false;
+    }
+    if ($level === 'session' || $level === 'filter') {
+        $stmt = $conn->prepare(
+            "SELECT 1 FROM project_sessions ss JOIN project_panels pp ON pp.id = ss.panel_id "
+            . "JOIN project_setups ps ON ps.id = pp.setup_id "
+            . "WHERE ss.id = :n AND ps.project_id = :pid LIMIT 1"
+        );
+        $stmt->execute([':n' => $nodeId, ':pid' => $projectId]);
+        return $stmt->fetch() !== false;
+    }
+    return false;
+}
+
+/**
+ * Parse a "fileId:level:nodeId" link key from the bulk forms.
+ */
+function parseProjectLinkKey(string $key): ?array
+{
+    if (!preg_match('/^(\d+):(project|setup|panel|session|filter):(\d+)$/', trim($key), $m)) {
+        return null;
+    }
+    return [(int)$m[1], $m[2], (int)$m[3]];
+}
+
+/**
+ * Bulk remove links from a project (files on disk untouched), pruning
+ * emptied nodes bottom-up. Returns the removed count.
+ */
+function removeProjectLinks(PDO $conn, int $projectId, array $keys): int
+{
+    $removed = 0;
+    foreach ($keys as $key) {
+        $parsed = parseProjectLinkKey((string)$key);
+        if ($parsed === null) {
+            continue;
+        }
+        [$fid, $level, $node] = $parsed;
+        if (!projectOwnsNode($conn, $projectId, $level, $node)) {
+            continue;
+        }
+        $conn->beginTransaction();
+        try {
+            $del = $conn->prepare(
+                "DELETE FROM project_files WHERE file_id = :fid AND level = :level AND node_id = :node"
+            );
+            $del->execute([':fid' => $fid, ':level' => $level, ':node' => $node]);
+            if ($del->rowCount() > 0) {
+                $removed++;
+            }
+            projectPruneUpwards($conn, $level, $node);
+            $conn->commit();
+        } catch (Exception $e) {
+            if ($conn->inTransaction()) {
+                $conn->rollBack();
+            }
+        }
+    }
+    return $removed;
+}
+
+/**
+ * Bulk enable/disable links (subframe selection). Disabled links stay in the
+ * project but are excluded from counts, exposure and diagnostics.
+ */
+function setProjectLinksEnabled(PDO $conn, int $projectId, array $keys, bool $enabled): int
+{
+    $updated = 0;
+    $upd = $conn->prepare(
+        "UPDATE project_files SET enabled = :en WHERE file_id = :fid AND level = :level AND node_id = :node"
+    );
+    foreach ($keys as $key) {
+        $parsed = parseProjectLinkKey((string)$key);
+        if ($parsed === null) {
+            continue;
+        }
+        [$fid, $level, $node] = $parsed;
+        if (!projectOwnsNode($conn, $projectId, $level, $node)) {
+            continue;
+        }
+        $upd->execute([':en' => $enabled ? 1 : 0, ':fid' => $fid, ':level' => $level, ':node' => $node]);
+        $updated += $upd->rowCount();
+    }
+    return $updated;
+}
+
 function getToleranceDefs(): array
 {
     return [
