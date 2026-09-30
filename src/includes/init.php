@@ -5,6 +5,7 @@ require_once '/var/www/html/vendor/autoload.php';
 require_once __DIR__ . '/config.php';
 
 require_once __DIR__ . '/db_functions.php';
+require_once __DIR__ . '/projects_functions.php';
 
 // Start session before language (so session-stored preference is available)
 session_start();

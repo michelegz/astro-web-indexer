@@ -25,6 +25,8 @@
                 <div class="flex items-center gap-4">
                     <?php include __DIR__ . '/language_selector.php'; ?>
 
+                    <a href="/projects.php" class="text-gray-300 hover:text-white" title="<?= __('projects') ?>">&#128193;</a>
+
                     <!-- Auth controls -->
                     <?php if (isAuthEnabled()): ?>
                         <div class="flex items-center gap-3 text-sm">
