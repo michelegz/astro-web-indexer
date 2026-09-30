@@ -873,6 +873,10 @@ function projectAddFiles(PDO $conn, int $projectId, array $fileIds): array
     if ($project === null) {
         return ['added' => 0, 'skipped' => [['name' => '#' . $projectId, 'reason' => 'no_project']]];
     }
+    // Frozen means locked: no manual adds either (unfreeze first).
+    if (getProjectAssignMode($project) === 'frozen') {
+        return ['added' => 0, 'skipped' => [['name' => (string)$project['name'], 'reason' => 'frozen']]];
+    }
     $tols = [];
     foreach (getToleranceDefs() as $key => $def) {
         $tols[$key] = resolve_tol($conn, $projectId, $key);

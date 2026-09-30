@@ -363,6 +363,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function renderPreview(data) {
         const t = window.i18n || {};
+        const frozenBanner = document.getElementById('projectFrozenBanner');
+        if (data.frozen && frozenBanner) {
+            frozenBanner.textContent = t.project_add_frozen || 'Project is frozen.';
+            frozenBanner.classList.remove('hidden');
+            if (projectModalConfirm) projectModalConfirm.classList.add('hidden');
+        } else {
+            if (frozenBanner) frozenBanner.classList.add('hidden');
+            if (projectModalConfirm) projectModalConfirm.classList.remove('hidden');
+        }
         if (data.groups.length > 1 && previewMixed) {
             previewMixed.textContent = (t.project_add_mixed || 'Mixed selection: {count}').replace('{count}', data.groups.length);
             previewMixed.classList.remove('hidden');

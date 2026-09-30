@@ -49,6 +49,7 @@
         project_add_use_matched: <?php echo json_encode(__('projects_add_use_matched')); ?>,
         project_add_analyzing: <?php echo json_encode(__('projects_add_analyzing')); ?>,
         project_add_new_setup: <?php echo json_encode(__('projects_add_new_setup')); ?>,
-        project_add_new_setup_name: <?php echo json_encode(__('projects_add_new_setup_name')); ?>
+        project_add_new_setup_name: <?php echo json_encode(__('projects_add_new_setup_name')); ?>,
+        project_add_frozen: <?php echo json_encode(__('projects_add_frozen')); ?>
     };
 </script>

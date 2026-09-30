@@ -36,8 +36,14 @@ try {
     $conn = connectDB();
     $preview = projectPreviewFiles($conn, $projectId > 0 ? $projectId : null, $ids);
     $setups = $projectId > 0 ? getProjectSetups($conn, $projectId) : [];
+    $frozen = false;
+    if ($projectId > 0) {
+        $proj = getProject($conn, $projectId);
+        $frozen = $proj !== null && getProjectAssignMode($proj) === 'frozen';
+    }
     echo json_encode([
         'success' => true,
+        'frozen' => $frozen,
         'groups' => $preview['groups'],
         'skipped' => $preview['skipped'],
         'setups' => array_map(fn($s) => [

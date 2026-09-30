@@ -83,6 +83,7 @@ $reasonKeys = [
     'no_date' => 'projects_add_reason_no_date',
     'already' => 'projects_add_reason_already',
     'error' => 'projects_add_reason_error',
+    'frozen' => 'projects_add_reason_frozen',
 ];
 
 try {

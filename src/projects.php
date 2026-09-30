@@ -57,8 +57,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             } elseif ($action === 'accept_suggestions' || $action === 'dismiss_suggestions') {
                 $id = (int)($_POST['project_id'] ?? 0);
-                if ($id <= 0 || getProject($conn, $id) === null) {
+                $target = $id > 0 ? getProject($conn, $id) : null;
+                if ($target === null) {
                     throw new InvalidArgumentException(__('projects_error_name'));
+                }
+                if (getProjectAssignMode($target) === 'frozen') {
+                    throw new InvalidArgumentException(__('projects_add_frozen'));
                 }
                 $ids = array_values(array_filter(array_map('intval', (array)($_POST['suggestion_ids'] ?? []))));
                 $done = 0;

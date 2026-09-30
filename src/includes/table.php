@@ -48,6 +48,7 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
         </div>
 
         <div id="projectStep2" class="hidden">
+            <div id="projectFrozenBanner" class="hidden mb-4 p-3 rounded text-sm bg-red-900/50 border border-red-700 text-red-300"></div>
             <div id="projectPreviewMixed" class="hidden mb-4 p-3 rounded text-sm bg-yellow-900/50 border border-yellow-700 text-yellow-300"></div>
             <div id="projectPreviewGroups" class="flex flex-col gap-4 mb-4"></div>
             <div id="projectPreviewSkipped" class="mb-4 text-sm text-gray-400"></div>
