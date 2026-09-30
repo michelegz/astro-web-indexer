@@ -289,4 +289,16 @@ return [
     'projects_mode_auto_desc' => 'I nuovi file vengono collegati subito e loggati. Solo per setup fidati.',
     'projects_pending' => '{count} da revisionare',
 
+    // Wizard
+    'projects_review' => 'Suggerimenti da revisionare ({count})',
+    'projects_review_intro' => 'Collegamenti proposti. Accetta per collegarli al progetto, scarta per non riproporli mai più. I file su disco non vengono toccati.',
+    'projects_file' => 'File',
+    'projects_target' => 'Destinazione',
+    'projects_reason' => 'Motivo',
+    'projects_accept_selected' => 'Accetta selezionati',
+    'projects_discard_selected' => 'Scarta selezionati',
+    'projects_accepted' => '{count} suggerimenti accettati.',
+    'projects_discarded' => '{count} suggerimenti scartati.',
+    'projects_no_pending' => 'Nulla da revisionare. I nuovi file appariranno qui in modalità suggerimento.',
+
 ];

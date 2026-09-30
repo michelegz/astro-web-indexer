@@ -289,4 +289,16 @@ return [
     'projects_mode_auto_desc' => 'New files are linked immediately and logged. Use only for trusted setups.',
     'projects_pending' => '{count} awaiting review',
 
+    // Wizard
+    'projects_review' => 'Review suggestions ({count})',
+    'projects_review_intro' => 'Proposed file links. Accept to link them into the project, discard to never propose them again. Files on disk are never touched.',
+    'projects_file' => 'File',
+    'projects_target' => 'Target',
+    'projects_reason' => 'Why',
+    'projects_accept_selected' => 'Accept selected',
+    'projects_discard_selected' => 'Discard selected',
+    'projects_accepted' => '{count} suggestions accepted.',
+    'projects_discarded' => '{count} suggestions discarded.',
+    'projects_no_pending' => 'Nothing to review. New indexed files will appear here in suggest mode.',
+
 ];

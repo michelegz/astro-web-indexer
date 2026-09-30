@@ -22,6 +22,7 @@ from indexer_lib.file_utils import calculate_hash, get_header_value, get_xisf_he
 from indexer_lib.db_utils import soft_delete_missing_files, purge_deleted_files, update_duplicate_counts
 from indexer_lib.ephemeris import get_moon_ephemeris
 from indexer_lib.schema_upgrade import SCHEMA_VERSION_FIELDS, schema_upgrade_worker
+from indexer_lib.projects import suggest_projects_for_files, suggest_projects_backfill
 from datetime import datetime, timezone
 
 # Configure logging
@@ -63,6 +64,9 @@ parser.add_argument("--backfill-star-metrics", action="store_true",
 parser.add_argument("--recompute-star-metrics", action="store_true",
                     help="Recompute star metrics for ALL LIGHT frames (e.g. after a formula change), "
                          "not just the ones missing them")
+parser.add_argument("--suggest-projects", action="store_true",
+                    help="Propose project links for the whole archive (wizard queue in "
+                         "suggest mode, direct links in auto mode), then exit")
 args = parser.parse_args()
 
 if args.debug:
@@ -309,6 +313,11 @@ def main():
 
         current_schema_version = 4
 
+        if args.suggest_projects:
+            logger.info("Suggesting project links for the whole archive...")
+            suggest_projects_backfill(conn)
+            return
+
         logger.info("Loading existing file data from database...")
         cur.execute("SELECT path, file_hash, mtime, file_size, deleted_at, data_schema_version FROM files")
         db_files = {row[0]: {'hash': row[1], 'mtime': row[2], 'size': row[3], 'deleted_at': row[4], 'schema_version': row[5]} for row in cur.fetchall()}
@@ -319,6 +328,10 @@ def main():
         skipped_count = 0
         error_count = 0
         disk_files = {}
+        # Worker result params for the project suggestion pass (freshly
+        # processed files only; unchanged files are covered on demand via
+        # --suggest-projects).
+        suggest_metas = []
         
         logger.info("Scanning filesystem and identifying files to process...")
         for root, dirs, files in os.walk(fits_root):
@@ -463,6 +476,7 @@ def main():
 
                         params = result['params']
                         rel_path = result['path']
+                        suggest_metas.append(params)
                         
                         logger.debug(f"Adding '{rel_path}' to batch (current size: {len(batch_params)+1}).")
                         batch_params.append(params)
@@ -497,6 +511,13 @@ def main():
                     processed_count += len(batch_params)
         
         conn.commit()
+
+        # Project suggestions for freshly processed files (suggest/manual
+        # modes queue wizard rows; auto mode links directly; frozen skipped).
+        try:
+            suggest_projects_for_files(conn, suggest_metas)
+        except Exception as e:
+            logger.error(f"Project suggestion pass failed (indexing is unaffected): {e}")
 
         schema_upgraded_count = 0
         if schema_upgrade_tasks:

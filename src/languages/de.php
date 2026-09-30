@@ -288,4 +288,16 @@ return [
     'projects_mode_auto_desc' => 'Neue Dateien werden sofort verknüpft und protokolliert. Nur für vertrauenswürdige Setups.',
     'projects_pending' => '{count} offen',
 
+    // Assistent
+    'projects_review' => 'Vorschläge prüfen ({count})',
+    'projects_review_intro' => 'Vorgeschlagene Verknüpfungen. Annehmen zum Verlinken, verwerfen um sie nie wieder vorzuschlagen. Dateien auf der Platte bleiben unberührt.',
+    'projects_file' => 'Datei',
+    'projects_target' => 'Ziel',
+    'projects_reason' => 'Grund',
+    'projects_accept_selected' => 'Auswahl annehmen',
+    'projects_discard_selected' => 'Auswahl verwerfen',
+    'projects_accepted' => '{count} Vorschläge angenommen.',
+    'projects_discarded' => '{count} Vorschläge verworfen.',
+    'projects_no_pending' => 'Nichts zu prüfen. Neue Dateien erscheinen hier im Vorschlagsmodus.',
+
 ];

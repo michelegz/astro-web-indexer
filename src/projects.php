@@ -55,6 +55,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         unset($_GET['id']);
                     }
                 }
+            } elseif ($action === 'accept_suggestions' || $action === 'dismiss_suggestions') {
+                $id = (int)($_POST['project_id'] ?? 0);
+                if ($id <= 0 || getProject($conn, $id) === null) {
+                    throw new InvalidArgumentException(__('projects_error_name'));
+                }
+                $ids = array_values(array_filter(array_map('intval', (array)($_POST['suggestion_ids'] ?? []))));
+                $done = 0;
+                foreach ($ids as $sid) {
+                    if ($action === 'accept_suggestions') {
+                        $done += acceptSuggestion($conn, $id, $sid) ? 1 : 0;
+                    } else {
+                        $done += dismissSuggestion($conn, $id, $sid) ? 1 : 0;
+                    }
+                }
+                $message = $action === 'accept_suggestions'
+                    ? __('projects_accepted', ['count' => $done])
+                    : __('projects_discarded', ['count' => $done]);
+                $messageType = 'success';
             } elseif ($action === 'save_tolerances') {
                 $id = (int)($_POST['project_id'] ?? 0);
                 if ($id <= 0 || getProject($conn, $id) === null) {
@@ -92,6 +110,7 @@ $defs = getToleranceDefs();
 $detailOverrides = $detail !== null ? getProjectTolerances($detail['tolerances']) : [];
 $detailMode = $detail !== null ? getProjectAssignMode($detail) : 'suggest';
 $detailPending = $detail !== null ? getPendingCount($conn, (int)$detail['id']) : 0;
+$pendingSuggestions = $detail !== null ? getPendingSuggestions($conn, (int)$detail['id'], 200) : [];
 $assignModes = getAssignModes();
 ?>
 <!DOCTYPE html>
@@ -269,6 +288,60 @@ $assignModes = getAssignModes();
                     </button>
                 </div>
             </form>
+        </section>
+
+        <section class="mb-6 bg-gray-800 rounded-lg p-6">
+            <h2 class="text-lg font-semibold mb-2"><?= __('projects_review', ['count' => $detailPending]) ?></h2>
+            <p class="text-sm text-gray-400 mb-4"><?= __('projects_review_intro') ?></p>
+            <?php if (empty($pendingSuggestions)): ?>
+                <p class="text-gray-500 text-sm"><?= __('projects_no_pending') ?></p>
+            <?php else: ?>
+            <form method="POST">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                <input type="hidden" name="project_id" value="<?= (int)$detail['id'] ?>">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="text-gray-400 border-b border-gray-700">
+                            <tr>
+                                <th class="py-2 px-3"><input type="checkbox" onclick="document.querySelectorAll('.sug-check').forEach(c => c.checked = this.checked)" class="rounded bg-gray-600 border-gray-500"></th>
+                                <th class="py-2 px-3"><?= __('projects_file') ?></th>
+                                <th class="py-2 px-3"><?= __('projects_target') ?></th>
+                                <th class="py-2 px-3"><?= __('projects_reason') ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($pendingSuggestions as $s): ?>
+                                <tr class="border-b border-gray-700/50">
+                                    <td class="py-2 px-3">
+                                        <input type="checkbox" name="suggestion_ids[]" value="<?= (int)$s['id'] ?>" class="sug-check rounded bg-gray-600 border-gray-500">
+                                    </td>
+                                    <td class="py-2 px-3">
+                                        <span class="font-medium"><?= htmlspecialchars($s['file_name']) ?></span>
+                                        <span class="ml-2 text-xs px-1.5 py-0.5 rounded bg-gray-700 text-gray-300"><?= htmlspecialchars($s['imgtype']) ?></span>
+                                        <?php if ($s['file_filter'] !== null && $s['file_filter'] !== ''): ?>
+                                            <span class="ml-1 text-xs text-gray-400"><?= htmlspecialchars($s['file_filter']) ?></span>
+                                        <?php endif; ?>
+                                        <br><span class="text-xs text-gray-500"><?= htmlspecialchars($s['file_path']) ?></span>
+                                    </td>
+                                    <td class="py-2 px-3 text-gray-300"><?= htmlspecialchars(getSuggestionNodeLabel($conn, $s['level'], (int)$s['node_id'], $s['filter_name'])) ?></td>
+                                    <td class="py-2 px-3 text-xs text-gray-400"><?= htmlspecialchars((string)($s['reason'] ?? '')) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="flex justify-end gap-2 mt-4">
+                    <button type="submit" name="action" value="dismiss_suggestions"
+                            class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors">
+                        <?= __('projects_discard_selected') ?>
+                    </button>
+                    <button type="submit" name="action" value="accept_suggestions"
+                            class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors">
+                        <?= __('projects_accept_selected') ?>
+                    </button>
+                </div>
+            </form>
+            <?php endif; ?>
         </section>
 
         <section class="bg-gray-800 rounded-lg p-6">

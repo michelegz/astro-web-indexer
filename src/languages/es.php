@@ -289,4 +289,16 @@ return [
     'projects_mode_auto_desc' => 'Los nuevos archivos se enlazan al instante y se registran. Solo para setups de confianza.',
     'projects_pending' => '{count} pendientes',
 
+    // Asistente
+    'projects_review' => 'Sugerencias por revisar ({count})',
+    'projects_review_intro' => 'Enlaces propuestos. Acepta para enlazarlos al proyecto, descarta para no proponerlos nunca más. Los archivos en disco no se tocan.',
+    'projects_file' => 'Archivo',
+    'projects_target' => 'Destino',
+    'projects_reason' => 'Motivo',
+    'projects_accept_selected' => 'Aceptar selección',
+    'projects_discard_selected' => 'Descartar selección',
+    'projects_accepted' => '{count} sugerencias aceptadas.',
+    'projects_discarded' => '{count} sugerencias descartadas.',
+    'projects_no_pending' => 'Nada que revisar. Los nuevos archivos aparecerán aquí en modo sugerencia.',
+
 ];

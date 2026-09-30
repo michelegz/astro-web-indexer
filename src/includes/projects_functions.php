@@ -47,9 +47,203 @@ function getPendingCount(PDO $conn, int $projectId): int
 }
 
 /**
- * Tolerance definitions: setting key => [global default, unit hint].
- * Values are stored as plain strings (e.g. '10%', '2C', '3deg').
+ * Wizard queue: pending suggestions with file info for display.
  */
+function getPendingSuggestions(PDO $conn, int $projectId, int $limit = 500): array
+{
+    $stmt = $conn->prepare(
+        "SELECT s.id, s.level, s.node_id, s.filter_name, s.role, s.reason, s.created_at, "
+        . "f.id AS file_id, f.name AS file_name, f.path AS file_path, f.imgtype, "
+        . "f.filter AS file_filter, f.date_obs, f.exptime "
+        . "FROM project_suggestions s JOIN files f ON f.id = s.file_id "
+        . "WHERE s.project_id = :id AND s.status = 'pending' "
+        . "ORDER BY s.created_at ASC LIMIT :limit"
+    );
+    $stmt->bindValue(':id', $projectId, PDO::PARAM_INT);
+    $stmt->bindValue(':limit', max(1, $limit), PDO::PARAM_INT);
+    $stmt->execute();
+    return $stmt->fetchAll();
+}
+
+/**
+ * Human-readable target label for a suggestion/link node.
+ */
+function getSuggestionNodeLabel(PDO $conn, string $level, int $nodeId, ?string $filterName): string
+{
+    if ($level === 'project') {
+        $stmt = $conn->prepare("SELECT name FROM projects WHERE id = :id");
+        $stmt->execute([':id' => $nodeId]);
+        $row = $stmt->fetch();
+        return $row ? (string)$row['name'] : "#$nodeId";
+    }
+    if ($level === 'setup') {
+        $stmt = $conn->prepare("SELECT label, fingerprint FROM project_setups WHERE id = :id");
+        $stmt->execute([':id' => $nodeId]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            return "#$nodeId";
+        }
+        return $row['label'] !== null && $row['label'] !== ''
+            ? (string)$row['label']
+            : substr((string)$row['fingerprint'], 0, 48);
+    }
+    if ($level === 'panel') {
+        $stmt = $conn->prepare("SELECT ra, `dec`, rot_mean, label_object FROM project_panels WHERE id = :id");
+        $stmt->execute([':id' => $nodeId]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            return "#$nodeId";
+        }
+        $coords = ($row['ra'] !== null && $row['dec'] !== null)
+            ? number_format((float)$row['ra'], 3) . ' / ' . number_format((float)$row['dec'], 3)
+            : '?';
+        $label = "P$nodeId ($coords)";
+        if ($row['label_object'] !== null && $row['label_object'] !== '') {
+            $label .= ' ' . $row['label_object'];
+        }
+        return $label;
+    }
+    // session / filter levels share the session row (filter adds filter_name).
+    $stmt = $conn->prepare("SELECT astro_night FROM project_sessions WHERE id = :id");
+    $stmt->execute([':id' => $nodeId]);
+    $row = $stmt->fetch();
+    $label = $row ? (string)$row['astro_night'] : "#$nodeId";
+    if ($level === 'filter' && $filterName !== null && $filterName !== '') {
+        $label .= ' · ' . $filterName;
+    }
+    return $label;
+}
+
+/**
+ * Accept a suggestion: create the project_files link, mark accepted.
+ * Returns true if a pending row was actually accepted.
+ */
+function acceptSuggestion(PDO $conn, int $projectId, int $suggestionId): bool
+{
+    $stmt = $conn->prepare(
+        "SELECT s.file_id, s.level, s.node_id, s.filter_name, s.role, f.imgtype "
+        . "FROM project_suggestions s JOIN files f ON f.id = s.file_id "
+        . "WHERE s.id = :sid AND s.project_id = :pid AND s.status = 'pending'"
+    );
+    $stmt->execute([':sid' => $suggestionId, ':pid' => $projectId]);
+    $row = $stmt->fetch();
+    if ($row === false) {
+        return false;
+    }
+    $conn->beginTransaction();
+    try {
+        $link = $conn->prepare(
+            "INSERT INTO project_files (file_id, level, node_id, filter_name, role, is_light) "
+            . "VALUES (:fid, :level, :node, :filter, :role, :light) "
+            . "ON DUPLICATE KEY UPDATE role = VALUES(role), filter_name = VALUES(filter_name)"
+        );
+        $link->execute([
+            ':fid' => (int)$row['file_id'],
+            ':level' => $row['level'],
+            ':node' => (int)$row['node_id'],
+            ':filter' => $row['filter_name'],
+            ':role' => $row['role'],
+            ':light' => strtoupper((string)$row['imgtype']) === 'LIGHT' ? 1 : 0,
+        ]);
+        $conn->prepare("UPDATE project_suggestions SET status = 'accepted' WHERE id = :sid")
+            ->execute([':sid' => $suggestionId]);
+        $conn->commit();
+        return true;
+    } catch (Exception $e) {
+        $conn->rollBack();
+        throw $e;
+    }
+}
+
+/**
+ * Discard a suggestion: never proposed again. Prunes the node if it became
+ * an empty panel/session with no other references.
+ * Returns true if a pending row was actually discarded.
+ */
+function dismissSuggestion(PDO $conn, int $projectId, int $suggestionId): bool
+{
+    $stmt = $conn->prepare(
+        "SELECT level, node_id FROM project_suggestions "
+        . "WHERE id = :sid AND project_id = :pid AND status = 'pending'"
+    );
+    $stmt->execute([':sid' => $suggestionId, ':pid' => $projectId]);
+    $row = $stmt->fetch();
+    if ($row === false) {
+        return false;
+    }
+    $conn->beginTransaction();
+    try {
+        $conn->prepare("UPDATE project_suggestions SET status = 'dismissed' WHERE id = :sid")
+            ->execute([':sid' => $suggestionId]);
+        pruneEmptyNode($conn, (string)$row['level'], (int)$row['node_id']);
+        $conn->commit();
+        return true;
+    } catch (Exception $e) {
+        $conn->rollBack();
+        throw $e;
+    }
+}
+
+/**
+ * Delete a panel/session node left without links or live suggestions.
+ * Setups and projects are never pruned automatically.
+ */
+function pruneEmptyNode(PDO $conn, string $level, int $nodeId): void
+{
+    if ($nodeId <= 0) {
+        return;
+    }
+    if ($level === 'panel') {
+        // Panel prune: no direct links, no linked sessions below, no live suggestions.
+        $link = $conn->prepare(
+            "SELECT 1 FROM project_files WHERE level = 'panel' AND node_id = :node LIMIT 1"
+        );
+        $link->execute([':node' => $nodeId]);
+        if ($link->fetch() !== false) {
+            return;
+        }
+        $child = $conn->prepare(
+            "SELECT ss.id FROM project_sessions ss "
+            . "LEFT JOIN project_files pf ON pf.level IN ('session','filter') AND pf.node_id = ss.id "
+            . "LEFT JOIN project_suggestions sg ON sg.level IN ('session','filter') AND sg.node_id = ss.id "
+            . "AND sg.status IN ('pending','accepted') "
+            . "WHERE ss.panel_id = :node AND (pf.file_id IS NOT NULL OR sg.id IS NOT NULL) LIMIT 1"
+        );
+        $child->execute([':node' => $nodeId]);
+        if ($child->fetch() !== false) {
+            return;
+        }
+        $live = $conn->prepare(
+            "SELECT 1 FROM project_suggestions WHERE level = 'panel' AND node_id = :node "
+            . "AND status IN ('pending','accepted') LIMIT 1"
+        );
+        $live->execute([':node' => $nodeId]);
+        if ($live->fetch() !== false) {
+            return;
+        }
+        // Sessions cascade via FK.
+        $conn->prepare("DELETE FROM project_panels WHERE id = :node")->execute([':node' => $nodeId]);
+    } elseif ($level === 'session' || $level === 'filter') {
+        // Filter-level links live on the session row.
+        $link = $conn->prepare(
+            "SELECT 1 FROM project_files WHERE level IN ('session','filter') AND node_id = :node LIMIT 1"
+        );
+        $link->execute([':node' => $nodeId]);
+        if ($link->fetch() !== false) {
+            return;
+        }
+        $live = $conn->prepare(
+            "SELECT 1 FROM project_suggestions WHERE level IN ('session','filter') AND node_id = :node "
+            . "AND status IN ('pending','accepted') LIMIT 1"
+        );
+        $live->execute([':node' => $nodeId]);
+        if ($live->fetch() !== false) {
+            return;
+        }
+        $conn->prepare("DELETE FROM project_sessions WHERE id = :node")->execute([':node' => $nodeId]);
+    }
+    // Setups and projects are never pruned automatically.
+}
 function getToleranceDefs(): array
 {
     return [
