@@ -276,6 +276,7 @@ return [
     'projects_lights_count' => '{count} lights',
     'projects_no_tree' => 'Empty project: accept suggestions above to populate it.',
     'projects_pending_hypo' => 'Pending suggestion — shown here as if accepted',
+    'projects_select_all' => 'Select all',
     'projects_tol_tol_exp_dark' => 'Dark exposure match',
     'projects_tol_tol_temp' => 'Sensor temperature match',
     'projects_tol_tol_rot' => 'Panel rotation split',

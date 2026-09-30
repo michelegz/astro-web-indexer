@@ -110,7 +110,6 @@ $defs = getToleranceDefs();
 $detailOverrides = $detail !== null ? getProjectTolerances($detail['tolerances']) : [];
 $detailMode = $detail !== null ? getProjectAssignMode($detail) : 'suggest';
 $detailPending = $detail !== null ? getPendingCount($conn, (int)$detail['id']) : 0;
-$pendingSuggestions = $detail !== null ? getPendingSuggestions($conn, (int)$detail['id'], 1000) : [];
 $assignModes = getAssignModes();
 $projectTree = $detail !== null ? getProjectTree($conn, (int)$detail['id'], true) : null;
 $projectTols = [];
@@ -308,43 +307,16 @@ $projectDiag = $projectTree !== null ? diagnoseProjectTree($projectTree, $projec
                     <button type="button" id="sugModalClose" class="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
                 </div>
                 <p class="text-sm text-gray-400 mb-4"><?= __('projects_review_intro') ?></p>
-            <?php if (empty($pendingSuggestions)): ?>
+            <?php if ($detailPending === 0): ?>
                 <p class="text-gray-500 text-sm"><?= __('projects_no_pending') ?></p>
             <?php else: ?>
             <form method="POST">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <input type="hidden" name="project_id" value="<?= (int)$detail['id'] ?>">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm text-left">
-                        <thead class="text-gray-400 border-b border-gray-700">
-                            <tr>
-                                <th class="py-2 px-3"><input type="checkbox" onclick="document.querySelectorAll('.sug-check').forEach(c => c.checked = this.checked)" class="rounded bg-gray-600 border-gray-500"></th>
-                                <th class="py-2 px-3"><?= __('projects_file') ?></th>
-                                <th class="py-2 px-3"><?= __('projects_target') ?></th>
-                                <th class="py-2 px-3"><?= __('projects_reason') ?></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($pendingSuggestions as $s): ?>
-                                <tr class="border-b border-gray-700/50">
-                                    <td class="py-2 px-3">
-                                        <input type="checkbox" name="suggestion_ids[]" value="<?= (int)$s['id'] ?>" class="sug-check rounded bg-gray-600 border-gray-500">
-                                    </td>
-                                    <td class="py-2 px-3">
-                                        <span class="font-medium"><?= htmlspecialchars($s['file_name']) ?></span>
-                                        <span class="ml-2 text-xs px-1.5 py-0.5 rounded bg-gray-700 text-gray-300"><?= htmlspecialchars($s['imgtype']) ?></span>
-                                        <?php if ($s['file_filter'] !== null && $s['file_filter'] !== ''): ?>
-                                            <span class="ml-1 text-xs text-gray-400"><?= htmlspecialchars($s['file_filter']) ?></span>
-                                        <?php endif; ?>
-                                        <br><span class="text-xs text-gray-500"><?= htmlspecialchars($s['file_path']) ?></span>
-                                    </td>
-                                    <td class="py-2 px-3 text-gray-300"><?= htmlspecialchars(getSuggestionNodeLabel($conn, $s['level'], (int)$s['node_id'], $s['filter_name'])) ?></td>
-                                    <td class="py-2 px-3 text-xs text-gray-400"><?= htmlspecialchars((string)($s['reason'] ?? '')) ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                <div class="mb-3 text-sm">
+                    <label class="text-gray-300 cursor-pointer"><input type="checkbox" onclick="document.querySelectorAll('#sugModal .sug-check').forEach(c => c.checked = this.checked)" class="rounded bg-gray-600 border-gray-500"> <?= __('projects_select_all') ?></label>
                 </div>
+                <?php include __DIR__ . '/includes/projects_tree_pending.php'; ?>
                 <div class="flex justify-end gap-2 mt-4">
                     <button type="submit" name="action" value="dismiss_suggestions"
                             class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors">

@@ -194,7 +194,7 @@ function getProjectTree(PDO $conn, int $projectId, bool $includePending = false)
 
     if ($includePending) {
         $pend = $conn->prepare(
-            "SELECT s.level, s.node_id, s.filter_name, s.role, "
+            "SELECT s.id AS suggestion_id, s.level, s.node_id, s.filter_name, s.role, s.reason, "
             . "CASE WHEN UPPER(f.imgtype) = 'LIGHT' THEN 1 ELSE 0 END AS is_light, "
             . "f.id AS file_id, f.name, f.path, f.imgtype, f.filter, f.exptime, f.date_obs, "
             . "f.xbinning, f.ybinning, f.gain, f.ccd_temp "

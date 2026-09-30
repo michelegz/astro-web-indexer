@@ -275,6 +275,7 @@ return [
     'projects_lights_count' => '{count} Lights',
     'projects_no_tree' => 'Leeres Projekt: nimm oben Vorschläge an, um es zu füllen.',
     'projects_pending_hypo' => 'Offener Vorschlag — angezeigt wie angenommen',
+    'projects_select_all' => 'Alle auswählen',
     'projects_tol_tol_exp_dark' => 'Dark-Belichtungsmatch',
     'projects_tol_tol_temp' => 'Sensortemperaturmatch',
     'projects_tol_tol_rot' => 'Panel-Rotationstrennung',
