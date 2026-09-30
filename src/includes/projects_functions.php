@@ -1149,3 +1149,138 @@ function projectAddFiles(PDO $conn, int $projectId, array $fileIds): array
     }
     return ['added' => $added, 'skipped' => $skipped];
 }
+
+/**
+ * Stored rejection thresholds per integration group.
+ *
+ * Direction is fixed per metric type (lower-is-better excludes above,
+ * higher-is-better excludes below); NULL value = metric inactive. A light is
+ * effectively included iff manually enabled AND passing the stored
+ * thresholds, so thresholds alone decide without forcing per-file state.
+ */
+function groupThresholdDirs(): array
+{
+    return [
+        'hfr' => 'above',
+        'fwhm' => 'above',
+        'eccentricity' => 'above',
+        'star_count' => 'below',
+        'snr_weight' => 'below',
+    ];
+}
+
+function thresholdDbColumn(string $metric): ?string
+{
+    return [
+        'hfr' => 'hfr_max',
+        'fwhm' => 'fwhm_max',
+        'eccentricity' => 'ecc_max',
+        'star_count' => 'stars_min',
+        'snr_weight' => 'snr_min',
+    ][$metric] ?? null;
+}
+
+function groupThresholdKey(int $setupId, int $panelId, ?string $filter, $exptime): string
+{
+    $f = ($filter !== null && $filter !== '') ? $filter : '';
+    $e = ($exptime !== null && $exptime !== '') ? number_format(round((float)$exptime, 3), 3, '.', '') : '';
+    return $setupId . '|' . $panelId . '|' . $f . '|' . $e;
+}
+
+/**
+ * All stored thresholds of a project, keyed by groupThresholdKey().
+ * Values are [metric => float|null].
+ */
+function getProjectThresholds(PDO $conn, int $projectId): array
+{
+    $stmt = $conn->prepare("SELECT * FROM project_group_thresholds WHERE project_id = :pid");
+    $stmt->execute([':pid' => $projectId]);
+    $out = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $tols = [];
+        foreach (groupThresholdDirs() as $metric => $dir) {
+            $col = thresholdDbColumn($metric);
+            $tols[$metric] = ($col !== null && $row[$col] !== null) ? (float)$row[$col] : null;
+        }
+        $key = groupThresholdKey(
+            (int)$row['setup_id'],
+            (int)$row['panel_id'],
+            $row['filter_name'],
+            $row['exptime']
+        );
+        $out[$key] = $tols;
+    }
+    return $out;
+}
+
+/**
+ * Upsert a group's thresholds; all-null removes the row (no active rules).
+ * Values: [metric => float|string|null]; localizes to columns.
+ */
+function saveGroupThresholds(PDO $conn, int $projectId, int $setupId, int $panelId, ?string $filter, $exptime, array $values): void
+{
+    if (!projectOwnsNode($conn, $projectId, 'setup', $setupId)
+        || !projectOwnsNode($conn, $projectId, 'panel', $panelId)) {
+        throw new InvalidArgumentException('Invalid group nodes');
+    }
+    $filter = ($filter !== null && $filter !== '') ? substr($filter, 0, 50) : null;
+    $exp = ($exptime !== null && $exptime !== '') ? round((float)$exptime, 3) : null;
+    $cols = [];
+    $anyAction = false;
+    foreach (groupThresholdDirs() as $metric => $dir) {
+        $raw = $values[$metric] ?? null;
+        $val = ($raw !== null && $raw !== '' && is_numeric($raw)) ? (float)$raw : null;
+        $cols[thresholdDbColumn($metric)] = $val;
+        if ($val !== null) {
+            $anyAction = true;
+        }
+    }
+    if (!$anyAction) {
+        $del = $conn->prepare(
+            "DELETE FROM project_group_thresholds WHERE project_id = :pid AND setup_id = :sid "
+            . "AND panel_id = :panel AND ((filter_name = :filter) OR (filter_name IS NULL AND :filter2 IS NULL)) "
+            . "AND ((exptime = :exp) OR (exptime IS NULL AND :exp2 IS NULL))"
+        );
+        $del->execute([
+            ':pid' => $projectId, ':sid' => $setupId, ':panel' => $panelId,
+            ':filter' => $filter, ':filter2' => $filter, ':exp' => $exp, ':exp2' => $exp,
+        ]);
+        return;
+    }
+    $ins = $conn->prepare(
+        "INSERT INTO project_group_thresholds "
+        . "(project_id, setup_id, panel_id, filter_name, exptime, hfr_max, fwhm_max, ecc_max, stars_min, snr_min) "
+        . "VALUES (:pid, :sid, :panel, :filter, :exp, :hfr, :fwhm, :ecc, :stars, :snr) "
+        . "ON DUPLICATE KEY UPDATE hfr_max = VALUES(hfr_max), fwhm_max = VALUES(fwhm_max), "
+        . "ecc_max = VALUES(ecc_max), stars_min = VALUES(stars_min), snr_min = VALUES(snr_min)"
+    );
+    $ins->execute([
+        ':pid' => $projectId, ':sid' => $setupId, ':panel' => $panelId,
+        ':filter' => $filter, ':exp' => $exp,
+        ':hfr' => $cols['hfr_max'], ':fwhm' => $cols['fwhm_max'], ':ecc' => $cols['ecc_max'],
+        ':stars' => $cols['stars_min'], ':snr' => $cols['snr_min'],
+    ]);
+}
+
+/**
+ * Whether a light fails stored thresholds (fixed per-metric direction).
+ * Files missing a metric are never rejected by it.
+ */
+function lightThresholdRejected(array $light, array $tols): bool
+{
+    foreach (groupThresholdDirs() as $metric => $dir) {
+        $t = $tols[$metric] ?? null;
+        if ($t === null) {
+            continue;
+        }
+        $v = $light[$metric] ?? null;
+        if ($v === null || $v === '') {
+            continue;
+        }
+        $v = (float)$v;
+        if ($dir === 'above' ? $v >= (float)$t : $v <= (float)$t) {
+            return true;
+        }
+    }
+    return false;
+}

@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = $_POST['action'] ?? '';
         try {
             // Project-scoped actions require an accessible project first.
-            $needsProject = ['update', 'save_mode', 'delete', 'accept_suggestions', 'dismiss_suggestions', 'save_tolerances', 'remove_links', 'disable_links', 'enable_links'];
+            $needsProject = ['update', 'save_mode', 'delete', 'accept_suggestions', 'dismiss_suggestions', 'save_tolerances', 'remove_links', 'disable_links', 'enable_links', 'save_thresholds'];
             if (in_array($action, $needsProject, true)) {
                 $gid = (int)($_POST['project_id'] ?? 0);
                 $gproj = $gid > 0 ? getProject($conn, $gid) : null;
@@ -100,6 +100,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $done = setProjectLinksEnabled($conn, $id, $keys, $action === 'enable_links');
                     $message = __('projects_links_set', ['count' => $done]);
                 }
+                $messageType = 'success';
+            } elseif ($action === 'save_thresholds') {
+                $id = (int)($_POST['project_id'] ?? 0);
+                $filter = trim((string)($_POST['filter'] ?? ''));
+                saveGroupThresholds(
+                    $conn,
+                    $id,
+                    (int)($_POST['setup_id'] ?? 0),
+                    (int)($_POST['panel_id'] ?? 0),
+                    $filter !== '' ? $filter : null,
+                    trim((string)($_POST['exptime'] ?? '')) !== '' ? $_POST['exptime'] : null,
+                    (array)($_POST['thresholds'] ?? [])
+                );
+                $message = __('projects_thresholds_saved');
                 $messageType = 'success';
             } elseif ($action === 'save_tolerances') {
                 $id = (int)($_POST['project_id'] ?? 0);
@@ -457,8 +471,10 @@ if ($projectBlocked) {
                                 </thead>
                                 <tbody>
                                     <?php foreach ($grp['lights'] as $li): ?>
-                                        <tr class="border-b border-gray-700/40" data-enabled="<?= !empty($li['enabled']) ? '1' : '0' ?>" data-hfr-sd="<?= htmlspecialchars((string)($li['hfr_sd'] ?? '')) ?>" data-psf="<?= htmlspecialchars((string)($li['psf_signal'] ?? '')) ?>" data-linkkey="<?= htmlspecialchars((string)($li['link_key'] ?? '')) ?>">
-                                            <td class="py-1 px-2" data-val="<?= htmlspecialchars((string)$li['name']) ?>"><?= htmlspecialchars($li['name']) ?></td>
+                                        <?php $liOff = empty($li['enabled']); ?>
+                                        <?php $liAuto = !$liOff && !empty($li['auto_off']); ?>
+                                        <tr class="border-b border-gray-700/40<?= ($liOff || $liAuto) ? ' opacity-60' : '' ?>" data-enabled="<?= $liOff ? '0' : '1' ?>" data-auto="<?= $liAuto ? '1' : '0' ?>" data-hfr-sd="<?= htmlspecialchars((string)($li['hfr_sd'] ?? '')) ?>" data-psf="<?= htmlspecialchars((string)($li['psf_signal'] ?? '')) ?>" data-linkkey="<?= htmlspecialchars((string)($li['link_key'] ?? '')) ?>">
+                                            <td class="py-1 px-2" data-val="<?= htmlspecialchars((string)$li['name']) ?>"><?= htmlspecialchars($li['name']) ?><?php if ($liOff): ?> <span class="text-gray-500">(<?= __('projects_link_off') ?>)</span><?php elseif ($liAuto): ?> <span class="text-gray-500">(<?= __('projects_auto_off') ?>)</span><?php endif; ?></td>
                                             <td class="py-1 px-2" data-val="<?= htmlspecialchars((string)($li['date_obs'] ?? '')) ?>"><?= htmlspecialchars((string)($li['date_obs'] ?? '')) ?></td>
                                             <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['hfr'] ?? '')) ?>"><?= htmlspecialchars($li['hfr'] !== null && $li['hfr'] !== '' ? number_format((float)$li['hfr'], 2) : '—') ?></td>
                                             <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['fwhm'] ?? '')) ?>"><?= htmlspecialchars($li['fwhm'] !== null && $li['fwhm'] !== '' ? number_format((float)$li['fwhm'], 2) : '—') ?></td>
@@ -480,7 +496,7 @@ if ($projectBlocked) {
                                     </tr>
                                 </tfoot>
                             </table>
-                            <div class="mt-3 border border-gray-700 rounded p-3 igroup-reject">
+                            <div class="mt-3 border border-gray-700 rounded p-3 igroup-reject" data-setup="<?= (int)$grp['setup_id'] ?>" data-panel="<?= (int)$grp['panel_id'] ?>" data-filter="<?= htmlspecialchars($grp['filter']) ?>" data-exp="<?= htmlspecialchars((string)($grp['exptime'] ?? '')) ?>">
                                 <div class="text-xs font-semibold text-gray-300 mb-2"><?= __('projects_reject_title') ?></div>
                                 <div class="flex flex-wrap gap-x-4 gap-y-2">
                                     <?php foreach (['hfr' => 'above', 'fwhm' => 'above', 'eccentricity' => 'above', 'star_count' => 'below', 'snr_weight' => 'below'] as $rk => $rdir): ?>
@@ -488,10 +504,12 @@ if ($projectBlocked) {
                                         $rlabel = $rk === 'hfr' ? __('hfr') : ($rk === 'fwhm' ? __('fwhm') : ($rk === 'eccentricity' ? __('eccentricity') : ($rk === 'star_count' ? __('star_count') : __('snr_weight'))));
                                         $rmed = $grp['medians'][$rk] ?? null;
                                         $rdec = $rk === 'eccentricity' ? 3 : 2;
+                                        $rval = $grp['thresholds'][$rk] ?? null;
                                         ?>
                                         <label class="text-xs text-gray-400"><?= htmlspecialchars($rlabel) ?>
                                             <span class="text-gray-500"><?= $rdir === 'above' ? htmlspecialchars(__('projects_reject_above')) : htmlspecialchars(__('projects_reject_below')) ?></span>
                                             <input type="number" step="any" data-metric="<?= $rk ?>" data-dir="<?= $rdir ?>"
+                                                   value="<?= $rval !== null ? htmlspecialchars((string)$rval) : '' ?>"
                                                    placeholder="<?= htmlspecialchars($rmed !== null ? number_format((float)$rmed, $rdec) : '') ?>"
                                                    class="ml-1 w-24 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100">
                                         </label>
@@ -499,8 +517,8 @@ if ($projectBlocked) {
                                 </div>
                                 <div class="text-xs text-gray-500 mt-1"><?= __('projects_reject_hint') ?></div>
                                 <div class="flex items-center gap-3 mt-2">
-                                    <button type="button" class="reject-apply px-3 py-1 text-sm bg-red-700 hover:bg-red-600 text-white rounded transition-colors" disabled>
-                                        <?= __('projects_reject_apply') ?>
+                                    <button type="button" class="reject-save px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors">
+                                        <?= __('projects_reject_save') ?>
                                     </button>
                                     <span class="reject-count text-xs text-gray-400"></span>
                                 </div>
@@ -635,8 +653,8 @@ if ($projectBlocked) {
                     if (igCharts[cid]) { igCharts[cid].destroy(); delete igCharts[cid]; }
                     const data = rows.map(r => r.vals[s.key]);
                     if (!data.some(v => v !== null)) return;
-                    const med = igMedian(rows.filter(r => r.enabled).map(r => r.vals[s.key]));
                     const rejected = igRejectedIndices(table);
+                    const med = igMedian(rows.filter((r, i) => r.enabled && !rejected.has(i)).map(r => r.vals[s.key]));
                     const datasets = [{
                         label: s.label,
                         data,
@@ -720,7 +738,7 @@ if ($projectBlocked) {
             // --- Rejection thresholds: combined OR evaluation with live preview ---
             // Direction is fixed per metric type (lower-is-better excludes above,
             // higher-is-better excludes below). Files missing a metric are never
-            // rejected by it. Confirm disables the candidates via the bulk endpoint.
+            // rejected by it. Save persists thresholds; they alone decide inclusion.
             const IGROUP_REJECT_COUNT = <?= json_encode(__('projects_reject_count')) ?>;
             function igEvalPanel(panel) {
                 const table = panel.parentElement?.querySelector('.igroup-table');
@@ -737,17 +755,15 @@ if ($projectBlocked) {
             }
             function igRefreshPanel(panel) {
                 const count = panel.querySelector('.reject-count');
-                const apply = panel.querySelector('.reject-apply');
                 const table = panel.parentElement?.querySelector('.igroup-table');
                 const total = table ? table.querySelectorAll('tbody tr').length : 0;
-                // Store hits on the panel for the confirm step.
+                // Store hits on the panel for the count display.
                 panel._hits = igEvalPanel(panel);
                 if (count) {
                     count.textContent = IGROUP_REJECT_COUNT
                         .replace('{n}', panel._hits.length)
                         .replace('{total}', total);
                 }
-                if (apply) apply.disabled = panel._hits.length === 0;
                 // Keep bar colors in sync when charts are already built.
                 const rtable = panel.parentElement?.querySelector('.igroup-table');
                 if (rtable) {
@@ -757,18 +773,23 @@ if ($projectBlocked) {
             }
             document.querySelectorAll('.igroup-reject').forEach(panel => {
                 panel.addEventListener('input', () => igRefreshPanel(panel));
-                const apply = panel.querySelector('.reject-apply');
-                if (apply) apply.addEventListener('click', () => {
-                    const hits = panel._hits || igEvalPanel(panel);
-                    if (!hits.length) return;
+                const save = panel.querySelector('.reject-save');
+                if (save) save.addEventListener('click', () => {
+                    // Persist thresholds: from now on they alone decide inclusion.
                     const csrf = document.querySelector('#treeBulkForm input[name="csrf_token"]')?.value || '';
                     const pid = document.querySelector('#treeBulkForm input[name="project_id"]')?.value || '';
                     const fd = new FormData();
                     fd.append('csrf_token', csrf);
                     fd.append('project_id', pid);
-                    fd.append('action', 'disable_links');
-                    hits.forEach(k => fd.append('link_keys[]', k));
-                    apply.disabled = true;
+                    fd.append('action', 'save_thresholds');
+                    fd.append('setup_id', panel.dataset.setup || '');
+                    fd.append('panel_id', panel.dataset.panel || '');
+                    fd.append('filter', panel.dataset.filter || '');
+                    fd.append('exptime', panel.dataset.exp || '');
+                    panel.querySelectorAll('input[data-metric]').forEach(inp => {
+                        fd.append('thresholds[' + inp.dataset.metric + ']', inp.value.trim());
+                    });
+                    save.disabled = true;
                     fetch(window.location.pathname + window.location.search, { method: 'POST', body: fd })
                         .finally(() => window.location.reload());
                 });

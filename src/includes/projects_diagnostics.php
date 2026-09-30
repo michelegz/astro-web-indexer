@@ -501,8 +501,12 @@ function projectMedian(array $values): ?float
  * Integration groups: enabled linked LIGHTS sharing setup + panel + filter +
  * exposure (tolerance), transversal to sessions (i.e. stackable sets).
  * Returns stable-sorted groups with covered nights and total exposure.
+ *
+ * With $thresholdMap (from getProjectThresholds()), each light also carries
+ * 'auto_off' (fails stored thresholds); counts, exposure and medians cover
+ * effectively included files (manually enabled AND passing thresholds).
  */
-function getIntegrationGroups(array $tree, float $tolExpFrac): array
+function getIntegrationGroups(array $tree, float $tolExpFrac, array $thresholdMap = []): array
 {
     $pools = [];
     foreach ($tree['setups'] ?? [] as $setup) {
@@ -550,10 +554,29 @@ function getIntegrationGroups(array $tree, float $tolExpFrac): array
     $groups = [];
     foreach ($pools as $pool) {
         foreach (clusterExposures($pool['lights'], $tolExpFrac) as $eg) {
-            $enabled = array_values(array_filter($eg['lights'], fn($li) => !empty($li['enabled'])));
+            $tkey = groupThresholdKey(
+                $pool['setup_id'],
+                $pool['panel_id'],
+                $pool['filter'] !== '' ? $pool['filter'] : null,
+                $eg['exptime']
+            );
+            $tols = $thresholdMap[$tkey] ?? [
+                'hfr' => null, 'fwhm' => null, 'eccentricity' => null,
+                'star_count' => null, 'snr_weight' => null,
+            ];
+            $egLights = [];
+            $effective = [];
+            foreach ($eg['lights'] as $li) {
+                // Buckets are disjoint: manual-off wins, auto_off only for enabled files.
+                $li['auto_off'] = !empty($li['enabled']) && lightThresholdRejected($li, $tols);
+                $egLights[] = $li;
+                if (!empty($li['enabled']) && empty($li['auto_off'])) {
+                    $effective[] = $li;
+                }
+            }
             $nights = [];
             $exp = 0.0;
-            foreach ($enabled as $li) {
+            foreach ($effective as $li) {
                 $exp += (float)($li['exptime'] ?? 0);
                 if (isset($li['night'])) {
                     $nights[$li['night']] = true;
@@ -562,21 +585,25 @@ function getIntegrationGroups(array $tree, float $tolExpFrac): array
             $nightList = array_keys($nights);
             sort($nightList);
             $groups[] = [
+                'setup_id' => $pool['setup_id'],
+                'panel_id' => $pool['panel_id'],
+                'tkey' => $tkey,
+                'thresholds' => $tols,
                 'setup_label' => $pool['setup_label'],
                 'panel_label' => $pool['panel_label'],
                 'panel_no' => $pool['panel_no'],
                 'filter' => $pool['filter'],
                 'exptime' => $eg['exptime'],
                 'nights' => $nightList,
-                'lights' => $eg['lights'],
-                'count' => count($enabled),
+                'lights' => $egLights,
+                'count' => count($effective),
                 'exposure' => $exp,
                 'medians' => [
-                    'hfr' => projectMedian(array_column($enabled, 'hfr')),
-                    'fwhm' => projectMedian(array_column($enabled, 'fwhm')),
-                    'eccentricity' => projectMedian(array_column($enabled, 'eccentricity')),
-                    'star_count' => projectMedian(array_column($enabled, 'star_count')),
-                    'snr_weight' => projectMedian(array_column($enabled, 'snr_weight')),
+                    'hfr' => projectMedian(array_column($effective, 'hfr')),
+                    'fwhm' => projectMedian(array_column($effective, 'fwhm')),
+                    'eccentricity' => projectMedian(array_column($effective, 'eccentricity')),
+                    'star_count' => projectMedian(array_column($effective, 'star_count')),
+                    'snr_weight' => projectMedian(array_column($effective, 'snr_weight')),
                 ],
             ];
         }
