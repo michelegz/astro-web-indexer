@@ -428,13 +428,6 @@ if ($projectBlocked) {
 
         <section class="bg-gray-800 rounded-lg p-6">
             <h2 class="text-lg font-semibold mb-2"><?= __('projects_igroups') ?></h2>
-            <div id="igCtxMenu" class="hidden fixed bg-gray-800 border border-gray-600 rounded-lg shadow-xl py-1 text-sm" style="z-index: 60; min-width: 190px;">
-                <div id="igCtxTitle" class="px-3 py-1 text-xs text-gray-400 border-b border-gray-700"></div>
-                <button type="button" data-op="enable-upper" class="block w-full text-left px-3 py-1.5 hover:bg-gray-700"><?= __('projects_ctx_enable_upper') ?></button>
-                <button type="button" data-op="disable-upper" class="block w-full text-left px-3 py-1.5 hover:bg-gray-700"><?= __('projects_ctx_disable_upper') ?></button>
-                <button type="button" data-op="enable-lower" class="block w-full text-left px-3 py-1.5 hover:bg-gray-700"><?= __('projects_ctx_enable_lower') ?></button>
-                <button type="button" data-op="disable-lower" class="block w-full text-left px-3 py-1.5 hover:bg-gray-700"><?= __('projects_ctx_disable_lower') ?></button>
-            </div>
             <?php if (!empty($intGroups)): ?>
             <script src="assets/js/vendor/chart.umd.min.js"></script>
             <?php endif; ?>
@@ -487,6 +480,31 @@ if ($projectBlocked) {
                                     </tr>
                                 </tfoot>
                             </table>
+                            <div class="mt-3 border border-gray-700 rounded p-3 igroup-reject">
+                                <div class="text-xs font-semibold text-gray-300 mb-2"><?= __('projects_reject_title') ?></div>
+                                <div class="flex flex-wrap gap-x-4 gap-y-2">
+                                    <?php foreach (['hfr' => 'above', 'fwhm' => 'above', 'eccentricity' => 'above', 'star_count' => 'below', 'snr_weight' => 'below'] as $rk => $rdir): ?>
+                                        <?php
+                                        $rlabel = $rk === 'hfr' ? __('hfr') : ($rk === 'fwhm' ? __('fwhm') : ($rk === 'eccentricity' ? __('eccentricity') : ($rk === 'star_count' ? __('star_count') : __('snr_weight'))));
+                                        $rmed = $grp['medians'][$rk] ?? null;
+                                        $rdec = $rk === 'eccentricity' ? 3 : 2;
+                                        ?>
+                                        <label class="text-xs text-gray-400"><?= htmlspecialchars($rlabel) ?>
+                                            <span class="text-gray-500"><?= $rdir === 'above' ? htmlspecialchars(__('projects_reject_above')) : htmlspecialchars(__('projects_reject_below')) ?></span>
+                                            <input type="number" step="any" data-metric="<?= $rk ?>" data-dir="<?= $rdir ?>"
+                                                   placeholder="<?= htmlspecialchars($rmed !== null ? number_format((float)$rmed, $rdec) : '') ?>"
+                                                   class="ml-1 w-24 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100">
+                                        </label>
+                                    <?php endforeach; ?>
+                                </div>
+                                <div class="text-xs text-gray-500 mt-1"><?= __('projects_reject_hint') ?></div>
+                                <div class="flex items-center gap-3 mt-2">
+                                    <button type="button" class="reject-apply px-3 py-1 text-sm bg-red-700 hover:bg-red-600 text-white rounded transition-colors" disabled>
+                                        <?= __('projects_reject_apply') ?>
+                                    </button>
+                                    <span class="reject-count text-xs text-gray-400"></span>
+                                </div>
+                            </div>
                             <?php
                             $grpHasMetrics = false;
                             foreach ($grp['lights'] as $mli) {
@@ -620,7 +638,6 @@ if ($projectBlocked) {
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
-                            onClick: (evt, elements) => igBarClick(gi, s, elements, evt),
                             plugins: {
                                 title: { display: true, text: s.label, color: '#e5e7eb', font: { size: 13, weight: 'bold' } },
                                 legend: { labels: { color: tickColor, boxWidth: 20 } },
@@ -642,62 +659,6 @@ if ($projectBlocked) {
                     });
                 });
             }
-            let igCtx = null; // {table, metricKey, threshold}
-            function igHideCtx() {
-                const m = document.getElementById('igCtxMenu');
-                if (m) m.classList.add('hidden');
-                igCtx = null;
-            }
-            function igBarClick(gi, series, elements, evt) {
-                if (!elements || !elements.length || elements[0].datasetIndex !== 0) return;
-                const table = document.querySelector('.igroup-table[data-group="' + gi + '"]');
-                if (!table) return;
-                const rows = igRowsInOrder(table);
-                const bar = rows[elements[0].index];
-                const val = bar ? bar.vals[series.key] : null;
-                if (val === null || val === undefined) return;
-                igCtx = { table, metricKey: series.key, threshold: val };
-                const menu = document.getElementById('igCtxMenu');
-                const title = document.getElementById('igCtxTitle');
-                if (title) title.textContent = series.label + ' = ' + val;
-                if (menu) {
-                    menu.classList.remove('hidden');
-                    const x = (evt.native?.clientX ?? evt.clientX ?? 0);
-                    const y = (evt.native?.clientY ?? evt.clientY ?? 0);
-                    menu.style.left = Math.min(x, window.innerWidth - 210) + 'px';
-                    menu.style.top = Math.min(y, window.innerHeight - 180) + 'px';
-                }
-            }
-            document.addEventListener('click', (e) => {
-                // Canvas clicks open the menu via Chart onClick; don't close it right away.
-                if (!e.target.closest('#igCtxMenu') && e.target.tagName !== 'CANVAS') igHideCtx();
-            });
-            document.addEventListener('keydown', (e) => { if (e.key === 'Escape') igHideCtx(); });
-            document.querySelectorAll('#igCtxMenu [data-op]').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    if (!igCtx) return;
-                    const [action, side] = btn.dataset.op.split('-');
-                    const rows = igRowsInOrder(igCtx.table);
-                    const keys = rows
-                        .filter(r => {
-                            const v = r.vals[igCtx.metricKey];
-                            if (v === null || !r.linkkey) return false;
-                            return side === 'upper' ? v >= igCtx.threshold : v <= igCtx.threshold;
-                        })
-                        .map(r => r.linkkey);
-                    igHideCtx();
-                    if (!keys.length) return;
-                    const csrf = document.querySelector('#treeBulkForm input[name="csrf_token"]')?.value || '';
-                    const pid = document.querySelector('#treeBulkForm input[name="project_id"]')?.value || '';
-                    const fd = new FormData();
-                    fd.append('csrf_token', csrf);
-                    fd.append('project_id', pid);
-                    fd.append('action', action === 'enable' ? 'enable_links' : 'disable_links');
-                    keys.forEach(k => fd.append('link_keys[]', k));
-                    fetch(window.location.pathname + window.location.search, { method: 'POST', body: fd })
-                        .finally(() => window.location.reload());
-                });
-            });
             function refreshIgroupCharts(table) {
                 const groupDetails = table.closest('details');
                 const wrap = groupDetails ? groupDetails.querySelector('.igroup-charts-wrap') : null;
@@ -710,6 +671,65 @@ if ($projectBlocked) {
                         igBuildGroup(wrap.dataset.group);
                     }
                 });
+            });
+
+            // --- Rejection thresholds: combined OR evaluation with live preview ---
+            // Direction is fixed per metric type (lower-is-better excludes above,
+            // higher-is-better excludes below). Files missing a metric are never
+            // rejected by it. Confirm disables the candidates via the bulk endpoint.
+            const IGROUP_REJECT_COUNT = <?= json_encode(__('projects_reject_count')) ?>;
+            function igEvalPanel(panel) {
+                const table = panel.parentElement?.querySelector('.igroup-table');
+                if (!table) return [];
+                const rules = Array.from(panel.querySelectorAll('input[data-metric]'))
+                    .map(inp => ({ key: inp.dataset.metric, dir: inp.dataset.dir, t: inp.value.trim() === '' ? null : parseFloat(inp.value) }))
+                    .filter(r => r.t !== null && !isNaN(r.t));
+                const rows = igRowsInOrder(table);
+                const hits = [];
+                rows.forEach((r, i) => {
+                    const tr = table.querySelectorAll('tbody tr')[i];
+                    const bad = rules.some(rule => {
+                        const v = r.vals[rule.key];
+                        if (v === null || v === undefined) return false;
+                        return rule.dir === 'above' ? v > rule.t : v < rule.t;
+                    });
+                    if (tr) tr.classList.toggle('bg-red-900/50', bad);
+                    if (bad && r.linkkey) hits.push(r.linkkey);
+                });
+                return hits;
+            }
+            function igRefreshPanel(panel) {
+                const count = panel.querySelector('.reject-count');
+                const apply = panel.querySelector('.reject-apply');
+                const table = panel.parentElement?.querySelector('.igroup-table');
+                const total = table ? table.querySelectorAll('tbody tr').length : 0;
+                // Store hits on the panel for the confirm step.
+                panel._hits = igEvalPanel(panel);
+                if (count) {
+                    count.textContent = IGROUP_REJECT_COUNT
+                        .replace('{n}', panel._hits.length)
+                        .replace('{total}', total);
+                }
+                if (apply) apply.disabled = panel._hits.length === 0;
+            }
+            document.querySelectorAll('.igroup-reject').forEach(panel => {
+                panel.addEventListener('input', () => igRefreshPanel(panel));
+                const apply = panel.querySelector('.reject-apply');
+                if (apply) apply.addEventListener('click', () => {
+                    const hits = panel._hits || igEvalPanel(panel);
+                    if (!hits.length) return;
+                    const csrf = document.querySelector('#treeBulkForm input[name="csrf_token"]')?.value || '';
+                    const pid = document.querySelector('#treeBulkForm input[name="project_id"]')?.value || '';
+                    const fd = new FormData();
+                    fd.append('csrf_token', csrf);
+                    fd.append('project_id', pid);
+                    fd.append('action', 'disable_links');
+                    hits.forEach(k => fd.append('link_keys[]', k));
+                    apply.disabled = true;
+                    fetch(window.location.pathname + window.location.search, { method: 'POST', body: fd })
+                        .finally(() => window.location.reload());
+                });
+                igRefreshPanel(panel);
             });
         })();
         </script>
