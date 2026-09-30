@@ -529,6 +529,12 @@ if ($projectBlocked) {
                                     <button type="button" class="reject-save px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors">
                                         <?= __('projects_reject_save') ?>
                                     </button>
+                                    <button type="button" class="reject-auto px-3 py-1 text-sm bg-purple-700 hover:bg-purple-600 text-white rounded transition-colors">
+                                        <?= __('projects_reject_auto') ?>
+                                    </button>
+                                    <button type="button" class="reject-reset px-3 py-1 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors">
+                                        <?= __('projects_reject_reset') ?>
+                                    </button>
                                     <span class="reject-count text-xs text-gray-400"></span>
                                 </div>
                             </div>
@@ -800,8 +806,9 @@ if ($projectBlocked) {
             document.querySelectorAll('.igroup-reject').forEach(panel => {
                 panel.addEventListener('input', () => igRefreshPanel(panel));
                 const save = panel.querySelector('.reject-save');
-                if (save) save.addEventListener('click', () => {
-                    // Persist thresholds: from now on they alone decide inclusion.
+                const auto = panel.querySelector('.reject-auto');
+                const reset = panel.querySelector('.reject-reset');
+                const postThresholds = () => {
                     const csrf = document.querySelector('#treeBulkForm input[name="csrf_token"]')?.value || '';
                     const pid = document.querySelector('#treeBulkForm input[name="project_id"]')?.value || '';
                     const fd = new FormData();
@@ -815,9 +822,42 @@ if ($projectBlocked) {
                     panel.querySelectorAll('input[data-metric]').forEach(inp => {
                         fd.append('thresholds[' + inp.dataset.metric + ']', inp.value.trim());
                     });
-                    save.disabled = true;
+                    return { fd, save };
+                };
+                if (save) save.addEventListener('click', () => {
+                    const { fd, save: btn } = postThresholds();
+                    if (btn) btn.disabled = true;
                     fetch(window.location.pathname + window.location.search, { method: 'POST', body: fd })
                         .finally(() => window.location.reload());
+                });
+                if (auto) auto.addEventListener('click', () => {
+                    // Classic 3-sigma proposal: mean+3σ for lower-is-better,
+                    // mean-3σ (floored at 0) for higher-is-better. Fills the
+                    // inputs without saving: review the preview, then Save.
+                    const table = panel.parentElement?.querySelector('.igroup-table');
+                    if (!table) return;
+                    const rows = igRowsInOrder(table);
+                    const stats = {};
+                    ['hfr', 'fwhm', 'hfr_sd', 'eccentricity', 'star_count', 'snr_weight', 'psf_signal'].forEach(k => {
+                        const nums = rows.map(r => r.vals[k]).filter(v => v !== null && v !== undefined);
+                        if (nums.length < 2) return;
+                        const mean = nums.reduce((a, b) => a + b, 0) / nums.length;
+                        const sd = Math.sqrt(nums.reduce((a, b) => a + (b - mean) * (b - mean), 0) / nums.length);
+                        stats[k] = { mean, sd };
+                    });
+                    panel.querySelectorAll('input[data-metric]').forEach(inp => {
+                        const st = stats[inp.dataset.metric];
+                        if (!st) return;
+                        let t = inp.dataset.dir === 'above' ? st.mean + 3 * st.sd : st.mean - 3 * st.sd;
+                        if (inp.dataset.dir === 'below') t = Math.max(0, t);
+                        inp.value = String(Number(t.toPrecision(6)));
+                    });
+                    igRefreshPanel(panel);
+                });
+                if (reset) reset.addEventListener('click', () => {
+                    // Clear fields and persist immediately (deletes the row).
+                    panel.querySelectorAll('input[data-metric]').forEach(inp => { inp.value = ''; });
+                    if (save) save.click();
                 });
                 igRefreshPanel(panel);
             });

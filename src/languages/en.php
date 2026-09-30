@@ -302,6 +302,8 @@ return [
     'projects_reject_above' => 'exclude above',
     'projects_reject_below' => 'exclude below',
     'projects_reject_save' => 'Save thresholds',
+    'projects_reject_auto' => 'Auto 3σ',
+    'projects_reject_reset' => 'Reset',
     'projects_thresholds_saved' => 'Thresholds saved.',
     'projects_auto_off' => 'auto',
     'projects_reject_count' => '{n} of {total} excluded',

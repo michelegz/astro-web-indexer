@@ -302,6 +302,8 @@ return [
     'projects_reject_above' => 'scarta sopra',
     'projects_reject_below' => 'scarta sotto',
     'projects_reject_save' => 'Salva soglie',
+    'projects_reject_auto' => 'Auto 3σ',
+    'projects_reject_reset' => 'Azzera',
     'projects_thresholds_saved' => 'Soglie salvate.',
     'projects_auto_off' => 'auto',
     'projects_reject_count' => '{n} di {total} esclusi',
