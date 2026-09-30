@@ -575,6 +575,7 @@ if ($projectBlocked) {
                 { key: 'psf_signal', label: <?= json_encode(__('psf_signal')) ?>, color: '#fb7185', attr: 'psf' },
             ];
             const IGROUP_OFF_COLOR = '#4b5563';
+            const IGROUP_REJECT_COLOR = '#ef4444';
             const IGROUP_MEDIAN_LABEL = <?= json_encode(__('metrics_median')) ?>;
             const igCharts = {};
             function igMedian(values) {
@@ -597,6 +598,28 @@ if ($projectBlocked) {
                     return { name: cells[0]?.dataset.val || '', enabled: tr.dataset.enabled === '1', linkkey: tr.dataset.linkkey || '', vals };
                 });
             }
+            // Shared rejection evaluation for one group table: rows failing any
+            // active threshold (direction fixed per metric). Returns rejected
+            // row indices; files missing the metric are never rejected by it.
+            function igRejectedIndices(table) {
+                const panel = table.parentElement?.querySelector('.igroup-reject');
+                if (!panel) return new Set();
+                const rules = Array.from(panel.querySelectorAll('input[data-metric]'))
+                    .map(inp => ({ key: inp.dataset.metric, dir: inp.dataset.dir, t: inp.value.trim() === '' ? null : parseFloat(inp.value) }))
+                    .filter(r => r.t !== null && !isNaN(r.t));
+                if (!rules.length) return new Set();
+                const rows = igRowsInOrder(table);
+                const out = new Set();
+                rows.forEach((r, i) => {
+                    const bad = rules.some(rule => {
+                        const v = r.vals[rule.key];
+                        if (v === null || v === undefined) return false;
+                        return rule.dir === 'above' ? v > rule.t : v < rule.t;
+                    });
+                    if (bad) out.add(i);
+                });
+                return out;
+            }
             function igBuildGroup(gi) {
                 const table = document.querySelector('.igroup-table[data-group="' + gi + '"]');
                 if (!table || typeof Chart === 'undefined') return;
@@ -612,10 +635,11 @@ if ($projectBlocked) {
                     const data = rows.map(r => r.vals[s.key]);
                     if (!data.some(v => v !== null)) return;
                     const med = igMedian(rows.filter(r => r.enabled).map(r => r.vals[s.key]));
+                    const rejected = igRejectedIndices(table);
                     const datasets = [{
                         label: s.label,
                         data,
-                        backgroundColor: rows.map(r => r.enabled ? s.color : IGROUP_OFF_COLOR),
+                        backgroundColor: rows.map((r, i) => !r.enabled ? IGROUP_OFF_COLOR : (rejected.has(i) ? IGROUP_REJECT_COLOR : s.color)),
                         borderWidth: 0,
                     }];
                     if (med !== null) {
@@ -638,6 +662,20 @@ if ($projectBlocked) {
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
+                            onClick: (evt, elements) => {
+                                // Clicking a bar sets its value as the threshold
+                                // for that metric (median line clicks ignored).
+                                if (!elements || !elements.length || elements[0].datasetIndex !== 0) return;
+                                const table = document.querySelector('.igroup-table[data-group="' + gi + '"]');
+                                if (!table) return;
+                                const val = igRowsInOrder(table)[elements[0].index]?.vals[s.key];
+                                if (val === null || val === undefined) return;
+                                const panel = table.parentElement?.querySelector('.igroup-reject');
+                                const inp = panel?.querySelector('input[data-metric="' + s.key + '"]');
+                                if (!inp) return;
+                                inp.value = Math.abs(val) >= 0.01 ? val.toFixed(2) : val.toPrecision(4);
+                                igRefreshPanel(panel);
+                            },
                             plugins: {
                                 title: { display: true, text: s.label, color: '#e5e7eb', font: { size: 13, weight: 'bold' } },
                                 legend: { labels: { color: tickColor, boxWidth: 20 } },
@@ -681,20 +719,13 @@ if ($projectBlocked) {
             function igEvalPanel(panel) {
                 const table = panel.parentElement?.querySelector('.igroup-table');
                 if (!table) return [];
-                const rules = Array.from(panel.querySelectorAll('input[data-metric]'))
-                    .map(inp => ({ key: inp.dataset.metric, dir: inp.dataset.dir, t: inp.value.trim() === '' ? null : parseFloat(inp.value) }))
-                    .filter(r => r.t !== null && !isNaN(r.t));
+                const rejected = igRejectedIndices(table);
                 const rows = igRowsInOrder(table);
                 const hits = [];
+                const trs = table.querySelectorAll('tbody tr');
                 rows.forEach((r, i) => {
-                    const tr = table.querySelectorAll('tbody tr')[i];
-                    const bad = rules.some(rule => {
-                        const v = r.vals[rule.key];
-                        if (v === null || v === undefined) return false;
-                        return rule.dir === 'above' ? v > rule.t : v < rule.t;
-                    });
-                    if (tr) tr.classList.toggle('bg-red-900/50', bad);
-                    if (bad && r.linkkey) hits.push(r.linkkey);
+                    if (trs[i]) trs[i].classList.toggle('bg-red-900/50', rejected.has(i));
+                    if (rejected.has(i) && r.linkkey) hits.push(r.linkkey);
                 });
                 return hits;
             }
@@ -711,6 +742,12 @@ if ($projectBlocked) {
                         .replace('{total}', total);
                 }
                 if (apply) apply.disabled = panel._hits.length === 0;
+                // Keep bar colors in sync when charts are already built.
+                const rtable = panel.parentElement?.querySelector('.igroup-table');
+                if (rtable) {
+                    const rwrap = document.querySelector('.igroup-charts-wrap[data-group="' + rtable.dataset.group + '"]');
+                    if (rwrap && rwrap.open && rwrap.dataset.built) igBuildGroup(rtable.dataset.group);
+                }
             }
             document.querySelectorAll('.igroup-reject').forEach(panel => {
                 panel.addEventListener('input', () => igRefreshPanel(panel));

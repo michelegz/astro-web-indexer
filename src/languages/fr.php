@@ -298,7 +298,7 @@ return [
     'projects_igroup_median' => 'Médiane',
     'projects_igroup_charts' => 'Graphiques',
     'projects_reject_title' => 'Seuils de rejet',
-    'projects_reject_hint' => 'Vide = métrique ignorée. Un fichier est rejeté dès qu’il échoue à un seuil.',
+    'projects_reject_hint' => 'Vide = métrique ignorée. Un fichier est rejeté dès qu’il échoue à un seuil. Cliquez une barre du graphique pour utiliser sa valeur comme seuil.',
     'projects_reject_above' => 'rejeter au-dessus',
     'projects_reject_below' => 'rejeter en dessous',
     'projects_reject_apply' => 'Désactiver rejetés',

@@ -297,7 +297,7 @@ return [
     'projects_igroup_median' => 'Median',
     'projects_igroup_charts' => 'Diagramme',
     'projects_reject_title' => 'Ausschlussgrenzen',
-    'projects_reject_hint' => 'Leer = Metrik ignoriert. Eine Datei scheidet aus, sobald sie eine Grenze reißt.',
+    'projects_reject_hint' => 'Leer = Metrik ignoriert. Eine Datei scheidet aus, sobald sie eine Grenze reißt. Balken im Diagramm anklicken, um seinen Wert als Grenze zu übernehmen.',
     'projects_reject_above' => 'darüber ausschließen',
     'projects_reject_below' => 'darunter ausschließen',
     'projects_reject_apply' => 'Ausgeschiedene deaktivieren',
