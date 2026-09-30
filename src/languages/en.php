@@ -291,6 +291,8 @@ return [
     'projects_cal_flat' => 'Flat',
     'projects_legend' => 'Legend',
     'projects_legend_calib' => 'Calibration status per light',
+    'projects_exposure' => 'Exposure',
+    'projects_tol_tol_exp' => 'Light exposure grouping',
     'projects_tol_tol_exp_dark' => 'Dark exposure match',
     'projects_tol_tol_temp' => 'Sensor temperature match',
     'projects_tol_tol_rot' => 'Panel rotation split',

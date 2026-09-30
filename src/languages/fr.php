@@ -291,6 +291,8 @@ return [
     'projects_cal_flat' => 'Flat',
     'projects_legend' => 'Légende',
     'projects_legend_calib' => 'État des calibrations par light',
+    'projects_exposure' => 'Exposition',
+    'projects_tol_tol_exp' => 'Regroupement exposition des lights',
     'projects_tol_tol_exp_dark' => 'Correspondance expo dark',
     'projects_tol_tol_temp' => 'Correspondance température capteur',
     'projects_tol_tol_rot' => 'Séparation rotation panneau',

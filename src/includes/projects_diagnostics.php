@@ -384,6 +384,54 @@ function stripPendingTree(array $tree): array
 }
 
 /**
+ * Exposure subgroups for a filter's lights (hierarchy level under filter).
+ * Sorted ascending; a new group starts when |v - anchor| / anchor exceeds
+ * $tolFrac (anchor = first value of the group). NULL exposures share one
+ * group. Same rule feeds the main tree, the wizard modal and the suggester.
+ *
+ * Returns [['exptime' => ?float, 'lights' => [...]], ...].
+ */
+function clusterExposures(array $lights, float $tolFrac): array
+{
+    $withNull = [];
+    $withVal = [];
+    foreach ($lights as $li) {
+        if ($li['exptime'] === null || $li['exptime'] === '') {
+            $withNull[] = $li;
+        } else {
+            $withVal[] = $li;
+        }
+    }
+    usort($withVal, fn($a, $b) => (float)$a['exptime'] <=> (float)$b['exptime']);
+    $groups = [];
+    $anchor = null;
+    foreach ($withVal as $li) {
+        $v = (float)$li['exptime'];
+        $same = $anchor !== null
+            && ($anchor > 0 ? abs($v - $anchor) / $anchor <= $tolFrac : $v == $anchor);
+        if (!$same) {
+            $groups[] = ['exptime' => $v, 'lights' => []];
+            $anchor = $v;
+        }
+        $groups[count($groups) - 1]['lights'][] = $li;
+    }
+    if (!empty($withNull)) {
+        $groups[] = ['exptime' => null, 'lights' => $withNull];
+    }
+    return $groups;
+}
+
+function fmtExpShort($exptime): string
+{
+    if ($exptime === null) {
+        return '—';
+    }
+    $v = (float)$exptime;
+    $s = $v == floor($v) ? number_format($v, 0) : rtrim(rtrim(number_format($v, 2, '.', ''), '0'), '.');
+    return $s . ' s';
+}
+
+/**
  * Diagnostics for every LINKED light in the tree. Returns [file_id => [...]].
  * Pending (hypothetical) rows are ignored, both as lights and as candidates.
  * Candidate pool per light = calibrations linked at filter/session/panel/setup/project

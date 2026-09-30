@@ -290,6 +290,8 @@ return [
     'projects_cal_flat' => 'Flat',
     'projects_legend' => 'Legende',
     'projects_legend_calib' => 'Kalibrierstatus pro Light',
+    'projects_exposure' => 'Belichtung',
+    'projects_tol_tol_exp' => 'Light-Belichtungsgruppierung',
     'projects_tol_tol_exp_dark' => 'Dark-Belichtungsmatch',
     'projects_tol_tol_temp' => 'Sensortemperaturmatch',
     'projects_tol_tol_rot' => 'Panel-Rotationstrennung',

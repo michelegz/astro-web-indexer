@@ -456,6 +456,7 @@ function getToleranceDefs(): array
         'tol_pos_arcmin' => ['default' => '5', 'hint' => 'arcmin'],
         'tol_pos_fovfrac' => ['default' => '0.2', 'hint' => '× FoV'],
         'tol_fov' => ['default' => '10%', 'hint' => '%'],
+        'tol_exp' => ['default' => '1%', 'hint' => '%'],
     ];
 }
 

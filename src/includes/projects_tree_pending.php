@@ -140,13 +140,16 @@ unset($__s, $__p, $__sess, $__f);
                                             <?php $prows = pendFileRows($filter['lights']); ?>
                                             <?php $pcalN = pendCalCount($filter['calibrations']); ?>
                                             <?php if (empty($prows) && $pcalN === 0) continue; ?>
+                                            <?php $expGroups = clusterExposures($prows, $tolExpFrac ?? 0.01); ?>
                                             <div class="mb-2">
                                                 <div class="text-sm font-medium mb-1">
                                                     ⏳ <?= __('projects_filter') ?> <?= htmlspecialchars($filter['name'] !== '' ? $filter['name'] : '—') ?>
                                                     <span class="ml-2 text-xs font-normal text-gray-400"><?= count($prows) ?><?= $pcalN > 0 ? ' (+' . $pcalN . ' cal)' : '' ?></span>
                                                 </div>
-                                                <ul class="flex flex-col gap-1">
-                                                    <?php foreach ($prows as $li): ?>
+                                                <?php foreach ($expGroups as $eg): ?>
+                                                <div class="text-xs text-gray-300 mb-1 ml-4">⏳ <?= __('projects_exposure') ?> <?= htmlspecialchars(fmtExpShort($eg['exptime'])) ?> <span class="text-gray-500"><?= count($eg['lights']) ?></span></div>
+                                                <ul class="flex flex-col gap-1 ml-4">
+                                                    <?php foreach ($eg['lights'] as $li): ?>
                                                         <li class="flex items-start gap-2 text-xs border-b border-gray-700/40 py-1">
                                                             <input type="checkbox" name="suggestion_ids[]" value="<?= (int)$li['suggestion_id'] ?>" class="sug-check mt-0.5 rounded bg-gray-600 border-gray-500">
                                                             <span>
@@ -156,6 +159,9 @@ unset($__s, $__p, $__sess, $__f);
                                                             </span>
                                                         </li>
                                                     <?php endforeach; ?>
+                                                </ul>
+                                                <?php endforeach; ?>
+                                                <ul class="flex flex-col gap-1">
                                                     <?php foreach ($filter['calibrations'] as $cal): ?>
                                                         <?php if (empty($cal['pending'])) continue; ?>
                                                         <li class="flex items-start gap-2 text-xs border-b border-gray-700/40 py-1 opacity-70">

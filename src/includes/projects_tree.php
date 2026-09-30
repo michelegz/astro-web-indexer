@@ -141,6 +141,7 @@ if (empty($projectTree['setups'])): ?>
                                                                     foreach ($realLights as $li) {
                                                                         $realExp += (float)($li['exptime'] ?? 0);
                                                                     }
+                                                                    $expGroups = clusterExposures($filter['lights'], $tolExpFrac ?? 0.01);
                                                                     ?>
                                                                     <div class="tnode mb-2">
                                                                         <div class="flex items-start gap-2">
@@ -153,10 +154,33 @@ if (empty($projectTree['setups'])): ?>
                                                                                     </span>
                                                                                 </div>
                                                                                 <?php renderCalRows($filter['calibrations'], 'filter', (int)$session['id']); ?>
+                                                                                <?php foreach ($expGroups as $eg): ?>
+                                                                                    <?php
+                                                                                    $egReal = array_values(array_filter($eg['lights'], fn($li) => empty($li['pending']) && !empty($li['enabled'])));
+                                                                                    $egWorstB = $egWorstD = $egWorstF = null;
+                                                                                    foreach ($egReal as $li) {
+                                                                                        $d = $projectDiag[(int)$li['file_id']] ?? ['dark' => 'red', 'flat' => 'red', 'bias' => 'red'];
+                                                                                        $egWorstB = $egWorstB === null ? $d['bias'] : diagWorst($egWorstB, $d['bias']);
+                                                                                        $egWorstD = $egWorstD === null ? $d['dark'] : diagWorst($egWorstD, $d['dark']);
+                                                                                        $egWorstF = $egWorstF === null ? $d['flat'] : diagWorst($egWorstF, $d['flat']);
+                                                                                    }
+                                                                                    $egExp = 0.0;
+                                                                                    foreach ($egReal as $li) {
+                                                                                        $egExp += (float)($li['exptime'] ?? 0);
+                                                                                    }
+                                                                                    ?>
+                                                                                    <div class="tnode mb-1 ml-4">
+                                                                                        <div class="flex items-start gap-2">
+                                                                                            <input type="checkbox" class="pgroup-check mt-1 rounded bg-gray-600 border-gray-500" title="<?= __('projects_select_group') ?>">
+                                                                                            <div class="flex-1 min-w-0">
+                                                                                                <div class="text-xs font-medium text-gray-300 mb-1">
+                                                                                                    <?php if ($egWorstB !== null): ?><?= diagBox($egWorstB, 'B', __('projects_cal_bias')) ?><?= diagBox($egWorstD, 'D', __('projects_cal_dark')) ?><?= diagBox($egWorstF, 'F', __('projects_cal_flat')) ?> <?php endif; ?><?= __('projects_exposure') ?> <?= htmlspecialchars(fmtExpShort($eg['exptime'])) ?>
+                                                                                                    <span class="ml-2 font-normal text-gray-500"><?= count($egReal) ?> · <?= htmlspecialchars(fmtExp($egExp)) ?></span>
+                                                                                                </div>
                                                                                 <div class="overflow-x-auto">
                                                                                     <table class="w-full text-xs text-left">
                                                                                         <tbody>
-                                                                                            <?php foreach ($filter['lights'] as $li): ?>
+                                                                                            <?php foreach ($eg['lights'] as $li): ?>
                                                                                                 <?php $isPend = !empty($li['pending']); ?>
                                                                                                 <?php $isOff = !$isPend && empty($li['enabled']); ?>
                                                                                                 <?php $d = ($isPend || $isOff) ? null : ($projectDiag[(int)$li['file_id']] ?? ['dark' => 'red', 'flat' => 'red', 'bias' => 'red']); ?>
@@ -174,6 +198,10 @@ if (empty($projectTree['setups'])): ?>
                                                                                         </tbody>
                                                                                     </table>
                                                                                 </div>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                <?php endforeach; ?>
                                                                             </div>
                                                                         </div>
                                                                     </div>

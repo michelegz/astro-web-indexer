@@ -291,6 +291,8 @@ return [
     'projects_cal_flat' => 'Flat',
     'projects_legend' => 'Leyenda',
     'projects_legend_calib' => 'Estado de calibración por light',
+    'projects_exposure' => 'Exposición',
+    'projects_tol_tol_exp' => 'Agrupación por exposición',
     'projects_tol_tol_exp_dark' => 'Coincidencia expo dark',
     'projects_tol_tol_temp' => 'Coincidencia temperatura sensor',
     'projects_tol_tol_rot' => 'Separación rotación panel',

@@ -145,6 +145,7 @@ $projectTols = [];
 foreach ($defs as $tkey => $tdef) {
     $projectTols[$tkey] = $detail !== null ? resolve_tol($conn, (int)$detail['id'], $tkey) : $tdef['default'];
 }
+$tolExpFrac = parseTolFraction((string)($projectTols['tol_exp'] ?? '1%'), 0.01);
 $projectDiag = $projectTree !== null ? diagnoseProjectTree($projectTree, $projectTols) : [];
 $projectBlocked = $detail !== null && !canAccessProject($conn, (int)$detail['id']);
 if ($projectBlocked) {
