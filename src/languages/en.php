@@ -322,5 +322,16 @@ return [
     'projects_add_reason_no_date' => 'missing date',
     'projects_add_reason_already' => 'already linked',
     'projects_add_reason_error' => 'error',
+    'projects_add_analyze' => 'Analyze',
+    'projects_add_back' => 'Back',
+    'projects_add_new_option' => '＋ New project',
+    'projects_add_new_name' => 'Project name',
+    'projects_add_new_notes' => 'Notes',
+    'projects_add_mixed' => 'Mixed selection: files span {count} different setups. Each group follows its own path.',
+    'projects_add_setup_new' => 'New setup',
+    'projects_add_panel_new' => 'New panel',
+    'projects_add_force_setup' => 'Force into setup:',
+    'projects_add_use_matched' => 'As matched',
+    'projects_add_analyzing' => 'Analyzing…',
 
 ];

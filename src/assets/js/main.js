@@ -304,13 +304,44 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- ADD TO PROJECT (modal + JSON) ---
+    // --- ADD TO PROJECT (2 steps: destination -> preview -> confirm) ---
+    let projectPreview = null; // {ids, projectId, newProject, groups, skipped, setups, panels}
+    const projectStep1 = document.getElementById('projectStep1');
+    const projectStep2 = document.getElementById('projectStep2');
+    const projectModalAnalyze = document.getElementById('projectModalAnalyze');
+    const projectModalBack = document.getElementById('projectModalBack');
+    const newProjectFields = document.getElementById('newProjectFields');
+    const newProjectName = document.getElementById('newProjectName');
+    const newProjectNotes = document.getElementById('newProjectNotes');
+    const previewMixed = document.getElementById('projectPreviewMixed');
+    const previewGroups = document.getElementById('projectPreviewGroups');
+    const previewSkipped = document.getElementById('projectPreviewSkipped');
+    function escHtml(s) {
+        const d = document.createElement('div');
+        d.textContent = s ?? '';
+        return d.innerHTML;
+    }
+    function showProjectStep(n) {
+        if (!projectStep1 || !projectStep2) return;
+        projectStep1.classList.toggle('hidden', n !== 1);
+        projectStep2.classList.toggle('hidden', n !== 2);
+    }
+    function setProjectMsg(text, ok) {
+        if (!projectAddMsg) return;
+        projectAddMsg.textContent = text;
+        projectAddMsg.classList.remove('hidden');
+        projectAddMsg.className = ok
+            ? 'mb-4 p-3 rounded text-sm bg-green-900/50 border border-green-700 text-green-300'
+            : 'mb-4 p-3 rounded text-sm bg-red-900/50 border border-red-700 text-red-300';
+    }
     function openProjectModal() {
         if (!projectModal) return;
         if (projectAddMsg) {
             projectAddMsg.classList.add('hidden');
             projectAddMsg.textContent = '';
         }
+        showProjectStep(1);
+        projectPreview = null;
         projectModal.classList.remove('hidden');
         projectModal.classList.add('flex');
     }
@@ -318,6 +349,62 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!projectModal) return;
         projectModal.classList.add('hidden');
         projectModal.classList.remove('flex');
+    }
+    function selectedFileIds() {
+        return getSelectedFiles()
+            .map(cb => parseInt(cb.dataset.id, 10))
+            .filter(id => Number.isInteger(id) && id > 0);
+    }
+    function projectChoice() {
+        const pid = projectSelect ? parseInt(projectSelect.value, 10) : 0;
+        if (pid > 0) return { projectId: pid, newProject: null };
+        const name = newProjectName ? newProjectName.value.trim() : '';
+        return { projectId: 0, newProject: { name, notes: newProjectNotes ? newProjectNotes.value.trim() : '' } };
+    }
+    function renderPreview(data) {
+        const t = window.i18n || {};
+        if (data.groups.length > 1 && previewMixed) {
+            previewMixed.textContent = (t.project_add_mixed || 'Mixed selection: {count}').replace('{count}', data.groups.length);
+            previewMixed.classList.remove('hidden');
+        } else if (previewMixed) {
+            previewMixed.classList.add('hidden');
+        }
+        const setupById = {};
+        (data.setups || []).forEach(s => { setupById[s.id] = s.label; });
+        let html = '';
+        data.groups.forEach((g, gi) => {
+            const setupTitle = g.setup_new
+                ? escHtml(t.project_add_setup_new || 'New setup') + ' — ' + escHtml(g.setup_label || g.fp.slice(0, 48))
+                : escHtml(setupById[g.setup_id] || g.setup_label || g.fp.slice(0, 48));
+            html += `<div class="border border-gray-700 rounded p-3"><div class="font-medium mb-1">${setupTitle} <span class="text-xs text-gray-400">(${g.files.length})</span></div>`;
+            if ((data.setups || []).length > 0) {
+                html += `<label class="block text-xs text-gray-400 mb-2">${escHtml(t.project_add_force_setup || 'Force into setup:')} <select data-group="${gi}" class="override-select mt-1 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100 text-xs"><option value="0">${escHtml(t.project_add_use_matched || 'As matched')}</option>`;
+                (data.setups || []).forEach(s => {
+                    html += `<option value="${s.id}">${escHtml(s.label)}</option>`;
+                });
+                html += '</select></label>';
+            }
+            html += '<ul class="text-xs text-gray-300 flex flex-col gap-1">';
+            g.files.forEach(f => {
+                let panel;
+                if (f.panel_new) {
+                    const where = (f.panel_ra !== null && f.panel_ra !== undefined)
+                        ? `${Number(f.panel_ra).toFixed(3)}/${Number(f.panel_dec).toFixed(3)}` : escHtml(f.bucket || '');
+                    panel = `→ ${escHtml(t.project_add_panel_new || 'New panel')} (${where})`;
+                } else {
+                    panel = `→ ${escHtml((data.panels || {})[f.panel_id] || ('P' + f.panel_id))} (${Number(f.sep_arcmin).toFixed(1)}′ ≤ ${Number(f.tol_pos_arcmin).toFixed(1)}′)`;
+                }
+                const meta = [f.filter || '', f.night || ''].filter(Boolean).join(' · ');
+                html += `<li><span class="font-medium">${escHtml(f.name)}</span> <span class="text-gray-500">${escHtml(meta)}</span> <span class="text-gray-400">${panel}</span></li>`;
+            });
+            html += '</ul></div>';
+        });
+        if (previewGroups) previewGroups.innerHTML = html;
+        if (previewSkipped) {
+            previewSkipped.textContent = (data.skipped || []).map(s => `${s.name}`).join(', ');
+            previewSkipped.style.display = (data.skipped || []).length ? '' : 'none';
+        }
+        showProjectStep(2);
     }
     if (addToProjectBtn) {
         addToProjectBtn.addEventListener('click', () => {
@@ -333,41 +420,83 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target === projectModal) closeProjectModal();
         });
     }
+    if (projectSelect && newProjectFields) {
+        projectSelect.addEventListener('change', () => {
+            const isNew = parseInt(projectSelect.value, 10) === 0;
+            newProjectFields.classList.toggle('hidden', !isNew);
+            newProjectFields.classList.toggle('flex', isNew);
+        });
+    }
+    if (projectModalBack) {
+        projectModalBack.addEventListener('click', () => showProjectStep(1));
+    }
+    if (projectModalAnalyze) {
+        projectModalAnalyze.addEventListener('click', () => {
+            const ids = selectedFileIds();
+            if (ids.length === 0) return;
+            const choice = projectChoice();
+            if (choice.projectId === 0 && !choice.newProject.name) {
+                if (newProjectName) newProjectName.focus();
+                return;
+            }
+            projectModalAnalyze.disabled = true;
+            if (!projectModalAnalyze.dataset.label) projectModalAnalyze.dataset.label = projectModalAnalyze.textContent;
+            projectModalAnalyze.textContent = (window.i18n || {}).project_add_analyzing || 'Analyzing…';
+            fetch('/api/project_preview.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ project_id: choice.projectId, ids }),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+                    projectPreview = { ids, ...choice, groups: data.groups || [], skipped: data.skipped || [], setups: data.setups || [], panels: data.panels || {} };
+                    renderPreview(projectPreview);
+                })
+                .catch(err => setProjectMsg(err.message, false))
+                .finally(() => {
+                    projectModalAnalyze.disabled = false;
+                    projectModalAnalyze.textContent = document.getElementById('projectModalAnalyze')?.dataset.label || 'Analyze';
+                });
+        });
+    }
     if (projectModalConfirm) {
         projectModalConfirm.addEventListener('click', () => {
-            const ids = getSelectedFiles()
-                .map(cb => parseInt(cb.dataset.id, 10))
-                .filter(id => Number.isInteger(id) && id > 0);
-            const projectId = projectSelect ? parseInt(projectSelect.value, 10) : 0;
-            if (ids.length === 0 || !(projectId > 0)) return;
+            if (!projectPreview) return;
+            const overrides = {};
+            document.querySelectorAll('.override-select').forEach(sel => {
+                const sid = parseInt(sel.value, 10);
+                if (sid > 0) {
+                    const g = projectPreview.groups[parseInt(sel.dataset.group, 10)];
+                    (g?.files || []).forEach(f => { overrides[f.id] = sid; });
+                }
+            });
+            const payload = { project_id: projectPreview.projectId, ids: projectPreview.ids, overrides };
+            if (projectPreview.projectId === 0 && projectPreview.newProject) {
+                payload.new_project = projectPreview.newProject;
+            }
             projectModalConfirm.disabled = true;
             fetch('/api/project_add.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ project_id: projectId, ids }),
+                body: JSON.stringify(payload),
             })
                 .then(r => r.json())
                 .then(data => {
                     if (data.error) throw new Error(data.error);
                     const skipped = (data.skipped || []).map(s => `${s.name} (${s.message})`).join('\n');
-                    const msg = data.message + (skipped ? `\n\nSkipped:\n${skipped}` : '');
-                    if (projectAddMsg) {
-                        projectAddMsg.textContent = msg;
-                        projectAddMsg.classList.remove('hidden');
-                        projectAddMsg.className = 'mb-4 p-3 rounded text-sm bg-green-900/50 border border-green-700 text-green-300';
-                    } else {
-                        alert(msg);
+                    let msg = data.message + (skipped ? `\n\nSkipped:\n${skipped}` : '');
+                    if (data.project_id && projectSelect && !Array.from(projectSelect.options).some(o => parseInt(o.value, 10) === data.project_id)) {
+                        const opt = document.createElement('option');
+                        opt.value = data.project_id;
+                        opt.textContent = projectPreview.newProject?.name || ('#' + data.project_id);
+                        projectSelect.appendChild(opt);
                     }
+                    showProjectStep(1);
+                    setProjectMsg(msg, true);
+                    projectPreview = null;
                 })
-                .catch(err => {
-                    if (projectAddMsg) {
-                        projectAddMsg.textContent = err.message;
-                        projectAddMsg.classList.remove('hidden');
-                        projectAddMsg.className = 'mb-4 p-3 rounded text-sm bg-red-900/50 border border-red-700 text-red-300';
-                    } else {
-                        alert(err.message);
-                    }
-                })
+                .catch(err => setProjectMsg(err.message, false))
                 .finally(() => {
                     projectModalConfirm.disabled = false;
                 });

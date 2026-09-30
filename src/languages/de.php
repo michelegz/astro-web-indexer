@@ -321,5 +321,16 @@ return [
     'projects_add_reason_no_date' => 'Datum fehlt',
     'projects_add_reason_already' => 'bereits verknüpft',
     'projects_add_reason_error' => 'Fehler',
+    'projects_add_analyze' => 'Analysieren',
+    'projects_add_back' => 'Zurück',
+    'projects_add_new_option' => '＋ Neues Projekt',
+    'projects_add_new_name' => 'Projektname',
+    'projects_add_new_notes' => 'Notizen',
+    'projects_add_mixed' => 'Gemischte Auswahl: Dateien umfassen {count} verschiedene Setups. Jede Gruppe geht ihren Weg.',
+    'projects_add_setup_new' => 'Neues Setup',
+    'projects_add_panel_new' => 'Neues Panel',
+    'projects_add_force_setup' => 'Erzwinge Setup:',
+    'projects_add_use_matched' => 'Wie vorgeschlagen',
+    'projects_add_analyzing' => 'Analysiere…',
 
 ];

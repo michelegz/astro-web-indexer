@@ -17,30 +17,45 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
     </button>
 </div>
 
-<!-- Add to project modal -->
+<!-- Add to project modal (2 steps: destination -> preview -> confirm) -->
 <?php $projectList = isset($conn) ? getProjects($conn) : []; ?>
 <div id="projectModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60">
-    <div class="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+    <div class="bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[85vh] overflow-y-auto">
         <h3 class="text-lg font-semibold mb-4"><?php echo __('projects_add_title') ?></h3>
-        <?php if (empty($projectList)): ?>
-            <p class="text-sm text-gray-400 mb-4"><?php echo __('projects_add_no_projects') ?> <a href="/projects.php" class="text-blue-400 hover:text-blue-300 underline"><?php echo __('projects') ?></a>.</p>
-            <div class="flex justify-end">
-                <button type="button" id="projectModalCancel" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg"><?php echo __('projects_add_cancel') ?></button>
-            </div>
-        <?php else: ?>
-            <label class="block text-sm text-gray-400 mb-4"><?php echo __('projects_select_project') ?>
+
+        <div id="projectStep1">
+            <label class="block text-sm text-gray-400 mb-3"><?php echo __('projects_select_project') ?>
                 <select id="projectSelect" class="mt-1 w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100">
                     <?php foreach ($projectList as $pl): ?>
                         <option value="<?= (int)$pl['id'] ?>"><?= htmlspecialchars($pl['name']) ?></option>
                     <?php endforeach; ?>
+                    <option value="0"><?php echo __('projects_add_new_option') ?></option>
                 </select>
             </label>
+            <div id="newProjectFields" class="hidden flex-col gap-3 mb-3">
+                <input type="text" id="newProjectName" maxlength="255"
+                       placeholder="<?php echo __('projects_add_new_name') ?>"
+                       class="px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100">
+                <textarea id="newProjectNotes" rows="2"
+                          placeholder="<?php echo __('projects_add_new_notes') ?>"
+                          class="px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100"></textarea>
+            </div>
             <div id="projectAddMsg" class="hidden mb-4 p-3 rounded text-sm"></div>
             <div class="flex justify-end gap-2">
                 <button type="button" id="projectModalCancel" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg"><?php echo __('projects_add_cancel') ?></button>
+                <button type="button" id="projectModalAnalyze" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg"><?php echo __('projects_add_analyze') ?></button>
+            </div>
+        </div>
+
+        <div id="projectStep2" class="hidden">
+            <div id="projectPreviewMixed" class="hidden mb-4 p-3 rounded text-sm bg-yellow-900/50 border border-yellow-700 text-yellow-300"></div>
+            <div id="projectPreviewGroups" class="flex flex-col gap-4 mb-4"></div>
+            <div id="projectPreviewSkipped" class="mb-4 text-sm text-gray-400"></div>
+            <div class="flex justify-end gap-2">
+                <button type="button" id="projectModalBack" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg"><?php echo __('projects_add_back') ?></button>
                 <button type="button" id="projectModalConfirm" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg"><?php echo __('projects_add_confirm') ?></button>
             </div>
-        <?php endif; ?>
+        </div>
     </div>
 </div>
 

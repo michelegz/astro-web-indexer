@@ -322,5 +322,16 @@ return [
     'projects_add_reason_no_date' => 'date manquante',
     'projects_add_reason_already' => 'déjà lié',
     'projects_add_reason_error' => 'erreur',
+    'projects_add_analyze' => 'Analyser',
+    'projects_add_back' => 'Retour',
+    'projects_add_new_option' => '＋ Nouveau projet',
+    'projects_add_new_name' => 'Nom du projet',
+    'projects_add_new_notes' => 'Notes',
+    'projects_add_mixed' => 'Sélection mixte : les fichiers couvrent {count} setups différents. Chaque groupe suit son chemin.',
+    'projects_add_setup_new' => 'Nouveau setup',
+    'projects_add_panel_new' => 'Nouveau panneau',
+    'projects_add_force_setup' => 'Forcer vers setup :',
+    'projects_add_use_matched' => 'Comme proposé',
+    'projects_add_analyzing' => 'Analyse…',
 
 ];

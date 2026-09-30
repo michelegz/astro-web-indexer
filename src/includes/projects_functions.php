@@ -504,6 +504,294 @@ function projectNumPrefix(string $value, float $default): float
     return $default;
 }
 
+/**
+ * Shared match-or-create building blocks. projectMatchPlan() is dry-run
+ * (reads only) and feeds both the preview endpoint and projectAddFiles(),
+ * so the two can never diverge.
+ */
+
+function projectFetchEligibleRow(PDO $conn, int $fid): array
+{
+    static $meta = null;
+    if ($meta === null) {
+        $meta = $conn->prepare(
+            "SELECT id, path, name, imgtype, `filter`, exptime, date_obs, instrume, telescop, "
+            . "cameraid, xbinning, ybinning, gain, xpixsz, ra, `dec`, objctra, objctdec, "
+            . "`object`, fov_w, fov_h, objctrot "
+            . "FROM files WHERE id = :id AND deleted_at IS NULL"
+        );
+    }
+    if ($fid <= 0) {
+        return [null, 'not_found'];
+    }
+    $meta->execute([':id' => $fid]);
+    $row = $meta->fetch();
+    if ($row === false) {
+        return [null, 'not_found'];
+    }
+    if (!in_array(strtoupper((string)$row['imgtype']), ['LIGHT', 'DARK', 'FLAT', 'BIAS'], true)) {
+        return [$row, 'imgtype'];
+    }
+    if (!canAccessPath((string)$row['path'])) {
+        return [$row, 'forbidden'];
+    }
+    if (empty($row['date_obs']) || projectAstroNight((string)$row['date_obs']) === null) {
+        return [$row, 'no_date'];
+    }
+    return [$row, null];
+}
+
+function projectSetupLabel(array $row): ?string
+{
+    $label = trim(trim((string)($row['instrume'] ?? '')) . ' + ' . trim((string)($row['telescop'] ?? '')), ' +');
+    return $label !== '' ? $label : null;
+}
+
+function projectFindSetup(PDO $conn, int $projectId, string $fingerprint): ?int
+{
+    $fs = $conn->prepare("SELECT id FROM project_setups WHERE project_id = :pid AND fingerprint = :fp");
+    $fs->execute([':pid' => $projectId, ':fp' => $fingerprint]);
+    $fsRow = $fs->fetch();
+    return $fsRow !== false ? (int)$fsRow['id'] : null;
+}
+
+function projectCreateSetup(PDO $conn, int $projectId, string $fingerprint, ?string $label): int
+{
+    $ins = $conn->prepare(
+        "INSERT INTO project_setups (project_id, fingerprint, label) VALUES (:pid, :fp, :label)"
+    );
+    $ins->execute([':pid' => $projectId, ':fp' => $fingerprint, ':label' => $label]);
+    return (int)$conn->lastInsertId();
+}
+
+function projectFindPanel(PDO $conn, int $setupId, array $row, array $tols): array
+{
+    [$ra, $dec] = projectPositionOf($row);
+    $tolPos = max(projectNumPrefix($tols['tol_pos_arcmin'], 5.0) / 60.0, 1e-6);
+    $fovMin = null;
+    if ($row['fov_w'] !== null && $row['fov_h'] !== null && (float)$row['fov_w'] > 0 && (float)$row['fov_h'] > 0) {
+        $fovMin = min((float)$row['fov_w'], (float)$row['fov_h']) / 60.0;
+        $tolPos = max($tolPos, projectNumPrefix($tols['tol_pos_fovfrac'], 0.2) * $fovMin);
+    }
+    $tolRot = projectNumPrefix($tols['tol_rot'], 3.0);
+    $tolFov = projectNumPrefix($tols['tol_fov'], 10.0) / 100.0;
+    $bucket = strtoupper(trim((string)preg_replace('/\s+/', ' ', (string)($row['object'] ?? ''))));
+    if ($bucket === '') {
+        $bucket = 'UNKNOWN';
+    }
+    $panels = $conn->prepare(
+        "SELECT id, ra, `dec`, rot_mean, fov_w, fov_h, label_object FROM project_panels WHERE setup_id = :sid"
+    );
+    $panels->execute([':sid' => $setupId]);
+    foreach ($panels->fetchAll() as $p) {
+        if ($ra !== null && $dec !== null) {
+            if ($p['ra'] === null || $p['dec'] === null) {
+                continue;
+            }
+            $sep = projectHaversine($ra, $dec, (float)$p['ra'], (float)$p['dec']);
+            if ($sep > $tolPos) {
+                continue;
+            }
+            [$dist, $unknown] = projectRotDist($row['objctrot'] ?? null, $p['rot_mean']);
+            if (!$unknown && $dist > $tolRot) {
+                continue;
+            }
+            if ($fovMin !== null && $p['fov_w'] !== null && $p['fov_h'] !== null) {
+                // Both in degrees ($fovMin is arcmin/60).
+                $panelFov = min((float)$p['fov_w'], (float)$p['fov_h']) / 60.0;
+                if ($panelFov > 0 && abs($fovMin - $panelFov) / $panelFov > $tolFov) {
+                    continue;
+                }
+            }
+            return ['id' => (int)$p['id'], 'new' => false, 'sep' => $sep, 'rot_d' => $dist,
+                'rot_unknown' => $unknown, 'ra' => $ra, 'dec' => $dec, 'bucket' => $bucket,
+                'tol_pos' => $tolPos, 'tol_rot' => $tolRot];
+        }
+        if ($p['ra'] === null && (string)($p['label_object'] ?? '') === $bucket) {
+            return ['id' => (int)$p['id'], 'new' => false, 'sep' => 0.0, 'rot_d' => 0.0,
+                'rot_unknown' => true, 'ra' => null, 'dec' => null, 'bucket' => $bucket,
+                'tol_pos' => $tolPos, 'tol_rot' => $tolRot];
+        }
+    }
+    return ['id' => null, 'new' => true, 'sep' => 0.0, 'rot_d' => 0.0,
+        'rot_unknown' => ($row['objctrot'] ?? null) === null || ($row['objctrot'] ?? null) === '',
+        'ra' => $ra, 'dec' => $dec, 'bucket' => $bucket,
+        'tol_pos' => $tolPos, 'tol_rot' => $tolRot];
+}
+
+function projectCreatePanel(PDO $conn, int $setupId, array $row, string $bucket, $ra, $dec): int
+{
+    $rotVal = ($row['objctrot'] !== null && $row['objctrot'] !== '') ? fmod((float)$row['objctrot'], 360.0) : null;
+    $objLabel = $bucket !== 'UNKNOWN' ? trim((string)($row['object'] ?? '')) : $bucket;
+    $ins = $conn->prepare(
+        "INSERT INTO project_panels (setup_id, ra, `dec`, rot_mean, fov_w, fov_h, label_object) "
+        . "VALUES (:sid, :ra, :dec, :rot, :fovw, :fovh, :label)"
+    );
+    $ins->execute([
+        ':sid' => $setupId, ':ra' => $ra, ':dec' => $dec, ':rot' => $rotVal,
+        ':fovw' => $row['fov_w'], ':fovh' => $row['fov_h'], ':label' => $objLabel,
+    ]);
+    return (int)$conn->lastInsertId();
+}
+
+function projectFindOrCreateSession(PDO $conn, int $panelId, string $night): int
+{
+    $sess = $conn->prepare("SELECT id FROM project_sessions WHERE panel_id = :panel AND astro_night = :night");
+    $sess->execute([':panel' => $panelId, ':night' => $night]);
+    $sessRow = $sess->fetch();
+    if ($sessRow !== false) {
+        return (int)$sessRow['id'];
+    }
+    $ins = $conn->prepare("INSERT INTO project_sessions (panel_id, astro_night) VALUES (:panel, :night)");
+    $ins->execute([':panel' => $panelId, ':night' => $night]);
+    return (int)$conn->lastInsertId();
+}
+
+function getProjectSetups(PDO $conn, int $projectId): array
+{
+    $stmt = $conn->prepare("SELECT id, fingerprint, label FROM project_setups WHERE project_id = :pid ORDER BY id ASC");
+    $stmt->execute([':pid' => $projectId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Dry-run match for one file: no writes. $project null = brand-new project
+ * (everything flagged new). Returns plan array for preview and add paths.
+ */
+function projectMatchPlan(PDO $conn, ?array $project, array $row, array $tols, int $fid): array
+{
+    $pid = $project !== null ? (int)$project['id'] : 0;
+    $fp = projectBuildFingerprint($row);
+    $setupId = null;
+    $setupNew = true;
+    if ($project !== null) {
+        $ov = $conn->prepare(
+            "SELECT ps.id FROM setup_overrides so JOIN project_setups ps ON ps.id = so.setup_id "
+            . "WHERE so.file_id = :fid AND ps.project_id = :pid"
+        );
+        $ov->execute([':fid' => $fid, ':pid' => $pid]);
+        $ovRow = $ov->fetch();
+        if ($ovRow !== false) {
+            $setupId = (int)$ovRow['id'];
+            $setupNew = false;
+        } else {
+            $found = projectFindSetup($conn, $pid, $fp);
+            if ($found !== null) {
+                $setupId = $found;
+                $setupNew = false;
+            }
+        }
+    }
+    $panel = ['id' => null, 'new' => true, 'sep' => 0.0, 'rot_d' => 0.0, 'rot_unknown' => true,
+        'ra' => null, 'dec' => null, 'bucket' => '', 'tol_pos' => 0.0, 'tol_rot' => 0.0];
+    if ($setupId !== null) {
+        $panel = projectFindPanel($conn, $setupId, $row, $tols);
+    } else {
+        [$ra, $dec] = projectPositionOf($row);
+        $bucket = strtoupper(trim((string)preg_replace('/\s+/', ' ', (string)($row['object'] ?? ''))));
+        $panel['ra'] = $ra;
+        $panel['dec'] = $dec;
+        $panel['bucket'] = $bucket !== '' ? $bucket : 'UNKNOWN';
+    }
+    $night = projectAstroNight((string)$row['date_obs']);
+    $isLight = strtoupper((string)$row['imgtype']) === 'LIGHT';
+    $filt = trim((string)($row['filter'] ?? ''));
+    return [
+        'setup_id' => $setupId, 'setup_new' => $setupNew,
+        'setup_fp' => $fp, 'setup_label' => projectSetupLabel($row),
+        'panel' => $panel,
+        'night' => $night,
+        'level' => $isLight ? 'filter' : 'setup',
+        'filter_name' => $filt !== '' ? $filt : null,
+        'is_light' => $isLight,
+    ];
+}
+
+/**
+ * Dry-run preview for the 2-step modal: groups files by setup fingerprint,
+ * no writes. $projectId null = new project (all groups flagged new).
+ */
+function projectPreviewFiles(PDO $conn, ?int $projectId, array $fileIds): array
+{
+    $project = ($projectId !== null && $projectId > 0) ? getProject($conn, $projectId) : null;
+    if ($projectId !== null && $projectId > 0 && $project === null) {
+        return ['groups' => [], 'skipped' => [['name' => '#' . $projectId, 'reason' => 'no_project']]];
+    }
+    $globals = getGlobalTolerances($conn);
+    $tols = [];
+    foreach (getToleranceDefs() as $key => $def) {
+        if ($project !== null) {
+            $ov = getProjectTolerances($project['tolerances']);
+            $tols[$key] = (isset($ov[$key]) && $ov[$key] !== '') ? (string)$ov[$key] : (string)($globals[$key] ?? $def['default']);
+        } else {
+            $tols[$key] = (string)($globals[$key] ?? $def['default']);
+        }
+    }
+    $groups = [];
+    $skipped = [];
+    foreach ($fileIds as $fid) {
+        $fid = (int)$fid;
+        if ($fid <= 0) {
+            continue;
+        }
+        [$row, $skipReason] = projectFetchEligibleRow($conn, $fid);
+        if ($row === null || $skipReason !== null) {
+            $skipped[] = ['name' => $row !== null ? (string)$row['name'] : '#' . $fid, 'reason' => $skipReason ?? 'not_found'];
+            continue;
+        }
+        $plan = projectMatchPlan($conn, $project, $row, $tols, $fid);
+        $key = $plan['setup_fp'];
+        if (!isset($groups[$key])) {
+            $groups[$key] = [
+                'fp' => $key, 'setup_id' => $plan['setup_id'], 'setup_new' => $plan['setup_new'],
+                'setup_label' => $plan['setup_label'], 'files' => [],
+            ];
+        }
+        $groups[$key]['files'][] = [
+            'id' => $fid, 'name' => (string)$row['name'], 'imgtype' => (string)$row['imgtype'],
+            'filter' => trim((string)($row['filter'] ?? '')), 'date_obs' => (string)($row['date_obs'] ?? ''),
+            'night' => $plan['night'], 'level' => $plan['level'],
+            'panel_id' => $plan['panel']['id'], 'panel_new' => $plan['panel']['new'],
+            'sep_arcmin' => $plan['panel']['sep'] * 60.0, 'rot_d' => $plan['panel']['rot_d'],
+            'rot_unknown' => $plan['panel']['rot_unknown'],
+            'panel_ra' => $plan['panel']['ra'], 'panel_dec' => $plan['panel']['dec'],
+            'bucket' => $plan['panel']['bucket'],
+            'tol_pos_arcmin' => $plan['panel']['tol_pos'] * 60.0, 'tol_rot' => $plan['panel']['tol_rot'],
+        ];
+        // Group setup outcome follows the majority (override rows aside, fp is group key).
+        if ($plan['setup_id'] !== null && $groups[$key]['setup_id'] === null) {
+            $groups[$key]['setup_id'] = $plan['setup_id'];
+            $groups[$key]['setup_new'] = $plan['setup_new'];
+        }
+    }
+    $panelIds = [];
+    foreach ($groups as $g) {
+        foreach ($g['files'] as $f) {
+            if (!empty($f['panel_id'])) {
+                $panelIds[(int)$f['panel_id']] = true;
+            }
+        }
+    }
+    $panelLabels = [];
+    if (!empty($panelIds)) {
+        $placeholders = implode(',', array_fill(0, count($panelIds), '?'));
+        $pl = $conn->prepare(
+            "SELECT id, ra, `dec`, label_object FROM project_panels WHERE id IN ($placeholders)"
+        );
+        $pl->execute(array_keys($panelIds));
+        foreach ($pl->fetchAll() as $p) {
+            $coords = ($p['ra'] !== null && $p['dec'] !== null)
+                ? number_format((float)$p['ra'], 3) . '/' . number_format((float)$p['dec'], 3) : '?';
+            $label = 'P' . (int)$p['id'] . ' (' . $coords . ')';
+            if ($p['label_object'] !== null && $p['label_object'] !== '') {
+                $label .= ' ' . $p['label_object'];
+            }
+            $panelLabels[(int)$p['id']] = $label;
+        }
+    }
+    return ['groups' => array_values($groups), 'skipped' => $skipped, 'panels' => $panelLabels];
+}
+
 function projectAddFiles(PDO $conn, int $projectId, array $fileIds): array
 {
     $added = 0;
@@ -516,141 +804,39 @@ function projectAddFiles(PDO $conn, int $projectId, array $fileIds): array
     foreach (getToleranceDefs() as $key => $def) {
         $tols[$key] = resolve_tol($conn, $projectId, $key);
     }
-    $meta = $conn->prepare(
-        "SELECT id, path, name, imgtype, `filter`, exptime, date_obs, instrume, telescop, "
-        . "cameraid, xbinning, ybinning, gain, xpixsz, ra, `dec`, objctra, objctdec, "
-        . "`object`, fov_w, fov_h, objctrot "
-        . "FROM files WHERE id = :id AND deleted_at IS NULL"
-    );
     foreach ($fileIds as $fid) {
         $fid = (int)$fid;
         if ($fid <= 0) {
             continue;
         }
-        $meta->execute([':id' => $fid]);
-        $row = $meta->fetch();
-        if ($row === false) {
-            $skipped[] = ['name' => '#' . $fid, 'reason' => 'not_found'];
-            continue;
-        }
-        if (!in_array(strtoupper((string)$row['imgtype']), ['LIGHT', 'DARK', 'FLAT', 'BIAS'], true)) {
-            $skipped[] = ['name' => (string)$row['name'], 'reason' => 'imgtype'];
-            continue;
-        }
-        if (!canAccessPath((string)$row['path'])) {
-            $skipped[] = ['name' => (string)$row['name'], 'reason' => 'forbidden'];
-            continue;
-        }
-        $night = !empty($row['date_obs']) ? projectAstroNight((string)$row['date_obs']) : null;
-        if ($night === null) {
-            $skipped[] = ['name' => (string)$row['name'], 'reason' => 'no_date'];
+        [$row, $skipReason] = projectFetchEligibleRow($conn, $fid);
+        if ($row === null || $skipReason !== null) {
+            $skipped[] = ['name' => $row !== null ? (string)$row['name'] : '#' . $fid, 'reason' => $skipReason ?? 'not_found'];
             continue;
         }
 
         $conn->beginTransaction();
         try {
-            // Setup: override in this project wins, else fingerprint match, else create.
-            $setupId = null;
-            $ov = $conn->prepare(
-                "SELECT ps.id FROM setup_overrides so JOIN project_setups ps ON ps.id = so.setup_id "
-                . "WHERE so.file_id = :fid AND ps.project_id = :pid"
-            );
-            $ov->execute([':fid' => $fid, ':pid' => $projectId]);
-            $ovRow = $ov->fetch();
-            if ($ovRow !== false) {
-                $setupId = (int)$ovRow['id'];
+            $plan = projectMatchPlan($conn, $project, $row, $tols, $fid);
+            // Create missing setup/panel (session/filter buckets are always created).
+            if ($plan['setup_id'] === null) {
+                $setupId = projectCreateSetup($conn, $projectId, $plan['setup_fp'], $plan['setup_label']);
             } else {
-                $fp = projectBuildFingerprint($row);
-                $fs = $conn->prepare(
-                    "SELECT id FROM project_setups WHERE project_id = :pid AND fingerprint = :fp"
-                );
-                $fs->execute([':pid' => $projectId, ':fp' => $fp]);
-                $fsRow = $fs->fetch();
-                if ($fsRow !== false) {
-                    $setupId = (int)$fsRow['id'];
-                } else {
-                    $label = trim(trim((string)($row['instrume'] ?? '')) . ' + ' . trim((string)($row['telescop'] ?? '')), ' +');
-                    $ins = $conn->prepare(
-                        "INSERT INTO project_setups (project_id, fingerprint, label) VALUES (:pid, :fp, :label)"
-                    );
-                    $ins->execute([':pid' => $projectId, ':fp' => $fp, ':label' => $label !== '' ? $label : null]);
-                    $setupId = (int)$conn->lastInsertId();
-                }
+                $setupId = $plan['setup_id'];
             }
 
-            // Panel: match by coords/rotation/FoV within tolerances, else create.
-            [$ra, $dec] = projectPositionOf($row);
-            $tolPos = max(projectNumPrefix($tols['tol_pos_arcmin'], 5.0) / 60.0, 1e-6);
-            $fovMin = null;
-            if ($row['fov_w'] !== null && $row['fov_h'] !== null && (float)$row['fov_w'] > 0 && (float)$row['fov_h'] > 0) {
-                $fovMin = min((float)$row['fov_w'], (float)$row['fov_h']) / 60.0;
-                $tolPos = max($tolPos, projectNumPrefix($tols['tol_pos_fovfrac'], 0.2) * $fovMin);
-            }
-            $tolRot = projectNumPrefix($tols['tol_rot'], 3.0);
-            $tolFov = projectNumPrefix($tols['tol_fov'], 10.0) / 100.0;
-            $bucket = strtoupper(trim((string)preg_replace('/\s+/', ' ', (string)($row['object'] ?? ''))));
-            if ($bucket === '') {
-                $bucket = 'UNKNOWN';
-            }
-            $panels = $conn->prepare(
-                "SELECT id, ra, `dec`, rot_mean, fov_w, fov_h, label_object FROM project_panels WHERE setup_id = :sid"
-            );
-            $panels->execute([':sid' => $setupId]);
-            $panelId = null;
-            foreach ($panels->fetchAll() as $p) {
-                if ($ra !== null && $dec !== null) {
-                    if ($p['ra'] === null || $p['dec'] === null) {
-                        continue;
-                    }
-                    if (projectHaversine($ra, $dec, (float)$p['ra'], (float)$p['dec']) > $tolPos) {
-                        continue;
-                    }
-                    [$dist, $unknown] = projectRotDist($row['objctrot'] ?? null, $p['rot_mean']);
-                    if (!$unknown && $dist > $tolRot) {
-                        continue;
-                    }
-                    if ($fovMin !== null && $p['fov_w'] !== null && $p['fov_h'] !== null) {
-                        // Both in degrees ($fovMin is arcmin/60).
-                        $panelFov = min((float)$p['fov_w'], (float)$p['fov_h']) / 60.0;
-                        if ($panelFov > 0 && abs($fovMin - $panelFov) / $panelFov > $tolFov) {
-                            continue;
-                        }
-                    }
-                    $panelId = (int)$p['id'];
-                    break;
-                }
-                if ($p['ra'] === null && (string)($p['label_object'] ?? '') === $bucket) {
-                    $panelId = (int)$p['id'];
-                    break;
-                }
-            }
-            if ($panelId === null) {
-                $rotVal = ($row['objctrot'] !== null && $row['objctrot'] !== '') ? fmod((float)$row['objctrot'], 360.0) : null;
-                $objLabel = $bucket !== 'UNKNOWN' ? trim((string)($row['object'] ?? '')) : $bucket;
-                $ins = $conn->prepare(
-                    "INSERT INTO project_panels (setup_id, ra, `dec`, rot_mean, fov_w, fov_h, label_object) "
-                    . "VALUES (:sid, :ra, :dec, :rot, :fovw, :fovh, :label)"
+            // Panel: matched by the plan, else create.
+            if ($plan['panel']['id'] === null) {
+                $panelId = projectCreatePanel(
+                    $conn, $setupId, $row,
+                    $plan['panel']['bucket'], $plan['panel']['ra'], $plan['panel']['dec']
                 );
-                $ins->execute([
-                    ':sid' => $setupId, ':ra' => $ra, ':dec' => $dec, ':rot' => $rotVal,
-                    ':fovw' => $row['fov_w'], ':fovh' => $row['fov_h'], ':label' => $objLabel,
-                ]);
-                $panelId = (int)$conn->lastInsertId();
+            } else {
+                $panelId = $plan['panel']['id'];
             }
 
-            // Session: find or create (plain time bucket).
-            $sess = $conn->prepare(
-                "SELECT id FROM project_sessions WHERE panel_id = :panel AND astro_night = :night"
-            );
-            $sess->execute([':panel' => $panelId, ':night' => $night]);
-            $sessRow = $sess->fetch();
-            if ($sessRow !== false) {
-                $sessionId = (int)$sessRow['id'];
-            } else {
-                $ins = $conn->prepare("INSERT INTO project_sessions (panel_id, astro_night) VALUES (:panel, :night)");
-                $ins->execute([':panel' => $panelId, ':night' => $night]);
-                $sessionId = (int)$conn->lastInsertId();
-            }
+            // Session: plain time bucket, find or create.
+            $sessionId = projectFindOrCreateSession($conn, $panelId, $plan['night']);
 
             // Link: lights under filter level, calibrations at setup level.
             $isLight = strtoupper((string)$row['imgtype']) === 'LIGHT';
