@@ -12,6 +12,36 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
         <?php echo __('download_selected') ?>
     </button>
     <?php endif; ?>
+    <button id="addToProjectBtn" class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50" disabled>
+        <?php echo __('projects_add_btn') ?>
+    </button>
+</div>
+
+<!-- Add to project modal -->
+<?php $projectList = isset($conn) ? getProjects($conn) : []; ?>
+<div id="projectModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60">
+    <div class="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+        <h3 class="text-lg font-semibold mb-4"><?php echo __('projects_add_title') ?></h3>
+        <?php if (empty($projectList)): ?>
+            <p class="text-sm text-gray-400 mb-4"><?php echo __('projects_add_no_projects') ?> <a href="/projects.php" class="text-blue-400 hover:text-blue-300 underline"><?php echo __('projects') ?></a>.</p>
+            <div class="flex justify-end">
+                <button type="button" id="projectModalCancel" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg"><?php echo __('projects_add_cancel') ?></button>
+            </div>
+        <?php else: ?>
+            <label class="block text-sm text-gray-400 mb-4"><?php echo __('projects_select_project') ?>
+                <select id="projectSelect" class="mt-1 w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100">
+                    <?php foreach ($projectList as $pl): ?>
+                        <option value="<?= (int)$pl['id'] ?>"><?= htmlspecialchars($pl['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+            <div id="projectAddMsg" class="hidden mb-4 p-3 rounded text-sm"></div>
+            <div class="flex justify-end gap-2">
+                <button type="button" id="projectModalCancel" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg"><?php echo __('projects_add_cancel') ?></button>
+                <button type="button" id="projectModalConfirm" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg"><?php echo __('projects_add_confirm') ?></button>
+            </div>
+        <?php endif; ?>
+    </div>
 </div>
 
 <!-- View container -->

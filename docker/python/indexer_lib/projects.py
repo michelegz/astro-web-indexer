@@ -210,33 +210,36 @@ def tol(project, globals_, key):
     return str(globals_.get(key, DEFAULT_TOLS[key]))
 
 
-def find_or_create_setup(dcur, project_id, fingerprint, label):
+def find_setup(dcur, project_id, fingerprint):
+    """Setup id by exact fingerprint match, None when absent (never creates)."""
     dcur.execute(
         "SELECT id FROM project_setups WHERE project_id = %s AND fingerprint = %s",
         (project_id, fingerprint),
     )
     row = dcur.fetchone()
-    if row:
-        return row['id'], False
-    dcur.execute(
-        "INSERT INTO project_setups (project_id, fingerprint, label) VALUES (%s, %s, %s)",
-        (project_id, fingerprint, label),
-    )
-    return dcur.lastrowid, True
+    return row['id'] if row else None
 
 
-def find_or_create_panel(dcur, setup_id, ra, dec, rot, fov_w, fov_h,
-                         label_object, tol_pos_deg, tol_rot_deg, object_bucket):
-    """Match existing panel by position (+rotation split) or create one.
+def find_panel(dcur, setup_id, ra, dec, rot, fov_w, fov_h,
+               tol_pos_deg, tol_rot_deg, tol_fov_frac, object_bucket):
+    """(panel_id, sep_deg, rot_dist, rot_unknown): match only, None id when absent.
 
-    Files without coordinates match only panels with NULL coords and the same
-    OBJECT bucket label (fallback grouping, flagged via reason).
+    Files without coordinates match only NULL-coord panels of the same OBJECT
+    bucket. A known file FoV differing from the panel FoV beyond tol_fov_frac
+    never matches (e.g. reducer on/off). Never creates rows: suggestions
+    anchor to existing panels only.
     """
     dcur.execute(
         "SELECT id, ra, `dec`, rot_mean, fov_w, fov_h, label_object "
         "FROM project_panels WHERE setup_id = %s",
         (setup_id,),
     )
+    try:
+        file_fov = min(float(fov_w), float(fov_h)) if fov_w and fov_h else None
+        if file_fov is not None and file_fov <= 0:
+            file_fov = None
+    except (TypeError, ValueError):
+        file_fov = None
     panels = dcur.fetchall()
     if ra is not None and dec is not None:
         for p in panels:
@@ -251,21 +254,20 @@ def find_or_create_panel(dcur, setup_id, ra, dec, rot, fov_w, fov_h,
             dist, unknown = rotation_distance(rot, p['rot_mean'])
             if not unknown and dist > tol_rot_deg:
                 continue  # same center, different orientation -> keep looking
-            return p['id'], False, sep, dist, unknown
+            if file_fov is not None:
+                try:
+                    panel_fov = min(float(p['fov_w']), float(p['fov_h']))
+                except (TypeError, ValueError):
+                    panel_fov = None
+                if panel_fov is not None and panel_fov > 0:
+                    if abs(file_fov - panel_fov) / panel_fov > tol_fov_frac:
+                        continue  # same pointing, different image scale -> keep looking
+            return p['id'], sep, dist, unknown
     else:
         for p in panels:
             if p['ra'] is None and (p['label_object'] or '') == object_bucket:
-                return p['id'], False, 0.0, 0.0, True
-    try:
-        rot_val = float(rot) % 360.0 if rot is not None else None
-    except (TypeError, ValueError):
-        rot_val = None
-    dcur.execute(
-        "INSERT INTO project_panels (setup_id, ra, `dec`, rot_mean, fov_w, fov_h, label_object) "
-        "VALUES (%s, %s, %s, %s, %s, %s, %s)",
-        (setup_id, ra, dec, rot_val, fov_w, fov_h, label_object),
-    )
-    return dcur.lastrowid, True, 0.0, 0.0, rot is None
+                return p['id'], 0.0, 0.0, True
+    return None, 0.0, 0.0, rot is None
 
 
 def find_or_create_session(dcur, panel_id, night):
@@ -352,11 +354,16 @@ def suggest_file(dcur, project, globals_, meta, file_id):
     override_setup = get_override_setup(dcur, project['id'], file_id)
     fingerprint = build_setup_fingerprint(meta)
     if override_setup is not None:
-        setup_id, _ = override_setup, False
+        setup_id = override_setup
         setup_note = f"manual override to setup {setup_id}"
     else:
-        setup_id, setup_new = find_or_create_setup(dcur, project['id'], fingerprint, setup_label(meta))
-        setup_note = f"{'new' if setup_new else 'known'} setup {setup_label(meta) or fingerprint[:32]}"
+        # Strict: suggestions anchor to existing setups only, never create.
+        setup_id = find_setup(dcur, project['id'], fingerprint)
+        if setup_id is None:
+            logger.debug(f"No setup match for {meta.get('path')} "
+                         f"in project '{project['name']}' (fp {fingerprint[:48]}).")
+            return 'skipped'
+        setup_note = f"known setup {setup_label(meta) or fingerprint[:32]}"
 
     ra, dec, pos_source = position_of(meta)
     tol_pos_deg = max(_num_prefix(tol(project, globals_, 'tol_pos_arcmin'), 5.0) / 60.0, 1e-6)
@@ -369,15 +376,18 @@ def suggest_file(dcur, project, globals_, meta, file_id):
     except (TypeError, ValueError):
         fov_min = None
     tol_rot = _num_prefix(tol(project, globals_, 'tol_rot'), 3.0)
+    tol_fov = _num_prefix(tol(project, globals_, 'tol_fov'), 10.0) / 100.0
 
     object_bucket = normalize_object(meta.get('object'))
-    label_object = None if object_bucket == 'UNKNOWN' else (meta.get('object') or '').strip()
-    if ra is not None and label_object is None:
-        label_object = object_bucket if object_bucket != 'UNKNOWN' else None
 
-    panel_id, panel_new, sep, rot_d, rot_unknown = find_or_create_panel(
-        dcur, setup_id, ra, dec, meta.get('objctrot'), fov_w, fov_h,
-        label_object or object_bucket, tol_pos_deg, tol_rot, object_bucket)
+    # Strict: suggestions anchor to existing panels only, never create.
+    # Sessions/filters under a known panel are plain time buckets (safe to create).
+    found = find_panel(dcur, setup_id, ra, dec, meta.get('objctrot'),
+                       fov_w, fov_h, tol_pos_deg, tol_rot, tol_fov, object_bucket)
+    if found[0] is None:
+        logger.debug(f"No panel match for {meta.get('path')} in project '{project['name']}'.")
+        return 'skipped'
+    panel_id, sep, rot_d, rot_unknown = found
 
     night = astro_night(meta.get('date_obs'))
     if night is None:
@@ -396,7 +406,7 @@ def suggest_file(dcur, project, globals_, meta, file_id):
     pos_note = (f"coords {ra:.4f}/{dec:+.4f} ({pos_source})" if ra is not None
                 else f"no coords, OBJECT bucket '{object_bucket}'")
     rot_note = 'rot unknown' if rot_unknown else f"rot Δ{rot_d:.1f}°"
-    reason = (f"{setup_note}; panel {'new' if panel_new else f'{sep * 60:.1f}′ away'}, {rot_note}; "
+    reason = (f"{setup_note}; panel {sep * 60:.1f}′ away, {rot_note}; "
               f"night {night}; {pos_note}; rule {imgtype}→{level}"
               + (f" filter {filt}" if filt else ""))
 

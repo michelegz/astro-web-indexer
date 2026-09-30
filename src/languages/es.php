@@ -307,4 +307,20 @@ return [
     'projects_discarded' => '{count} sugerencias descartadas.',
     'projects_no_pending' => 'Nada que revisar. Los nuevos archivos aparecerán aquí en modo sugerencia.',
 
+    // Añadir al proyecto
+    'projects_add_btn' => 'Añadir al proyecto',
+    'projects_add_title' => 'Añadir archivos seleccionados al proyecto',
+    'projects_add_confirm' => 'Añadir',
+    'projects_add_cancel' => 'Cancelar',
+    'projects_select_project' => 'Proyecto',
+    'projects_add_no_projects' => 'Sin proyectos. Crea uno en',
+    'projects_add_added' => '{count} archivos añadidos al proyecto.',
+    'projects_add_reason_no_project' => 'proyecto desconocido',
+    'projects_add_reason_not_found' => 'no encontrado',
+    'projects_add_reason_imgtype' => 'tipo no compatible',
+    'projects_add_reason_forbidden' => 'sin acceso',
+    'projects_add_reason_no_date' => 'sin fecha',
+    'projects_add_reason_already' => 'ya enlazado',
+    'projects_add_reason_error' => 'error',
+
 ];

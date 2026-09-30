@@ -307,4 +307,20 @@ return [
     'projects_discarded' => '{count} suggestions discarded.',
     'projects_no_pending' => 'Nothing to review. New indexed files will appear here in suggest mode.',
 
+    // Add to project
+    'projects_add_btn' => 'Add to project',
+    'projects_add_title' => 'Add selected files to project',
+    'projects_add_confirm' => 'Add',
+    'projects_add_cancel' => 'Cancel',
+    'projects_select_project' => 'Project',
+    'projects_add_no_projects' => 'No projects yet. Create one in',
+    'projects_add_added' => '{count} files added to project.',
+    'projects_add_reason_no_project' => 'unknown project',
+    'projects_add_reason_not_found' => 'not found',
+    'projects_add_reason_imgtype' => 'unsupported type',
+    'projects_add_reason_forbidden' => 'no access',
+    'projects_add_reason_no_date' => 'missing date',
+    'projects_add_reason_already' => 'already linked',
+    'projects_add_reason_error' => 'error',
+
 ];

@@ -306,4 +306,20 @@ return [
     'projects_discarded' => '{count} Vorschläge verworfen.',
     'projects_no_pending' => 'Nichts zu prüfen. Neue Dateien erscheinen hier im Vorschlagsmodus.',
 
+    // Zum Projekt hinzufügen
+    'projects_add_btn' => 'Zum Projekt',
+    'projects_add_title' => 'Ausgewählte Dateien zum Projekt hinzufügen',
+    'projects_add_confirm' => 'Hinzufügen',
+    'projects_add_cancel' => 'Abbrechen',
+    'projects_select_project' => 'Projekt',
+    'projects_add_no_projects' => 'Keine Projekte. Lege eines an unter',
+    'projects_add_added' => '{count} Dateien zum Projekt hinzugefügt.',
+    'projects_add_reason_no_project' => 'unbekanntes Projekt',
+    'projects_add_reason_not_found' => 'nicht gefunden',
+    'projects_add_reason_imgtype' => 'Typ nicht unterstützt',
+    'projects_add_reason_forbidden' => 'kein Zugriff',
+    'projects_add_reason_no_date' => 'Datum fehlt',
+    'projects_add_reason_already' => 'bereits verknüpft',
+    'projects_add_reason_error' => 'Fehler',
+
 ];

@@ -307,4 +307,20 @@ return [
     'projects_discarded' => '{count} suggerimenti scartati.',
     'projects_no_pending' => 'Nulla da revisionare. I nuovi file appariranno qui in modalità suggerimento.',
 
+    // Aggiunta a progetto
+    'projects_add_btn' => 'Aggiungi a progetto',
+    'projects_add_title' => 'Aggiungi i file selezionati al progetto',
+    'projects_add_confirm' => 'Aggiungi',
+    'projects_add_cancel' => 'Annulla',
+    'projects_select_project' => 'Progetto',
+    'projects_add_no_projects' => 'Nessun progetto. Creane uno in',
+    'projects_add_added' => '{count} file aggiunti al progetto.',
+    'projects_add_reason_no_project' => 'progetto sconosciuto',
+    'projects_add_reason_not_found' => 'non trovato',
+    'projects_add_reason_imgtype' => 'tipo non supportato',
+    'projects_add_reason_forbidden' => 'accesso negato',
+    'projects_add_reason_no_date' => 'data mancante',
+    'projects_add_reason_already' => 'già collegato',
+    'projects_add_reason_error' => 'errore',
+
 ];

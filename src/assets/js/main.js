@@ -5,6 +5,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const tableBody = document.querySelector('table tbody'); 
     const downloadSelectedBtn = document.getElementById('downloadSelectedBtn');
     const exportAstroBinBtn = document.getElementById('exportAstroBinBtn');
+    const addToProjectBtn = document.getElementById('addToProjectBtn');
+    const projectModal = document.getElementById('projectModal');
+    const projectModalCancel = document.getElementById('projectModalCancel');
+    const projectModalConfirm = document.getElementById('projectModalConfirm');
+    const projectSelect = document.getElementById('projectSelect');
+    const projectAddMsg = document.getElementById('projectAddMsg');
     const filtersForm = document.getElementById('filters-form');
 
     // --- MULTI-ROW SELECTION LOGIC ---
@@ -143,6 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const hasSelection = getSelectedFiles().length > 0;
         if (downloadSelectedBtn) downloadSelectedBtn.disabled = !hasSelection;
         if (exportAstroBinBtn) exportAstroBinBtn.disabled = !hasSelection;
+        if (addToProjectBtn) addToProjectBtn.disabled = !hasSelection;
     }
 
     // --- MENU MOBILE ---
@@ -294,6 +301,76 @@ document.addEventListener('DOMContentLoaded', () => {
             if (selectAllCheckbox) selectAllCheckbox.checked = false;
             getFileCheckboxes().forEach(cb => cb.checked = false);
             updateButtonStates();
+        });
+    }
+
+    // --- ADD TO PROJECT (modal + JSON) ---
+    function openProjectModal() {
+        if (!projectModal) return;
+        if (projectAddMsg) {
+            projectAddMsg.classList.add('hidden');
+            projectAddMsg.textContent = '';
+        }
+        projectModal.classList.remove('hidden');
+        projectModal.classList.add('flex');
+    }
+    function closeProjectModal() {
+        if (!projectModal) return;
+        projectModal.classList.add('hidden');
+        projectModal.classList.remove('flex');
+    }
+    if (addToProjectBtn) {
+        addToProjectBtn.addEventListener('click', () => {
+            if (getSelectedFiles().length === 0) return;
+            openProjectModal();
+        });
+    }
+    if (projectModalCancel) {
+        projectModalCancel.addEventListener('click', closeProjectModal);
+    }
+    if (projectModal) {
+        projectModal.addEventListener('click', (e) => {
+            if (e.target === projectModal) closeProjectModal();
+        });
+    }
+    if (projectModalConfirm) {
+        projectModalConfirm.addEventListener('click', () => {
+            const ids = getSelectedFiles()
+                .map(cb => parseInt(cb.dataset.id, 10))
+                .filter(id => Number.isInteger(id) && id > 0);
+            const projectId = projectSelect ? parseInt(projectSelect.value, 10) : 0;
+            if (ids.length === 0 || !(projectId > 0)) return;
+            projectModalConfirm.disabled = true;
+            fetch('/api/project_add.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ project_id: projectId, ids }),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+                    const skipped = (data.skipped || []).map(s => `${s.name} (${s.message})`).join('\n');
+                    const msg = data.message + (skipped ? `\n\nSkipped:\n${skipped}` : '');
+                    if (projectAddMsg) {
+                        projectAddMsg.textContent = msg;
+                        projectAddMsg.classList.remove('hidden');
+                        projectAddMsg.className = 'mb-4 p-3 rounded text-sm bg-green-900/50 border border-green-700 text-green-300';
+                    } else {
+                        alert(msg);
+                    }
+                })
+                .catch(err => {
+                    if (projectAddMsg) {
+                        projectAddMsg.textContent = err.message;
+                        projectAddMsg.classList.remove('hidden');
+                        projectAddMsg.className = 'mb-4 p-3 rounded text-sm bg-red-900/50 border border-red-700 text-red-300';
+                    } else {
+                        alert(err.message);
+                    }
+                })
+                .finally(() => {
+                    projectModalConfirm.disabled = false;
+                });
         });
     }
 
