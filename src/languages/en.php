@@ -294,8 +294,6 @@ return [
     'projects_igroups' => 'Integration groups',
     'projects_igroups_empty' => 'No integration groups yet: link lights sharing setup, panel, filter and exposure.',
     'projects_igroup_nights' => '{count} nights',
-    'projects_igroup_exp' => 'Exp',
-    'projects_igroup_night' => 'Night',
     'projects_igroup_file' => 'File',
     'projects_exposure' => 'Exposure',
     'projects_tol_tol_exp' => 'Light exposure grouping',

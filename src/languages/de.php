@@ -293,8 +293,6 @@ return [
     'projects_igroups' => 'Integrationsgruppen',
     'projects_igroups_empty' => 'Noch keine Gruppen: verlinke Lights mit gleichem Setup, Panel, Filter und Belichtung.',
     'projects_igroup_nights' => '{count} Nächte',
-    'projects_igroup_exp' => 'Exp',
-    'projects_igroup_night' => 'Nacht',
     'projects_igroup_file' => 'Datei',
     'projects_exposure' => 'Belichtung',
     'projects_tol_tol_exp' => 'Light-Belichtungsgruppierung',

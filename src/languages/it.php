@@ -294,8 +294,6 @@ return [
     'projects_igroups' => 'Gruppi di integrazione',
     'projects_igroups_empty' => 'Ancora nessun gruppo: collega light con stesso setup, pannello, filtro ed esposizione.',
     'projects_igroup_nights' => '{count} notti',
-    'projects_igroup_exp' => 'Exp',
-    'projects_igroup_night' => 'Notte',
     'projects_igroup_file' => 'File',
     'projects_exposure' => 'Esposizione',
     'projects_tol_tol_exp' => 'Raggruppamento esposizione light',

@@ -444,8 +444,7 @@ if ($projectBlocked) {
                                 <thead class="text-gray-400 border-b border-gray-700">
                                     <tr>
                                         <th class="py-1 px-2 cursor-pointer hover:text-white" data-type="text"><?= __('projects_igroup_file') ?> ↕</th>
-                                        <th class="py-1 px-2 cursor-pointer hover:text-white" data-type="text"><?= __('projects_igroup_night') ?> ↕</th>
-                                        <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('projects_igroup_exp') ?> ↕</th>
+                                        <th class="py-1 px-2 cursor-pointer hover:text-white" data-type="text"><?= __('date_obs') ?> ↕</th>
                                         <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('hfr') ?> ↕</th>
                                         <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('fwhm') ?> ↕</th>
                                         <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('eccentricity') ?> ↕</th>
@@ -457,8 +456,7 @@ if ($projectBlocked) {
                                     <?php foreach ($grp['lights'] as $li): ?>
                                         <tr class="border-b border-gray-700/40">
                                             <td class="py-1 px-2" data-val="<?= htmlspecialchars((string)$li['name']) ?>"><?= htmlspecialchars($li['name']) ?></td>
-                                            <td class="py-1 px-2" data-val="<?= htmlspecialchars((string)($li['night'] ?? '')) ?>"><?= htmlspecialchars((string)($li['night'] ?? '')) ?></td>
-                                            <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['exptime'] ?? '')) ?>"><?= htmlspecialchars((string)($li['exptime'] ?? '')) ?></td>
+                                            <td class="py-1 px-2" data-val="<?= htmlspecialchars((string)($li['date_obs'] ?? '')) ?>"><?= htmlspecialchars((string)($li['date_obs'] ?? '')) ?></td>
                                             <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['hfr'] ?? '')) ?>"><?= htmlspecialchars($li['hfr'] !== null && $li['hfr'] !== '' ? number_format((float)$li['hfr'], 2) : '—') ?></td>
                                             <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['fwhm'] ?? '')) ?>"><?= htmlspecialchars($li['fwhm'] !== null && $li['fwhm'] !== '' ? number_format((float)$li['fwhm'], 2) : '—') ?></td>
                                             <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['eccentricity'] ?? '')) ?>"><?= htmlspecialchars($li['eccentricity'] !== null && $li['eccentricity'] !== '' ? number_format((float)$li['eccentricity'], 3) : '—') ?></td>
