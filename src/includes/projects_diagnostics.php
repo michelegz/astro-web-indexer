@@ -255,6 +255,38 @@ function getProjectTree(PDO $conn, int $projectId): array
         }
         $tree['setups'][] = $setupNode;
     }
+    // Hide empty branches: setups/panels/sessions created as suggestion
+    // targets appear only once they actually hold linked files.
+    foreach ($tree['setups'] as $si => $setupNode) {
+        foreach ($setupNode['panels'] as $pi => $panelNode) {
+            foreach ($panelNode['sessions'] as $sesi => $sessionNode) {
+                $hasContent = !empty($sessionNode['calibrations']);
+                if (!$hasContent) {
+                    foreach ($sessionNode['filters'] as $f) {
+                        if (!empty($f['lights']) || !empty($f['calibrations'])) {
+                            $hasContent = true;
+                            break;
+                        }
+                    }
+                }
+                if (!$hasContent) {
+                    unset($tree['setups'][$si]['panels'][$pi]['sessions'][$sesi]);
+                }
+            }
+            $tree['setups'][$si]['panels'][$pi]['sessions'] = array_values(
+                $tree['setups'][$si]['panels'][$pi]['sessions']
+            );
+            if (empty($tree['setups'][$si]['panels'][$pi]['sessions'])
+                && empty($tree['setups'][$si]['panels'][$pi]['calibrations'])) {
+                unset($tree['setups'][$si]['panels'][$pi]);
+            }
+        }
+        $tree['setups'][$si]['panels'] = array_values($tree['setups'][$si]['panels']);
+        if (empty($tree['setups'][$si]['panels']) && empty($tree['setups'][$si]['calibrations'])) {
+            unset($tree['setups'][$si]);
+        }
+    }
+    $tree['setups'] = array_values($tree['setups']);
     return $tree;
 }
 

@@ -175,7 +175,26 @@ function dismissSuggestion(PDO $conn, int $projectId, int $suggestionId): bool
     try {
         $conn->prepare("UPDATE project_suggestions SET status = 'dismissed' WHERE id = :sid")
             ->execute([':sid' => $suggestionId]);
-        pruneEmptyNode($conn, (string)$row['level'], (int)$row['node_id']);
+        // Bottom-up prune: session -> panel -> setup (each step resolves its
+        // parent BEFORE deleting, so the chain stays walkable).
+        $level = (string)$row['level'];
+        $nodeId = (int)$row['node_id'];
+        if ($level === 'session' || $level === 'filter') {
+            $panelId = pruneSessionNode($conn, $nodeId);
+            if ($panelId !== null) {
+                $setupId = prunePanelNode($conn, $panelId);
+                if ($setupId !== null) {
+                    pruneEmptySetup($conn, $setupId);
+                }
+            }
+        } elseif ($level === 'panel') {
+            $setupId = prunePanelNode($conn, $nodeId);
+            if ($setupId !== null) {
+                pruneEmptySetup($conn, $setupId);
+            }
+        } elseif ($level === 'setup') {
+            pruneEmptySetup($conn, $nodeId);
+        }
         $conn->commit();
         return true;
     } catch (Exception $e) {
@@ -185,64 +204,118 @@ function dismissSuggestion(PDO $conn, int $projectId, int $suggestionId): bool
 }
 
 /**
- * Delete a panel/session node left without links or live suggestions.
- * Setups and projects are never pruned automatically.
+ * Prune helpers: each deletes its node only when fully empty and returns the
+ * parent id on success (null otherwise), so dismissSuggestion() can walk the
+ * chain bottom-up (session -> panel -> setup). Projects are never pruned.
  */
-function pruneEmptyNode(PDO $conn, string $level, int $nodeId): void
+function pruneSessionNode(PDO $conn, int $nodeId): ?int
 {
     if ($nodeId <= 0) {
+        return null;
+    }
+    // Filter-level links live on the session row.
+    $link = $conn->prepare(
+        "SELECT 1 FROM project_files WHERE level IN ('session','filter') AND node_id = :node LIMIT 1"
+    );
+    $link->execute([':node' => $nodeId]);
+    if ($link->fetch() !== false) {
+        return null;
+    }
+    $live = $conn->prepare(
+        "SELECT 1 FROM project_suggestions WHERE level IN ('session','filter') AND node_id = :node "
+        . "AND status IN ('pending','accepted') LIMIT 1"
+    );
+    $live->execute([':node' => $nodeId]);
+    if ($live->fetch() !== false) {
+        return null;
+    }
+    $parent = $conn->prepare("SELECT panel_id FROM project_sessions WHERE id = :node");
+    $parent->execute([':node' => $nodeId]);
+    $r = $parent->fetch();
+    if ($r === false) {
+        return null;
+    }
+    $conn->prepare("DELETE FROM project_sessions WHERE id = :node")->execute([':node' => $nodeId]);
+    return (int)$r['panel_id'];
+}
+
+function prunePanelNode(PDO $conn, int $nodeId): ?int
+{
+    if ($nodeId <= 0) {
+        return null;
+    }
+    $link = $conn->prepare(
+        "SELECT 1 FROM project_files WHERE level = 'panel' AND node_id = :node LIMIT 1"
+    );
+    $link->execute([':node' => $nodeId]);
+    if ($link->fetch() !== false) {
+        return null;
+    }
+    $child = $conn->prepare(
+        "SELECT ss.id FROM project_sessions ss "
+        . "LEFT JOIN project_files pf ON pf.level IN ('session','filter') AND pf.node_id = ss.id "
+        . "LEFT JOIN project_suggestions sg ON sg.level IN ('session','filter') AND sg.node_id = ss.id "
+        . "AND sg.status IN ('pending','accepted') "
+        . "WHERE ss.panel_id = :node AND (pf.file_id IS NOT NULL OR sg.id IS NOT NULL) LIMIT 1"
+    );
+    $child->execute([':node' => $nodeId]);
+    if ($child->fetch() !== false) {
+        return null;
+    }
+    $live = $conn->prepare(
+        "SELECT 1 FROM project_suggestions WHERE level = 'panel' AND node_id = :node "
+        . "AND status IN ('pending','accepted') LIMIT 1"
+    );
+    $live->execute([':node' => $nodeId]);
+    if ($live->fetch() !== false) {
+        return null;
+    }
+    $parent = $conn->prepare("SELECT setup_id FROM project_panels WHERE id = :node");
+    $parent->execute([':node' => $nodeId]);
+    $r = $parent->fetch();
+    if ($r === false) {
+        return null;
+    }
+    // Sessions cascade via FK.
+    $conn->prepare("DELETE FROM project_panels WHERE id = :node")->execute([':node' => $nodeId]);
+    return (int)$r['setup_id'];
+}
+
+/**
+ * Delete a setup left fully empty: no panels, no setup-level links or live
+ * suggestions, no manual overrides pointing to it. Projects are never pruned.
+ */
+function pruneEmptySetup(PDO $conn, int $setupId): void
+{
+    if ($setupId <= 0) {
         return;
     }
-    if ($level === 'panel') {
-        // Panel prune: no direct links, no linked sessions below, no live suggestions.
-        $link = $conn->prepare(
-            "SELECT 1 FROM project_files WHERE level = 'panel' AND node_id = :node LIMIT 1"
-        );
-        $link->execute([':node' => $nodeId]);
-        if ($link->fetch() !== false) {
-            return;
-        }
-        $child = $conn->prepare(
-            "SELECT ss.id FROM project_sessions ss "
-            . "LEFT JOIN project_files pf ON pf.level IN ('session','filter') AND pf.node_id = ss.id "
-            . "LEFT JOIN project_suggestions sg ON sg.level IN ('session','filter') AND sg.node_id = ss.id "
-            . "AND sg.status IN ('pending','accepted') "
-            . "WHERE ss.panel_id = :node AND (pf.file_id IS NOT NULL OR sg.id IS NOT NULL) LIMIT 1"
-        );
-        $child->execute([':node' => $nodeId]);
-        if ($child->fetch() !== false) {
-            return;
-        }
-        $live = $conn->prepare(
-            "SELECT 1 FROM project_suggestions WHERE level = 'panel' AND node_id = :node "
-            . "AND status IN ('pending','accepted') LIMIT 1"
-        );
-        $live->execute([':node' => $nodeId]);
-        if ($live->fetch() !== false) {
-            return;
-        }
-        // Sessions cascade via FK.
-        $conn->prepare("DELETE FROM project_panels WHERE id = :node")->execute([':node' => $nodeId]);
-    } elseif ($level === 'session' || $level === 'filter') {
-        // Filter-level links live on the session row.
-        $link = $conn->prepare(
-            "SELECT 1 FROM project_files WHERE level IN ('session','filter') AND node_id = :node LIMIT 1"
-        );
-        $link->execute([':node' => $nodeId]);
-        if ($link->fetch() !== false) {
-            return;
-        }
-        $live = $conn->prepare(
-            "SELECT 1 FROM project_suggestions WHERE level IN ('session','filter') AND node_id = :node "
-            . "AND status IN ('pending','accepted') LIMIT 1"
-        );
-        $live->execute([':node' => $nodeId]);
-        if ($live->fetch() !== false) {
-            return;
-        }
-        $conn->prepare("DELETE FROM project_sessions WHERE id = :node")->execute([':node' => $nodeId]);
+    $panels = $conn->prepare("SELECT 1 FROM project_panels WHERE setup_id = :sid LIMIT 1");
+    $panels->execute([':sid' => $setupId]);
+    if ($panels->fetch() !== false) {
+        return;
     }
-    // Setups and projects are never pruned automatically.
+    $links = $conn->prepare(
+        "SELECT 1 FROM project_files WHERE level = 'setup' AND node_id = :sid LIMIT 1"
+    );
+    $links->execute([':sid' => $setupId]);
+    if ($links->fetch() !== false) {
+        return;
+    }
+    $live = $conn->prepare(
+        "SELECT 1 FROM project_suggestions WHERE level = 'setup' AND node_id = :sid "
+        . "AND status IN ('pending','accepted') LIMIT 1"
+    );
+    $live->execute([':sid' => $setupId]);
+    if ($live->fetch() !== false) {
+        return;
+    }
+    $ov = $conn->prepare("SELECT 1 FROM setup_overrides WHERE setup_id = :sid LIMIT 1");
+    $ov->execute([':sid' => $setupId]);
+    if ($ov->fetch() !== false) {
+        return;
+    }
+    $conn->prepare("DELETE FROM project_setups WHERE id = :sid")->execute([':sid' => $setupId]);
 }
 function getToleranceDefs(): array
 {
