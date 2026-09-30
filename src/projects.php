@@ -444,7 +444,7 @@ if ($projectBlocked) {
                                 <thead class="text-gray-400 border-b border-gray-700">
                                     <tr>
                                         <th class="py-1 px-2 cursor-pointer hover:text-white" data-type="text"><?= __('projects_igroup_file') ?> ↕</th>
-                                        <th class="py-1 px-2 cursor-pointer hover:text-white" data-type="text"><?= __('date_obs') ?> ↕</th>
+                                        <th class="py-1 px-2 cursor-pointer hover:text-white" data-type="text"><?= __('date') ?> ↕</th>
                                         <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('hfr') ?> ↕</th>
                                         <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('fwhm') ?> ↕</th>
                                         <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('eccentricity') ?> ↕</th>
