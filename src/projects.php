@@ -287,7 +287,7 @@ $projectDiag = $projectTree !== null ? diagnoseProjectTree($projectTree, $projec
                         </span>
                         <input type="text" name="tolerances[<?= htmlspecialchars($key) ?>]" maxlength="64"
                                value="<?= htmlspecialchars((string)($detailOverrides[$key] ?? '')) ?>"
-                               placeholder="<?= htmlspecialchars(__('projects_inherit_global', ['value' => $global])) ?>"
+                               placeholder="<?= htmlspecialchars(__('projects_inherit_default', ['value' => $global])) ?>"
                                class="w-40 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100">
                     </label>
                 <?php endforeach; ?>
