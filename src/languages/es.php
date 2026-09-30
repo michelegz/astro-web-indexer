@@ -302,7 +302,7 @@ return [
     'projects_reject_above' => 'descartar por encima',
     'projects_reject_below' => 'descartar por debajo',
     'projects_reject_save' => 'Guardar umbrales',
-    'projects_reject_auto' => 'Auto 3σ',
+    'projects_reject_auto' => 'Auto 5σ',
     'projects_reject_reset' => 'Restablecer',
     'projects_thresholds_saved' => 'Umbrales guardados.',
     'projects_auto_off' => 'auto',

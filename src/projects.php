@@ -831,10 +831,9 @@ if ($projectBlocked) {
                         .finally(() => window.location.reload());
                 });
                 if (auto) auto.addEventListener('click', () => {
-                    // Robust 3-sigma proposal: median ± 3·MAD·1.4826.
-                    // Unlike mean±σ, outliers cannot drag the center or inflate
-                    // the scale (masking), which matters with 3–30 frames per
-                    // group. Direction fixed per metric type as usual. Metrics
+                    // Very permissive robust proposal: median ± 5·MAD·1.4826.
+                    // Only truly bad frames go out; borderline ones stay in.
+                    // Direction fixed per metric type as usual. Metrics
                     // with <4 values or zero spread are left blank. Fills the
                     // inputs without saving: review the preview, then Save.
                     const table = panel.parentElement?.querySelector('.igroup-table');
@@ -853,7 +852,7 @@ if ($projectBlocked) {
                     panel.querySelectorAll('input[data-metric]').forEach(inp => {
                         const st = robust[inp.dataset.metric];
                         if (!st) return;
-                        let t = inp.dataset.dir === 'above' ? st.med + 3 * st.sigma : st.med - 3 * st.sigma;
+                        let t = inp.dataset.dir === 'above' ? st.med + 5 * st.sigma : st.med - 5 * st.sigma;
                         if (inp.dataset.dir === 'below') t = Math.max(0, t);
                         inp.value = String(Number(t.toPrecision(6)));
                     });
