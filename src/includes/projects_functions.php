@@ -88,7 +88,7 @@ function getSuggestionNodeLabel(PDO $conn, string $level, int $nodeId, ?string $
             : substr((string)$row['fingerprint'], 0, 48);
     }
     if ($level === 'panel') {
-        $stmt = $conn->prepare("SELECT ra, `dec`, rot_mean, label_object FROM project_panels WHERE id = :id");
+        $stmt = $conn->prepare("SELECT panel_no, ra, `dec`, rot_mean, label_object FROM project_panels WHERE id = :id");
         $stmt->execute([':id' => $nodeId]);
         $row = $stmt->fetch();
         if (!$row) {
@@ -97,7 +97,7 @@ function getSuggestionNodeLabel(PDO $conn, string $level, int $nodeId, ?string $
         $coords = ($row['ra'] !== null && $row['dec'] !== null)
             ? number_format((float)$row['ra'], 3) . ' / ' . number_format((float)$row['dec'], 3)
             : '?';
-        $label = "P$nodeId ($coords)";
+        $label = 'P' . (int)($row['panel_no'] ?? $nodeId) . " ($coords)";
         if ($row['label_object'] !== null && $row['label_object'] !== '') {
             $label .= ' ' . $row['label_object'];
         }
@@ -757,13 +757,21 @@ function projectCreatePanel(PDO $conn, int $setupId, array $row, string $bucket,
 {
     $rotVal = ($row['objctrot'] !== null && $row['objctrot'] !== '') ? fmod((float)$row['objctrot'], 360.0) : null;
     $objLabel = $bucket !== 'UNKNOWN' ? trim((string)($row['object'] ?? '')) : $bucket;
+    // Next consecutive number within the project (stable: never reused).
+    $maxNo = $conn->prepare(
+        "SELECT COALESCE(MAX(pp.panel_no), 0) FROM project_panels pp "
+        . "JOIN project_setups ps ON ps.id = pp.setup_id "
+        . "WHERE ps.project_id = (SELECT project_id FROM project_setups WHERE id = :sid)"
+    );
+    $maxNo->execute([':sid' => $setupId]);
+    $nextNo = (int)$maxNo->fetchColumn() + 1;
     $ins = $conn->prepare(
-        "INSERT INTO project_panels (setup_id, ra, `dec`, rot_mean, fov_w, fov_h, label_object) "
-        . "VALUES (:sid, :ra, :dec, :rot, :fovw, :fovh, :label)"
+        "INSERT INTO project_panels (setup_id, ra, `dec`, rot_mean, fov_w, fov_h, label_object, panel_no) "
+        . "VALUES (:sid, :ra, :dec, :rot, :fovw, :fovh, :label, :no)"
     );
     $ins->execute([
         ':sid' => $setupId, ':ra' => $ra, ':dec' => $dec, ':rot' => $rotVal,
-        ':fovw' => $row['fov_w'], ':fovh' => $row['fov_h'], ':label' => $objLabel,
+        ':fovw' => $row['fov_w'], ':fovh' => $row['fov_h'], ':label' => $objLabel, ':no' => $nextNo,
     ]);
     return (int)$conn->lastInsertId();
 }
@@ -910,13 +918,13 @@ function projectPreviewFiles(PDO $conn, ?int $projectId, array $fileIds): array
     if (!empty($panelIds)) {
         $placeholders = implode(',', array_fill(0, count($panelIds), '?'));
         $pl = $conn->prepare(
-            "SELECT id, ra, `dec`, label_object FROM project_panels WHERE id IN ($placeholders)"
+            "SELECT id, panel_no, ra, `dec`, label_object FROM project_panels WHERE id IN ($placeholders)"
         );
         $pl->execute(array_keys($panelIds));
         foreach ($pl->fetchAll() as $p) {
             $coords = ($p['ra'] !== null && $p['dec'] !== null)
                 ? number_format((float)$p['ra'], 3) . '/' . number_format((float)$p['dec'], 3) : '?';
-            $label = 'P' . (int)$p['id'] . ' (' . $coords . ')';
+            $label = 'P' . (int)($p['panel_no'] ?? $p['id']) . ' (' . $coords . ')';
             if ($p['label_object'] !== null && $p['label_object'] !== '') {
                 $label .= ' ' . $p['label_object'];
             }

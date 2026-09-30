@@ -112,7 +112,7 @@ unset($__s, $__p, $__sess, $__f);
                     <?php
                     $coords = ($panel['ra'] !== null && $panel['dec'] !== null)
                         ? number_format((float)$panel['ra'], 3) . ' / ' . number_format((float)$panel['dec'], 3) : '?';
-                    $plabel = 'P' . (int)$panel['id'] . ' (' . $coords . ')';
+                    $plabel = 'P' . (int)($panel['panel_no'] ?? $panel['id']) . ' (' . $coords . ')';
                     if ($panel['label_object'] !== null && $panel['label_object'] !== '') {
                         $plabel .= ' ' . $panel['label_object'];
                     }

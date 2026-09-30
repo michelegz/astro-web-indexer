@@ -157,7 +157,7 @@ function getProjectTree(PDO $conn, int $projectId, bool $includePending = false)
 
     $inSetups = implode(',', array_fill(0, count($setupIds), '?'));
     $panels = $conn->prepare(
-        "SELECT id, setup_id, ra, `dec`, rot_mean, fov_w, fov_h, label_object "
+        "SELECT id, setup_id, panel_no, ra, `dec`, rot_mean, fov_w, fov_h, label_object "
         . "FROM project_panels WHERE setup_id IN ($inSetups) ORDER BY id ASC"
     );
     $panels->execute($setupIds);
