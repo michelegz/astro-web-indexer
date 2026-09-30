@@ -316,6 +316,74 @@ function getProjectTree(PDO $conn, int $projectId, bool $includePending = false)
 }
 
 /**
+ * Strip hypothetical (pending) rows from a tree built with $includePending.
+ * The main project tree shows real links only; pending selection lives in
+ * the wizard modal. Empty branches left behind are pruned.
+ */
+function stripPendingTree(array $tree): array
+{
+    foreach ($tree['setups'] ?? [] as $si => $setup) {
+        $tree['setups'][$si]['calibrations'] = array_values(array_filter(
+            $setup['calibrations'],
+            fn($c) => empty($c['pending'])
+        ));
+        foreach ($setup['panels'] as $pi => $panel) {
+            $tree['setups'][$si]['panels'][$pi]['calibrations'] = array_values(array_filter(
+                $panel['calibrations'],
+                fn($c) => empty($c['pending'])
+            ));
+            foreach ($panel['sessions'] as $sesi => $session) {
+                $tree['setups'][$si]['panels'][$pi]['sessions'][$sesi]['calibrations'] = array_values(array_filter(
+                    $session['calibrations'],
+                    fn($c) => empty($c['pending'])
+                ));
+                $filters = [];
+                foreach ($session['filters'] as $f) {
+                    $lights = array_values(array_filter(
+                        $f['lights'],
+                        fn($li) => empty($li['pending'])
+                    ));
+                    $cals = array_values(array_filter(
+                        $f['calibrations'],
+                        fn($c) => empty($c['pending'])
+                    ));
+                    if (empty($lights) && empty($cals)) {
+                        continue;
+                    }
+                    $exp = 0.0;
+                    foreach ($lights as $li) {
+                        $exp += (float)($li['exptime'] ?? 0);
+                    }
+                    $f['lights'] = $lights;
+                    $f['calibrations'] = $cals;
+                    $f['count'] = count($lights);
+                    $f['exposure'] = $exp;
+                    $filters[] = $f;
+                }
+                $tree['setups'][$si]['panels'][$pi]['sessions'][$sesi]['filters'] = $filters;
+                if (empty($filters)
+                    && empty($tree['setups'][$si]['panels'][$pi]['sessions'][$sesi]['calibrations'])) {
+                    unset($tree['setups'][$si]['panels'][$pi]['sessions'][$sesi]);
+                }
+            }
+            $tree['setups'][$si]['panels'][$pi]['sessions'] = array_values(
+                $tree['setups'][$si]['panels'][$pi]['sessions']
+            );
+            if (empty($tree['setups'][$si]['panels'][$pi]['sessions'])
+                && empty($tree['setups'][$si]['panels'][$pi]['calibrations'])) {
+                unset($tree['setups'][$si]['panels'][$pi]);
+            }
+        }
+        $tree['setups'][$si]['panels'] = array_values($tree['setups'][$si]['panels']);
+        if (empty($tree['setups'][$si]['panels']) && empty($tree['setups'][$si]['calibrations'])) {
+            unset($tree['setups'][$si]);
+        }
+    }
+    $tree['setups'] = array_values($tree['setups'] ?? []);
+    return $tree;
+}
+
+/**
  * Diagnostics for every LINKED light in the tree. Returns [file_id => [...]].
  * Pending (hypothetical) rows are ignored, both as lights and as candidates.
  * Candidate pool per light = calibrations linked at filter/session/panel/setup/project

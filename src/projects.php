@@ -139,7 +139,8 @@ $detailOverrides = $detail !== null ? getProjectTolerances($detail['tolerances']
 $detailMode = $detail !== null ? getProjectAssignMode($detail) : 'suggest';
 $detailPending = $detail !== null ? getPendingCount($conn, (int)$detail['id']) : 0;
 $assignModes = getAssignModes();
-$projectTree = $detail !== null ? getProjectTree($conn, (int)$detail['id'], true) : null;
+$pendingTree = $detail !== null ? getProjectTree($conn, (int)$detail['id'], true) : null;
+$projectTree = $pendingTree !== null ? stripPendingTree($pendingTree) : null;
 $projectTols = [];
 foreach ($defs as $tkey => $tdef) {
     $projectTols[$tkey] = $detail !== null ? resolve_tol($conn, (int)$detail['id'], $tkey) : $tdef['default'];

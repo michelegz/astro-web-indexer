@@ -1,8 +1,9 @@
 <?php
 // Pending-only hierarchical preview for the wizard modal.
-// Expects $projectTree (getProjectTree with $includePending = true).
+// Expects $pendingTree (getProjectTree with $includePending = true).
 // Shows where suggestions WOULD land if accepted; selection happens here
 // via checkboxes (suggestion_ids[]), accept/discard buttons live in the modal form.
+$__ptree = $pendingTree ?? ['setups' => []];
 function pendFileRows(array $lights): array
 {
     return array_values(array_filter($lights, fn($li) => !empty($li['pending'])));
@@ -77,7 +78,7 @@ function renderPendCals(array $cals): void
 }
 
 $__pendTotal = 0;
-foreach (($projectTree['setups'] ?? []) as $__s) {
+foreach (($__ptree['setups'] ?? []) as $__s) {
     foreach ($__s['panels'] as $__p) {
         foreach ($__p['sessions'] as $__sess) {
             foreach ($__sess['filters'] as $__f) {
@@ -94,7 +95,7 @@ unset($__s, $__p, $__sess, $__f);
 <?php if ($__pendTotal === 0): ?>
     <p class="text-gray-500 text-sm"><?= __('projects_no_pending') ?></p>
 <?php else: ?>
-    <?php foreach ($projectTree['setups'] as $setup): ?>
+    <?php foreach ($__ptree['setups'] as $setup): ?>
         <?php if (!setupHasPend($setup)) continue; ?>
         <details open class="mb-3 border border-gray-700 rounded-lg">
             <summary class="cursor-pointer px-4 py-2 bg-gray-700/50 rounded-t-lg font-semibold text-sm">
