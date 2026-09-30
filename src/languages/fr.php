@@ -296,6 +296,7 @@ return [
     'projects_igroup_nights' => '{count} nuits',
     'projects_igroup_file' => 'Fichier',
     'projects_igroup_median' => 'Médiane',
+    'projects_igroup_charts' => 'Graphiques',
     'projects_exposure' => 'Exposition',
     'projects_tol_tol_exp' => 'Regroupement exposition des lights',
     'projects_tol_tol_exp_dark' => 'Correspondance expo dark',

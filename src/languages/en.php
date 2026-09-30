@@ -296,6 +296,7 @@ return [
     'projects_igroup_nights' => '{count} nights',
     'projects_igroup_file' => 'File',
     'projects_igroup_median' => 'Median',
+    'projects_igroup_charts' => 'Charts',
     'projects_exposure' => 'Exposure',
     'projects_tol_tol_exp' => 'Light exposure grouping',
     'projects_tol_tol_exp_dark' => 'Dark exposure match',

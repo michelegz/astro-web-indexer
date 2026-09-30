@@ -518,12 +518,14 @@ function getIntegrationGroups(array $tree, float $tolExpFrac): array
             foreach ($panel['sessions'] as $session) {
                 foreach ($session['filters'] as $filter) {
                     foreach ($filter['lights'] as $li) {
-                        if (!empty($li['pending']) || empty($li['enabled'])) {
+                        if (!empty($li['pending'])) {
                             continue;
                         }
                         if (strtoupper((string)($li['imgtype'] ?? '')) !== 'LIGHT') {
                             continue;
                         }
+                        // Disabled links stay in the group (grey bars in charts)
+                        // but counts, exposure and medians below cover enabled only.
                         $fname = trim((string)($li['filter_name'] ?? $li['filter'] ?? ''));
                         $key = $setup['id'] . '|' . $panel['id'] . '|' . strtoupper($fname);
                         if (!isset($pools[$key])) {
@@ -547,9 +549,10 @@ function getIntegrationGroups(array $tree, float $tolExpFrac): array
     $groups = [];
     foreach ($pools as $pool) {
         foreach (clusterExposures($pool['lights'], $tolExpFrac) as $eg) {
+            $enabled = array_values(array_filter($eg['lights'], fn($li) => !empty($li['enabled'])));
             $nights = [];
             $exp = 0.0;
-            foreach ($eg['lights'] as $li) {
+            foreach ($enabled as $li) {
                 $exp += (float)($li['exptime'] ?? 0);
                 if (isset($li['night'])) {
                     $nights[$li['night']] = true;
@@ -565,14 +568,14 @@ function getIntegrationGroups(array $tree, float $tolExpFrac): array
                 'exptime' => $eg['exptime'],
                 'nights' => $nightList,
                 'lights' => $eg['lights'],
-                'count' => count($eg['lights']),
+                'count' => count($enabled),
                 'exposure' => $exp,
                 'medians' => [
-                    'hfr' => projectMedian(array_column($eg['lights'], 'hfr')),
-                    'fwhm' => projectMedian(array_column($eg['lights'], 'fwhm')),
-                    'eccentricity' => projectMedian(array_column($eg['lights'], 'eccentricity')),
-                    'star_count' => projectMedian(array_column($eg['lights'], 'star_count')),
-                    'snr_weight' => projectMedian(array_column($eg['lights'], 'snr_weight')),
+                    'hfr' => projectMedian(array_column($enabled, 'hfr')),
+                    'fwhm' => projectMedian(array_column($enabled, 'fwhm')),
+                    'eccentricity' => projectMedian(array_column($enabled, 'eccentricity')),
+                    'star_count' => projectMedian(array_column($enabled, 'star_count')),
+                    'snr_weight' => projectMedian(array_column($enabled, 'snr_weight')),
                 ],
             ];
         }

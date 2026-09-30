@@ -428,6 +428,9 @@ if ($projectBlocked) {
 
         <section class="bg-gray-800 rounded-lg p-6">
             <h2 class="text-lg font-semibold mb-2"><?= __('projects_igroups') ?></h2>
+            <?php if (!empty($intGroups)): ?>
+            <script src="assets/js/vendor/chart.umd.min.js"></script>
+            <?php endif; ?>
             <?php if (empty($intGroups)): ?>
                 <p class="text-sm text-gray-500"><?= __('projects_igroups_empty') ?></p>
             <?php else: ?>
@@ -454,7 +457,7 @@ if ($projectBlocked) {
                                 </thead>
                                 <tbody>
                                     <?php foreach ($grp['lights'] as $li): ?>
-                                        <tr class="border-b border-gray-700/40">
+                                        <tr class="border-b border-gray-700/40" data-enabled="<?= !empty($li['enabled']) ? '1' : '0' ?>" data-hfr-sd="<?= htmlspecialchars((string)($li['hfr_sd'] ?? '')) ?>" data-psf="<?= htmlspecialchars((string)($li['psf_signal'] ?? '')) ?>">
                                             <td class="py-1 px-2" data-val="<?= htmlspecialchars((string)$li['name']) ?>"><?= htmlspecialchars($li['name']) ?></td>
                                             <td class="py-1 px-2" data-val="<?= htmlspecialchars((string)($li['date_obs'] ?? '')) ?>"><?= htmlspecialchars((string)($li['date_obs'] ?? '')) ?></td>
                                             <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['hfr'] ?? '')) ?>"><?= htmlspecialchars($li['hfr'] !== null && $li['hfr'] !== '' ? number_format((float)$li['hfr'], 2) : '—') ?></td>
@@ -477,6 +480,27 @@ if ($projectBlocked) {
                                     </tr>
                                 </tfoot>
                             </table>
+                            <?php
+                            $grpHasMetrics = false;
+                            foreach ($grp['lights'] as $mli) {
+                                foreach (['hfr', 'fwhm', 'hfr_sd', 'eccentricity', 'star_count', 'snr_weight', 'psf_signal'] as $mk) {
+                                    if (isset($mli[$mk]) && $mli[$mk] !== '' && $mli[$mk] !== null) {
+                                        $grpHasMetrics = true;
+                                        break 2;
+                                    }
+                                }
+                            }
+                            ?>
+                            <?php if ($grpHasMetrics): ?>
+                            <details class="mt-2 igroup-charts-wrap" data-group="<?= (int)$gi ?>">
+                                <summary class="cursor-pointer text-xs text-gray-400 hover:text-white">📊 <?= __('projects_igroup_charts') ?></summary>
+                                <div class="flex flex-col gap-4 mt-2 igroup-charts">
+                                    <?php foreach (['hfr', 'fwhm', 'hfr_sd', 'eccentricity', 'star_count', 'snr_weight', 'psf_signal'] as $mi => $mk): ?>
+                                    <div style="height: 190px"><canvas id="ig-chart-<?= (int)$gi ?>-<?= (int)$mi ?>"></canvas></div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </details>
+                            <?php endif; ?>
                         </div>
                     </details>
                 <?php endforeach; ?>
@@ -509,6 +533,118 @@ if ($projectBlocked) {
                     });
                     const tb = table.querySelector('tbody');
                     rows.forEach(r => tb.appendChild(r));
+                    if (typeof refreshIgroupCharts === 'function') refreshIgroupCharts(table);
+                });
+            });
+
+            // --- Integration group bar charts (one bar per photo) ---
+            // X axis follows the table's current row order; bars are greyed
+            // when the file is disabled at project level.
+            const IGROUP_SERIES = [
+                { key: 'hfr', label: <?= json_encode(__('hfr') . ' (px)') ?>, color: '#60a5fa', cell: 2 },
+                { key: 'fwhm', label: <?= json_encode(__('fwhm') . ' (arcsec)') ?>, color: '#34d399', cell: 3 },
+                { key: 'hfr_sd', label: <?= json_encode(__('hfr_sd') . ' (px)') ?>, color: '#a78bfa', attr: 'hfrSd' },
+                { key: 'eccentricity', label: <?= json_encode(__('eccentricity')) ?>, color: '#fbbf24', cell: 4 },
+                { key: 'star_count', label: <?= json_encode(__('star_count')) ?>, color: '#f472b6', cell: 5 },
+                { key: 'snr_weight', label: <?= json_encode(__('snr_weight')) ?>, color: '#22d3ee', cell: 6 },
+                { key: 'psf_signal', label: <?= json_encode(__('psf_signal')) ?>, color: '#fb7185', attr: 'psf' },
+            ];
+            const IGROUP_OFF_COLOR = '#4b5563';
+            const IGROUP_MEDIAN_LABEL = <?= json_encode(__('metrics_median')) ?>;
+            const igCharts = {};
+            function igMedian(values) {
+                const nums = values.filter(v => typeof v === 'number' && isFinite(v)).sort((a, b) => a - b);
+                if (!nums.length) return null;
+                const mid = Math.floor(nums.length / 2);
+                return nums.length % 2 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
+            }
+            function igRowsInOrder(table) {
+                return Array.from(table.querySelectorAll('tbody tr')).map(tr => {
+                    const cells = tr.children;
+                    const num = (raw) => {
+                        const v = parseFloat(raw ?? '');
+                        return isNaN(v) ? null : v;
+                    };
+                    const vals = {};
+                    IGROUP_SERIES.forEach(s => {
+                        vals[s.key] = s.cell !== undefined ? num(cells[s.cell]?.dataset.val) : num(tr.dataset[s.attr]);
+                    });
+                    return { name: cells[0]?.dataset.val || '', enabled: tr.dataset.enabled === '1', vals };
+                });
+            }
+            function igBuildGroup(gi) {
+                const table = document.querySelector('.igroup-table[data-group="' + gi + '"]');
+                if (!table || typeof Chart === 'undefined') return;
+                const rows = igRowsInOrder(table);
+                if (!rows.length) return;
+                const gridColor = 'rgba(255,255,255,0.08)';
+                const tickColor = '#9ca3af';
+                IGROUP_SERIES.forEach((s, mi) => {
+                    const canvas = document.getElementById('ig-chart-' + gi + '-' + mi);
+                    if (!canvas) return;
+                    const cid = 'ig-chart-' + gi + '-' + mi;
+                    if (igCharts[cid]) { igCharts[cid].destroy(); delete igCharts[cid]; }
+                    const data = rows.map(r => r.vals[s.key]);
+                    if (!data.some(v => v !== null)) return;
+                    const med = igMedian(rows.filter(r => r.enabled).map(r => r.vals[s.key]));
+                    const datasets = [{
+                        label: s.label,
+                        data,
+                        backgroundColor: rows.map(r => r.enabled ? s.color : IGROUP_OFF_COLOR),
+                        borderWidth: 0,
+                    }];
+                    if (med !== null) {
+                        datasets.push({
+                            label: IGROUP_MEDIAN_LABEL,
+                            type: 'line',
+                            data: new Array(data.length).fill(med),
+                            borderColor: '#9ca3af',
+                            borderWidth: 1.5,
+                            borderDash: [6, 4],
+                            pointRadius: 0,
+                        });
+                    }
+                    igCharts[cid] = new Chart(canvas, {
+                        type: 'bar',
+                        data: {
+                            labels: rows.map((_, i) => i + 1),
+                            datasets,
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                title: { display: true, text: s.label, color: '#e5e7eb', font: { size: 13, weight: 'bold' } },
+                                legend: { labels: { color: tickColor, boxWidth: 20 } },
+                                tooltip: {
+                                    callbacks: {
+                                        title: (items) => {
+                                            if (!items.length) return '';
+                                            const idx = items[0].dataIndex;
+                                            return '#' + (idx + 1) + ' ' + (rows[idx]?.name || '') + (rows[idx] && !rows[idx].enabled ? ' (off)' : '');
+                                        },
+                                    },
+                                },
+                            },
+                            scales: {
+                                x: { grid: { color: gridColor }, ticks: { color: tickColor, maxTicksLimit: 12 } },
+                                y: { grid: { color: gridColor }, ticks: { color: tickColor, maxTicksLimit: 6 }, grace: '5%' },
+                            },
+                        },
+                    });
+                });
+            }
+            function refreshIgroupCharts(table) {
+                const groupDetails = table.closest('details');
+                const wrap = groupDetails ? groupDetails.querySelector('.igroup-charts-wrap') : null;
+                if (wrap && wrap.open) igBuildGroup(table.dataset.group);
+            }
+            document.querySelectorAll('.igroup-charts-wrap').forEach(wrap => {
+                wrap.addEventListener('toggle', () => {
+                    if (wrap.open && !wrap.dataset.built) {
+                        wrap.dataset.built = '1';
+                        igBuildGroup(wrap.dataset.group);
+                    }
                 });
             });
         })();

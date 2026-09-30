@@ -296,6 +296,7 @@ return [
     'projects_igroup_nights' => '{count} noches',
     'projects_igroup_file' => 'Archivo',
     'projects_igroup_median' => 'Mediana',
+    'projects_igroup_charts' => 'Gráficos',
     'projects_exposure' => 'Exposición',
     'projects_tol_tol_exp' => 'Agrupación por exposición',
     'projects_tol_tol_exp_dark' => 'Coincidencia expo dark',
