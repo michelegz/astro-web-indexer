@@ -332,5 +332,7 @@ return [
     'projects_add_force_setup' => 'Erzwinge Setup:',
     'projects_add_use_matched' => 'Wie vorgeschlagen',
     'projects_add_analyzing' => 'Analysiere…',
+    'projects_add_new_setup' => '＋ Neues Custom-Setup…',
+    'projects_add_new_setup_name' => 'Custom-Setup-Name',
 
 ];

@@ -333,5 +333,7 @@ return [
     'projects_add_force_setup' => 'Forzar a setup:',
     'projects_add_use_matched' => 'Como propuesto',
     'projects_add_analyzing' => 'Analizando…',
+    'projects_add_new_setup' => '＋ Nuevo setup personalizado…',
+    'projects_add_new_setup_name' => 'Nombre del setup',
 
 ];

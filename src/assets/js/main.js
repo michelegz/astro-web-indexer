@@ -377,14 +377,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? escHtml(t.project_add_setup_new || 'New setup') + ' — ' + escHtml(g.setup_label || g.fp.slice(0, 48))
                 : escHtml(setupById[g.setup_id] || g.setup_label || g.fp.slice(0, 48));
             html += `<div class="border border-gray-700 rounded p-3"><div class="font-medium mb-1">${setupTitle} <span class="text-xs text-gray-400">(${g.files.length})</span></div>`;
-            // Override: only *other* setups are offered (the matched one would be a no-op duplicate).
-            const others = (data.setups || []).filter(s => s.id !== g.setup_id);
-            if (others.length > 0) {
-                html += `<label class="block text-xs text-gray-400 mb-2">${escHtml(t.project_add_force_setup || 'Force into setup:')} <select data-group="${gi}" class="override-select mt-1 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100 text-xs"><option value="0">${escHtml(t.project_add_use_matched || 'As matched')}</option>`;
+            // Override: only *other* setups are offered (the matched one would be a no-op duplicate),
+            // plus creating a brand-new custom setup (e.g. two identical rigs to keep separate).
+            // Always shown: even with no other setups, a custom one can be created.
+            {
+                const others = (data.setups || []).filter(s => s.id !== g.setup_id);
+                html += `<label class="block text-xs text-gray-400 mb-1">${escHtml(t.project_add_force_setup || 'Force into setup:')} <select data-group="${gi}" class="override-select mt-1 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100 text-xs"><option value="0">${escHtml(t.project_add_use_matched || 'As matched')}</option>`;
                 others.forEach(s => {
                     html += `<option value="${s.id}">${escHtml(s.label)}</option>`;
                 });
-                html += '</select></label>';
+                html += `<option value="new">${escHtml(t.project_add_new_setup || '＋ New custom setup…')}</option>`;
+                html += `</select></label><input type="text" data-groupname="${gi}" maxlength="64" placeholder="${escHtml(t.project_add_new_setup_name || 'Custom setup name')}" class="custom-setup-name hidden mt-1 mb-2 w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100 text-xs">`;
             }
             html += '<ul class="text-xs text-gray-300 flex flex-col gap-1">';
             g.files.forEach(f => {
@@ -462,17 +465,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
         });
     }
+    if (previewGroups) {
+        previewGroups.addEventListener('change', (e) => {
+            if (!e.target.classList.contains('override-select')) return;
+            const gi = e.target.dataset.group;
+            const nameInput = previewGroups.querySelector(`.custom-setup-name[data-groupname="${gi}"]`);
+            if (nameInput) {
+                nameInput.classList.toggle('hidden', e.target.value !== 'new');
+                if (e.target.value === 'new') nameInput.focus();
+            }
+        });
+    }
     if (projectModalConfirm) {
         projectModalConfirm.addEventListener('click', () => {
             if (!projectPreview) return;
             const overrides = {};
+            let missingName = false;
             document.querySelectorAll('.override-select').forEach(sel => {
-                const sid = parseInt(sel.value, 10);
-                if (sid > 0) {
-                    const g = projectPreview.groups[parseInt(sel.dataset.group, 10)];
-                    (g?.files || []).forEach(f => { overrides[f.id] = sid; });
+                const gi = parseInt(sel.dataset.group, 10);
+                const g = projectPreview.groups[gi];
+                if (!g) return;
+                if (sel.value === 'new') {
+                    const nameInput = document.querySelector(`.custom-setup-name[data-groupname="${gi}"]`);
+                    const name = (nameInput?.value || '').trim();
+                    if (!name) {
+                        missingName = true;
+                        if (nameInput) nameInput.focus();
+                        return;
+                    }
+                    (g.files || []).forEach(f => { overrides[f.id] = 'new:' + name; });
+                } else {
+                    const sid = parseInt(sel.value, 10);
+                    if (sid > 0) {
+                        (g.files || []).forEach(f => { overrides[f.id] = sid; });
+                    }
                 }
             });
+            if (missingName) return;
             const payload = { project_id: projectPreview.projectId, ids: projectPreview.ids, overrides };
             if (projectPreview.projectId === 0 && projectPreview.newProject) {
                 payload.new_project = projectPreview.newProject;

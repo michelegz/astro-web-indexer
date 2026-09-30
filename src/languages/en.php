@@ -333,5 +333,7 @@ return [
     'projects_add_force_setup' => 'Force into setup:',
     'projects_add_use_matched' => 'As matched',
     'projects_add_analyzing' => 'Analyzing…',
+    'projects_add_new_setup' => '＋ New custom setup…',
+    'projects_add_new_setup_name' => 'Custom setup name',
 
 ];

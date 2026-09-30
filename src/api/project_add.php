@@ -31,13 +31,27 @@ if (empty($ids)) {
 // Cap batch size to keep the request bounded.
 $ids = array_slice($ids, 0, 2000);
 
-// Per-file setup override: {fileId: setupId}. The setup must belong to the
-// target project; rows are upserted into setup_overrides (explicit choice wins).
+// Per-file setup override: {fileId: setupId | "new:Custom name"}. The setup
+// must belong to the target project; rows are upserted into setup_overrides
+// (explicit choice wins). "new:" creates a custom setup with a synthetic
+// fingerprint suffix: it never auto-matches (engine matches exact
+// fingerprints only), so custom setups fill exclusively by hand/override.
 $overrides = [];
+$customSetups = [];
 if (isset($data['overrides']) && is_array($data['overrides'])) {
     foreach ($data['overrides'] as $fid => $sid) {
-        if (is_numeric($fid) && is_numeric($sid) && (int)$fid > 0 && (int)$sid > 0) {
-            $overrides[(int)$fid] = (int)$sid;
+        if (!is_numeric($fid) || (int)$fid <= 0) {
+            continue;
+        }
+        $fid = (int)$fid;
+        if (is_string($sid) && str_starts_with($sid, 'new:')) {
+            $name = substr(str_replace('|', ' ', trim(substr($sid, 4))), 0, 64);
+            if ($name === '') {
+                continue;
+            }
+            $customSetups[$fid] = $name;
+        } elseif (is_numeric($sid) && (int)$sid > 0) {
+            $overrides[$fid] = (int)$sid;
         }
     }
 }
@@ -75,6 +89,31 @@ try {
     $conn = connectDB();
     if ($newProject !== null) {
         $projectId = createProject($conn, $newProject['name'], $newProject['notes']);
+    }
+    if (!empty($customSetups)) {
+        $fpRow = $conn->prepare(
+            "SELECT instrume, telescop, cameraid, xbinning, ybinning, gain, xpixsz FROM files WHERE id = :fid"
+        );
+        // Only files actually being added can seed a custom setup.
+        $allowed = array_flip($ids);
+        foreach ($customSetups as $fid => $name) {
+            if (!isset($allowed[$fid])) {
+                continue;
+            }
+            $fpRow->execute([':fid' => $fid]);
+            $frow = $fpRow->fetch();
+            if ($frow === false) {
+                continue;
+            }
+            $fp = projectBuildFingerprint($frow) . '|CUSTOM:' . $name;
+            $exists = $conn->prepare(
+                "SELECT id FROM project_setups WHERE project_id = :pid AND fingerprint = :fp"
+            );
+            $exists->execute([':pid' => $projectId, ':fp' => $fp]);
+            $exRow = $exists->fetch();
+            $sid = $exRow !== false ? (int)$exRow['id'] : projectCreateSetup($conn, $projectId, $fp, $name);
+            $overrides[$fid] = $sid;
+        }
     }
     if (!empty($overrides)) {
         $check = $conn->prepare("SELECT id FROM project_setups WHERE id = :sid AND project_id = :pid");
