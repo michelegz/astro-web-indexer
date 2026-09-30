@@ -112,6 +112,12 @@ $detailMode = $detail !== null ? getProjectAssignMode($detail) : 'suggest';
 $detailPending = $detail !== null ? getPendingCount($conn, (int)$detail['id']) : 0;
 $pendingSuggestions = $detail !== null ? getPendingSuggestions($conn, (int)$detail['id'], 200) : [];
 $assignModes = getAssignModes();
+$projectTree = $detail !== null ? getProjectTree($conn, (int)$detail['id']) : null;
+$projectTols = [];
+foreach ($defs as $tkey => $tdef) {
+    $projectTols[$tkey] = $detail !== null ? resolve_tol($conn, (int)$detail['id'], $tkey) : $tdef['default'];
+}
+$projectDiag = $projectTree !== null ? diagnoseProjectTree($projectTree, $projectTols) : [];
 ?>
 <!DOCTYPE html>
 <html lang="<?= htmlspecialchars($lang) ?>">
@@ -346,7 +352,7 @@ $assignModes = getAssignModes();
 
         <section class="bg-gray-800 rounded-lg p-6">
             <h2 class="text-lg font-semibold mb-2"><?= __('projects_tree') ?></h2>
-            <p class="text-sm text-gray-500"><?= __('projects_tree_coming') ?></p>
+            <?php include __DIR__ . '/includes/projects_tree.php'; ?>
         </section>
         <?php endif; ?>
     </main>
