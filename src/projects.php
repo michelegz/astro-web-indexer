@@ -831,24 +831,29 @@ if ($projectBlocked) {
                         .finally(() => window.location.reload());
                 });
                 if (auto) auto.addEventListener('click', () => {
-                    // Classic 3-sigma proposal: mean+3σ for lower-is-better,
-                    // mean-3σ (floored at 0) for higher-is-better. Fills the
+                    // Robust 3-sigma proposal: median ± 3·MAD·1.4826.
+                    // Unlike mean±σ, outliers cannot drag the center or inflate
+                    // the scale (masking), which matters with 3–30 frames per
+                    // group. Direction fixed per metric type as usual. Metrics
+                    // with <4 values or zero spread are left blank. Fills the
                     // inputs without saving: review the preview, then Save.
                     const table = panel.parentElement?.querySelector('.igroup-table');
                     if (!table) return;
                     const rows = igRowsInOrder(table);
-                    const stats = {};
+                    const robust = {};
                     ['hfr', 'fwhm', 'hfr_sd', 'eccentricity', 'star_count', 'snr_weight', 'psf_signal'].forEach(k => {
                         const nums = rows.map(r => r.vals[k]).filter(v => v !== null && v !== undefined);
-                        if (nums.length < 2) return;
-                        const mean = nums.reduce((a, b) => a + b, 0) / nums.length;
-                        const sd = Math.sqrt(nums.reduce((a, b) => a + (b - mean) * (b - mean), 0) / nums.length);
-                        stats[k] = { mean, sd };
+                        if (nums.length < 4) return;
+                        const med = igMedian(nums);
+                        const mad = igMedian(nums.map(v => Math.abs(v - med)));
+                        const sigma = 1.4826 * mad;
+                        if (!(sigma > 0)) return;
+                        robust[k] = { med, sigma };
                     });
                     panel.querySelectorAll('input[data-metric]').forEach(inp => {
-                        const st = stats[inp.dataset.metric];
+                        const st = robust[inp.dataset.metric];
                         if (!st) return;
-                        let t = inp.dataset.dir === 'above' ? st.mean + 3 * st.sd : st.mean - 3 * st.sd;
+                        let t = inp.dataset.dir === 'above' ? st.med + 3 * st.sigma : st.med - 3 * st.sigma;
                         if (inp.dataset.dir === 'below') t = Math.max(0, t);
                         inp.value = String(Number(t.toPrecision(6)));
                     });
