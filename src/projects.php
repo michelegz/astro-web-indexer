@@ -611,10 +611,11 @@ if ($projectBlocked) {
                 const rows = igRowsInOrder(table);
                 const out = new Set();
                 rows.forEach((r, i) => {
+                    // Inclusive comparisons (>=, <=): the clicked bar is always included.
                     const bad = rules.some(rule => {
                         const v = r.vals[rule.key];
                         if (v === null || v === undefined) return false;
-                        return rule.dir === 'above' ? v > rule.t : v < rule.t;
+                        return rule.dir === 'above' ? v >= rule.t : v <= rule.t;
                     });
                     if (bad) out.add(i);
                 });
