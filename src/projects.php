@@ -436,7 +436,7 @@ if ($projectBlocked) {
                         <summary class="cursor-pointer px-4 py-2 hover:bg-gray-700/40 rounded font-medium text-sm">
                             <?= htmlspecialchars($grp['setup_label']) ?> · <?= htmlspecialchars($grp['panel_label']) ?> · <?= __('projects_filter') ?> <?= htmlspecialchars($grp['filter'] !== '' ? $grp['filter'] : '—') ?> · <?= htmlspecialchars(fmtExpShort($grp['exptime'])) ?>
                             <span class="ml-2 text-xs font-normal text-gray-400">
-                                <?= htmlspecialchars(__('projects_lights_count', ['count' => $grp['count']])) ?> · <?= htmlspecialchars(fmtExp((float)$grp['exposure'])) ?> · <?= htmlspecialchars(__('projects_igroup_nights', ['count' => count($grp['nights'])])) ?>: <?= htmlspecialchars(implode(', ', $grp['nights'])) ?>
+                                <?= htmlspecialchars(__('projects_lights_count', ['count' => $grp['count']])) ?> · <span title="<?= htmlspecialchars(fmtExp((float)$grp['exposure'])) ?>"><?= htmlspecialchars(number_format((float)$grp['exposure'] / 3600, 1)) ?> h</span> · <?= htmlspecialchars(__('projects_igroup_nights', ['count' => count($grp['nights'])])) ?>: <?= htmlspecialchars(implode(', ', $grp['nights'])) ?>
                             </span>
                         </summary>
                         <div class="px-4 py-2 overflow-x-auto">
@@ -465,6 +465,17 @@ if ($projectBlocked) {
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
+                                <tfoot>
+                                    <tr class="border-t border-gray-600 font-medium text-gray-200">
+                                        <td class="py-1 px-2"><?= __('projects_igroup_median') ?></td>
+                                        <td class="py-1 px-2"></td>
+                                        <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['hfr'] !== null ? number_format((float)$grp['medians']['hfr'], 2) : '—') ?></td>
+                                        <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['fwhm'] !== null ? number_format((float)$grp['medians']['fwhm'], 2) : '—') ?></td>
+                                        <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['eccentricity'] !== null ? number_format((float)$grp['medians']['eccentricity'], 3) : '—') ?></td>
+                                        <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['star_count'] !== null ? number_format((float)$grp['medians']['star_count'], 0) : '—') ?></td>
+                                        <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['snr_weight'] !== null ? number_format((float)$grp['medians']['snr_weight'], 2) : '—') ?></td>
+                                    </tr>
+                                </tfoot>
                             </table>
                         </div>
                     </details>

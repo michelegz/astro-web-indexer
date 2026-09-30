@@ -295,6 +295,7 @@ return [
     'projects_igroups_empty' => 'Aucun groupe : liez des lights partageant setup, panneau, filtre et exposition.',
     'projects_igroup_nights' => '{count} nuits',
     'projects_igroup_file' => 'Fichier',
+    'projects_igroup_median' => 'Médiane',
     'projects_exposure' => 'Exposition',
     'projects_tol_tol_exp' => 'Regroupement exposition des lights',
     'projects_tol_tol_exp_dark' => 'Correspondance expo dark',

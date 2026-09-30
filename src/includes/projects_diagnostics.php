@@ -478,6 +478,26 @@ function diagnoseProjectTree(array $tree, array $tols): array
 }
 
 /**
+ * Median of a numeric list, ignoring null/empty values. Null when empty.
+ */
+function projectMedian(array $values): ?float
+{
+    $nums = [];
+    foreach ($values as $v) {
+        if ($v !== null && $v !== '') {
+            $nums[] = (float)$v;
+        }
+    }
+    if (empty($nums)) {
+        return null;
+    }
+    sort($nums);
+    $n = count($nums);
+    $mid = intdiv($n, 2);
+    return $n % 2 === 1 ? $nums[$mid] : ($nums[$mid - 1] + $nums[$mid]) / 2.0;
+}
+
+/**
  * Integration groups: enabled linked LIGHTS sharing setup + panel + filter +
  * exposure (tolerance), transversal to sessions (i.e. stackable sets).
  * Returns stable-sorted groups with covered nights and total exposure.
@@ -547,6 +567,13 @@ function getIntegrationGroups(array $tree, float $tolExpFrac): array
                 'lights' => $eg['lights'],
                 'count' => count($eg['lights']),
                 'exposure' => $exp,
+                'medians' => [
+                    'hfr' => projectMedian(array_column($eg['lights'], 'hfr')),
+                    'fwhm' => projectMedian(array_column($eg['lights'], 'fwhm')),
+                    'eccentricity' => projectMedian(array_column($eg['lights'], 'eccentricity')),
+                    'star_count' => projectMedian(array_column($eg['lights'], 'star_count')),
+                    'snr_weight' => projectMedian(array_column($eg['lights'], 'snr_weight')),
+                ],
             ];
         }
     }

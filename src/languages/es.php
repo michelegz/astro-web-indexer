@@ -295,6 +295,7 @@ return [
     'projects_igroups_empty' => 'Sin grupos: enlaza lights con mismo setup, panel, filtro y exposición.',
     'projects_igroup_nights' => '{count} noches',
     'projects_igroup_file' => 'Archivo',
+    'projects_igroup_median' => 'Mediana',
     'projects_exposure' => 'Exposición',
     'projects_tol_tol_exp' => 'Agrupación por exposición',
     'projects_tol_tol_exp_dark' => 'Coincidencia expo dark',
