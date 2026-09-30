@@ -275,6 +275,7 @@ return [
     'projects_filter' => 'Filtro',
     'projects_lights_count' => '{count} lights',
     'projects_no_tree' => 'Proyecto vacío: acepta las sugerencias de arriba para llenarlo.',
+    'projects_pending_hypo' => 'Sugerencia pendiente — mostrada como si aceptada',
     'projects_tol_tol_exp_dark' => 'Coincidencia expo dark',
     'projects_tol_tol_temp' => 'Coincidencia temperatura sensor',
     'projects_tol_tol_rot' => 'Separación rotación panel',

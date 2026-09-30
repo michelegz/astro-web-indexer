@@ -137,8 +137,13 @@ function bestCalibStatus(array $candidates, callable $matcher): string
 /**
  * Full project tree with files attached, in one batched read.
  * Calibrations stay at their linked level; lights hang under filter groups.
+ *
+ * With $includePending, pending wizard suggestions are merged as hypothetical
+ * rows (marked 'pending' => true): the tree shows where files would land if
+ * accepted. diagnoseProjectTree() always ignores them. Branches holding only
+ * pending rows are shown (hypothetical content); fully empty ones are hidden.
  */
-function getProjectTree(PDO $conn, int $projectId): array
+function getProjectTree(PDO $conn, int $projectId, bool $includePending = false): array
 {
     $tree = ['setups' => [], 'project_links' => []];
 
@@ -186,6 +191,25 @@ function getProjectTree(PDO $conn, int $projectId): array
     );
     $links->execute([':pid' => $projectId, ':pid2' => $projectId, ':pid3' => $projectId, ':pid4' => $projectId]);
     $linkRows = $links->fetchAll();
+
+    if ($includePending) {
+        $pend = $conn->prepare(
+            "SELECT s.level, s.node_id, s.filter_name, s.role, "
+            . "CASE WHEN UPPER(f.imgtype) = 'LIGHT' THEN 1 ELSE 0 END AS is_light, "
+            . "f.id AS file_id, f.name, f.path, f.imgtype, f.filter, f.exptime, f.date_obs, "
+            . "f.xbinning, f.ybinning, f.gain, f.ccd_temp "
+            . "FROM project_suggestions s JOIN files f ON f.id = s.file_id "
+            . "WHERE s.project_id = :pid AND s.status = 'pending' "
+            . "ORDER BY s.created_at ASC LIMIT 2000"
+        );
+        $pend->execute([':pid' => $projectId]);
+        foreach ($pend->fetchAll() as $prow) {
+            $prow['pending'] = true;
+            // Rows pointing at deleted nodes are ignored by construction:
+            // the tree walk below only visits existing setup/panel/session rows.
+            $linkRows[] = $prow;
+        }
+    }
 
     // Index sessions by panel, links by level+node.
     $sessionsByPanel = [];
@@ -291,7 +315,8 @@ function getProjectTree(PDO $conn, int $projectId): array
 }
 
 /**
- * Diagnostics for every light in the tree. Returns [file_id => ['dark'=>s,'flat'=>s,'bias'=>s]].
+ * Diagnostics for every LINKED light in the tree. Returns [file_id => [...]].
+ * Pending (hypothetical) rows are ignored, both as lights and as candidates.
  * Candidate pool per light = calibrations linked at filter/session/panel/setup/project
  * levels along its own chain (masters shadow subs per level+type).
  */
@@ -310,7 +335,11 @@ function diagnoseProjectTree(array $tree, array $tols): array
                 $sessionCals = array_merge($panelCals, $session['calibrations']);
                 foreach ($session['filters'] as $filter) {
                     $pool = array_merge($sessionCals, $filter['calibrations']);
+                    $pool = array_values(array_filter($pool, fn($c) => empty($c['pending'])));
                     foreach ($filter['lights'] as $light) {
+                        if (!empty($light['pending'])) {
+                            continue;
+                        }
                         $darks = array_values(array_filter($pool, fn($c) => strtoupper((string)$c['imgtype']) === 'DARK'));
                         $flats = array_values(array_filter($pool, fn($c) => strtoupper((string)$c['imgtype']) === 'FLAT'));
                         $biases = array_values(array_filter($pool, fn($c) => strtoupper((string)$c['imgtype']) === 'BIAS'));

@@ -110,9 +110,9 @@ $defs = getToleranceDefs();
 $detailOverrides = $detail !== null ? getProjectTolerances($detail['tolerances']) : [];
 $detailMode = $detail !== null ? getProjectAssignMode($detail) : 'suggest';
 $detailPending = $detail !== null ? getPendingCount($conn, (int)$detail['id']) : 0;
-$pendingSuggestions = $detail !== null ? getPendingSuggestions($conn, (int)$detail['id'], 200) : [];
+$pendingSuggestions = $detail !== null ? getPendingSuggestions($conn, (int)$detail['id'], 1000) : [];
 $assignModes = getAssignModes();
-$projectTree = $detail !== null ? getProjectTree($conn, (int)$detail['id']) : null;
+$projectTree = $detail !== null ? getProjectTree($conn, (int)$detail['id'], true) : null;
 $projectTols = [];
 foreach ($defs as $tkey => $tdef) {
     $projectTols[$tkey] = $detail !== null ? resolve_tol($conn, (int)$detail['id'], $tkey) : $tdef['default'];
@@ -234,8 +234,9 @@ $projectDiag = $projectTree !== null ? diagnoseProjectTree($projectTree, $projec
         </section>
 
         <section class="mb-6 bg-gray-800 rounded-lg p-6">
-            <h2 class="text-lg font-semibold mb-2"><?= __('projects_assign_mode') ?></h2>
-            <p class="text-sm text-gray-400 mb-4"><?= __('projects_assign_intro') ?></p>
+            <details open>
+                <summary class="text-lg font-semibold cursor-pointer"><?= __('projects_assign_mode') ?></summary>
+                <p class="text-sm text-gray-400 my-4"><?= __('projects_assign_intro') ?></p>
             <form method="POST" class="flex flex-col gap-3">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <input type="hidden" name="action" value="save_mode">
@@ -248,9 +249,10 @@ $projectDiag = $projectTree !== null ? diagnoseProjectTree($projectTree, $projec
                         <span>
                             <span class="text-gray-200 font-medium"><?= htmlspecialchars(__('projects_mode_' . $mode)) ?></span>
                             <?php if ($mode === 'suggest'): ?>
-                                <span class="ml-2 inline-block px-2 py-0.5 text-xs rounded <?= $detailPending > 0 ? 'bg-yellow-900/50 border border-yellow-700 text-yellow-300' : 'bg-gray-700 text-gray-400' ?>">
+                                <button type="button" id="sugModalOpen"
+                                        class="ml-2 inline-block px-2 py-0.5 text-xs rounded transition-colors <?= $detailPending > 0 ? 'bg-yellow-900/50 border border-yellow-700 text-yellow-300 hover:bg-yellow-800/50' : 'bg-gray-700 text-gray-400 hover:bg-gray-600' ?>">
                                     <?= htmlspecialchars(__('projects_pending', ['count' => $detailPending])) ?>
-                                </span>
+                                </button>
                             <?php endif; ?>
                             <br>
                             <span class="text-gray-400"><?= htmlspecialchars(__('projects_mode_' . $mode . '_desc')) ?></span>
@@ -263,11 +265,13 @@ $projectDiag = $projectTree !== null ? diagnoseProjectTree($projectTree, $projec
                     </button>
                 </div>
             </form>
+            </details>
         </section>
 
         <section class="mb-6 bg-gray-800 rounded-lg p-6">
-            <h2 class="text-lg font-semibold mb-2"><?= __('projects_tolerances') ?></h2>
-            <p class="text-sm text-gray-400 mb-4"><?= __('projects_tolerances_intro') ?></p>
+            <details>
+                <summary class="text-lg font-semibold cursor-pointer"><?= __('projects_tolerances') ?></summary>
+                <p class="text-sm text-gray-400 my-4"><?= __('projects_tolerances_intro') ?></p>
             <form method="POST" class="flex flex-col gap-3">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <input type="hidden" name="action" value="save_tolerances">
@@ -294,11 +298,16 @@ $projectDiag = $projectTree !== null ? diagnoseProjectTree($projectTree, $projec
                     </button>
                 </div>
             </form>
+            </details>
         </section>
 
-        <section class="mb-6 bg-gray-800 rounded-lg p-6">
-            <h2 class="text-lg font-semibold mb-2"><?= __('projects_review', ['count' => $detailPending]) ?></h2>
-            <p class="text-sm text-gray-400 mb-4"><?= __('projects_review_intro') ?></p>
+        <div id="sugModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60">
+            <div class="bg-gray-800 rounded-lg p-6 w-full max-w-4xl max-h-[85vh] overflow-y-auto">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="text-lg font-semibold"><?= __('projects_review', ['count' => $detailPending]) ?></h2>
+                    <button type="button" id="sugModalClose" class="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
+                </div>
+                <p class="text-sm text-gray-400 mb-4"><?= __('projects_review_intro') ?></p>
             <?php if (empty($pendingSuggestions)): ?>
                 <p class="text-gray-500 text-sm"><?= __('projects_no_pending') ?></p>
             <?php else: ?>
@@ -348,7 +357,28 @@ $projectDiag = $projectTree !== null ? diagnoseProjectTree($projectTree, $projec
                 </div>
             </form>
             <?php endif; ?>
-        </section>
+            </div>
+        </div>
+        <script>
+        (function () {
+            const modal = document.getElementById('sugModal');
+            const openBtn = document.getElementById('sugModalOpen');
+            const closeBtn = document.getElementById('sugModalClose');
+            function open() {
+                if (!modal) return;
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+            function close() {
+                if (!modal) return;
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+            if (openBtn) openBtn.addEventListener('click', open);
+            if (closeBtn) closeBtn.addEventListener('click', close);
+            if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+        })();
+        </script>
 
         <section class="bg-gray-800 rounded-lg p-6">
             <h2 class="text-lg font-semibold mb-2"><?= __('projects_tree') ?></h2>
