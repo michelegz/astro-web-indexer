@@ -666,8 +666,8 @@ if ($projectBlocked) {
                             onClick: (evt, elements) => {
                                 // Clicking a bar sets its value as the threshold
                                 // for that metric (median line clicks ignored).
-                                // Rounded OUTWARD (floor for above, ceil for below)
-                                // so the clicked bar is always included.
+                                // Rounded OUTWARD at 3 decimals (floor for above,
+                                // ceil for below) so the clicked bar is always included.
                                 if (!elements || !elements.length || elements[0].datasetIndex !== 0) return;
                                 const table = document.querySelector('.igroup-table[data-group="' + gi + '"]');
                                 if (!table) return;
@@ -677,9 +677,9 @@ if ($projectBlocked) {
                                 const inp = panel?.querySelector('input[data-metric="' + s.key + '"]');
                                 if (!inp) return;
                                 const outward = inp.dataset.dir === 'above'
-                                    ? Math.floor(val * 100) / 100
-                                    : Math.ceil(val * 100) / 100;
-                                inp.value = outward.toFixed(2);
+                                    ? Math.floor(val * 1000) / 1000
+                                    : Math.ceil(val * 1000) / 1000;
+                                inp.value = outward.toFixed(3);
                                 igRefreshPanel(panel);
                             },
                             plugins: {
