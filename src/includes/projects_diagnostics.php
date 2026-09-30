@@ -540,6 +540,7 @@ function getIntegrationGroups(array $tree, float $tolExpFrac): array
                             ];
                         }
                         $li['night'] = (string)$session['astro_night'];
+                        $li['link_key'] = (int)$li['file_id'] . ':' . ($li['level'] ?? 'filter') . ':' . (int)$session['id'];
                         $pools[$key]['lights'][] = $li;
                     }
                 }

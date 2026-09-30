@@ -428,6 +428,13 @@ if ($projectBlocked) {
 
         <section class="bg-gray-800 rounded-lg p-6">
             <h2 class="text-lg font-semibold mb-2"><?= __('projects_igroups') ?></h2>
+            <div id="igCtxMenu" class="hidden fixed bg-gray-800 border border-gray-600 rounded-lg shadow-xl py-1 text-sm" style="z-index: 60; min-width: 190px;">
+                <div id="igCtxTitle" class="px-3 py-1 text-xs text-gray-400 border-b border-gray-700"></div>
+                <button type="button" data-op="enable-upper" class="block w-full text-left px-3 py-1.5 hover:bg-gray-700"><?= __('projects_ctx_enable_upper') ?></button>
+                <button type="button" data-op="disable-upper" class="block w-full text-left px-3 py-1.5 hover:bg-gray-700"><?= __('projects_ctx_disable_upper') ?></button>
+                <button type="button" data-op="enable-lower" class="block w-full text-left px-3 py-1.5 hover:bg-gray-700"><?= __('projects_ctx_enable_lower') ?></button>
+                <button type="button" data-op="disable-lower" class="block w-full text-left px-3 py-1.5 hover:bg-gray-700"><?= __('projects_ctx_disable_lower') ?></button>
+            </div>
             <?php if (!empty($intGroups)): ?>
             <script src="assets/js/vendor/chart.umd.min.js"></script>
             <?php endif; ?>
@@ -457,7 +464,7 @@ if ($projectBlocked) {
                                 </thead>
                                 <tbody>
                                     <?php foreach ($grp['lights'] as $li): ?>
-                                        <tr class="border-b border-gray-700/40" data-enabled="<?= !empty($li['enabled']) ? '1' : '0' ?>" data-hfr-sd="<?= htmlspecialchars((string)($li['hfr_sd'] ?? '')) ?>" data-psf="<?= htmlspecialchars((string)($li['psf_signal'] ?? '')) ?>">
+                                        <tr class="border-b border-gray-700/40" data-enabled="<?= !empty($li['enabled']) ? '1' : '0' ?>" data-hfr-sd="<?= htmlspecialchars((string)($li['hfr_sd'] ?? '')) ?>" data-psf="<?= htmlspecialchars((string)($li['psf_signal'] ?? '')) ?>" data-linkkey="<?= htmlspecialchars((string)($li['link_key'] ?? '')) ?>">
                                             <td class="py-1 px-2" data-val="<?= htmlspecialchars((string)$li['name']) ?>"><?= htmlspecialchars($li['name']) ?></td>
                                             <td class="py-1 px-2" data-val="<?= htmlspecialchars((string)($li['date_obs'] ?? '')) ?>"><?= htmlspecialchars((string)($li['date_obs'] ?? '')) ?></td>
                                             <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['hfr'] ?? '')) ?>"><?= htmlspecialchars($li['hfr'] !== null && $li['hfr'] !== '' ? number_format((float)$li['hfr'], 2) : '—') ?></td>
@@ -569,7 +576,7 @@ if ($projectBlocked) {
                     IGROUP_SERIES.forEach(s => {
                         vals[s.key] = s.cell !== undefined ? num(cells[s.cell]?.dataset.val) : num(tr.dataset[s.attr]);
                     });
-                    return { name: cells[0]?.dataset.val || '', enabled: tr.dataset.enabled === '1', vals };
+                    return { name: cells[0]?.dataset.val || '', enabled: tr.dataset.enabled === '1', linkkey: tr.dataset.linkkey || '', vals };
                 });
             }
             function igBuildGroup(gi) {
@@ -613,6 +620,7 @@ if ($projectBlocked) {
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
+                            onClick: (evt, elements) => igBarClick(gi, s, elements, evt),
                             plugins: {
                                 title: { display: true, text: s.label, color: '#e5e7eb', font: { size: 13, weight: 'bold' } },
                                 legend: { labels: { color: tickColor, boxWidth: 20 } },
@@ -634,6 +642,62 @@ if ($projectBlocked) {
                     });
                 });
             }
+            let igCtx = null; // {table, metricKey, threshold}
+            function igHideCtx() {
+                const m = document.getElementById('igCtxMenu');
+                if (m) m.classList.add('hidden');
+                igCtx = null;
+            }
+            function igBarClick(gi, series, elements, evt) {
+                if (!elements || !elements.length || elements[0].datasetIndex !== 0) return;
+                const table = document.querySelector('.igroup-table[data-group="' + gi + '"]');
+                if (!table) return;
+                const rows = igRowsInOrder(table);
+                const bar = rows[elements[0].index];
+                const val = bar ? bar.vals[series.key] : null;
+                if (val === null || val === undefined) return;
+                igCtx = { table, metricKey: series.key, threshold: val };
+                const menu = document.getElementById('igCtxMenu');
+                const title = document.getElementById('igCtxTitle');
+                if (title) title.textContent = series.label + ' = ' + val;
+                if (menu) {
+                    menu.classList.remove('hidden');
+                    const x = (evt.native?.clientX ?? evt.clientX ?? 0);
+                    const y = (evt.native?.clientY ?? evt.clientY ?? 0);
+                    menu.style.left = Math.min(x, window.innerWidth - 210) + 'px';
+                    menu.style.top = Math.min(y, window.innerHeight - 180) + 'px';
+                }
+            }
+            document.addEventListener('click', (e) => {
+                // Canvas clicks open the menu via Chart onClick; don't close it right away.
+                if (!e.target.closest('#igCtxMenu') && e.target.tagName !== 'CANVAS') igHideCtx();
+            });
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape') igHideCtx(); });
+            document.querySelectorAll('#igCtxMenu [data-op]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (!igCtx) return;
+                    const [action, side] = btn.dataset.op.split('-');
+                    const rows = igRowsInOrder(igCtx.table);
+                    const keys = rows
+                        .filter(r => {
+                            const v = r.vals[igCtx.metricKey];
+                            if (v === null || !r.linkkey) return false;
+                            return side === 'upper' ? v >= igCtx.threshold : v <= igCtx.threshold;
+                        })
+                        .map(r => r.linkkey);
+                    igHideCtx();
+                    if (!keys.length) return;
+                    const csrf = document.querySelector('#treeBulkForm input[name="csrf_token"]')?.value || '';
+                    const pid = document.querySelector('#treeBulkForm input[name="project_id"]')?.value || '';
+                    const fd = new FormData();
+                    fd.append('csrf_token', csrf);
+                    fd.append('project_id', pid);
+                    fd.append('action', action === 'enable' ? 'enable_links' : 'disable_links');
+                    keys.forEach(k => fd.append('link_keys[]', k));
+                    fetch(window.location.pathname + window.location.search, { method: 'POST', body: fd })
+                        .finally(() => window.location.reload());
+                });
+            });
             function refreshIgroupCharts(table) {
                 const groupDetails = table.closest('details');
                 const wrap = groupDetails ? groupDetails.querySelector('.igroup-charts-wrap') : null;
