@@ -234,7 +234,7 @@ $projectDiag = $projectTree !== null ? diagnoseProjectTree($projectTree, $projec
         </section>
 
         <section class="mb-6 bg-gray-800 rounded-lg p-6">
-            <details open>
+            <details>
                 <summary class="text-lg font-semibold cursor-pointer"><?= __('projects_assign_mode') ?></summary>
                 <p class="text-sm text-gray-400 my-4"><?= __('projects_assign_intro') ?></p>
             <form method="POST" class="flex flex-col gap-3">
