@@ -593,13 +593,27 @@ if ($projectBlocked) {
                             <details class="igroup-charts-wrap" data-group="<?= (int)$gi ?>">
                                 <summary class="cursor-pointer px-4 py-1.5 hover:bg-gray-700/40 rounded text-sm text-gray-300">📊 <?= __('projects_igroup_charts') ?></summary>
                                 <div class="flex flex-col gap-4 mt-2 igroup-charts">
+                                    <?php
+                                    $igSeriesLabels = [
+                                        'hfr' => __('hfr') . ' (px)',
+                                        'fwhm' => __('fwhm') . ' (arcsec)',
+                                        'hfr_sd' => __('hfr_sd') . ' (px)',
+                                        'eccentricity' => __('eccentricity'),
+                                        'star_count' => __('star_count'),
+                                        'snr_weight' => __('snr_weight'),
+                                        'psf_signal' => __('psf_signal'),
+                                    ];
+                                    ?>
                                     <?php foreach (['hfr', 'fwhm', 'hfr_sd', 'eccentricity', 'star_count', 'snr_weight', 'psf_signal'] as $mi => $mk): ?>
                                     <?php $mkHasData = count(array_filter($grp['lights'], fn($mli) => isset($mli[$mk]) && $mli[$mk] !== '' && $mli[$mk] !== null)) > 0; ?>
                                     <?php if (!$mkHasData) continue; ?>
                                     <div>
-                                        <div class="flex justify-end gap-1 mb-1">
-                                            <button type="button" class="ig-sort text-gray-400 hover:text-white text-xs px-1" data-group="<?= (int)$gi ?>" data-metric="<?= $mk ?>" data-dir="asc" title="<?= __('projects_sort_asc') ?>">▲</button>
-                                            <button type="button" class="ig-sort text-gray-400 hover:text-white text-xs px-1" data-group="<?= (int)$gi ?>" data-metric="<?= $mk ?>" data-dir="desc" title="<?= __('projects_sort_desc') ?>">▼</button>
+                                        <div class="flex items-center justify-between mb-1">
+                                            <span class="text-xs font-bold" style="color: #e5e7eb;"><?= htmlspecialchars($igSeriesLabels[$mk] ?? $mk) ?></span>
+                                            <span class="flex gap-1">
+                                                <button type="button" class="ig-sort text-gray-400 hover:text-white text-xs px-1" data-group="<?= (int)$gi ?>" data-metric="<?= $mk ?>" data-dir="asc" title="<?= __('projects_sort_asc') ?>">▲</button>
+                                                <button type="button" class="ig-sort text-gray-400 hover:text-white text-xs px-1" data-group="<?= (int)$gi ?>" data-metric="<?= $mk ?>" data-dir="desc" title="<?= __('projects_sort_desc') ?>">▼</button>
+                                            </span>
                                         </div>
                                         <div style="height: 190px"><canvas id="ig-chart-<?= (int)$gi ?>-<?= (int)$mi ?>"></canvas></div>
                                     </div>
@@ -802,7 +816,7 @@ if ($projectBlocked) {
                                 igRefreshPanel(panel);
                             },
                             plugins: {
-                                title: { display: true, text: s.label, color: '#e5e7eb', font: { size: 13, weight: 'bold' } },
+                                title: { display: false },
                                 legend: { labels: { color: tickColor, boxWidth: 20 } },
                                 tooltip: {
                                     callbacks: {
