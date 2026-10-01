@@ -116,8 +116,8 @@ if (empty($projectTree['setups'])): ?>
                     <summary class="cursor-pointer px-4 py-2 bg-gray-700/50 rounded-t-lg font-semibold">
                         <?= __('projects_setup') ?> S<?= (int)($setup['setup_no'] ?? $setup['id']) ?>: <?= htmlspecialchars($setup['label'] !== null && $setup['label'] !== '' ? $setup['label'] : substr((string)$setup['fingerprint'], 0, 48)) ?>
                         <button type="button" class="setup-rename ml-1 text-gray-400 hover:text-white text-sm leading-none align-baseline" title="<?= __('projects_setup_rename') ?>" data-setup-id="<?= (int)$setup['id'] ?>" data-setup-name="<?= htmlspecialchars($setup['label'] ?? '') ?>">✏️</button>
-                        <span class="ml-2 text-xs font-normal text-gray-400"><?= htmlspecialchars(subtreeSummaryText($setup)) ?></span>
                         <div class="text-xs font-mono font-normal text-gray-500 mt-0.5"><?= htmlspecialchars(str_replace('|', ' | ', (string)($setup['fingerprint'] ?? ''))) ?></div>
+                        <div class="text-xs font-normal text-gray-400 mt-0.5"><?= htmlspecialchars(subtreeSummaryText($setup)) ?></div>
                     </summary>
                     <div class="px-4 py-2">
                         <?php renderCalRows($setup['calibrations'], 'setup', (int)$setup['id']); ?>
