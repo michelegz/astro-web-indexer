@@ -488,7 +488,7 @@ if ($projectBlocked) {
                             <?= htmlspecialchars(__('projects_lights_count', ['count' => $grp['count']])) ?> · <span title="<?= htmlspecialchars(fmtExp((float)$grp['exposure'])) ?>"><?= htmlspecialchars(number_format((float)$grp['exposure'] / 3600, 1)) ?> h</span> · <?= htmlspecialchars(__('projects_igroup_nights', ['count' => count($grp['nights'])])) ?>: <?= htmlspecialchars(implode(', ', $grp['nights'])) ?> · <?= htmlspecialchars(__('projects_igroup_excluded', ['total' => $grpAuto])) ?>
                         </div>
                         <details>
-                            <summary class="cursor-pointer px-4 py-1.5 hover:bg-gray-700/40 rounded text-sm text-gray-300"><?= __('projects_igroup_show_files', ['count' => count($grp['lights'])]) ?></summary>
+                            <summary class="cursor-pointer px-4 py-1.5 hover:bg-gray-700/40 rounded text-sm text-gray-300">📁 <?= __('projects_igroup_show_files', ['count' => count($grp['lights'])]) ?></summary>
                         <div class="px-4 py-2 overflow-x-auto">
                             <table class="w-full text-xs text-left igroup-table" data-group="<?= (int)$gi ?>">
                                 <thead class="text-gray-400 border-b border-gray-700">
@@ -538,7 +538,7 @@ if ($projectBlocked) {
                         </div>
                     </details>
                     <details>
-                        <summary class="cursor-pointer px-4 py-1.5 hover:bg-gray-700/40 rounded text-sm text-gray-300"><?= __('projects_reject_title') ?></summary>
+                        <summary class="cursor-pointer px-4 py-1.5 hover:bg-gray-700/40 rounded text-sm text-gray-300">📏 <?= __('projects_reject_title') ?></summary>
                         <div class="px-4 py-2">
                             <div class="igroup-reject" data-setup="<?= (int)$grp['setup_id'] ?>" data-panel="<?= (int)$grp['panel_id'] ?>" data-filter="<?= htmlspecialchars($grp['filter']) ?>" data-exp="<?= htmlspecialchars((string)($grp['exptime'] ?? '')) ?>">
                                 <div class="flex flex-wrap gap-x-4 gap-y-2">
