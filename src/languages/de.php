@@ -311,7 +311,6 @@ return [
     'projects_reject_above' => 'darüber ausschließen',
     'projects_reject_below' => 'darunter ausschließen',
     'projects_reject_save' => 'Grenzen speichern',
-    'projects_reject_auto' => 'Auto 5σ',
     'projects_reject_reset' => 'Zurücksetzen',
     'projects_thresholds_saved' => 'Grenzen gespeichert.',
     'projects_auto_off' => 'auto',

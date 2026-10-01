@@ -567,9 +567,11 @@ if ($projectBlocked) {
                                     <button type="button" class="reject-save px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors">
                                         <?= __('projects_reject_save') ?>
                                     </button>
-                                    <button type="button" class="reject-auto px-3 py-1 text-sm bg-purple-700 hover:bg-purple-600 text-white rounded transition-colors">
-                                        <?= __('projects_reject_auto') ?>
+                                    <?php foreach ([5, 4, 3.5] as $sig): ?>
+                                    <button type="button" class="reject-auto px-3 py-1 text-sm bg-purple-700 hover:bg-purple-600 text-white rounded transition-colors" data-sigma="<?= $sig ?>">
+                                        Auto <?= $sig ?>σ
                                     </button>
+                                    <?php endforeach; ?>
                                     <button type="button" class="reject-reset px-3 py-1 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors">
                                         <?= __('projects_reject_reset') ?>
                                     </button>
@@ -1003,7 +1005,6 @@ if ($projectBlocked) {
             document.querySelectorAll('.igroup-reject').forEach(panel => {
                 panel.addEventListener('input', () => igRefreshPanel(panel));
                 const save = panel.querySelector('.reject-save');
-                const auto = panel.querySelector('.reject-auto');
                 const reset = panel.querySelector('.reject-reset');
                 const postThresholds = () => {
                     const csrf = document.querySelector('#treeBulkForm input[name="csrf_token"]')?.value || '';
@@ -1027,34 +1028,35 @@ if ($projectBlocked) {
                     fetch(window.location.pathname + window.location.search, { method: 'POST', body: fd })
                         .finally(() => window.location.reload());
                 });
-                if (auto) auto.addEventListener('click', () => {
-                    // Very permissive robust proposal: median ± 5·MAD·1.4826.
-                    // Only truly bad frames go out; borderline ones stay in.
-                    // Direction fixed per metric type as usual. Metrics
-                    // with <4 values or zero spread are left blank. Fills the
-                    // inputs without saving: review the preview, then Save.
+                panel.querySelectorAll('.reject-auto').forEach(autoBtn => autoBtn.addEventListener('click', () => {
+                    // Permissive robust proposal: median ± k·MAD·1.4826, with k
+                    // from the button (5/4/3.5σ). Only truly bad frames go out;
+                    // borderline ones stay in. Direction fixed per metric type
+                    // as usual. Metrics with <4 values or zero spread are left
+                    // blank. Fills the inputs without saving: review, then Save.
+                    const k = parseFloat(autoBtn.dataset.sigma) || 5;
                     const table = panel.closest('.igroup')?.querySelector('.igroup-table');
                     if (!table) return;
                     const rows = igRowsInOrder(table);
                     const robust = {};
-                    ['hfr', 'fwhm', 'hfr_sd', 'eccentricity', 'star_count', 'snr_weight', 'psf_signal'].forEach(k => {
-                        const nums = rows.map(r => r.vals[k]).filter(v => v !== null && v !== undefined);
+                    ['hfr', 'fwhm', 'hfr_sd', 'eccentricity', 'star_count', 'snr_weight', 'psf_signal'].forEach(mk => {
+                        const nums = rows.map(r => r.vals[mk]).filter(v => v !== null && v !== undefined);
                         if (nums.length < 4) return;
                         const med = igMedian(nums);
                         const mad = igMedian(nums.map(v => Math.abs(v - med)));
                         const sigma = 1.4826 * mad;
                         if (!(sigma > 0)) return;
-                        robust[k] = { med, sigma };
+                        robust[mk] = { med, sigma };
                     });
                     panel.querySelectorAll('input[data-metric]').forEach(inp => {
                         const st = robust[inp.dataset.metric];
                         if (!st) return;
-                        let t = inp.dataset.dir === 'above' ? st.med + 5 * st.sigma : st.med - 5 * st.sigma;
+                        let t = inp.dataset.dir === 'above' ? st.med + k * st.sigma : st.med - k * st.sigma;
                         if (inp.dataset.dir === 'below') t = Math.max(0, t);
                         inp.value = String(Number(t.toPrecision(6)));
                     });
                     igRefreshPanel(panel);
-                });
+                }));
                 if (reset) reset.addEventListener('click', () => {
                     // Clear fields and persist immediately (deletes the row).
                     panel.querySelectorAll('input[data-metric]').forEach(inp => { inp.value = ''; });

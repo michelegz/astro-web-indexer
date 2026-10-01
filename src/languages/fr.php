@@ -312,7 +312,6 @@ return [
     'projects_reject_above' => 'rejeter au-dessus',
     'projects_reject_below' => 'rejeter en dessous',
     'projects_reject_save' => 'Enregistrer les seuils',
-    'projects_reject_auto' => 'Auto 5σ',
     'projects_reject_reset' => 'Réinitialiser',
     'projects_thresholds_saved' => 'Seuils enregistrés.',
     'projects_auto_off' => 'auto',
