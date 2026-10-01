@@ -261,6 +261,7 @@ return [
     'projects_delete' => 'Löschen',
     'projects_confirm_delete' => 'Dieses Projekt und alle Verknüpfungen löschen? Dateien auf der Platte bleiben unberührt.',
     'projects_save' => 'Speichern',
+    'projects_cancel' => 'Abbrechen',
     'projects_tolerances' => 'Toleranzen',
     'projects_tolerances_intro' => 'Pro-Projekt-Overrides für Setup-/Panel-Zuordnung und Kalibrierprüfungen. Leer = Standardwert wird übernommen.',
     'projects_inherit_default' => 'Standard: {value}',

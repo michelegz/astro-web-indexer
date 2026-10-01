@@ -448,6 +448,18 @@ if ($projectBlocked) {
                 </div>
                 <?php include __DIR__ . '/includes/projects_tree.php'; ?>
             </form>
+            <div id="renameModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60">
+                <div class="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+                    <h3 class="text-lg font-semibold mb-4"><?= __('projects_setup_rename') ?></h3>
+                    <input type="text" id="renameInput" maxlength="255"
+                           placeholder="<?= __('projects_setup_rename_prompt') ?>"
+                           class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100">
+                    <div class="flex justify-end gap-2 mt-4">
+                        <button type="button" id="renameCancel" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"><?= __('projects_cancel') ?></button>
+                        <button type="button" id="renameSave" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"><?= __('projects_save') ?></button>
+                    </div>
+                </div>
+            </div>
             <div class="text-xs text-gray-400 mt-4 flex flex-wrap items-center gap-x-4 gap-y-1">
                 <span class="font-semibold"><?= __('projects_legend') ?>:</span>
                 <span class="inline-flex gap-1 items-center"><?= diagBox('green', 'B', __('projects_cal_bias')) ?><?= diagBox('green', 'D', __('projects_cal_dark')) ?><?= diagBox('green', 'F', __('projects_cal_flat')) ?> <span><?= htmlspecialchars(__('projects_legend_calib')) ?></span></span>
@@ -1123,21 +1135,54 @@ if ($projectBlocked) {
                     }
                 }
             });
-            // Rename setup custom label via prompt (empty clears it).
-            const renamePrompt = <?= json_encode(__('projects_setup_rename_prompt')) ?>;
+            // Rename setup custom label via modal (empty clears it).
+            // The pencil lives inside <summary>: stop the click from also
+            // toggling the details element.
+            const renameModal = document.getElementById('renameModal');
+            const renameInput = document.getElementById('renameInput');
+            let renameSetupId = 0;
+            function openRenameModal(btn) {
+                if (!renameModal || !renameInput) return;
+                renameSetupId = parseInt(btn.dataset.setupId || '0', 10);
+                renameInput.value = btn.dataset.setupName || '';
+                renameModal.classList.remove('hidden');
+                renameModal.classList.add('flex');
+                renameInput.focus();
+                renameInput.select();
+            }
+            function closeRenameModal() {
+                if (!renameModal) return;
+                renameModal.classList.add('hidden');
+                renameModal.classList.remove('flex');
+                renameSetupId = 0;
+            }
             form.addEventListener('click', (e) => {
                 const btn = e.target.closest('.setup-rename');
                 if (!btn) return;
-                const name = window.prompt(renamePrompt, btn.dataset.setupName || '');
-                if (name === null) return;
+                e.preventDefault();
+                e.stopPropagation();
+                openRenameModal(btn);
+            });
+            document.getElementById('renameCancel')?.addEventListener('click', closeRenameModal);
+            renameModal?.addEventListener('click', (e) => { if (e.target === renameModal) closeRenameModal(); });
+            document.getElementById('renameSave')?.addEventListener('click', () => {
+                if (!renameSetupId) return;
                 const fd = new FormData();
                 fd.append('csrf_token', form.querySelector('input[name="csrf_token"]')?.value || '');
                 fd.append('project_id', form.querySelector('input[name="project_id"]')?.value || '');
                 fd.append('action', 'rename_setup');
-                fd.append('setup_id', btn.dataset.setupId || '');
-                fd.append('name', name.trim());
+                fd.append('setup_id', renameSetupId);
+                fd.append('name', renameInput ? renameInput.value.trim() : '');
                 fetch(window.location.pathname + window.location.search, { method: 'POST', body: fd })
                     .finally(() => window.location.reload());
+            });
+            renameInput?.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    document.getElementById('renameSave')?.click();
+                } else if (e.key === 'Escape') {
+                    closeRenameModal();
+                }
             });
         })();
         </script>

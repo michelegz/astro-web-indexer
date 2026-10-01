@@ -262,6 +262,7 @@ return [
     'projects_delete' => 'Delete',
     'projects_confirm_delete' => 'Delete this project and all its links? Files on disk are not touched.',
     'projects_save' => 'Save',
+    'projects_cancel' => 'Cancel',
     'projects_tolerances' => 'Tolerances',
     'projects_tolerances_intro' => 'Per-project overrides for setup/panel matching and calibration checks. Leave empty to inherit the default value.',
     'projects_inherit_default' => 'default: {value}',

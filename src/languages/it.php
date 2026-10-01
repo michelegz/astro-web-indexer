@@ -262,6 +262,7 @@ return [
     'projects_delete' => 'Elimina',
     'projects_confirm_delete' => 'Eliminare questo progetto e tutti i suoi collegamenti? I file su disco non vengono toccati.',
     'projects_save' => 'Salva',
+    'projects_cancel' => 'Annulla',
     'projects_tolerances' => 'Tolleranze',
     'projects_tolerances_intro' => 'Override per-progetto per matching di setup/pannelli e controlli calibrazioni. Lascia vuoto per ereditare il valore di default.',
     'projects_inherit_default' => 'default: {value}',

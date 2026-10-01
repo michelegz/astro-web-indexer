@@ -262,6 +262,7 @@ return [
     'projects_delete' => 'Supprimer',
     'projects_confirm_delete' => 'Supprimer ce projet et tous ses liens ? Les fichiers sur disque ne sont pas touchés.',
     'projects_save' => 'Enregistrer',
+    'projects_cancel' => 'Annuler',
     'projects_tolerances' => 'Tolérances',
     'projects_tolerances_intro' => 'Surcharges par projet pour l’appariement setup/panneau et les contrôles de calibration. Vide = valeur par défaut héritée.',
     'projects_inherit_default' => 'défaut : {value}',

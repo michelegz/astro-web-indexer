@@ -262,6 +262,7 @@ return [
     'projects_delete' => 'Eliminar',
     'projects_confirm_delete' => '¿Eliminar este proyecto y todos sus enlaces? Los archivos en disco no se tocan.',
     'projects_save' => 'Guardar',
+    'projects_cancel' => 'Cancelar',
     'projects_tolerances' => 'Tolerancias',
     'projects_tolerances_intro' => 'Ajustes por proyecto para emparejar setups/paneles y comprobar calibraciones. Vacío = hereda el valor por defecto.',
     'projects_inherit_default' => 'defecto: {value}',
