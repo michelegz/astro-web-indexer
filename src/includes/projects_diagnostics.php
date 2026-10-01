@@ -567,6 +567,7 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
                         if (!isset($pools[$key])) {
                             $pools[$key] = [
                                 'setup_id' => (int)$setup['id'],
+                                'setup_no' => (int)($setup['setup_no'] ?? $setup['id']),
                                 'setup_label' => $setupLabel,
                                 'panel_id' => (int)$panel['id'],
                                 'panel_no' => (int)($panel['panel_no'] ?? $panel['id']),
@@ -618,6 +619,7 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
             sort($nightList);
             $groups[] = [
                 'setup_id' => $pool['setup_id'],
+                'setup_no' => $pool['setup_no'],
                 'panel_id' => $pool['panel_id'],
                 'tkey' => $tkey,
                 'thresholds' => $tols,
@@ -643,8 +645,8 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
         }
     }
     usort($groups, fn($a, $b) =>
-        [$a['setup_label'], $a['panel_no'], $a['filter'], (float)($a['exptime'] ?? -1)]
-        <=> [$b['setup_label'], $b['panel_no'], $b['filter'], (float)($b['exptime'] ?? -1)]);
+        [$a['setup_no'], $a['panel_no'], $a['filter'], (float)($a['exptime'] ?? -1)]
+        <=> [$b['setup_no'], $b['panel_no'], $b['filter'], (float)($b['exptime'] ?? -1)]);
     return $groups;
 }
 
