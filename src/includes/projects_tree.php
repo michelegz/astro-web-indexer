@@ -7,9 +7,9 @@
 function fmtExp(float $seconds): string
 {
     if ($seconds >= 3600) {
-        return number_format($seconds, 0) . ' s (' . number_format($seconds / 3600, 1) . ' h)';
+        return number_format($seconds, 0, '.', '') . ' s (' . number_format($seconds / 3600, 1, '.', '') . ' h)';
     }
-    return number_format($seconds, 0) . ' s';
+    return number_format($seconds, 0, '.', '') . ' s';
 }
 
 function linkKey(array $li, string $level, int $node): string
