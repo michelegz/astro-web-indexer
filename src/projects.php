@@ -477,7 +477,7 @@ if ($projectBlocked) {
                 </div>
                 <?php foreach ($intGroups as $gi => $grp): ?>
                     <?php $grpAuto = count(array_filter($grp['lights'], fn($li) => !empty($li['auto_off']))); ?>
-                    <div class="mb-2 border border-gray-700 rounded-lg">
+                    <div class="mb-2 border border-gray-700 rounded-lg igroup" data-group="<?= (int)$gi ?>">
                         <div class="px-4 pt-2 text-sm font-medium">
                             <?= htmlspecialchars($grp['setup_label']) ?> · <?= htmlspecialchars($grp['panel_label']) ?> · <?= __('projects_filter') ?> <?= htmlspecialchars($grp['filter'] !== '' ? $grp['filter'] : '—') ?> · <?= htmlspecialchars(fmtExpShort($grp['exptime'])) ?>
                         </div>
@@ -532,8 +532,12 @@ if ($projectBlocked) {
                                     </tr>
                                 </tfoot>
                             </table>
-                            <div class="mt-3 border border-gray-700 rounded p-3 igroup-reject" data-setup="<?= (int)$grp['setup_id'] ?>" data-panel="<?= (int)$grp['panel_id'] ?>" data-filter="<?= htmlspecialchars($grp['filter']) ?>" data-exp="<?= htmlspecialchars((string)($grp['exptime'] ?? '')) ?>">
-                                <div class="text-xs font-semibold text-gray-300 mb-2"><?= __('projects_reject_title') ?></div>
+                        </div>
+                    </details>
+                    <details>
+                        <summary class="cursor-pointer px-4 py-1.5 hover:bg-gray-700/40 rounded text-sm text-gray-300"><?= __('projects_reject_title') ?></summary>
+                        <div class="px-4 py-2">
+                            <div class="igroup-reject" data-setup="<?= (int)$grp['setup_id'] ?>" data-panel="<?= (int)$grp['panel_id'] ?>" data-filter="<?= htmlspecialchars($grp['filter']) ?>" data-exp="<?= htmlspecialchars((string)($grp['exptime'] ?? '')) ?>">
                                 <div class="flex flex-wrap gap-x-4 gap-y-2">
                                     <?php
                                     $rejLabels = ['hfr' => __('hfr'), 'fwhm' => __('fwhm'), 'hfr_sd' => __('hfr_sd'), 'eccentricity' => __('eccentricity'), 'star_count' => __('star_count'), 'snr_weight' => __('snr_weight'), 'psf_signal' => __('psf_signal')];
@@ -569,6 +573,8 @@ if ($projectBlocked) {
                                     <span class="reject-count text-xs text-gray-400"></span>
                                 </div>
                             </div>
+                        </div>
+                    </details>
                             <?php
                             $grpHasMetrics = false;
                             foreach ($grp['lights'] as $mli) {
@@ -590,8 +596,6 @@ if ($projectBlocked) {
                                 </div>
                             </details>
                             <?php endif; ?>
-                        </div>
-                    </details>
                     </div>
                 <?php endforeach; ?>
             <?php endif; ?>
@@ -666,7 +670,7 @@ if ($projectBlocked) {
             // active threshold (direction fixed per metric). Returns rejected
             // row indices; files missing the metric are never rejected by it.
             function igRejectedIndices(table) {
-                const panel = table.parentElement?.querySelector('.igroup-reject');
+                const panel = table.closest('.igroup')?.querySelector('.igroup-reject');
                 if (!panel) return new Set();
                 const rules = Array.from(panel.querySelectorAll('input[data-metric]'))
                     .map(inp => ({ key: inp.dataset.metric, dir: inp.dataset.dir, t: inp.value.trim() === '' ? null : parseFloat(inp.value) }))
@@ -703,7 +707,7 @@ if ($projectBlocked) {
                     const med = igMedian(rows.filter((r, i) => r.enabled && !rejected.has(i)).map(r => r.vals[s.key]));
                     // Active threshold for this metric (same inputs as evaluation).
                     let thr = null;
-                    const thrInp = table.parentElement?.querySelector('.igroup-reject input[data-metric="' + s.key + '"]');
+                    const thrInp = table.closest('.igroup')?.querySelector('.igroup-reject input[data-metric="' + s.key + '"]');
                     if (thrInp && thrInp.value.trim() !== '') {
                         const tv = parseFloat(thrInp.value);
                         if (!isNaN(tv)) thr = tv;
@@ -758,7 +762,7 @@ if ($projectBlocked) {
                                 if (!table) return;
                                 const val = igRowsInOrder(table)[elements[0].index]?.vals[s.key];
                                 if (val === null || val === undefined) return;
-                                const panel = table.parentElement?.querySelector('.igroup-reject');
+                                const panel = table.closest('.igroup')?.querySelector('.igroup-reject');
                                 const inp = panel?.querySelector('input[data-metric="' + s.key + '"]');
                                 if (!inp) return;
                                 inp.value = String(val);
@@ -786,8 +790,8 @@ if ($projectBlocked) {
                 });
             }
             function refreshIgroupCharts(table) {
-                const groupDetails = table.closest('details');
-                const wrap = groupDetails ? groupDetails.querySelector('.igroup-charts-wrap') : null;
+                const root = table.closest('.igroup');
+                const wrap = root ? root.querySelector('.igroup-charts-wrap') : null;
                 if (wrap && wrap.open) igBuildGroup(table.dataset.group);
             }
             document.querySelectorAll('.igroup-charts-wrap').forEach(wrap => {
@@ -805,7 +809,7 @@ if ($projectBlocked) {
             // rejected by it. Save persists thresholds; they alone decide inclusion.
             const IGROUP_REJECT_COUNT = <?= json_encode(__('projects_reject_count')) ?>;
             function igEvalPanel(panel) {
-                const table = panel.parentElement?.querySelector('.igroup-table');
+                const table = panel.closest('.igroup')?.querySelector('.igroup-table');
                 if (!table) return [];
                 const rejected = igRejectedIndices(table);
                 const rows = igRowsInOrder(table);
@@ -819,7 +823,7 @@ if ($projectBlocked) {
             }
             function igRefreshPanel(panel) {
                 const count = panel.querySelector('.reject-count');
-                const table = panel.parentElement?.querySelector('.igroup-table');
+                const table = panel.closest('.igroup')?.querySelector('.igroup-table');
                 const total = table ? table.querySelectorAll('tbody tr').length : 0;
                 // Store hits on the panel for the count display.
                 panel._hits = igEvalPanel(panel);
@@ -829,7 +833,7 @@ if ($projectBlocked) {
                         .replace('{total}', total);
                 }
                 // Keep bar colors in sync when charts are already built.
-                const rtable = panel.parentElement?.querySelector('.igroup-table');
+                const rtable = panel.closest('.igroup')?.querySelector('.igroup-table');
                 if (rtable) {
                     const rwrap = document.querySelector('.igroup-charts-wrap[data-group="' + rtable.dataset.group + '"]');
                     if (rwrap && rwrap.open && rwrap.dataset.built) igBuildGroup(rtable.dataset.group);
@@ -868,7 +872,7 @@ if ($projectBlocked) {
                     // Direction fixed per metric type as usual. Metrics
                     // with <4 values or zero spread are left blank. Fills the
                     // inputs without saving: review the preview, then Save.
-                    const table = panel.parentElement?.querySelector('.igroup-table');
+                    const table = panel.closest('.igroup')?.querySelector('.igroup-table');
                     if (!table) return;
                     const rows = igRowsInOrder(table);
                     const robust = {};
