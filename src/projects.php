@@ -451,20 +451,17 @@ if ($projectBlocked) {
                 <p class="text-sm text-gray-500"><?= __('projects_igroups_empty') ?></p>
             <?php else: ?>
                 <?php foreach ($intGroups as $gi => $grp): ?>
-                    <details class="mb-2 border border-gray-700 rounded-lg">
-                        <summary class="cursor-pointer px-4 py-2 hover:bg-gray-700/40 rounded font-medium text-sm">
+                    <?php $grpAuto = count(array_filter($grp['lights'], fn($li) => !empty($li['auto_off']))); ?>
+                    <div class="mb-2 border border-gray-700 rounded-lg">
+                        <div class="px-4 pt-2 text-sm font-medium">
                             <?= htmlspecialchars($grp['setup_label']) ?> · <?= htmlspecialchars($grp['panel_label']) ?> · <?= __('projects_filter') ?> <?= htmlspecialchars($grp['filter'] !== '' ? $grp['filter'] : '—') ?> · <?= htmlspecialchars(fmtExpShort($grp['exptime'])) ?>
-                            <span class="ml-2 text-xs font-normal text-gray-400">
-                                <?= htmlspecialchars(__('projects_lights_count', ['count' => $grp['count']])) ?> · <span title="<?= htmlspecialchars(fmtExp((float)$grp['exposure'])) ?>"><?= htmlspecialchars(number_format((float)$grp['exposure'] / 3600, 1)) ?> h</span> · <?= htmlspecialchars(__('projects_igroup_nights', ['count' => count($grp['nights'])])) ?>: <?= htmlspecialchars(implode(', ', $grp['nights'])) ?>
-                            </span>
-                        </summary>
+                        </div>
+                        <div class="px-4 pb-2 text-xs text-gray-400">
+                            <?= htmlspecialchars(__('projects_lights_count', ['count' => $grp['count']])) ?> · <span title="<?= htmlspecialchars(fmtExp((float)$grp['exposure'])) ?>"><?= htmlspecialchars(number_format((float)$grp['exposure'] / 3600, 1)) ?> h</span> · <?= htmlspecialchars(__('projects_igroup_nights', ['count' => count($grp['nights'])])) ?>: <?= htmlspecialchars(implode(', ', $grp['nights'])) ?> · <?= htmlspecialchars(__('projects_igroup_excluded', ['total' => $grpAuto])) ?>
+                        </div>
+                        <details>
+                            <summary class="cursor-pointer px-4 py-1.5 hover:bg-gray-700/40 rounded text-sm text-gray-300"><?= __('projects_igroup_show_files', ['count' => count($grp['lights'])]) ?></summary>
                         <div class="px-4 py-2 overflow-x-auto">
-                            <?php
-                            $grpAuto = count(array_filter($grp['lights'], fn($li) => !empty($li['auto_off'])));
-                            ?>
-                            <div class="text-xs text-gray-400 mb-2">
-                                <?= htmlspecialchars(__('projects_igroup_excluded', ['total' => $grpAuto])) ?>
-                            </div>
                             <table class="w-full text-xs text-left igroup-table" data-group="<?= (int)$gi ?>">
                                 <thead class="text-gray-400 border-b border-gray-700">
                                     <tr>
@@ -570,6 +567,7 @@ if ($projectBlocked) {
                             <?php endif; ?>
                         </div>
                     </details>
+                    </div>
                 <?php endforeach; ?>
             <?php endif; ?>
         </section>

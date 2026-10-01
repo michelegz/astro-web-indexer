@@ -297,6 +297,7 @@ return [
     'projects_igroup_file' => 'File',
     'projects_igroup_median' => 'Mediana',
     'projects_igroup_excluded' => 'Esclusi da soglie: {total}',
+    'projects_igroup_show_files' => 'Mostra file ({count})',
     'projects_igroup_charts' => 'Grafici',
     'projects_reject_title' => 'Soglie di scarto',
     'projects_reject_hint' => 'Vuoto = metrica ignorata. Un file è scartato se fallisce una qualsiasi soglia impostata. Clicca una barra del grafico per usarne il valore come soglia.',

@@ -297,6 +297,7 @@ return [
     'projects_igroup_file' => 'Fichier',
     'projects_igroup_median' => 'Médiane',
     'projects_igroup_excluded' => 'Exclus par seuils : {total}',
+    'projects_igroup_show_files' => 'Afficher les fichiers ({count})',
     'projects_igroup_charts' => 'Graphiques',
     'projects_reject_title' => 'Seuils de rejet',
     'projects_reject_hint' => 'Vide = métrique ignorée. Un fichier est rejeté dès qu’il échoue à un seuil. Cliquez une barre du graphique pour utiliser sa valeur comme seuil.',

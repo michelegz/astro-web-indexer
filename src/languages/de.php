@@ -296,6 +296,7 @@ return [
     'projects_igroup_file' => 'Datei',
     'projects_igroup_median' => 'Median',
     'projects_igroup_excluded' => 'Durch Grenzen ausgeschlossen: {total}',
+    'projects_igroup_show_files' => 'Dateien anzeigen ({count})',
     'projects_igroup_charts' => 'Diagramme',
     'projects_reject_title' => 'Ausschlussgrenzen',
     'projects_reject_hint' => 'Leer = Metrik ignoriert. Eine Datei scheidet aus, sobald sie eine Grenze reißt. Balken im Diagramm anklicken, um seinen Wert als Grenze zu übernehmen.',
