@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sffResultsPanel = document.getElementById('sffResultsPanel');
     const sffFindBtn = document.getElementById('sffFindBtn');
     const sffDownloadBtn = document.getElementById('sffDownloadBtn');
+    const sffAddToProjectBtn = document.getElementById('sffAddToProjectBtn');
     const sffResultCount = document.getElementById('sffResultCount');
     const sffTotalExposure = document.getElementById('sffTotalExposure');
 
@@ -35,7 +36,8 @@ document.addEventListener('DOMContentLoaded', () => {
         sffResultsPanel.innerHTML = `<div class="text-center p-4 text-gray-400">${window.i18n.sff_configure_and_run}</div>`;
         sffResultCount.textContent = '';
         sffTotalExposure.textContent = '';
-        sffDownloadBtn.disabled = true;
+        if (sffDownloadBtn) sffDownloadBtn.disabled = true;
+        if (sffAddToProjectBtn) sffAddToProjectBtn.disabled = true;
 
         const currentLang = document.documentElement.lang || 'en';
 
@@ -170,7 +172,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateSffDownloadButtonState() {
         const anySelected = sffResultsPanel.querySelector('.sff-file-checkbox:checked');
-        sffDownloadBtn.disabled = !anySelected;
+        if (sffDownloadBtn) sffDownloadBtn.disabled = !anySelected;
+        if (sffAddToProjectBtn) sffAddToProjectBtn.disabled = !anySelected;
     }
 
     // Handle "Select All" checkbox
@@ -213,6 +216,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+
+    // Handle Add to project button click: reuse the main table flow
+    // (project picker, preview, confirm) with the SFF selection.
+    if (sffAddToProjectBtn) {
+        sffAddToProjectBtn.addEventListener('click', () => {
+            const ids = Array.from(sffResultsPanel.querySelectorAll('.sff-file-checkbox:checked'))
+                .map(cb => parseInt(cb.dataset.id, 10))
+                .filter(id => Number.isInteger(id) && id > 0);
+            if (ids.length === 0) return;
+            if (typeof window.awiOpenProjectModal === 'function') {
+                window.awiOpenProjectModal(ids);
+            }
+        });
+    }
 
     // Handle Download button click
     if (sffDownloadBtn) {

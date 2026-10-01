@@ -306,6 +306,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- ADD TO PROJECT (2 steps: destination -> preview -> confirm) ---
     let projectPreview = null; // {ids, projectId, newProject, groups, skipped, setups, panels}
+    let projectModalIds = null; // explicit id list override (SFF modal); null = main table selection
     const projectStep1 = document.getElementById('projectStep1');
     const projectStep2 = document.getElementById('projectStep2');
     const projectModalAnalyze = document.getElementById('projectModalAnalyze');
@@ -334,8 +335,13 @@ document.addEventListener('DOMContentLoaded', () => {
             ? 'mb-4 p-3 rounded text-sm bg-green-900/50 border border-green-700 text-green-300'
             : 'mb-4 p-3 rounded text-sm bg-red-900/50 border border-red-700 text-red-300';
     }
-    function openProjectModal() {
+    function openProjectModal(ids = null) {
         if (!projectModal) return;
+        // Optional explicit id list (e.g. from the SFF modal); otherwise the
+        // main table selection is used at analyze time.
+        projectModalIds = Array.isArray(ids)
+            ? ids.map(id => parseInt(id, 10)).filter(id => Number.isInteger(id) && id > 0)
+            : null;
         if (projectAddMsg) {
             projectAddMsg.classList.add('hidden');
             projectAddMsg.textContent = '';
@@ -345,6 +351,8 @@ document.addEventListener('DOMContentLoaded', () => {
         projectModal.classList.remove('hidden');
         projectModal.classList.add('flex');
     }
+    // Entry point for other UI surfaces (SFF modal) reusing this same flow.
+    window.awiOpenProjectModal = openProjectModal;
     function closeProjectModal() {
         if (!projectModal) return;
         projectModal.classList.add('hidden');
@@ -446,7 +454,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (projectModalAnalyze) {
         projectModalAnalyze.addEventListener('click', () => {
-            const ids = selectedFileIds();
+            const ids = projectModalIds ?? selectedFileIds();
             if (ids.length === 0) return;
             const choice = projectChoice();
             if (choice.projectId === 0 && !choice.newProject.name) {
