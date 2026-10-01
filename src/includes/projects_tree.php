@@ -131,7 +131,7 @@ if (empty($projectTree['setups'])): ?>
                             <div class="tnode mb-2">
                                 <div class="flex items-start gap-2">
                                     <input type="checkbox" class="pgroup-check mt-2 rounded bg-gray-600 border-gray-500" title="<?= __('projects_select_group') ?>">
-                                    <details class="flex-1 min-w-0 border border-gray-700/60 rounded">
+                                    <details open class="flex-1 min-w-0 border border-gray-700/60 rounded">
                                         <summary class="cursor-pointer px-3 py-1.5 hover:bg-gray-700/40 rounded font-medium">
                                             <?= __('projects_panel') ?> <?= htmlspecialchars($plabel) ?>
                                             <span class="ml-2 text-xs font-normal text-gray-400"><?= htmlspecialchars(subtreeSummaryText($panel)) ?></span>
