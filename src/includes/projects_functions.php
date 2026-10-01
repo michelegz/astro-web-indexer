@@ -813,10 +813,16 @@ function projectFindSetup(PDO $conn, int $projectId, string $fingerprint): ?int
 
 function projectCreateSetup(PDO $conn, int $projectId, string $fingerprint, ?string $label): int
 {
-    $ins = $conn->prepare(
-        "INSERT INTO project_setups (project_id, fingerprint, label) VALUES (:pid, :fp, :label)"
+    // Next consecutive number within the project (stable: never reused).
+    $maxNo = $conn->prepare(
+        "SELECT COALESCE(MAX(setup_no), 0) FROM project_setups WHERE project_id = :pid"
     );
-    $ins->execute([':pid' => $projectId, ':fp' => $fingerprint, ':label' => $label]);
+    $maxNo->execute([':pid' => $projectId]);
+    $nextNo = (int)$maxNo->fetchColumn() + 1;
+    $ins = $conn->prepare(
+        "INSERT INTO project_setups (project_id, fingerprint, label, setup_no) VALUES (:pid, :fp, :label, :no)"
+    );
+    $ins->execute([':pid' => $projectId, ':fp' => $fingerprint, ':label' => $label, ':no' => $nextNo]);
     return (int)$conn->lastInsertId();
 }
 
@@ -913,7 +919,7 @@ function projectFindOrCreateSession(PDO $conn, int $panelId, string $night): int
 
 function getProjectSetups(PDO $conn, int $projectId): array
 {
-    $stmt = $conn->prepare("SELECT id, fingerprint, label FROM project_setups WHERE project_id = :pid ORDER BY id ASC");
+    $stmt = $conn->prepare("SELECT id, fingerprint, label, setup_no FROM project_setups WHERE project_id = :pid ORDER BY id ASC");
     $stmt->execute([':pid' => $projectId]);
     return $stmt->fetchAll();
 }

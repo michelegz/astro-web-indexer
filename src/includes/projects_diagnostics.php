@@ -174,7 +174,7 @@ function getProjectTree(PDO $conn, int $projectId, bool $includePending = false)
 {
     $tree = ['setups' => [], 'project_links' => []];
 
-    $setups = $conn->prepare("SELECT id, fingerprint, label FROM project_setups WHERE project_id = :pid ORDER BY id ASC");
+    $setups = $conn->prepare("SELECT id, fingerprint, label, setup_no FROM project_setups WHERE project_id = :pid ORDER BY id ASC");
     $setups->execute([':pid' => $projectId]);
     $setupRows = $setups->fetchAll();
     if (empty($setupRows)) {

@@ -53,6 +53,7 @@ try {
         'skipped' => $preview['skipped'],
         'setups' => array_map(fn($s) => [
             'id' => (int)$s['id'],
+            'no' => isset($s['setup_no']) ? (int)$s['setup_no'] : null,
             'label' => ($s['label'] !== null && $s['label'] !== '') ? (string)$s['label'] : substr((string)$s['fingerprint'], 0, 48),
             'fingerprint' => (string)$s['fingerprint'],
         ], $setups),

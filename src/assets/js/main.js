@@ -386,14 +386,18 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (previewMixed) {
             previewMixed.classList.add('hidden');
         }
-        const setupById = {};
-        (data.setups || []).forEach(s => { setupById[s.id] = s.label; });
-        let html = '';
-        data.groups.forEach((g, gi) => {
-            const setupTitle = g.setup_new
-                ? escHtml(t.project_add_setup_new || 'New setup') + ' — ' + escHtml(g.setup_label || g.fp.slice(0, 48))
-                : escHtml(setupById[g.setup_id] || g.setup_label || g.fp.slice(0, 48));
-            html += `<div class="border border-gray-700 rounded p-3"><div class="font-medium mb-1">${setupTitle} <span class="text-xs text-gray-400">(${g.files.length})</span></div>`;
+            const setupById = {};
+            (data.setups || []).forEach(s => { setupById[s.id] = s; });
+            const setupDisplay = (s) => (s.no !== null && s.no !== undefined ? 'S' + s.no + ': ' : '') + s.label;
+            let html = '';
+            data.groups.forEach((g, gi) => {
+                const matched = setupById[g.setup_id];
+                const setupTitle = g.setup_new
+                    ? escHtml(t.project_add_setup_new || 'New setup') + ' — ' + escHtml(g.setup_label || g.fp.slice(0, 48))
+                    : escHtml(matched ? setupDisplay(matched) : (g.setup_label || g.fp.slice(0, 48)));
+                const setupFp = !g.setup_new && matched && matched.fingerprint
+                    ? `<div class="text-xs font-mono text-gray-500 mt-0.5">${escHtml(String(matched.fingerprint).split('|').join(' | '))}</div>` : '';
+                html += `<div class="border border-gray-700 rounded p-3"><div class="font-medium mb-1">${setupTitle} <span class="text-xs text-gray-400">(${g.files.length})</span>${setupFp}</div>`;
             // Override: only *other* setups are offered (the matched one would be a no-op duplicate),
             // plus creating a brand-new custom setup (e.g. two identical rigs to keep separate).
             // Always shown: even with no other setups, a custom one can be created.
@@ -401,7 +405,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const others = (data.setups || []).filter(s => s.id !== g.setup_id);
                 html += `<label class="block text-xs text-gray-400 mb-1">${escHtml(t.project_add_force_setup || 'Force into setup:')} <select data-group="${gi}" class="override-select mt-1 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100 text-xs"><option value="0">${escHtml(t.project_add_use_matched || 'As matched')}</option>`;
                 others.forEach(s => {
-                    html += `<option value="${s.id}">${escHtml(s.label)}</option>`;
+                    html += `<option value="${s.id}">${escHtml(setupDisplay(s))}</option>`;
                 });
                 html += `<option value="new">${escHtml(t.project_add_new_setup || '＋ New custom setup…')}</option>`;
                 html += `</select></label><input type="text" data-groupname="${gi}" maxlength="64" placeholder="${escHtml(t.project_add_new_setup_name || 'Custom setup name')}" class="custom-setup-name hidden mt-1 mb-2 w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100 text-xs">`;

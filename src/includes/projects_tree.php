@@ -114,8 +114,9 @@ if (empty($projectTree['setups'])): ?>
                 <input type="checkbox" class="pgroup-check mt-3 rounded bg-gray-600 border-gray-500" title="<?= __('projects_select_group') ?>">
                 <details open class="flex-1 min-w-0 border border-gray-700 rounded-lg">
                     <summary class="cursor-pointer px-4 py-2 bg-gray-700/50 rounded-t-lg font-semibold">
-                        <?= __('projects_setup') ?>: <?= htmlspecialchars($setup['label'] !== null && $setup['label'] !== '' ? $setup['label'] : substr((string)$setup['fingerprint'], 0, 48)) ?>
+                        <?= __('projects_setup') ?> S<?= (int)($setup['setup_no'] ?? $setup['id']) ?>: <?= htmlspecialchars($setup['label'] !== null && $setup['label'] !== '' ? $setup['label'] : substr((string)$setup['fingerprint'], 0, 48)) ?>
                         <span class="ml-2 text-xs font-normal text-gray-400"><?= htmlspecialchars(subtreeSummaryText($setup)) ?></span>
+                        <div class="text-xs font-mono font-normal text-gray-500 mt-0.5"><?= htmlspecialchars(str_replace('|', ' | ', (string)($setup['fingerprint'] ?? ''))) ?></div>
                     </summary>
                     <div class="px-4 py-2">
                         <?php renderCalRows($setup['calibrations'], 'setup', (int)$setup['id']); ?>

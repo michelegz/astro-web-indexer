@@ -99,7 +99,8 @@ unset($__s, $__p, $__sess, $__f);
         <?php if (!setupHasPend($setup)) continue; ?>
         <details open class="mb-3 border border-gray-700 rounded-lg">
             <summary class="cursor-pointer px-4 py-2 bg-gray-700/50 rounded-t-lg font-semibold text-sm">
-                <?= __('projects_setup') ?>: <?= htmlspecialchars($setup['label'] !== null && $setup['label'] !== '' ? $setup['label'] : substr((string)$setup['fingerprint'], 0, 48)) ?>
+                <?= __('projects_setup') ?> S<?= (int)($setup['setup_no'] ?? $setup['id']) ?>: <?= htmlspecialchars($setup['label'] !== null && $setup['label'] !== '' ? $setup['label'] : substr((string)$setup['fingerprint'], 0, 48)) ?>
+                <div class="text-xs font-mono font-normal text-gray-500 mt-0.5"><?= htmlspecialchars(str_replace('|', ' | ', (string)($setup['fingerprint'] ?? ''))) ?></div>
             </summary>
             <div class="px-4 py-2">
                 <?php $setupPendCals = array_values(array_filter($setup['calibrations'], fn($c) => !empty($c['pending']))); ?>
