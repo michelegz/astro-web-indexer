@@ -625,6 +625,10 @@ if ($projectBlocked) {
                 <?php endforeach; ?>
             <?php endif; ?>
         </section>
+        <div id="igBlink" class="hidden fixed bg-gray-800 border border-gray-600 rounded-lg shadow-xl p-2 pointer-events-none" style="z-index: 60; width: 340px;">
+            <div id="igBlinkName" class="text-xs text-gray-300 truncate mb-1"></div>
+            <img id="igBlinkImg" class="w-full h-auto rounded" style="max-height: 60vh; object-fit: contain;" alt="">
+        </div>
         <script>
         (function () {
             // Clickable headers sort each integration group table (numeric-aware).
@@ -947,6 +951,66 @@ if ($projectBlocked) {
                     if (save) save.click();
                 });
                 igRefreshPanel(panel);
+            });
+        })();
+        </script>
+        <script>
+        (function () {
+            // Blink window: hovering a row of an integration group table shows
+            // its stretched preview in a floating window, so frames can be
+            // blinked through by moving the mouse down the rows.
+            const box = document.getElementById('igBlink');
+            const img = document.getElementById('igBlinkImg');
+            const name = document.getElementById('igBlinkName');
+            if (!box || !img) return;
+            let currentKey = null;
+            function hide() {
+                box.classList.add('hidden');
+                currentKey = null;
+            }
+            function place(x, y) {
+                const w = 360, h = 420;
+                box.style.left = Math.min(x + 16, window.innerWidth - w) + 'px';
+                box.style.top = Math.max(8, Math.min(y + 16, window.innerHeight - h)) + 'px';
+            }
+            document.addEventListener('mouseover', (e) => {
+                const tr = e.target.closest ? e.target.closest('.igroup-table tbody tr') : null;
+                if (!tr) return;
+                const key = tr.dataset.linkkey || '';
+                const fid = parseInt(key.split(':')[0], 10);
+                if (!Number.isInteger(fid) || fid <= 0) return;
+                if (key !== currentKey) {
+                    currentKey = key;
+                    const label = tr.querySelector('td')?.dataset.val || '';
+                    if (name) name.textContent = label;
+                    img.src = '/image.php?id=' + fid + '&type=thumb';
+                }
+                box.classList.remove('hidden');
+                place(e.clientX, e.clientY);
+            });
+            document.addEventListener('mousemove', (e) => {
+                if (currentKey !== null) place(e.clientX, e.clientY);
+            });
+            document.addEventListener('mouseout', (e) => {
+                const to = e.relatedTarget;
+                if (!to || !to.closest || !to.closest('.igroup-table tbody tr')) hide();
+            }, true);
+            document.addEventListener('scroll', hide, true);
+            // Preload a group's previews when expanded, so blinking is instant.
+            document.querySelectorAll('.igroup-table').forEach(table => {
+                const details = table.closest('details');
+                if (!details || details.dataset.preloaded) return;
+                details.addEventListener('toggle', () => {
+                    if (!details.open || details.dataset.preloaded) return;
+                    details.dataset.preloaded = '1';
+                    table.querySelectorAll('tbody tr').forEach(tr => {
+                        const fid = parseInt((tr.dataset.linkkey || '').split(':')[0], 10);
+                        if (Number.isInteger(fid) && fid > 0) {
+                            const pre = new Image();
+                            pre.src = '/image.php?id=' + fid + '&type=thumb';
+                        }
+                    });
+                });
             });
         })();
         </script>
