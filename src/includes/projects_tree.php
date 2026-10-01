@@ -141,7 +141,7 @@ if (empty($projectTree['setups'])): ?>
                                                                     foreach ($realLights as $li) {
                                                                         $realExp += (float)($li['exptime'] ?? 0);
                                                                     }
-                                                                    $expGroups = clusterExposures($filter['lights'], $tolExpFrac ?? 0.01);
+                                                                    $expGroups = clusterExposures($filter['lights'], $tolExpRaw ?? '1%');
                                                                     ?>
                                                                     <div class="tnode mb-2">
                                                                         <div class="flex items-start gap-2">

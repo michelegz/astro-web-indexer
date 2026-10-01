@@ -33,6 +33,33 @@ function parseTolAbs(string $value, float $default): float
     return $num >= 0 ? $num : $default;
 }
 
+/**
+ * Exposure tolerance in absolute seconds.
+ *
+ * Accepts "10%" (fraction of the reference exposure), "5s" (absolute
+ * seconds) or a bare number (legacy: fraction, as parseTolFraction).
+ * $defaultFraction applies to empty/unparsable values.
+ */
+function expTolSeconds(string $value, float $ref, float $defaultFraction): float
+{
+    if ($ref <= 0) {
+        return 0.0;
+    }
+    $value = trim($value);
+    if ($value === '') {
+        return $ref * $defaultFraction;
+    }
+    if (str_ends_with($value, '%')) {
+        $num = (float)substr($value, 0, -1);
+        return $ref * ($num >= 0 ? $num / 100.0 : $defaultFraction);
+    }
+    if (preg_match('/^([0-9]+(?:\.[0-9]+)?)\s*s$/i', $value, $m)) {
+        return max(0.0, (float)$m[1]);
+    }
+    $num = (float)$value;
+    return $ref * ($num >= 0 ? $num : $defaultFraction);
+}
+
 function sameBinning(array $a, array $b): ?bool
 {
     if ($a['xbinning'] === null || $b['xbinning'] === null) {
@@ -63,7 +90,7 @@ function matchDark(array $light, array $dark, array $tols): string
     if ($ref <= 0) {
         return 'yellow';
     }
-    if (abs((float)$dark['exptime'] - $ref) / $ref > $tol) {
+    if (abs((float)$dark['exptime'] - $ref) > expTolSeconds((string)($tols['tol_exp_dark'] ?? '10%'), $ref, $tol) + 1e-9) {
         return 'red';
     }
     $bin = sameBinning($light, $dark);
@@ -386,13 +413,15 @@ function stripPendingTree(array $tree): array
 
 /**
  * Exposure subgroups for a filter's lights (hierarchy level under filter).
- * Sorted ascending; a new group starts when |v - anchor| / anchor exceeds
- * $tolFrac (anchor = first value of the group). NULL exposures share one
- * group. Same rule feeds the main tree, the wizard modal and the suggester.
+ * Sorted ascending; a new group starts when |v - anchor| exceeds the
+ * tolerance resolved from $tolExpRaw against the anchor ("10%" = fraction
+ * of anchor, "5s" = absolute seconds, bare number = legacy fraction).
+ * NULL exposures share one group. Same rule feeds the main tree, the wizard
+ * modal and the suggester.
  *
  * Returns [['exptime' => ?float, 'lights' => [...]], ...].
  */
-function clusterExposures(array $lights, float $tolFrac): array
+function clusterExposures(array $lights, string $tolExpRaw, float $defaultFraction = 0.01): array
 {
     $withNull = [];
     $withVal = [];
@@ -409,7 +438,7 @@ function clusterExposures(array $lights, float $tolFrac): array
     foreach ($withVal as $li) {
         $v = (float)$li['exptime'];
         $same = $anchor !== null
-            && ($anchor > 0 ? abs($v - $anchor) / $anchor <= $tolFrac : $v == $anchor);
+            && ($anchor > 0 ? abs($v - $anchor) <= expTolSeconds($tolExpRaw, $anchor, $defaultFraction) : $v == $anchor);
         if (!$same) {
             $groups[] = ['exptime' => $v, 'lights' => []];
             $anchor = $v;
@@ -506,7 +535,7 @@ function projectMedian(array $values): ?float
  * 'auto_off' (fails stored thresholds); counts, exposure and medians cover
  * effectively included files (manually enabled AND passing thresholds).
  */
-function getIntegrationGroups(array $tree, float $tolExpFrac, array $thresholdMap = []): array
+function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMap = []): array
 {
     $pools = [];
     foreach ($tree['setups'] ?? [] as $setup) {
@@ -556,7 +585,7 @@ function getIntegrationGroups(array $tree, float $tolExpFrac, array $thresholdMa
     }
     $groups = [];
     foreach ($pools as $pool) {
-        foreach (clusterExposures($pool['lights'], $tolExpFrac) as $eg) {
+        foreach (clusterExposures($pool['lights'], $tolExpRaw) as $eg) {
             $tkey = groupThresholdKey(
                 $pool['setup_id'],
                 $pool['panel_id'],

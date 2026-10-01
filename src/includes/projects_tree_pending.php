@@ -140,7 +140,7 @@ unset($__s, $__p, $__sess, $__f);
                                             <?php $prows = pendFileRows($filter['lights']); ?>
                                             <?php $pcalN = pendCalCount($filter['calibrations']); ?>
                                             <?php if (empty($prows) && $pcalN === 0) continue; ?>
-                                            <?php $expGroups = clusterExposures($prows, $tolExpFrac ?? 0.01); ?>
+                                            <?php $expGroups = clusterExposures($prows, $tolExpRaw ?? '1%'); ?>
                                             <div class="mb-2">
                                                 <div class="text-sm font-medium mb-1">
                                                     ⏳ <?= __('projects_filter') ?> <?= htmlspecialchars($filter['name'] !== '' ? $filter['name'] : '—') ?>

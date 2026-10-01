@@ -159,10 +159,13 @@ $projectTols = [];
 foreach ($defs as $tkey => $tdef) {
     $projectTols[$tkey] = $detail !== null ? resolve_tol($conn, (int)$detail['id'], $tkey) : $tdef['default'];
 }
-$tolExpFrac = parseTolFraction((string)($projectTols['tol_exp'] ?? '1%'), 0.01);
+$tolExpRaw = trim((string)($projectTols['tol_exp'] ?? '1%'));
+if ($tolExpRaw === '') {
+    $tolExpRaw = '1%';
+}
 $projectDiag = $projectTree !== null ? diagnoseProjectTree($projectTree, $projectTols) : [];
 $intGroups = $projectTree !== null
-    ? getIntegrationGroups($projectTree, $tolExpFrac, $detail !== null ? getProjectThresholds($conn, (int)$detail['id']) : [])
+    ? getIntegrationGroups($projectTree, $tolExpRaw, $detail !== null ? getProjectThresholds($conn, (int)$detail['id']) : [])
     : [];
 if ($projectTree !== null && !empty($intGroups)) {
     $projectTree = markTreeAutoOff($projectTree, indexAutoOffLights($intGroups));
