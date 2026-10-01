@@ -672,23 +672,27 @@ if ($projectBlocked) {
             // Shared rejection evaluation for one group table: rows failing any
             // active threshold (direction fixed per metric). Returns rejected
             // row indices; files missing the metric are never rejected by it.
-            function igRejectedIndices(table) {
+            // Shared rejection evaluation for one group table: maps row index
+            // to the set of metric keys whose threshold rejects it (empty =
+            // included). Inclusive comparisons (>=, <=): a clicked bar that
+            // set its own threshold is always included.
+            function igRejectedBy(table) {
                 const panel = table.closest('.igroup')?.querySelector('.igroup-reject');
-                if (!panel) return new Set();
+                if (!panel) return new Map();
                 const rules = Array.from(panel.querySelectorAll('input[data-metric]'))
                     .map(inp => ({ key: inp.dataset.metric, dir: inp.dataset.dir, t: inp.value.trim() === '' ? null : parseFloat(inp.value) }))
                     .filter(r => r.t !== null && !isNaN(r.t));
-                if (!rules.length) return new Set();
+                if (!rules.length) return new Map();
                 const rows = igRowsInOrder(table);
-                const out = new Set();
+                const out = new Map();
                 rows.forEach((r, i) => {
-                    // Inclusive comparisons (>=, <=): the clicked bar is always included.
-                    const bad = rules.some(rule => {
+                    const why = new Set();
+                    rules.forEach(rule => {
                         const v = r.vals[rule.key];
-                        if (v === null || v === undefined) return false;
-                        return rule.dir === 'above' ? v >= rule.t : v <= rule.t;
+                        if (v === null || v === undefined) return;
+                        if (rule.dir === 'above' ? v >= rule.t : v <= rule.t) why.add(rule.key);
                     });
-                    if (bad) out.add(i);
+                    if (why.size) out.set(i, why);
                 });
                 return out;
             }
@@ -706,7 +710,7 @@ if ($projectBlocked) {
                     if (igCharts[cid]) { igCharts[cid].destroy(); delete igCharts[cid]; }
                     const data = rows.map(r => r.vals[s.key]);
                     if (!data.some(v => v !== null)) return;
-                    const rejected = igRejectedIndices(table);
+                    const rejected = igRejectedBy(table);
                     const med = igMedian(rows.filter((r, i) => r.enabled && !rejected.has(i)).map(r => r.vals[s.key]));
                     // Active threshold for this metric (same inputs as evaluation).
                     let thr = null;
@@ -718,8 +722,11 @@ if ($projectBlocked) {
                     const datasets = [{
                         label: s.label,
                         data,
-                        backgroundColor: rows.map((r, i) => rejected.has(i) ? IGROUP_OFF_COLOR : s.color),
-                        borderWidth: 0,
+                        // Rejected by THIS metric: black bar with red border.
+                        // Rejected by another threshold: grey. Included: series color.
+                        backgroundColor: rows.map((r, i) => rejected.get(i)?.has(s.key) ? '#000000' : (rejected.has(i) ? IGROUP_OFF_COLOR : s.color)),
+                        borderColor: rows.map((r, i) => rejected.get(i)?.has(s.key) ? '#ef4444' : 'rgba(0,0,0,0)'),
+                        borderWidth: rows.map((r, i) => rejected.get(i)?.has(s.key) ? 1.5 : 0),
                         order: 1,
                     }];
                     if (thr !== null) {
@@ -814,7 +821,7 @@ if ($projectBlocked) {
             function igEvalPanel(panel) {
                 const table = panel.closest('.igroup')?.querySelector('.igroup-table');
                 if (!table) return [];
-                const rejected = igRejectedIndices(table);
+                const rejected = igRejectedBy(table);
                 const rows = igRowsInOrder(table);
                 const hits = [];
                 const trs = table.querySelectorAll('tbody tr');
