@@ -621,14 +621,31 @@ if ($projectBlocked) {
                                 </div>
                             </details>
                             <?php endif; ?>
+                            <?php $grpBlinkN = count(array_filter($grp['lights'], fn($bli) => !empty($bli['enabled']) && empty($bli['auto_off']))); ?>
+                            <?php if ($grpBlinkN > 0): ?>
+                            <details class="igroup-blink-wrap" data-group="<?= (int)$gi ?>">
+                                <summary class="cursor-pointer px-4 py-1.5 hover:bg-gray-700/40 rounded text-sm text-gray-300">👁 <?= __('projects_blink') ?> (<?= (int)$grpBlinkN ?>)</summary>
+                                <div class="px-4 py-2">
+                                    <div class="flex items-center gap-3 mb-2">
+                                        <button type="button" class="blink-play px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors" title="<?= __('projects_blink_play') ?>">▶</button>
+                                        <select class="blink-rate px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100 text-sm">
+                                            <option value="0.25">0.25 s</option>
+                                            <option value="0.5" selected>0.5 s</option>
+                                            <option value="1">1 s</option>
+                                            <option value="2">2 s</option>
+                                        </select>
+                                        <span class="blink-label text-xs text-gray-300 truncate"></span>
+                                    </div>
+                                    <div class="bg-black rounded flex items-center justify-center" style="height: 420px;">
+                                        <img class="blink-img rounded" style="max-height: 420px; max-width: 100%; object-fit: contain;" alt="">
+                                    </div>
+                                </div>
+                            </details>
+                            <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
             <?php endif; ?>
         </section>
-        <div id="igBlink" class="hidden fixed bg-gray-800 border border-gray-600 rounded-lg shadow-xl p-2 pointer-events-none" style="z-index: 60; width: 340px;">
-            <div id="igBlinkName" class="text-xs text-gray-300 truncate mb-1"></div>
-            <img id="igBlinkImg" class="w-full h-auto rounded" style="max-height: 60vh; object-fit: contain;" alt="">
-        </div>
         <script>
         (function () {
             // Clickable headers sort each integration group table (numeric-aware).
@@ -854,6 +871,93 @@ if ($projectBlocked) {
                 });
             });
 
+            // --- Blink player: fixed window cycling through a group's eligible
+            // frames (manually disabled and threshold-rejected files excluded).
+            // The visible frame's row is highlighted in the table above.
+            const IGROUP_BLINK_PLAY = <?= json_encode(__('projects_blink_play')) ?>;
+            const IGROUP_BLINK_PAUSE = <?= json_encode(__('projects_blink_pause')) ?>;
+            function igBlinkFrames(wrap) {
+                const table = wrap.closest('.igroup')?.querySelector('.igroup-table');
+                if (!table) return [];
+                return Array.from(table.querySelectorAll('tbody tr'))
+                    .filter(tr => tr.dataset.enabled === '1' && tr.dataset.auto !== '1')
+                    .map(tr => ({
+                        fid: parseInt((tr.dataset.linkkey || '').split(':')[0], 10),
+                        name: tr.querySelector('td')?.dataset.val || '',
+                        tr,
+                    }))
+                    .filter(f => Number.isInteger(f.fid) && f.fid > 0);
+            }
+            function igBlinkShow(wrap, idx) {
+                const frames = igBlinkFrames(wrap);
+                if (!frames.length) return;
+                const n = ((idx % frames.length) + frames.length) % frames.length;
+                const table = wrap.closest('.igroup')?.querySelector('.igroup-table');
+                if (table) table.querySelectorAll('tbody tr').forEach(tr => { tr.style.backgroundColor = ''; });
+                const f = frames[n];
+                wrap._blinkIdx = n;
+                f.tr.style.backgroundColor = 'rgba(37,99,235,0.25)';
+                f.tr.scrollIntoView({ block: 'nearest' });
+                const label = wrap.querySelector('.blink-label');
+                if (label) label.textContent = (n + 1) + '/' + frames.length + ' ' + f.name;
+                const img = wrap.querySelector('.blink-img');
+                if (img) img.src = '/image.php?id=' + f.fid + '&type=thumb';
+            }
+            function igBlinkStop(wrap) {
+                if (wrap._blinkTimer) {
+                    clearInterval(wrap._blinkTimer);
+                    wrap._blinkTimer = null;
+                }
+                const playBtn = wrap.querySelector('.blink-play');
+                if (playBtn) {
+                    playBtn.textContent = '▶';
+                    playBtn.title = IGROUP_BLINK_PLAY;
+                }
+            }
+            function igBlinkStart(wrap) {
+                const frames = igBlinkFrames(wrap);
+                if (!frames.length) return;
+                frames.forEach(f => {
+                    const pre = new Image();
+                    pre.src = '/image.php?id=' + f.fid + '&type=thumb';
+                });
+                const rateSel = wrap.querySelector('.blink-rate');
+                const ms = Math.max(50, Math.round(parseFloat(rateSel?.value || '1') * 1000));
+                const playBtn = wrap.querySelector('.blink-play');
+                if (playBtn) {
+                    playBtn.textContent = '⏸';
+                    playBtn.title = IGROUP_BLINK_PAUSE;
+                }
+                igBlinkShow(wrap, (wrap._blinkIdx ?? -1) + 1);
+                wrap._blinkTimer = setInterval(() => {
+                    igBlinkShow(wrap, (wrap._blinkIdx ?? -1) + 1);
+                }, ms);
+            }
+            document.querySelectorAll('.igroup-blink-wrap').forEach(wrap => {
+                const playBtn = wrap.querySelector('.blink-play');
+                const rateSel = wrap.querySelector('.blink-rate');
+                if (playBtn) playBtn.addEventListener('click', () => {
+                    if (wrap._blinkTimer) {
+                        igBlinkStop(wrap);
+                    } else {
+                        igBlinkStart(wrap);
+                    }
+                });
+                if (rateSel) rateSel.addEventListener('change', () => {
+                    if (wrap._blinkTimer) {
+                        igBlinkStop(wrap);
+                        igBlinkStart(wrap);
+                    }
+                });
+                wrap.addEventListener('toggle', () => {
+                    if (!wrap.open) {
+                        igBlinkStop(wrap);
+                        const table = wrap.closest('.igroup')?.querySelector('.igroup-table');
+                        if (table) table.querySelectorAll('tbody tr').forEach(tr => { tr.style.backgroundColor = ''; });
+                    }
+                });
+            });
+
             // --- Rejection thresholds: combined OR evaluation with live preview ---
             // Direction is fixed per metric type (lower-is-better excludes above,
             // higher-is-better excludes below). Files missing a metric are never
@@ -951,66 +1055,6 @@ if ($projectBlocked) {
                     if (save) save.click();
                 });
                 igRefreshPanel(panel);
-            });
-        })();
-        </script>
-        <script>
-        (function () {
-            // Blink window: hovering a row of an integration group table shows
-            // its stretched preview in a floating window, so frames can be
-            // blinked through by moving the mouse down the rows.
-            const box = document.getElementById('igBlink');
-            const img = document.getElementById('igBlinkImg');
-            const name = document.getElementById('igBlinkName');
-            if (!box || !img) return;
-            let currentKey = null;
-            function hide() {
-                box.classList.add('hidden');
-                currentKey = null;
-            }
-            function place(x, y) {
-                const w = 360, h = 420;
-                box.style.left = Math.min(x + 16, window.innerWidth - w) + 'px';
-                box.style.top = Math.max(8, Math.min(y + 16, window.innerHeight - h)) + 'px';
-            }
-            document.addEventListener('mouseover', (e) => {
-                const tr = e.target.closest ? e.target.closest('.igroup-table tbody tr') : null;
-                if (!tr) return;
-                const key = tr.dataset.linkkey || '';
-                const fid = parseInt(key.split(':')[0], 10);
-                if (!Number.isInteger(fid) || fid <= 0) return;
-                if (key !== currentKey) {
-                    currentKey = key;
-                    const label = tr.querySelector('td')?.dataset.val || '';
-                    if (name) name.textContent = label;
-                    img.src = '/image.php?id=' + fid + '&type=thumb';
-                }
-                box.classList.remove('hidden');
-                place(e.clientX, e.clientY);
-            });
-            document.addEventListener('mousemove', (e) => {
-                if (currentKey !== null) place(e.clientX, e.clientY);
-            });
-            document.addEventListener('mouseout', (e) => {
-                const to = e.relatedTarget;
-                if (!to || !to.closest || !to.closest('.igroup-table tbody tr')) hide();
-            }, true);
-            document.addEventListener('scroll', hide, true);
-            // Preload a group's previews when expanded, so blinking is instant.
-            document.querySelectorAll('.igroup-table').forEach(table => {
-                const details = table.closest('details');
-                if (!details || details.dataset.preloaded) return;
-                details.addEventListener('toggle', () => {
-                    if (!details.open || details.dataset.preloaded) return;
-                    details.dataset.preloaded = '1';
-                    table.querySelectorAll('tbody tr').forEach(tr => {
-                        const fid = parseInt((tr.dataset.linkkey || '').split(':')[0], 10);
-                        if (Number.isInteger(fid) && fid > 0) {
-                            const pre = new Image();
-                            pre.src = '/image.php?id=' + fid + '&type=thumb';
-                        }
-                    });
-                });
             });
         })();
         </script>
