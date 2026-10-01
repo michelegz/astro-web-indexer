@@ -299,6 +299,7 @@ return [
     'projects_igroup_charts' => 'Graphiques',
     'projects_reject_title' => 'Seuils de rejet',
     'projects_reject_hint' => 'Vide = métrique ignorée. Un fichier est rejeté dès qu’il échoue à un seuil. Cliquez une barre du graphique pour utiliser sa valeur comme seuil.',
+    'projects_reject_calib_note' => 'Les métriques sont calculées sur des fichiers non calibrés et sont approximatives : utilisez des seuils conservateurs, puis affinez la sélection dans votre logiciel de calibration.',
     'projects_reject_above' => 'rejeter au-dessus',
     'projects_reject_below' => 'rejeter en dessous',
     'projects_reject_save' => 'Enregistrer les seuils',

@@ -299,6 +299,7 @@ return [
     'projects_igroup_charts' => 'Grafici',
     'projects_reject_title' => 'Soglie di scarto',
     'projects_reject_hint' => 'Vuoto = metrica ignorata. Un file è scartato se fallisce una qualsiasi soglia impostata. Clicca una barra del grafico per usarne il valore come soglia.',
+    'projects_reject_calib_note' => 'Le metriche sono calcolate su file non calibrati e sono approssimative: usa soglie conservative e poi affina la selezione dei frame nel software di calibrazione.',
     'projects_reject_above' => 'scarta sopra',
     'projects_reject_below' => 'scarta sotto',
     'projects_reject_save' => 'Salva soglie',

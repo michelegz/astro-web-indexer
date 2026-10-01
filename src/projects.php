@@ -527,6 +527,7 @@ if ($projectBlocked) {
                                     <?php endforeach; ?>
                                 </div>
                                 <div class="text-xs text-gray-500 mt-1"><?= __('projects_reject_hint') ?></div>
+                                <div class="text-xs text-amber-400/90 mt-1">⚠️ <?= htmlspecialchars(__('projects_reject_calib_note')) ?></div>
                                 <div class="flex items-center gap-3 mt-2">
                                     <button type="button" class="reject-save px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors">
                                         <?= __('projects_reject_save') ?>

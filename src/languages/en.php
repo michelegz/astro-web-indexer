@@ -299,6 +299,7 @@ return [
     'projects_igroup_charts' => 'Charts',
     'projects_reject_title' => 'Rejection thresholds',
     'projects_reject_hint' => 'Empty = metric ignored. A file is rejected when it fails any set threshold. Click a chart bar to use its value as threshold.',
+    'projects_reject_calib_note' => 'Metrics are computed on uncalibrated files and are approximate: use conservative thresholds, then refine frame selection in your calibration software.',
     'projects_reject_above' => 'exclude above',
     'projects_reject_below' => 'exclude below',
     'projects_reject_save' => 'Save thresholds',

@@ -299,6 +299,7 @@ return [
     'projects_igroup_charts' => 'Gráficos',
     'projects_reject_title' => 'Umbrales de descarte',
     'projects_reject_hint' => 'Vacío = métrica ignorada. Un archivo se descarta si falla cualquier umbral. Pulsa una barra del gráfico para usar su valor como umbral.',
+    'projects_reject_calib_note' => 'Las métricas se calculan sobre archivos sin calibrar y son aproximadas: usa umbrales conservadores y luego refina la selección en tu software de calibración.',
     'projects_reject_above' => 'descartar por encima',
     'projects_reject_below' => 'descartar por debajo',
     'projects_reject_save' => 'Guardar umbrales',

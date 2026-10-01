@@ -298,6 +298,7 @@ return [
     'projects_igroup_charts' => 'Diagramme',
     'projects_reject_title' => 'Ausschlussgrenzen',
     'projects_reject_hint' => 'Leer = Metrik ignoriert. Eine Datei scheidet aus, sobald sie eine Grenze reißt. Balken im Diagramm anklicken, um seinen Wert als Grenze zu übernehmen.',
+    'projects_reject_calib_note' => 'Die Metriken werden auf unkalibrierten Dateien berechnet und sind Näherungswerte: nutze konservative Grenzen und verfeinere die Auswahl in deiner Kalibriersoftware.',
     'projects_reject_above' => 'darüber ausschließen',
     'projects_reject_below' => 'darunter ausschließen',
     'projects_reject_save' => 'Grenzen speichern',
