@@ -459,6 +459,12 @@ if ($projectBlocked) {
                             </span>
                         </summary>
                         <div class="px-4 py-2 overflow-x-auto">
+                            <?php
+                            $grpAuto = count(array_filter($grp['lights'], fn($li) => !empty($li['auto_off'])));
+                            ?>
+                            <div class="text-xs text-gray-400 mb-2">
+                                <?= htmlspecialchars(__('projects_igroup_excluded', ['total' => $grpAuto])) ?>
+                            </div>
                             <table class="w-full text-xs text-left igroup-table" data-group="<?= (int)$gi ?>">
                                 <thead class="text-gray-400 border-b border-gray-700">
                                     <tr>

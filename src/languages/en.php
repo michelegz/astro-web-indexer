@@ -296,6 +296,7 @@ return [
     'projects_igroup_nights' => '{count} nights',
     'projects_igroup_file' => 'File',
     'projects_igroup_median' => 'Median',
+    'projects_igroup_excluded' => 'Excluded by thresholds: {total}',
     'projects_igroup_charts' => 'Charts',
     'projects_reject_title' => 'Rejection thresholds',
     'projects_reject_hint' => 'Empty = metric ignored. A file is rejected when it fails any set threshold. Click a chart bar to use its value as threshold.',
