@@ -587,8 +587,8 @@ if ($projectBlocked) {
                             }
                             ?>
                             <?php if ($grpHasMetrics): ?>
-                            <details class="mt-2 igroup-charts-wrap" data-group="<?= (int)$gi ?>">
-                                <summary class="cursor-pointer text-xs text-gray-400 hover:text-white">📊 <?= __('projects_igroup_charts') ?></summary>
+                            <details class="igroup-charts-wrap" data-group="<?= (int)$gi ?>">
+                                <summary class="cursor-pointer px-4 py-1.5 hover:bg-gray-700/40 rounded text-sm text-gray-300">📊 <?= __('projects_igroup_charts') ?></summary>
                                 <div class="flex flex-col gap-4 mt-2 igroup-charts">
                                     <?php foreach (['hfr', 'fwhm', 'hfr_sd', 'eccentricity', 'star_count', 'snr_weight', 'psf_signal'] as $mi => $mk): ?>
                                     <div style="height: 190px"><canvas id="ig-chart-<?= (int)$gi ?>-<?= (int)$mi ?>"></canvas></div>
