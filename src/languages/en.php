@@ -300,6 +300,8 @@ return [
     'projects_igroup_excluded' => 'Excluded by thresholds: {total}',
     'projects_igroup_show_files' => 'Show files ({count})',
     'projects_igroup_charts' => 'Charts',
+    'projects_sort_asc' => 'Sort ascending',
+    'projects_sort_desc' => 'Sort descending',
     'projects_reject_title' => 'Rejection thresholds',
     'projects_reject_hint' => 'Empty = metric ignored. A file is rejected when it fails any set threshold. Click a chart bar to use its value as threshold.',
     'projects_reject_calib_note' => 'Metrics are computed on uncalibrated files and are approximate: use conservative thresholds, then refine frame selection in your calibration software.',

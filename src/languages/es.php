@@ -300,6 +300,8 @@ return [
     'projects_igroup_excluded' => 'Excluidos por umbrales: {total}',
     'projects_igroup_show_files' => 'Mostrar archivos ({count})',
     'projects_igroup_charts' => 'Gráficos',
+    'projects_sort_asc' => 'Orden ascendente',
+    'projects_sort_desc' => 'Orden descendente',
     'projects_reject_title' => 'Umbrales de descarte',
     'projects_reject_hint' => 'Vacío = métrica ignorada. Un archivo se descarta si falla cualquier umbral. Pulsa una barra del gráfico para usar su valor como umbral.',
     'projects_reject_calib_note' => 'Las métricas se calculan sobre archivos sin calibrar y son aproximadas: usa umbrales conservadores y luego refina la selección en tu software de calibración.',

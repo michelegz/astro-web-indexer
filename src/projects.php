@@ -594,7 +594,15 @@ if ($projectBlocked) {
                                 <summary class="cursor-pointer px-4 py-1.5 hover:bg-gray-700/40 rounded text-sm text-gray-300">📊 <?= __('projects_igroup_charts') ?></summary>
                                 <div class="flex flex-col gap-4 mt-2 igroup-charts">
                                     <?php foreach (['hfr', 'fwhm', 'hfr_sd', 'eccentricity', 'star_count', 'snr_weight', 'psf_signal'] as $mi => $mk): ?>
-                                    <div style="height: 190px"><canvas id="ig-chart-<?= (int)$gi ?>-<?= (int)$mi ?>"></canvas></div>
+                                    <?php $mkHasData = count(array_filter($grp['lights'], fn($mli) => isset($mli[$mk]) && $mli[$mk] !== '' && $mli[$mk] !== null)) > 0; ?>
+                                    <?php if (!$mkHasData) continue; ?>
+                                    <div>
+                                        <div class="flex justify-end gap-1 mb-1">
+                                            <button type="button" class="ig-sort text-gray-400 hover:text-white text-xs px-1" data-group="<?= (int)$gi ?>" data-metric="<?= $mk ?>" data-dir="asc" title="<?= __('projects_sort_asc') ?>">▲</button>
+                                            <button type="button" class="ig-sort text-gray-400 hover:text-white text-xs px-1" data-group="<?= (int)$gi ?>" data-metric="<?= $mk ?>" data-dir="desc" title="<?= __('projects_sort_desc') ?>">▼</button>
+                                        </div>
+                                        <div style="height: 190px"><canvas id="ig-chart-<?= (int)$gi ?>-<?= (int)$mi ?>"></canvas></div>
+                                    </div>
                                     <?php endforeach; ?>
                                 </div>
                             </details>
@@ -631,6 +639,21 @@ if ($projectBlocked) {
                     const tb = table.querySelector('tbody');
                     rows.forEach(r => tb.appendChild(r));
                     if (typeof refreshIgroupCharts === 'function') refreshIgroupCharts(table);
+                });
+            });
+
+            // Chart ▲▼ buttons reuse the column sort verbatim: preset the toggle
+            // state to the opposite so the synthetic click lands deterministically.
+            document.querySelectorAll('.ig-sort').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const table = document.querySelector('.igroup-table[data-group="' + btn.dataset.group + '"]');
+                    if (!table) return;
+                    const series = IGROUP_SERIES.find(s => s.key === btn.dataset.metric);
+                    if (!series || series.cell === undefined) return;
+                    const th = table.querySelectorAll('thead th')[series.cell];
+                    if (!th) return;
+                    th.dataset.asc = btn.dataset.dir === 'asc' ? '0' : '1';
+                    th.click();
                 });
             });
 

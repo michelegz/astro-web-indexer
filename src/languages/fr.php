@@ -300,6 +300,8 @@ return [
     'projects_igroup_excluded' => 'Exclus par seuils : {total}',
     'projects_igroup_show_files' => 'Afficher les fichiers ({count})',
     'projects_igroup_charts' => 'Graphiques',
+    'projects_sort_asc' => 'Tri croissant',
+    'projects_sort_desc' => 'Tri décroissant',
     'projects_reject_title' => 'Seuils de rejet',
     'projects_reject_hint' => 'Vide = métrique ignorée. Un fichier est rejeté dès qu’il échoue à un seuil. Cliquez une barre du graphique pour utiliser sa valeur comme seuil.',
     'projects_reject_calib_note' => 'Les métriques sont calculées sur des fichiers non calibrés et sont approximatives : utilisez des seuils conservateurs, puis affinez la sélection dans votre logiciel de calibration.',
