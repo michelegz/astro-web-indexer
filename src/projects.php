@@ -957,12 +957,47 @@ if ($projectBlocked) {
             // Group checkbox toggles every file checkbox in its own .tnode subtree.
             // (Group boxes live outside <summary> on purpose: clicks inside
             // <summary> are swallowed by the details toggle in browsers.)
+            // Ancestor group boxes reflect their subtree: checked, unchecked
+            // or indeterminate when single files are (de)selected by hand.
+            function syncGroupBox(scope) {
+                const box = scope.querySelector(':scope > div > .pgroup-check');
+                if (!box) return;
+                const files = scope.querySelectorAll('.pfl-check');
+                if (!files.length) {
+                    box.checked = false;
+                    box.indeterminate = false;
+                    return;
+                }
+                const checked = scope.querySelectorAll('.pfl-check:checked').length;
+                box.checked = checked === files.length;
+                box.indeterminate = checked > 0 && checked < files.length;
+            }
             form.addEventListener('change', (e) => {
-                if (!e.target.classList.contains('pgroup-check')) return;
-                const scope = e.target.closest('.tnode');
-                if (!scope) return;
-                scope.querySelectorAll('.pfl-check').forEach(cb => { cb.checked = e.target.checked; });
-                scope.querySelectorAll('.pgroup-check').forEach(cb => { if (cb !== e.target) cb.checked = e.target.checked; });
+                if (e.target.classList.contains('pgroup-check')) {
+                    const scope = e.target.closest('.tnode');
+                    if (!scope) return;
+                    scope.querySelectorAll('.pfl-check').forEach(cb => { cb.checked = e.target.checked; });
+                    scope.querySelectorAll('.pgroup-check').forEach(cb => {
+                        if (cb !== e.target) {
+                            cb.checked = e.target.checked;
+                            cb.indeterminate = false;
+                        }
+                    });
+                    e.target.indeterminate = false;
+                    let above = scope.parentElement?.closest('.tnode') ?? null;
+                    while (above) {
+                        syncGroupBox(above);
+                        above = above.parentElement?.closest('.tnode') ?? null;
+                    }
+                    return;
+                }
+                if (e.target.classList.contains('pfl-check')) {
+                    let scope = e.target.closest('.tnode');
+                    while (scope) {
+                        syncGroupBox(scope);
+                        scope = scope.parentElement?.closest('.tnode') ?? null;
+                    }
+                }
             });
         })();
         </script>
