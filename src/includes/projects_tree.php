@@ -27,33 +27,57 @@ function diagBox(string $status, string $letter, string $title): string
         . htmlspecialchars($letter) . '</span>';
 }
 
-function calibSummary(array $cals): string
+function tallyFileRows(array $rows, array &$s): void
 {
-    $n = ['DARK' => 0, 'FLAT' => 0, 'BIAS' => 0];
-    $pend = 0;
-    $off = 0;
-    foreach ($cals as $c) {
-        if (!empty($c['pending'])) {
-            $pend++;
+    foreach ($rows as $r) {
+        if (!empty($r['pending'])) {
+            $s['pend']++;
             continue;
         }
-        if (empty($c['enabled'])) {
-            $off++;
+        if (empty($r['enabled'])) {
+            $s['off']++;
             continue;
         }
-        $t = strtoupper((string)$c['imgtype']);
-        if (isset($n[$t])) {
-            $n[$t]++;
+        switch (strtoupper((string)($r['imgtype'] ?? ''))) {
+            case 'LIGHT': $s['L']++; break;
+            case 'DARK': $s['D']++; break;
+            case 'FLAT': $s['F']++; break;
+            case 'BIAS': $s['B']++; break;
         }
     }
-    $s = 'D:' . $n['DARK'] . ' F:' . $n['FLAT'] . ' B:' . $n['BIAS'];
-    if ($pend > 0) {
-        $s .= ' (+' . $pend . ' ⏳)';
-    }
-    if ($off > 0) {
-        $s .= ' (+' . $off . ' ' . __('projects_link_off') . ')';
+}
+
+/**
+ * Recursive file counts of a setup/panel/session node: LIGHT/DARK/FLAT/BIAS
+ * links of the node itself plus every level below it.
+ */
+function subtreeSummaryCounts(array $node): array
+{
+    $s = ['L' => 0, 'D' => 0, 'F' => 0, 'B' => 0, 'pend' => 0, 'off' => 0];
+    tallyFileRows($node['calibrations'] ?? [], $s);
+    tallyFileRows($node['lights'] ?? [], $s);
+    foreach (['panels', 'sessions', 'filters'] as $childKey) {
+        foreach ($node[$childKey] ?? [] as $child) {
+            $sub = subtreeSummaryCounts($child);
+            foreach (['L', 'D', 'F', 'B', 'pend', 'off'] as $k) {
+                $s[$k] += $sub[$k];
+            }
+        }
     }
     return $s;
+}
+
+function subtreeSummaryText(array $node): string
+{
+    $s = subtreeSummaryCounts($node);
+    $t = 'L:' . $s['L'] . ' D:' . $s['D'] . ' F:' . $s['F'] . ' B:' . $s['B'];
+    if ($s['pend'] > 0) {
+        $t .= ' (+' . $s['pend'] . ' ⏳)';
+    }
+    if ($s['off'] > 0) {
+        $t .= ' (+' . $s['off'] . ' ' . __('projects_link_off') . ')';
+    }
+    return $t;
 }
 
 function renderCalRows(array $cals, string $level, int $node): void
@@ -91,7 +115,7 @@ if (empty($projectTree['setups'])): ?>
                 <details open class="flex-1 min-w-0 border border-gray-700 rounded-lg">
                     <summary class="cursor-pointer px-4 py-2 bg-gray-700/50 rounded-t-lg font-semibold">
                         <?= __('projects_setup') ?>: <?= htmlspecialchars($setup['label'] !== null && $setup['label'] !== '' ? $setup['label'] : substr((string)$setup['fingerprint'], 0, 48)) ?>
-                        <span class="ml-2 text-xs font-normal text-gray-400"><?= htmlspecialchars(calibSummary($setup['calibrations'])) ?></span>
+                        <span class="ml-2 text-xs font-normal text-gray-400"><?= htmlspecialchars(subtreeSummaryText($setup)) ?></span>
                     </summary>
                     <div class="px-4 py-2">
                         <?php renderCalRows($setup['calibrations'], 'setup', (int)$setup['id']); ?>
@@ -110,7 +134,7 @@ if (empty($projectTree['setups'])): ?>
                                     <details class="flex-1 min-w-0 border border-gray-700/60 rounded">
                                         <summary class="cursor-pointer px-3 py-1.5 hover:bg-gray-700/40 rounded font-medium">
                                             <?= __('projects_panel') ?> <?= htmlspecialchars($plabel) ?>
-                                            <span class="ml-2 text-xs font-normal text-gray-400"><?= htmlspecialchars(calibSummary($panel['calibrations'])) ?></span>
+                                            <span class="ml-2 text-xs font-normal text-gray-400"><?= htmlspecialchars(subtreeSummaryText($panel)) ?></span>
                                         </summary>
                                         <div class="px-3 py-2">
                                             <?php renderCalRows($panel['calibrations'], 'panel', (int)$panel['id']); ?>
@@ -121,7 +145,7 @@ if (empty($projectTree['setups'])): ?>
                                                         <details class="flex-1 min-w-0 border border-gray-700/40 rounded">
                                                             <summary class="cursor-pointer px-3 py-1.5 hover:bg-gray-700/40 rounded text-sm">
                                                                 <?= __('projects_session') ?> <?= htmlspecialchars((string)$session['astro_night']) ?>
-                                                                <span class="ml-2 text-xs text-gray-400"><?= htmlspecialchars(calibSummary($session['calibrations'])) ?></span>
+                                                                <span class="ml-2 text-xs text-gray-400"><?= htmlspecialchars(subtreeSummaryText($session)) ?></span>
                                                             </summary>
                                                             <div class="px-3 py-2">
                                                                 <?php renderCalRows($session['calibrations'], 'session', (int)$session['id']); ?>
