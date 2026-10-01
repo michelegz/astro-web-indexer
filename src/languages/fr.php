@@ -297,6 +297,7 @@ return [
     'projects_igroup_file' => 'Fichier',
     'projects_igroup_median' => 'Médiane',
     'projects_igroup_total' => 'Total',
+    'projects_igroup_groups' => '{count} groupes',
     'projects_igroup_excluded' => 'Exclus par seuils : {total}',
     'projects_igroup_show_files' => 'Afficher les fichiers ({count})',
     'projects_igroup_charts' => 'Graphiques',

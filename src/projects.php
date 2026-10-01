@@ -476,7 +476,7 @@ if ($projectBlocked) {
                 ?>
                 <div class="text-sm text-gray-200 font-medium mb-3">
                     <?= htmlspecialchars(__('projects_igroup_total')) ?>:
-                    <?= htmlspecialchars(__('projects_lights_count', ['count' => $totCount])) ?> · <span title="<?= htmlspecialchars(fmtExp($totExp)) ?>"><?= htmlspecialchars(number_format($totExp / 3600, 1)) ?> h</span> · <?= htmlspecialchars(__('projects_igroup_nights', ['count' => count($totNights)])) ?> · <?= htmlspecialchars(__('projects_igroup_excluded', ['total' => $totAuto])) ?>
+                    <?= htmlspecialchars(__('projects_igroup_groups', ['count' => count($intGroups)])) ?> · <?= htmlspecialchars(__('projects_lights_count', ['count' => $totCount])) ?> · <span title="<?= htmlspecialchars(fmtExp($totExp)) ?>"><?= htmlspecialchars(number_format($totExp / 3600, 1)) ?> h</span> · <?= htmlspecialchars(__('projects_igroup_nights', ['count' => count($totNights)])) ?> · <?= htmlspecialchars(__('projects_igroup_excluded', ['total' => $totAuto])) ?>
                 </div>
                 <?php foreach ($intGroups as $gi => $grp): ?>
                     <?php $grpAuto = count(array_filter($grp['lights'], fn($li) => !empty($li['auto_off']))); ?>
