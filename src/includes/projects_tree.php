@@ -75,7 +75,7 @@ function subtreeSummaryText(array $node): string
         $t .= ' (+' . $s['pend'] . ' ⏳)';
     }
     if ($s['off'] > 0) {
-        $t .= ' (+' . $s['off'] . ' ' . __('projects_link_off') . ')';
+        $t .= ' (' . $s['off'] . ' ' . __('projects_link_off') . ')';
     }
     return $t;
 }
@@ -217,7 +217,7 @@ if (empty($projectTree['setups'])): ?>
                                                                                                          <?= htmlspecialchars($li['name']) ?><?php if ($isPend): ?> <span title="<?= __('projects_pending_hypo') ?>">⏳</span><?php endif; ?><?php if ($isOff): ?> <span class="text-gray-500">(<?= __('projects_link_off') ?>)</span><?php endif; ?><?php if ($isAuto): ?> <span class="text-red-400">(<?= __('projects_auto_off') ?>)</span><?php endif; ?>
                                                                                                     </td>
                                                                                                     <td class="py-1 px-2 text-right text-gray-400"><?= htmlspecialchars((string)($li['exptime'] ?? '')) ?>s</td>
-                                                                                                    <td class="py-1 px-2 whitespace-nowrap"><?= $isPend ? '⏳' : ($isOff ? '—' : (diagBox($d['bias'], 'B', __('projects_cal_bias')) . diagBox($d['dark'], 'D', __('projects_cal_dark')) . diagBox($d['flat'], 'F', __('projects_cal_flat')))) ?></td>
+                                                                                                    <td class="py-1 px-2 whitespace-nowrap"><?= $isPend ? '⏳' : ($isOff ? '—' : '') ?></td>
                                                                                                 </tr>
                                                                                             <?php endforeach; ?>
                                                                                         </tbody>
