@@ -619,6 +619,45 @@ function getIntegrationGroups(array $tree, float $tolExpFrac, array $thresholdMa
     return $groups;
 }
 
+/**
+ * file_id => true for lights flagged auto_off in integration groups.
+ * Used to paint threshold-rejected rows red in the main project tree.
+ */
+function indexAutoOffLights(array $intGroups): array
+{
+    $out = [];
+    foreach ($intGroups as $grp) {
+        foreach ($grp['lights'] as $li) {
+            if (!empty($li['auto_off'])) {
+                $out[(int)$li['file_id']] = true;
+            }
+        }
+    }
+    return $out;
+}
+
+/**
+ * Mark tree light rows contained in $autoOff (file_id set) with auto_off.
+ * Operates in place on a copy (PHP arrays are value types: reassign result).
+ */
+function markTreeAutoOff(array $tree, array $autoOff): array
+{
+    foreach ($tree['setups'] ?? [] as $si => $setup) {
+        foreach ($setup['panels'] as $pi => $panel) {
+            foreach ($panel['sessions'] as $sesi => $session) {
+                foreach ($session['filters'] as $fi => $filter) {
+                    foreach ($filter['lights'] as $lii => $li) {
+                        if (isset($autoOff[(int)$li['file_id']])) {
+                            $tree['setups'][$si]['panels'][$pi]['sessions'][$sesi]['filters'][$fi]['lights'][$lii]['auto_off'] = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return $tree;
+}
+
 function diagWorst(string $a, string $b): string
 {
     $rank = ['green' => 0, 'yellow' => 1, 'red' => 2];

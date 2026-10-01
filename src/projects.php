@@ -164,6 +164,9 @@ $projectDiag = $projectTree !== null ? diagnoseProjectTree($projectTree, $projec
 $intGroups = $projectTree !== null
     ? getIntegrationGroups($projectTree, $tolExpFrac, $detail !== null ? getProjectThresholds($conn, (int)$detail['id']) : [])
     : [];
+if ($projectTree !== null && !empty($intGroups)) {
+    $projectTree = markTreeAutoOff($projectTree, indexAutoOffLights($intGroups));
+}
 $projectBlocked = $detail !== null && !canAccessProject($conn, (int)$detail['id']);
 if ($projectBlocked) {
     http_response_code(403);
@@ -450,6 +453,28 @@ if ($projectBlocked) {
             <?php if (empty($intGroups)): ?>
                 <p class="text-sm text-gray-500"><?= __('projects_igroups_empty') ?></p>
             <?php else: ?>
+                <?php
+                $totCount = 0;
+                $totExp = 0.0;
+                $totAuto = 0;
+                $totNights = [];
+                foreach ($intGroups as $tg) {
+                    $totCount += (int)$tg['count'];
+                    $totExp += (float)$tg['exposure'];
+                    foreach ($tg['lights'] as $tli) {
+                        if (!empty($tli['auto_off'])) {
+                            $totAuto++;
+                        }
+                    }
+                    foreach ($tg['nights'] as $tn) {
+                        $totNights[$tn] = true;
+                    }
+                }
+                ?>
+                <div class="text-sm text-gray-200 font-medium mb-3">
+                    <?= htmlspecialchars(__('projects_igroup_total')) ?>:
+                    <?= htmlspecialchars(__('projects_lights_count', ['count' => $totCount])) ?> · <span title="<?= htmlspecialchars(fmtExp($totExp)) ?>"><?= htmlspecialchars(number_format($totExp / 3600, 1)) ?> h</span> · <?= htmlspecialchars(__('projects_igroup_nights', ['count' => count($totNights)])) ?> · <?= htmlspecialchars(__('projects_igroup_excluded', ['total' => $totAuto])) ?>
+                </div>
                 <?php foreach ($intGroups as $gi => $grp): ?>
                     <?php $grpAuto = count(array_filter($grp['lights'], fn($li) => !empty($li['auto_off']))); ?>
                     <div class="mb-2 border border-gray-700 rounded-lg">

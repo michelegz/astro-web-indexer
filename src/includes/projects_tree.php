@@ -180,16 +180,17 @@ if (empty($projectTree['setups'])): ?>
                                                                                 <div class="overflow-x-auto">
                                                                                     <table class="w-full text-xs text-left">
                                                                                         <tbody>
-                                                                                            <?php foreach ($eg['lights'] as $li): ?>
-                                                                                                <?php $isPend = !empty($li['pending']); ?>
-                                                                                                <?php $isOff = !$isPend && empty($li['enabled']); ?>
-                                                                                                <?php $d = ($isPend || $isOff) ? null : ($projectDiag[(int)$li['file_id']] ?? ['dark' => 'red', 'flat' => 'red', 'bias' => 'red']); ?>
-                                                                                                <tr class="border-b border-gray-700/40<?= ($isPend || $isOff) ? ' opacity-60' : '' ?>">
-                                                                                                    <td class="py-1 px-2">
-                                                                                                        <?php if (!$isPend): ?>
-                                                                                                            <input type="checkbox" name="link_keys[]" value="<?= htmlspecialchars(linkKey($li, 'filter', (int)$session['id'])) ?>" class="pfl-check rounded bg-gray-600 border-gray-500 mr-1">
-                                                                                                        <?php endif; ?>
-                                                                                                        <?= htmlspecialchars($li['name']) ?><?php if ($isPend): ?> <span title="<?= __('projects_pending_hypo') ?>">⏳</span><?php endif; ?><?php if ($isOff): ?> <span class="text-gray-500">(<?= __('projects_link_off') ?>)</span><?php endif; ?>
+                                                                                             <?php foreach ($eg['lights'] as $li): ?>
+                                                                                                 <?php $isPend = !empty($li['pending']); ?>
+                                                                                                 <?php $isOff = !$isPend && empty($li['enabled']); ?>
+                                                                                                 <?php $isAuto = !$isPend && !$isOff && !empty($li['auto_off']); ?>
+                                                                                                 <?php $d = ($isPend || $isOff) ? null : ($projectDiag[(int)$li['file_id']] ?? ['dark' => 'red', 'flat' => 'red', 'bias' => 'red']); ?>
+                                                                                                 <tr class="border-b border-gray-700/40<?= ($isPend || $isOff || $isAuto) ? ' opacity-60' : '' ?>">
+                                                                                                     <td class="py-1 px-2<?= $isAuto ? ' text-red-400' : '' ?>">
+                                                                                                         <?php if (!$isPend): ?>
+                                                                                                             <input type="checkbox" name="link_keys[]" value="<?= htmlspecialchars(linkKey($li, 'filter', (int)$session['id'])) ?>" class="pfl-check rounded bg-gray-600 border-gray-500 mr-1">
+                                                                                                         <?php endif; ?>
+                                                                                                         <?= htmlspecialchars($li['name']) ?><?php if ($isPend): ?> <span title="<?= __('projects_pending_hypo') ?>">⏳</span><?php endif; ?><?php if ($isOff): ?> <span class="text-gray-500">(<?= __('projects_link_off') ?>)</span><?php endif; ?><?php if ($isAuto): ?> <span class="text-red-400">(<?= __('projects_auto_off') ?>)</span><?php endif; ?>
                                                                                                     </td>
                                                                                                     <td class="py-1 px-2 text-right text-gray-400"><?= htmlspecialchars((string)($li['exptime'] ?? '')) ?>s</td>
                                                                                                     <td class="py-1 px-2 whitespace-nowrap"><?= $isPend ? '⏳' : ($isOff ? '—' : (diagBox($d['bias'], 'B', __('projects_cal_bias')) . diagBox($d['dark'], 'D', __('projects_cal_dark')) . diagBox($d['flat'], 'F', __('projects_cal_flat')))) ?></td>

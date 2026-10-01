@@ -296,6 +296,7 @@ return [
     'projects_igroup_nights' => '{count} nights',
     'projects_igroup_file' => 'File',
     'projects_igroup_median' => 'Median',
+    'projects_igroup_total' => 'Total',
     'projects_igroup_excluded' => 'Excluded by thresholds: {total}',
     'projects_igroup_show_files' => 'Show files ({count})',
     'projects_igroup_charts' => 'Charts',
