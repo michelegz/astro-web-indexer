@@ -897,7 +897,6 @@ if ($projectBlocked) {
                 const f = frames[n];
                 wrap._blinkIdx = n;
                 f.tr.style.backgroundColor = 'rgba(37,99,235,0.25)';
-                f.tr.scrollIntoView({ block: 'nearest' });
                 const label = wrap.querySelector('.blink-label');
                 if (label) label.textContent = (n + 1) + '/' + frames.length + ' ' + f.name;
                 const img = wrap.querySelector('.blink-img');
