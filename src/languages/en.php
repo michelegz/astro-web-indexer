@@ -270,6 +270,8 @@ return [
     'projects_tree' => 'Project tree',
     'projects_tree_coming' => 'Setups, panels, sessions and filters will appear here once automatic assignment lands (step 2).',
     'projects_setup' => 'Setup',
+    'projects_setup_rename' => 'Rename setup',
+    'projects_setup_rename_prompt' => 'Custom setup name (empty clears it)',
     'projects_panel' => 'Panel',
     'projects_session' => 'Session',
     'projects_filter' => 'Filter',

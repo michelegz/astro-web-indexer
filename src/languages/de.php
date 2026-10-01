@@ -269,6 +269,8 @@ return [
     'projects_tree' => 'Projektbaum',
     'projects_tree_coming' => 'Setups, Panels, Sessions und Filter erscheinen hier mit der automatischen Zuordnung (Schritt 2).',
     'projects_setup' => 'Setup',
+    'projects_setup_rename' => 'Setup umbenennen',
+    'projects_setup_rename_prompt' => 'Benutzerdefinierter Setup-Name (leer zum Löschen)',
     'projects_panel' => 'Panel',
     'projects_session' => 'Session',
     'projects_filter' => 'Filter',

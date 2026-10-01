@@ -270,6 +270,8 @@ return [
     'projects_tree' => 'Albero progetto',
     'projects_tree_coming' => 'Setup, pannelli, sessioni e filtri appariranno qui con l’assegnazione automatica (step 2).',
     'projects_setup' => 'Setup',
+    'projects_setup_rename' => 'Rinomina setup',
+    'projects_setup_rename_prompt' => 'Nome setup custom (vuoto per cancellarlo)',
     'projects_panel' => 'Pannello',
     'projects_session' => 'Sessione',
     'projects_filter' => 'Filtro',

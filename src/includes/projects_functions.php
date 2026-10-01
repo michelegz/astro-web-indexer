@@ -826,6 +826,24 @@ function projectCreateSetup(PDO $conn, int $projectId, string $fingerprint, ?str
     return (int)$conn->lastInsertId();
 }
 
+/**
+ * Rename a setup's custom label (empty clears it back to the fingerprint
+ * display). Verifies the setup belongs to the project. Returns false when
+ * the setup does not exist in this project.
+ */
+function renameProjectSetup(PDO $conn, int $projectId, int $setupId, ?string $label): bool
+{
+    $check = $conn->prepare("SELECT id FROM project_setups WHERE id = :sid AND project_id = :pid");
+    $check->execute([':sid' => $setupId, ':pid' => $projectId]);
+    if ($check->fetch() === false) {
+        return false;
+    }
+    $label = $label !== null ? trim($label) : '';
+    $upd = $conn->prepare("UPDATE project_setups SET label = :label WHERE id = :sid");
+    $upd->execute([':label' => $label !== '' ? mb_substr($label, 0, 255) : null, ':sid' => $setupId]);
+    return true;
+}
+
 function projectFindPanel(PDO $conn, int $setupId, array $row, array $tols): array
 {
     [$ra, $dec] = projectPositionOf($row);

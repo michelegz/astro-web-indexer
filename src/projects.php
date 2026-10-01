@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = $_POST['action'] ?? '';
         try {
             // Project-scoped actions require an accessible project first.
-            $needsProject = ['update', 'save_mode', 'delete', 'accept_suggestions', 'dismiss_suggestions', 'save_tolerances', 'remove_links', 'disable_links', 'enable_links', 'save_thresholds'];
+            $needsProject = ['update', 'save_mode', 'delete', 'accept_suggestions', 'dismiss_suggestions', 'save_tolerances', 'remove_links', 'disable_links', 'enable_links', 'save_thresholds', 'rename_setup'];
             if (in_array($action, $needsProject, true)) {
                 $gid = (int)($_POST['project_id'] ?? 0);
                 $gproj = $gid > 0 ? getProject($conn, $gid) : null;
@@ -114,6 +114,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     (array)($_POST['thresholds'] ?? [])
                 );
                 $message = __('projects_thresholds_saved');
+                $messageType = 'success';
+            } elseif ($action === 'rename_setup') {
+                $id = (int)($_POST['project_id'] ?? 0);
+                $sid = (int)($_POST['setup_id'] ?? 0);
+                if (!renameProjectSetup($conn, $id, $sid, (string)($_POST['name'] ?? ''))) {
+                    throw new InvalidArgumentException(__('projects_error_name'));
+                }
+                $message = __('projects_updated');
                 $messageType = 'success';
             } elseif ($action === 'save_tolerances') {
                 $id = (int)($_POST['project_id'] ?? 0);
@@ -1114,6 +1122,22 @@ if ($projectBlocked) {
                         scope = scope.parentElement?.closest('.tnode') ?? null;
                     }
                 }
+            });
+            // Rename setup custom label via prompt (empty clears it).
+            const renamePrompt = <?= json_encode(__('projects_setup_rename_prompt')) ?>;
+            form.addEventListener('click', (e) => {
+                const btn = e.target.closest('.setup-rename');
+                if (!btn) return;
+                const name = window.prompt(renamePrompt, btn.dataset.setupName || '');
+                if (name === null) return;
+                const fd = new FormData();
+                fd.append('csrf_token', form.querySelector('input[name="csrf_token"]')?.value || '');
+                fd.append('project_id', form.querySelector('input[name="project_id"]')?.value || '');
+                fd.append('action', 'rename_setup');
+                fd.append('setup_id', btn.dataset.setupId || '');
+                fd.append('name', name.trim());
+                fetch(window.location.pathname + window.location.search, { method: 'POST', body: fd })
+                    .finally(() => window.location.reload());
             });
         })();
         </script>

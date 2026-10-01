@@ -112,6 +112,7 @@ if (empty($projectTree['setups'])): ?>
         <div class="tnode mb-3">
             <div class="flex items-start gap-2">
                 <input type="checkbox" class="pgroup-check mt-3 rounded bg-gray-600 border-gray-500" title="<?= __('projects_select_group') ?>">
+                <button type="button" class="setup-rename mt-2.5 text-gray-400 hover:text-white text-sm leading-none" title="<?= __('projects_setup_rename') ?>" data-setup-id="<?= (int)$setup['id'] ?>" data-setup-name="<?= htmlspecialchars($setup['label'] ?? '') ?>">✏️</button>
                 <details open class="flex-1 min-w-0 border border-gray-700 rounded-lg">
                     <summary class="cursor-pointer px-4 py-2 bg-gray-700/50 rounded-t-lg font-semibold">
                         <?= __('projects_setup') ?> S<?= (int)($setup['setup_no'] ?? $setup['id']) ?>: <?= htmlspecialchars($setup['label'] !== null && $setup['label'] !== '' ? $setup['label'] : substr((string)$setup['fingerprint'], 0, 48)) ?>
