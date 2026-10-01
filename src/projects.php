@@ -161,7 +161,9 @@ foreach ($defs as $tkey => $tdef) {
 }
 $tolExpFrac = parseTolFraction((string)($projectTols['tol_exp'] ?? '1%'), 0.01);
 $projectDiag = $projectTree !== null ? diagnoseProjectTree($projectTree, $projectTols) : [];
-$intGroups = $projectTree !== null ? getIntegrationGroups($projectTree, $tolExpFrac) : [];
+$intGroups = $projectTree !== null
+    ? getIntegrationGroups($projectTree, $tolExpFrac, $detail !== null ? getProjectThresholds($conn, (int)$detail['id']) : [])
+    : [];
 $projectBlocked = $detail !== null && !canAccessProject($conn, (int)$detail['id']);
 if ($projectBlocked) {
     http_response_code(403);
