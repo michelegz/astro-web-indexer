@@ -914,13 +914,16 @@ if ($projectBlocked) {
                     playBtn.title = IGROUP_BLINK_PLAY;
                 }
             }
-            function igBlinkStart(wrap) {
-                const frames = igBlinkFrames(wrap);
-                if (!frames.length) return;
-                frames.forEach(f => {
+            function igBlinkPreload(wrap) {
+                igBlinkFrames(wrap).forEach(f => {
                     const pre = new Image();
                     pre.src = '/image.php?id=' + f.fid + '&type=thumb';
                 });
+            }
+            function igBlinkStart(wrap) {
+                const frames = igBlinkFrames(wrap);
+                if (!frames.length) return;
+                igBlinkPreload(wrap);
                 const rateSel = wrap.querySelector('.blink-rate');
                 const ms = Math.max(50, Math.round(parseFloat(rateSel?.value || '1') * 1000));
                 const playBtn = wrap.querySelector('.blink-play');
@@ -954,6 +957,10 @@ if ($projectBlocked) {
                         igBlinkStop(wrap);
                         const table = wrap.closest('.igroup')?.querySelector('.igroup-table');
                         if (table) table.querySelectorAll('tbody tr').forEach(tr => { tr.style.backgroundColor = ''; });
+                    } else if (!wrap._blinkTimer) {
+                        // Show a frame right away, paused (first one, or where we stopped).
+                        igBlinkPreload(wrap);
+                        igBlinkShow(wrap, wrap._blinkIdx ?? 0);
                     }
                 });
             });
