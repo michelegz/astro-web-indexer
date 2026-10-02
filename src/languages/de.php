@@ -382,5 +382,6 @@ return [
     'projects_add_analyzing' => 'Analysiere…',
     'projects_add_new_setup' => '＋ Neues Custom-Setup…',
     'projects_add_new_setup_name' => 'Custom-Setup-Name',
+    'projects_add_reason_custom_exists' => 'Custom-Setup-Name existiert bereits als S{no} — wähle es aus der Liste zur Wiederverwendung',
 
 ];

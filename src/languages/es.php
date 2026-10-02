@@ -383,5 +383,6 @@ return [
     'projects_add_analyzing' => 'Analizando…',
     'projects_add_new_setup' => '＋ Nuevo setup personalizado…',
     'projects_add_new_setup_name' => 'Nombre del setup',
+    'projects_add_reason_custom_exists' => 'nombre de setup personalizado ya existente como S{no} — selecciónalo de la lista para reutilizarlo',
 
 ];

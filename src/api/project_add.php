@@ -96,14 +96,40 @@ try {
     if ($newProject !== null) {
         $projectId = createProject($conn, $newProject['name'], $newProject['notes']);
     }
+    $customSkipped = [];
     if (!empty($customSetups)) {
         $fpRow = $conn->prepare(
-            "SELECT instrume, telescop, cameraid, xbinning, ybinning, gain, xpixsz FROM files WHERE id = :fid"
+            "SELECT id, name, instrume, telescop, cameraid, xbinning, ybinning, gain, xpixsz FROM files WHERE id = :fid"
         );
+        // Existing custom names in this project (case-insensitive): creating
+        // a duplicate is blocked with a message instead of silently reusing.
+        $existingCustoms = [];
+        $cs = $conn->prepare(
+            "SELECT id, setup_no, fingerprint FROM project_setups "
+            . "WHERE project_id = :pid AND fingerprint LIKE '%|CUSTOM:%'"
+        );
+        $cs->execute([':pid' => $projectId]);
+        foreach ($cs->fetchAll() as $srow) {
+            $pos = strrpos((string)$srow['fingerprint'], '|CUSTOM:');
+            if ($pos !== false) {
+                $existingCustoms[mb_strtolower(trim(substr((string)$srow['fingerprint'], $pos + 8)))] = [
+                    'id' => (int)$srow['id'],
+                    'no' => $srow['setup_no'],
+                ];
+            }
+        }
         // Only files actually being added can seed a custom setup.
         $allowed = array_flip($ids);
+        $blockedFids = [];
+        $customSkipped = [];
         foreach ($customSetups as $fid => $name) {
             if (!isset($allowed[$fid])) {
+                continue;
+            }
+            $lname = mb_strtolower($name);
+            if (isset($existingCustoms[$lname])) {
+                $customSkipped[] = ['fid' => $fid, 'name' => null, 'no' => $existingCustoms[$lname]['no']];
+                $blockedFids[$fid] = true;
                 continue;
             }
             $fpRow->execute([':fid' => $fid]);
@@ -113,12 +139,57 @@ try {
             }
             $fp = projectBuildFingerprint($frow) . '|CUSTOM:' . $name;
             $exists = $conn->prepare(
-                "SELECT id FROM project_setups WHERE project_id = :pid AND fingerprint = :fp"
+                "SELECT id, setup_no FROM project_setups WHERE project_id = :pid AND fingerprint = :fp"
             );
             $exists->execute([':pid' => $projectId, ':fp' => $fp]);
             $exRow = $exists->fetch();
-            $sid = $exRow !== false ? (int)$exRow['id'] : projectCreateSetup($conn, $projectId, $fp, $name);
+            if ($exRow !== false) {
+                // Same-request duplicate (or exact race already committed):
+                // blocked like a pre-existing name.
+                $customSkipped[] = [
+                    'fid' => $fid,
+                    'name' => (string)($frow['name'] ?? ''),
+                    'no' => $exRow['setup_no'],
+                ];
+                $blockedFids[$fid] = true;
+                continue;
+            }
+            try {
+                $sid = projectCreateSetup($conn, $projectId, $fp, $name);
+            } catch (PDOException $e) {
+                // Concurrent creation won the race: re-check, then block cleanly.
+                $exists->execute([':pid' => $projectId, ':fp' => $fp]);
+                $exRow = $exists->fetch();
+                if ($exRow === false) {
+                    throw $e;
+                }
+                $customSkipped[] = [
+                    'fid' => $fid,
+                    'name' => (string)($frow['name'] ?? ''),
+                    'no' => $exRow['setup_no'],
+                ];
+                $blockedFids[$fid] = true;
+                continue;
+            }
+            $existingCustoms[$lname] = ['id' => $sid, 'no' => null];
+            // Fetch the fresh setup_no for a potential later message.
+            $norow = $conn->prepare("SELECT setup_no FROM project_setups WHERE id = :sid");
+            $norow->execute([':sid' => $sid]);
+            $existingCustoms[$lname]['no'] = $norow->fetchColumn();
             $overrides[$fid] = $sid;
+        }
+        if (!empty($blockedFids)) {
+            $ids = array_values(array_filter($ids, fn($id) => !isset($blockedFids[$id])));
+            // Resolve file names for blocked entries missing them.
+            $nm = $conn->prepare("SELECT name FROM files WHERE id = :fid");
+            foreach ($customSkipped as &$csk) {
+                if ($csk['name'] === null) {
+                    $nm->execute([':fid' => $csk['fid']]);
+                    $nrow = $nm->fetch();
+                    $csk['name'] = $nrow !== false ? (string)$nrow['name'] : '#' . $csk['fid'];
+                }
+            }
+            unset($csk);
         }
     }
     if (!empty($overrides)) {
@@ -145,6 +216,12 @@ try {
     foreach ($result['skipped'] as $s) {
         $key = $reasonKeys[$s['reason']] ?? 'projects_add_reason_error';
         $skipped[] = ['name' => $s['name'], 'message' => __($key)];
+    }
+    foreach ($customSkipped as $s) {
+        $skipped[] = [
+            'name' => $s['name'],
+            'message' => __('projects_add_reason_custom_exists', ['no' => $s['no'] ?? '?']),
+        ];
     }
     echo json_encode([
         'success' => true,
