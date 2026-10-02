@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = $_POST['action'] ?? '';
         try {
             // Project-scoped actions require an accessible project first.
-            $needsProject = ['update', 'save_mode', 'delete', 'accept_suggestions', 'dismiss_suggestions', 'save_tolerances', 'remove_links', 'disable_links', 'enable_links', 'save_thresholds', 'rename_setup'];
+            $needsProject = ['update', 'save_mode', 'delete', 'accept_suggestions', 'dismiss_suggestions', 'save_tolerances', 'remove_links', 'disable_links', 'enable_links', 'move_link', 'move_links', 'set_scope', 'save_thresholds', 'rename_setup'];
             if (in_array($action, $needsProject, true)) {
                 $gid = (int)($_POST['project_id'] ?? 0);
                 $gproj = $gid > 0 ? getProject($conn, $gid) : null;
@@ -100,6 +100,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $done = setProjectLinksEnabled($conn, $id, $keys, $action === 'enable_links');
                     $message = __('projects_links_set', ['count' => $done]);
                 }
+                $messageType = 'success';
+            } elseif ($action === 'move_link') {
+                $id = (int)($_POST['project_id'] ?? 0);
+                $fid = (int)($_POST['file_id'] ?? 0);
+                $fromLevel = (string)($_POST['from_level'] ?? '');
+                $fromNode = (int)($_POST['from_node'] ?? 0);
+                $toLevel = (string)($_POST['to_level'] ?? '');
+                $toNode = (int)($_POST['to_node'] ?? 0);
+                $mvProj = getProject($conn, $id);
+                if ($mvProj !== null && getProjectAssignMode($mvProj) === 'frozen') {
+                    throw new InvalidArgumentException(__('projects_add_frozen'));
+                }
+                // Demote to a brand-new night session: create it first (panel
+                // ownership + night format validated, like any other target).
+                if ($toLevel === 'session' && $toNode <= 0) {
+                    $toPanel = (int)($_POST['to_panel'] ?? 0);
+                    $toNight = (string)($_POST['to_night'] ?? '');
+                    if (!projectOwnsNode($conn, $id, 'panel', $toPanel)
+                        || preg_match('/^\d{4}-\d{2}-\d{2}$/', $toNight) !== 1) {
+                        throw new InvalidArgumentException(__('projects_error_name'));
+                    }
+                    $toNode = projectFindOrCreateSession($conn, $toPanel, $toNight);
+                }
+                moveProjectLink($conn, $id, $fid, $fromLevel, $fromNode, $toLevel, $toNode);
+                $message = __('projects_moved');
+                $messageType = 'success';
+            } elseif ($action === 'move_links') {
+                $id = (int)($_POST['project_id'] ?? 0);
+                $fids = array_values(array_filter(array_map('intval', (array)($_POST['file_ids'] ?? []))));
+                $fromLevel = (string)($_POST['from_level'] ?? '');
+                $fromNode = (int)($_POST['from_node'] ?? 0);
+                $toLevel = (string)($_POST['to_level'] ?? '');
+                $toNode = (int)($_POST['to_node'] ?? 0);
+                $mvProj = getProject($conn, $id);
+                if ($mvProj !== null && getProjectAssignMode($mvProj) === 'frozen') {
+                    throw new InvalidArgumentException(__('projects_add_frozen'));
+                }
+                // Demote to a brand-new night session: create it once, then move all.
+                if ($toLevel === 'session' && $toNode <= 0) {
+                    $toPanel = (int)($_POST['to_panel'] ?? 0);
+                    $toNight = (string)($_POST['to_night'] ?? '');
+                    if (!projectOwnsNode($conn, $id, 'panel', $toPanel)
+                        || preg_match('/^\d{4}-\d{2}-\d{2}$/', $toNight) !== 1) {
+                        throw new InvalidArgumentException(__('projects_error_name'));
+                    }
+                    $toNode = projectFindOrCreateSession($conn, $toPanel, $toNight);
+                }
+                $done = 0;
+                $failed = 0;
+                foreach ($fids as $fid) {
+                    if ($fid <= 0) {
+                        continue;
+                    }
+                    try {
+                        moveProjectLink($conn, $id, $fid, $fromLevel, $fromNode, $toLevel, $toNode);
+                        $done++;
+                    } catch (Exception $e) {
+                        $failed++;
+                    }
+                }
+                $message = __('projects_moved_bulk', ['done' => $done, 'failed' => $failed]);
+                $messageType = 'success';
+            } elseif ($action === 'set_scope') {
+                $id = (int)($_POST['project_id'] ?? 0);
+                $keys = array_values((array)($_POST['link_keys'] ?? []));
+                $sids = array_values(array_filter(array_map('intval', (array)($_POST['scope_sessions'] ?? []))));
+                $res = setProjectCalibScope($conn, $id, $keys, $sids);
+                $message = __('projects_scope_set', ['updated' => $res['updated'], 'skipped' => $res['skipped']]);
                 $messageType = 'success';
             } elseif ($action === 'save_thresholds') {
                 $id = (int)($_POST['project_id'] ?? 0);
@@ -194,6 +262,16 @@ $intGroups = $projectTree !== null
 if ($projectTree !== null && !empty($intGroups)) {
     $projectTree = markTreeAutoOff($projectTree, indexAutoOffLights($intGroups));
 }
+// Duplicate-link warnings (same file linked at several levels): ⧉×n markers.
+$dupLinks = $projectTree !== null ? indexDuplicateLinks($projectTree) : [];
+// Shared render context for calibration rows: duplicates + grouping tolerances.
+$calCtxBase = [
+    'dup' => $dupLinks,
+    'tols' => [
+        'exp_dark' => (string)($projectTols['tol_exp_dark'] ?? '10%'),
+        'temp' => (string)($projectTols['tol_temp'] ?? '2C'),
+    ],
+];
 $projectBlocked = $detail !== null && !canAccessProject($conn, (int)$detail['id']);
 if ($projectBlocked) {
     http_response_code(403);
@@ -465,6 +543,10 @@ if ($projectBlocked) {
                         <?= __('export_astrobin_csv') ?>
                     </button>
                     <?php endif; ?>
+                    <button type="button" id="scopeModalOpen"
+                            class="px-3 py-1 text-sm bg-purple-700 hover:bg-purple-600 text-white rounded transition-colors">
+                        <?= __('projects_scope_button') ?>
+                    </button>
                     <button type="submit" name="action" value="enable_links"
                             class="px-3 py-1 text-sm bg-green-700 hover:bg-green-600 text-white rounded transition-colors">
                         <?= __('projects_enable_selected') ?>
@@ -479,8 +561,213 @@ if ($projectBlocked) {
                         <?= __('projects_remove_selected') ?>
                     </button>
                 </div>
+                <div id="scopeModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60">
+                    <div class="bg-gray-800 rounded-lg p-6 w-full max-w-md max-h-[85vh] overflow-y-auto">
+                        <div class="flex items-center justify-between mb-2">
+                            <h2 class="text-lg font-semibold"><?= __('projects_scope_modal') ?></h2>
+                            <button type="button" id="scopeModalClose" class="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
+                        </div>
+                        <p class="text-sm text-gray-400 mb-3"><?= __('projects_scope_hint') ?></p>
+                        <div class="mb-3 text-sm flex gap-3">
+                            <button type="button" id="scopeCheckAll" class="text-blue-400 hover:text-blue-300"><?= __('projects_select_all') ?></button>
+                            <button type="button" id="scopeCheckNone" class="text-blue-400 hover:text-blue-300"><?= __('projects_scope_all') ?></button>
+                        </div>
+                        <div class="flex flex-col gap-3 mb-4" id="scopeSessionList">
+                            <?php foreach (($projectTree['setups'] ?? []) as $scSetup): ?>
+                                <?php
+                                $scHasSessions = false;
+                                foreach (($scSetup['panels'] ?? []) as $__sp) {
+                                    if (!empty($__sp['sessions'])) {
+                                        $scHasSessions = true;
+                                        break;
+                                    }
+                                }
+                                unset($__sp);
+                                ?>
+                                <?php if (!$scHasSessions) continue; ?>
+                                <div class="scope-setup-group" data-setup="<?= (int)$scSetup['id'] ?>">
+                                    <div class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1">
+                                        S<?= (int)($scSetup['setup_no'] ?? $scSetup['id']) ?>
+                                    </div>
+                                    <?php foreach (($scSetup['panels'] ?? []) as $scPanel): ?>
+                                        <?php if (empty($scPanel['sessions'])) continue; ?>
+                                        <div class="text-xs text-gray-500 mt-1">P<?= (int)($scPanel['panel_no'] ?? $scPanel['id']) ?></div>
+                                        <?php foreach ($scPanel['sessions'] as $scSession): ?>
+                                            <label class="flex items-center gap-2 py-1 text-sm text-gray-200 cursor-pointer">
+                                                <input type="checkbox" name="scope_sessions[]" value="<?= (int)$scSession['id'] ?>" data-setup="<?= (int)$scSetup['id'] ?>"
+                                                       class="scope-session-check rounded bg-gray-600 border-gray-500">
+                                                <?= htmlspecialchars((string)$scSession['astro_night']) ?>
+                                            </label>
+                                        <?php endforeach; ?>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <button type="button" id="scopeModalCancel" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"><?= __('projects_cancel') ?></button>
+                            <button type="submit" name="action" value="set_scope" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
+                                <?= __('projects_save') ?>
+                            </button>
+                        </div>
+                    </div>
+                </div>
                 <?php include __DIR__ . '/includes/projects_tree.php'; ?>
             </form>
+            <script>
+            // Calibration level moves (↑/↓ in the tree). Rows live inside the
+            // bulk form, so nested <form> tags are impossible: posts go through
+            // a dynamically built form carrying the bulk form's CSRF/project.
+            (function () {
+                const bulk = document.getElementById('treeBulkForm');
+                if (!bulk) return;
+                function postMove(fields) {
+                    const f = document.createElement('form');
+                    f.method = 'POST';
+                    f.action = window.location.pathname + window.location.search;
+                    const add = (k, v) => {
+                        const i = document.createElement('input');
+                        i.type = 'hidden'; i.name = k; i.value = v;
+                        f.appendChild(i);
+                    };
+                    add('csrf_token', bulk.querySelector('input[name="csrf_token"]')?.value || '');
+                    add('project_id', bulk.querySelector('input[name="project_id"]')?.value || '');
+                    add('action', 'move_links');
+                    Object.entries(fields).forEach(([k, v]) => {
+                        if (Array.isArray(v)) v.forEach(item => add(k + '[]', item));
+                        else add(k, v);
+                    });
+                    document.body.appendChild(f);
+                    f.submit();
+                }
+                document.querySelectorAll('#treeBulkForm .mv-up').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        postMove({
+                            file_ids: (btn.dataset.fids || '').split(',').filter(Boolean),
+                            from_level: btn.dataset.fromLevel,
+                            from_node: btn.dataset.fromNode,
+                            to_level: btn.dataset.toLevel,
+                            to_node: btn.dataset.toNode,
+                        });
+                    });
+                });
+                document.querySelectorAll('#treeBulkForm .mv-down').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const picker = btn.parentElement?.querySelector('.mv-picker');
+                        if (picker) picker.classList.toggle('hidden');
+                    });
+                });
+                // Clicks inside the picker (select/OK) must not toggle the group <details>.
+                document.querySelectorAll('#treeBulkForm .mv-picker').forEach(picker => {
+                    picker.addEventListener('click', (e) => e.stopPropagation());
+                });
+                document.querySelectorAll('#treeBulkForm .mv-go').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const sel = btn.parentElement?.querySelector('.mv-target');
+                        if (!sel || !sel.value) return;
+                        // Values: "session:ID", "panel:ID", "new:PANELID:NIGHT".
+                        const parts = sel.value.split(':');
+                        const fields = {
+                            file_ids: (btn.dataset.fids || '').split(',').filter(Boolean),
+                            from_level: btn.dataset.fromLevel,
+                            from_node: btn.dataset.fromNode,
+                        };
+                        if (parts[0] === 'new') {
+                            fields.to_level = 'session';
+                            fields.to_node = '0';
+                            fields.to_panel = parts[1] || '0';
+                            fields.to_night = parts[2] || '';
+                        } else {
+                            fields.to_level = parts[0] || '';
+                            fields.to_node = parts[1] || '0';
+                        }
+                        postMove(fields);
+                    });
+                });
+            })();
+            // Shift-click range select on tree file checkboxes (same pattern as
+            // the main table). Programmatic sets skip 'change', so every group
+            // box is re-synced explicitly afterwards.
+            (function () {
+                const form = document.getElementById('treeBulkForm');
+                if (!form) return;
+                let lastTreeCheck = null;
+                form.addEventListener('click', (e) => {
+                    if (!e.target.classList || !e.target.classList.contains('pfl-check')) return;
+                    const all = Array.from(form.querySelectorAll('.pfl-check'));
+                    if (e.shiftKey && lastTreeCheck && all.includes(lastTreeCheck)) {
+                        const a = all.indexOf(lastTreeCheck);
+                        const b = all.indexOf(e.target);
+                        const lo = Math.min(a, b);
+                        const hi = Math.max(a, b);
+                        for (let i = lo; i <= hi; i++) {
+                            all[i].checked = e.target.checked;
+                            all[i].dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    }
+                    lastTreeCheck = e.target;
+                });
+            })();
+            // Bulk calibration scope modal: session checkboxes are submitted
+            // with the bulk form (link_keys[] come from the tree selection).
+            // On open, the common scope of the selection is pre-checked.
+            (function () {
+                const modal = document.getElementById('scopeModal');
+                const openBtn = document.getElementById('scopeModalOpen');
+                const closeBtn = document.getElementById('scopeModalClose');
+                const cancelBtn = document.getElementById('scopeModalCancel');
+                if (!modal || !openBtn) return;
+                function open() {
+                    const checked = Array.from(
+                        document.querySelectorAll('#treeBulkForm .pfl-check:checked')
+                    );
+                    // Scope is only meaningful within the same setup: show sessions
+                    // of the setups present in the selection (server re-validates).
+                    const setups = new Set();
+                    checked.forEach(cb => { if (cb.dataset.setup) setups.add(cb.dataset.setup); });
+                    modal.querySelectorAll('.scope-setup-group').forEach(gr => {
+                        gr.style.display = (setups.size === 0 || setups.has(gr.dataset.setup)) ? '' : 'none';
+                    });
+                    modal.querySelectorAll('.scope-session-check').forEach(box => {
+                        const visible = box.closest('.scope-setup-group')?.style.display !== 'none';
+                        if (!visible) box.checked = false;
+                    });
+                    const scoped = checked.filter(cb => cb.dataset.scope);
+                    const boxes = Array.from(modal.querySelectorAll('.scope-session-check'));
+                    if (scoped.length > 0) {
+                        let common = scoped[0].dataset.scope.split(',').filter(Boolean);
+                        scoped.slice(1).forEach(cb => {
+                            const s = new Set(cb.dataset.scope.split(',').filter(Boolean));
+                            common = common.filter(id => s.has(id));
+                        });
+                        boxes.forEach(box => { box.checked = common.includes(box.value); });
+                    } else {
+                        boxes.forEach(box => { box.checked = false; });
+                    }
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                }
+                function close() {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                }
+                openBtn.addEventListener('click', open);
+                if (closeBtn) closeBtn.addEventListener('click', close);
+                if (cancelBtn) cancelBtn.addEventListener('click', close);
+                modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+                document.getElementById('scopeCheckAll')?.addEventListener('click', () => {
+                    modal.querySelectorAll('.scope-session-check').forEach(box => { box.checked = true; });
+                });
+                document.getElementById('scopeCheckNone')?.addEventListener('click', () => {
+                    modal.querySelectorAll('.scope-session-check').forEach(box => { box.checked = false; });
+                });
+            })();
+            </script>
             <div class="text-xs text-gray-400 mt-4 flex flex-wrap items-center gap-x-4 gap-y-1">
                 <span class="font-semibold"><?= __('projects_legend') ?>:</span>
                 <span class="inline-flex gap-1 items-center"><?= diagBox('green', 'B', __('projects_cal_bias')) ?><?= diagBox('green', 'D', __('projects_cal_dark')) ?><?= diagBox('green', 'F', __('projects_cal_flat')) ?> <span><?= htmlspecialchars(__('projects_legend_calib')) ?></span></span>

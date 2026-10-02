@@ -4,6 +4,10 @@
 // Shows where suggestions WOULD land if accepted; selection happens here
 // via checkboxes (suggestion_ids[]), accept/discard buttons live in the modal form.
 $__ptree = $pendingTree ?? ['setups' => []];
+$__pendTols = [
+    'exp_dark' => (string)(($projectTols['tol_exp_dark'] ?? null) ?? '10%'),
+    'temp' => (string)(($projectTols['tol_temp'] ?? null) ?? '2C'),
+];
 function pendFileRows(array $lights): array
 {
     return array_values(array_filter($lights, fn($li) => !empty($li['pending'])));
@@ -59,13 +63,24 @@ function setupHasPend(array $setup): bool
     return false;
 }
 
-function renderPendCals(array $cals): void
+function renderPendCals(array $cals, array $tols): void
 {
-    foreach ($cals as $cal) {
-        if (empty($cal['pending'])) {
-            continue;
-        }
+    $pend = array_values(array_filter($cals, fn($c) => !empty($c['pending'])));
+    if (empty($pend)) {
+        return;
+    }
+    $showHeaders = count($groups) > 1;
+    foreach ($groups as $g) {
         ?>
+        <details open class="cal-group mb-1">
+            <?php if ($showHeaders): ?>
+            <summary class="cursor-pointer text-xs font-semibold text-gray-400 hover:text-gray-200 mt-1">
+                <?= htmlspecialchars(($g['label'] ?? '—') . ' · ' . count($g['rows'])) ?>
+            </summary>
+            <?php endif; ?>
+        <?php
+        foreach ($g['rows'] as $cal) {
+            ?>
         <li class="flex items-start gap-2 text-xs border-b border-gray-700/40 py-1 opacity-70">
             <input type="checkbox" name="suggestion_ids[]" value="<?= (int)$cal['suggestion_id'] ?>" class="sug-check mt-0.5 rounded bg-gray-600 border-gray-500">
             <span>
@@ -73,6 +88,10 @@ function renderPendCals(array $cals): void
                 <span class="ml-2 text-gray-500">[<?= htmlspecialchars($cal['imgtype']) ?>]</span>
             </span>
         </li>
+            <?php
+        }
+        ?>
+        </details>
         <?php
     }
 }
@@ -106,7 +125,7 @@ unset($__s, $__p, $__sess, $__f);
                 <?php $setupPendCals = array_values(array_filter($setup['calibrations'], fn($c) => !empty($c['pending']))); ?>
                 <?php if (!empty($setupPendCals)): ?>
                     <ul class="flex flex-col gap-1 mb-2">
-                        <?php renderPendCals($setup['calibrations']); ?>
+                        <?php renderPendCals($setup['calibrations'], $__pendTols); ?>
                     </ul>
                 <?php endif; ?>
                 <?php foreach ($setup['panels'] as $panel): ?>
@@ -127,7 +146,7 @@ unset($__s, $__p, $__sess, $__f);
                             <?php $panelPendCals = array_values(array_filter($panel['calibrations'], fn($c) => !empty($c['pending']))); ?>
                             <?php if (!empty($panelPendCals)): ?>
                                 <ul class="flex flex-col gap-1 mb-2">
-                                    <?php renderPendCals($panel['calibrations']); ?>
+                                    <?php renderPendCals($panel['calibrations'], $__pendTols); ?>
                                 </ul>
                             <?php endif; ?>
                             <?php foreach ($panel['sessions'] as $session): ?>
@@ -163,23 +182,14 @@ unset($__s, $__p, $__sess, $__f);
                                                 </ul>
                                                 <?php endforeach; ?>
                                                 <ul class="flex flex-col gap-1">
-                                                    <?php foreach ($filter['calibrations'] as $cal): ?>
-                                                        <?php if (empty($cal['pending'])) continue; ?>
-                                                        <li class="flex items-start gap-2 text-xs border-b border-gray-700/40 py-1 opacity-70">
-                                                            <input type="checkbox" name="suggestion_ids[]" value="<?= (int)$cal['suggestion_id'] ?>" class="sug-check mt-0.5 rounded bg-gray-600 border-gray-500">
-                                                            <span>
-                                                                <span class="font-medium"><?= htmlspecialchars($cal['name']) ?></span>
-                                                                <span class="ml-2 text-gray-500">[<?= htmlspecialchars($cal['imgtype']) ?>]</span>
-                                                            </span>
-                                                        </li>
-                                                    <?php endforeach; ?>
+                                                    <?php renderPendCals($filter['calibrations'], $__pendTols); ?>
                                                 </ul>
                                             </div>
                                         <?php endforeach; ?>
                                         <?php $sessPendCals = array_values(array_filter($session['calibrations'], fn($c) => !empty($c['pending']))); ?>
                                         <?php if (!empty($sessPendCals)): ?>
                                             <ul class="flex flex-col gap-1 mb-1">
-                                                <?php renderPendCals($session['calibrations']); ?>
+                                                <?php renderPendCals($session['calibrations'], $__pendTols); ?>
                                             </ul>
                                         <?php endif; ?>
                                     </div>

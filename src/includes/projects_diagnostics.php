@@ -341,7 +341,110 @@ function getProjectTree(PDO $conn, int $projectId, bool $includePending = false)
         }
     }
     $tree['setups'] = array_values($tree['setups']);
+    attachCalibScopes($conn, $tree);
     return $tree;
+}
+
+/**
+ * Attach session scopes to calibration link rows: `scope_sessions` (ids, for
+ * diagnostics) and `scope_nights` (display labels). Links without scope rows
+ * apply to the whole chain, so nothing is attached to them. Pending rows
+ * never carry scope.
+ */
+function attachCalibScopes(PDO $conn, array &$tree): void
+{
+    // Collect every real link identity (levels are implicit in the walk:
+    // filter-level links live on their session row).
+    $all = [];
+    $gather = function (array $rows, string $level, int $node) use (&$all): void {
+        foreach ($rows as $r) {
+            if (!empty($r['pending'])) {
+                continue;
+            }
+            $fid = (int)($r['file_id'] ?? $r['id'] ?? 0);
+            if ($fid > 0) {
+                $all[$fid . '|' . $level . '|' . $node] = true;
+            }
+        }
+    };
+    $gather($tree['project_links'] ?? [], 'project', 0);
+    foreach ($tree['setups'] ?? [] as $setup) {
+        $gather($setup['calibrations'] ?? [], 'setup', (int)$setup['id']);
+        foreach ($setup['panels'] ?? [] as $panel) {
+            $gather($panel['calibrations'] ?? [], 'panel', (int)$panel['id']);
+            foreach ($panel['sessions'] ?? [] as $session) {
+                $gather($session['calibrations'] ?? [], 'session', (int)$session['id']);
+                foreach ($session['filters'] ?? [] as $filter) {
+                    $gather($filter['calibrations'] ?? [], 'filter', (int)$session['id']);
+                }
+            }
+        }
+    }
+    if (empty($all)) {
+        return;
+    }
+    $ph = implode(',', array_fill(0, count($all), '(?,?,?)'));
+    $params = [];
+    foreach (array_keys($all) as $k) {
+        [$f, $l, $n] = explode('|', $k, 3);
+        $params[] = (int)$f;
+        $params[] = $l;
+        $params[] = (int)$n;
+    }
+    $st = $conn->prepare(
+        "SELECT s.file_id, s.level, s.node_id, s.session_id, ss.astro_night "
+        . "FROM project_calib_scope s JOIN project_sessions ss ON ss.id = s.session_id "
+        . "WHERE (s.file_id, s.level, s.node_id) IN ($ph)"
+    );
+    $st->execute($params);
+    $map = [];
+    foreach ($st->fetchAll() as $r) {
+        $k = (int)$r['file_id'] . '|' . $r['level'] . '|' . (int)$r['node_id'];
+        $map[$k]['sessions'][] = (int)$r['session_id'];
+        $map[$k]['nights'][] = (string)$r['astro_night'];
+    }
+    if (empty($map)) {
+        return;
+    }
+    $attach = function (array &$rows, string $level, int $node) use (&$attach, $map): void {
+        foreach ($rows as &$r) {
+            if (!empty($r['pending'])) {
+                continue;
+            }
+            $fid = (int)($r['file_id'] ?? $r['id'] ?? 0);
+            $k = $fid . '|' . $level . '|' . $node;
+            if ($fid > 0 && isset($map[$k])) {
+                $r['scope_sessions'] = array_values(array_unique($map[$k]['sessions']));
+                $r['scope_nights'] = array_values(array_unique($map[$k]['nights']));
+                sort($r['scope_nights']);
+            }
+        }
+        unset($r);
+    };
+    if (isset($tree['project_links'])) {
+        $attach($tree['project_links'], 'project', 0);
+    }
+    foreach ($tree['setups'] as &$setup) {
+        if (isset($setup['calibrations'])) {
+            $attach($setup['calibrations'], 'setup', (int)$setup['id']);
+        }
+        foreach ($setup['panels'] as &$panel) {
+            if (isset($panel['calibrations'])) {
+                $attach($panel['calibrations'], 'panel', (int)$panel['id']);
+            }
+            foreach ($panel['sessions'] as &$session) {
+                if (isset($session['calibrations'])) {
+                    $attach($session['calibrations'], 'session', (int)$session['id']);
+                }
+                foreach ($session['filters'] as &$filter) {
+                    if (isset($filter['calibrations'])) {
+                        $attach($filter['calibrations'], 'filter', (int)$session['id']);
+                    }
+                }
+            }
+        }
+    }
+    unset($setup, $panel, $session, $filter);
 }
 
 /**
@@ -480,12 +583,16 @@ function diagnoseProjectTree(array $tree, array $tols): array
         foreach ($setup['panels'] as $panel) {
             $panelCals = array_merge($setupCals, $panel['calibrations']);
             foreach ($panel['sessions'] as $session) {
+                $sid = (int)$session['id'];
                 $sessionCals = array_merge($panelCals, $session['calibrations']);
                 foreach ($session['filters'] as $filter) {
                     $pool = array_merge($sessionCals, $filter['calibrations']);
                     $pool = array_values(array_filter(
                         $pool,
+                        // Session scope: a scoped link above session level only
+                        // applies to lights of the listed sessions.
                         fn($c) => empty($c['pending']) && !empty($c['enabled'])
+                            && (empty($c['scope_sessions']) || in_array($sid, $c['scope_sessions'], true))
                     ));
                     foreach ($filter['lights'] as $light) {
                         if (!empty($light['pending']) || empty($light['enabled'])) {
@@ -543,6 +650,165 @@ function getProjectTreeFileIds(array $tree, bool $includePending = false): array
     $out = array_keys($ids);
     sort($out);
     return $out;
+}
+
+/**
+ * Duplicate links index: file ids linked at more than one level, mapped to
+ * human labels (setup S{n}, panel P{n}, session {night}, ...). Used for the
+ * ⧉×n warning marker. Pending rows are ignored.
+ */
+function indexDuplicateLinks(array $tree): array
+{
+    $byFile = [];
+    $add = function (array $rows, string $label) use (&$byFile): void {
+        foreach ($rows as $r) {
+            if (!empty($r['pending'])) {
+                continue;
+            }
+            $fid = (int)($r['file_id'] ?? $r['id'] ?? 0);
+            if ($fid > 0) {
+                $byFile[$fid][] = $label;
+            }
+        }
+    };
+    $add($tree['project_links'] ?? [], 'project');
+    foreach ($tree['setups'] ?? [] as $setup) {
+        $slabel = 'setup S' . (int)($setup['setup_no'] ?? $setup['id']);
+        $add($setup['calibrations'] ?? [], $slabel);
+        foreach ($setup['panels'] ?? [] as $panel) {
+            $plabel = 'P' . (int)($panel['panel_no'] ?? $panel['id']);
+            $add($panel['calibrations'] ?? [], 'panel ' . $plabel);
+            foreach ($panel['sessions'] ?? [] as $session) {
+                $night = (string)($session['astro_night'] ?? '');
+                $add($session['calibrations'] ?? [], 'session ' . $night);
+                foreach ($session['filters'] ?? [] as $filter) {
+                    $add($filter['lights'] ?? [], 'session ' . $night);
+                    $fname = trim((string)($filter['name'] ?? ''));
+                    $add($filter['calibrations'] ?? [], 'filtro ' . ($fname !== '' ? $fname : '—') . ' · ' . $night);
+                }
+            }
+        }
+    }
+    $out = [];
+    foreach ($byFile as $fid => $labels) {
+        if (count($labels) > 1) {
+            $out[$fid] = array_values(array_unique($labels));
+        }
+    }
+    return $out;
+}
+
+/**
+ * Display grouping for calibration rows: flats by filter, darks by exposure
+ * (same tolerance rule as matching) and temperature, bias all together.
+ * Returns ordered [['kind' => flat|dark|bias|other, 'label' => ?string,
+ * 'rows' => [...]]] for direct rendering; single-group nodes render without
+ * a header. Pure display: matching and diagnostics are unaffected.
+ */
+function groupCalibrations(array $cals, string $tolExpDark, string $tolTemp): array
+{
+    $flats = $darks = $bias = $other = [];
+    foreach ($cals as $c) {
+        switch (strtoupper((string)($c['imgtype'] ?? ''))) {
+            case 'FLAT':
+                $flats[] = $c;
+                break;
+            case 'DARK':
+                $darks[] = $c;
+                break;
+            case 'BIAS':
+                $bias[] = $c;
+                break;
+            default:
+                $other[] = $c;
+        }
+    }
+    $groups = [];
+    if (!empty($flats)) {
+        $byFilter = [];
+        foreach ($flats as $f) {
+            $raw = trim((string)($f['filter'] ?? ''));
+            $key = mb_strtolower($raw);
+            if (!isset($byFilter[$key])) {
+                $byFilter[$key] = ['label' => $raw !== '' ? $raw : '—', 'rows' => []];
+            }
+            $byFilter[$key]['rows'][] = $f;
+        }
+        uksort($byFilter, fn($a, $b) => strcasecmp($a === '' ? '—' : $a, $b === '' ? '—' : $b));
+        foreach ($byFilter as $g) {
+            $groups[] = ['kind' => 'flat'] + $g;
+        }
+    }
+    if (!empty($darks)) {
+        foreach (clusterExposures($darks, $tolExpDark, 0.10) as $eg) {
+            foreach (bucketCalibTemps($eg['lights'], $tolTemp) as $tb) {
+                $groups[] = ['kind' => 'dark', 'label' => darkCalGroupLabel($eg['exptime'], $tb['temp']), 'rows' => $tb['rows']];
+            }
+        }
+    }
+    if (!empty($bias)) {
+        $groups[] = ['kind' => 'bias', 'label' => null, 'rows' => array_values($bias)];
+    }
+    if (!empty($other)) {
+        $byType = [];
+        foreach ($other as $c) {
+            $t = strtoupper((string)($c['imgtype'] ?? ''));
+            $byType[$t]['label'] = $t !== '' ? $t : '—';
+            $byType[$t]['rows'][] = $c;
+        }
+        ksort($byType);
+        foreach ($byType as $g) {
+            $groups[] = ['kind' => 'other'] + $g;
+        }
+    }
+    return $groups;
+}
+
+/**
+ * Bucket rows by ccd_temp with an absolute tolerance (anchor clustering like
+ * clusterExposures, but absolute degrees). Null temps share one group.
+ * Returns [['temp' => ?float, 'rows' => [...]]] sorted ascending.
+ */
+function bucketCalibTemps(array $rows, string $tolTempRaw): array
+{
+    $tol = parseTolAbs($tolTempRaw, 2.0);
+    $withNull = [];
+    $withVal = [];
+    foreach ($rows as $r) {
+        if ($r['ccd_temp'] === null || $r['ccd_temp'] === '') {
+            $withNull[] = $r;
+        } else {
+            $withVal[] = $r;
+        }
+    }
+    usort($withVal, fn($a, $b) => (float)$a['ccd_temp'] <=> (float)$b['ccd_temp']);
+    $groups = [];
+    $anchor = null;
+    foreach ($withVal as $r) {
+        $v = (float)$r['ccd_temp'];
+        if ($anchor === null || abs($v - $anchor) > $tol + 1e-9) {
+            $groups[] = ['temp' => $v, 'rows' => []];
+            $anchor = $v;
+        }
+        $groups[count($groups) - 1]['rows'][] = $r;
+    }
+    if (!empty($withNull)) {
+        $groups[] = ['temp' => null, 'rows' => $withNull];
+    }
+    return $groups;
+}
+
+function darkCalGroupLabel($exptime, $temp): string
+{
+    $label = fmtExpShort($exptime);
+    if ($temp === null) {
+        return $label . ' · —';
+    }
+    $t = round((float)$temp, 1);
+    if ($t == 0) {
+        $t = 0.0; // avoid "-0.0"
+    }
+    return $label . ' · ' . number_format($t, 1, '.', '') . ' °C';
 }
 
 /**

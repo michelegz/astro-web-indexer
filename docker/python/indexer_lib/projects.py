@@ -390,24 +390,31 @@ def suggest_file(dcur, project, globals_, meta, file_id):
     panel_id, sep, rot_d, rot_unknown = found
 
     night = astro_night(meta.get('date_obs'))
-    if night is None:
+    is_light = imgtype == 'LIGHT'
+    if night is None and is_light:
+        # Lights strictly need their night session; dateless calibrations
+        # fall back to setup level (see below).
         return 'skipped'
-    session_id, _ = find_or_create_session(dcur, panel_id, night)
+    session_id = None
+    if night is not None:
+        session_id, _ = find_or_create_session(dcur, panel_id, night)
 
     filt = (meta.get('filter') or '').strip() or None
-    is_light = imgtype == 'LIGHT'
     if is_light:
         level, node_id, filter_name, role = 'filter', session_id, filt, 'sub'
+    elif imgtype == 'FLAT' and night is not None:
+        # Flats live in their own night session (instrument match is by setup,
+        # filter match for lights is checked by diagnostics, not by level).
+        level, node_id, filter_name, role = 'session', session_id, filt, 'sub'
     else:
-        # Calibrations live at setup level (instrument-dependent);
-        # filter match for flats is checked by diagnostics, not by level.
+        # Darks/bias (and dateless flats) live at setup level (instrument-dependent).
         level, node_id, filter_name, role = 'setup', setup_id, filt if imgtype == 'FLAT' else None, 'sub'
 
     pos_note = (f"coords {ra:.4f}/{dec:+.4f} ({pos_source})" if ra is not None
                 else f"no coords, OBJECT bucket '{object_bucket}'")
     rot_note = 'rot unknown' if rot_unknown else f"rot Δ{rot_d:.1f}°"
     reason = (f"{setup_note}; panel {sep * 60:.1f}′ away, {rot_note}; "
-              f"night {night}; {pos_note}; rule {imgtype}→{level}"
+              f"night {night if night is not None else '?'}; {pos_note}; rule {imgtype}→{level}"
               + (f" filter {filt}" if filt else ""))
 
     if mode == 'auto':

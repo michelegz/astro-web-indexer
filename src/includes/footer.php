@@ -50,6 +50,9 @@
         project_add_analyzing: <?php echo json_encode(__('projects_add_analyzing')); ?>,
         project_add_new_setup: <?php echo json_encode(__('projects_add_new_setup')); ?>,
         project_add_new_setup_name: <?php echo json_encode(__('projects_add_new_setup_name')); ?>,
-        project_add_frozen: <?php echo json_encode(__('projects_add_frozen')); ?>
+        project_add_frozen: <?php echo json_encode(__('projects_add_frozen')); ?>,
+        projects_session: <?php echo json_encode(__('projects_session')); ?>,
+        projects_setup: <?php echo json_encode(__('projects_setup')); ?>,
+        projects_dup_levels: <?php echo json_encode(__('projects_dup_levels')); ?>
     };
 </script>

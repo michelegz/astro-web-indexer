@@ -428,8 +428,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     panel = `→ ${escHtml((data.panels || {})[f.panel_id] || ('P' + f.panel_id))} (${Number(f.sep_arcmin).toFixed(1)}′ ≤ ${Number(f.tol_pos_arcmin).toFixed(1)}′)`;
                 }
+                // Calibration destination level (lights always go under their filter).
+                let dest = '';
+                if (f.level && f.level !== 'filter') {
+                    dest = f.level === 'session' && f.night
+                        ? `→ ${escHtml(t.projects_session || 'session')} ${escHtml(f.night)}`
+                        : `→ ${escHtml(t.projects_setup || 'setup')}`;
+                }
+                // Already linked elsewhere: still added, but flagged (⧉×n).
+                let dup = '';
+                if (f.dup && f.dup.length) {
+                    const tip = escHtml((t.projects_dup_levels || 'Linked in') + ': ' + f.dup.join(', '));
+                    dup = ` <span title="${tip}">⧉×${f.dup.length}</span>`;
+                }
                 const meta = [f.filter || '', f.night || ''].filter(Boolean).join(' · ');
-                html += `<li><span class="font-medium">${escHtml(f.name)}</span> <span class="text-gray-500">${escHtml(meta)}</span> <span class="text-gray-400">${panel}</span></li>`;
+                html += `<li><span class="font-medium">${escHtml(f.name)}</span> <span class="text-gray-500">${escHtml(meta)}</span> <span class="text-gray-400">${panel}</span>${dest ? ` <span class="text-sky-300/80">${dest}</span>` : ''}${dup}</li>`;
             });
             html += '</ul></div>';
         });

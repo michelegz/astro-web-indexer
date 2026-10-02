@@ -381,6 +381,212 @@ function parseProjectLinkKey(string $key): ?array
 }
 
 /**
+ * Move one calibration link one level along its chain (session ⇄ panel ⇄ setup).
+ * The move is DELETE + INSERT preserving role/enabled/filter_name/is_light,
+ * then the old chain is pruned bottom-up. Throws on missing link, frozen
+ * project, foreign nodes or non-adjacent targets (no identical duplicates).
+ */
+function moveProjectLink(PDO $conn, int $projectId, int $fid,
+    string $fromLevel, int $fromNode, string $toLevel, int $toNode): void
+{
+    $allowed = ['session', 'panel', 'setup'];
+    if ($fid <= 0 || !in_array($fromLevel, $allowed, true) || !in_array($toLevel, $allowed, true)) {
+        throw new InvalidArgumentException(__('projects_error_name'));
+    }
+    if ($fromLevel === $toLevel && $fromNode === $toNode) {
+        throw new InvalidArgumentException(__('projects_move_exists'));
+    }
+    $project = getProject($conn, $projectId);
+    if ($project === null) {
+        throw new InvalidArgumentException(__('projects_error_name'));
+    }
+    if (getProjectAssignMode($project) === 'frozen') {
+        throw new InvalidArgumentException(__('projects_add_frozen'));
+    }
+    if (!projectOwnsNode($conn, $projectId, $fromLevel, $fromNode)
+        || !projectOwnsNode($conn, $projectId, $toLevel, $toNode)) {
+        throw new InvalidArgumentException(__('projects_error_name'));
+    }
+    if (!projectMoveAdjacent($conn, $fromLevel, $fromNode, $toLevel, $toNode)) {
+        throw new InvalidArgumentException(__('projects_error_name'));
+    }
+    $row = $conn->prepare(
+        "SELECT role, enabled, filter_name, is_light FROM project_files "
+        . "WHERE file_id = :fid AND level = :level AND node_id = :node LIMIT 1"
+    );
+    $row->execute([':fid' => $fid, ':level' => $fromLevel, ':node' => $fromNode]);
+    $link = $row->fetch();
+    if ($link === false) {
+        throw new InvalidArgumentException(__('projects_error_name'));
+    }
+    $dup = $conn->prepare(
+        "SELECT 1 FROM project_files WHERE file_id = :fid AND level = :level AND node_id = :node LIMIT 1"
+    );
+    $dup->execute([':fid' => $fid, ':level' => $toLevel, ':node' => $toNode]);
+    if ($dup->fetch() !== false) {
+        throw new InvalidArgumentException(__('projects_move_exists'));
+    }
+    $conn->beginTransaction();
+    try {
+        $conn->prepare(
+            "DELETE FROM project_files WHERE file_id = :fid AND level = :level AND node_id = :node"
+        )->execute([':fid' => $fid, ':level' => $fromLevel, ':node' => $fromNode]);
+        $conn->prepare(
+            "INSERT INTO project_files (file_id, level, node_id, filter_name, role, is_light, enabled) "
+            . "VALUES (:fid, :level, :node, :filter, :role, :light, :en)"
+        )->execute([
+            ':fid' => $fid, ':level' => $toLevel, ':node' => $toNode,
+            ':filter' => $link['filter_name'], ':role' => $link['role'],
+            ':light' => $link['is_light'], ':en' => $link['enabled'],
+        ]);
+        projectPruneUpwards($conn, $fromLevel, $fromNode);
+        $conn->commit();
+    } catch (Exception $e) {
+        if ($conn->inTransaction()) {
+            $conn->rollBack();
+        }
+        throw $e;
+    }
+}
+
+/**
+ * Adjacency check for calibration moves: target must be the direct parent or
+ * a direct child of the origin node within the same chain.
+ */
+function projectMoveAdjacent(PDO $conn, string $fromLevel, int $fromNode, string $toLevel, int $toNode): bool
+{
+    if ($fromLevel === 'session' && $toLevel === 'panel') {
+        $st = $conn->prepare("SELECT panel_id FROM project_sessions WHERE id = :n");
+        $st->execute([':n' => $fromNode]);
+        $r = $st->fetch();
+        return $r !== false && (int)$r['panel_id'] === $toNode;
+    }
+    if ($fromLevel === 'panel' && $toLevel === 'setup') {
+        $st = $conn->prepare("SELECT setup_id FROM project_panels WHERE id = :n");
+        $st->execute([':n' => $fromNode]);
+        $r = $st->fetch();
+        return $r !== false && (int)$r['setup_id'] === $toNode;
+    }
+    if ($fromLevel === 'panel' && $toLevel === 'session') {
+        $st = $conn->prepare("SELECT panel_id FROM project_sessions WHERE id = :n");
+        $st->execute([':n' => $toNode]);
+        $r = $st->fetch();
+        return $r !== false && (int)$r['panel_id'] === $fromNode;
+    }
+    if ($fromLevel === 'setup' && $toLevel === 'panel') {
+        $st = $conn->prepare("SELECT setup_id FROM project_panels WHERE id = :n");
+        $st->execute([':n' => $toNode]);
+        $r = $st->fetch();
+        return $r !== false && (int)$r['setup_id'] === $fromNode;
+    }
+    if ($fromLevel === 'setup' && $toLevel === 'session') {
+        $st = $conn->prepare(
+            "SELECT pp.setup_id FROM project_sessions ss "
+            . "JOIN project_panels pp ON pp.id = ss.panel_id WHERE ss.id = :n"
+        );
+        $st->execute([':n' => $toNode]);
+        $r = $st->fetch();
+        return $r !== false && (int)$r['setup_id'] === $fromNode;
+    }
+    return false;
+}
+/**
+ * Bulk set session scope on calibration links (transverse grouping across
+ * sessions, e.g. one dark set for several nights). Replace semantics: an
+ * empty session list clears the scope (link applies to the whole chain
+ * again). Sessions must descend from the link node; frozen projects refuse.
+ * Returns ['updated' => n, 'skipped' => m].
+ */
+function setProjectCalibScope(PDO $conn, int $projectId, array $keys, array $sessionIds): array
+{
+    $updated = 0;
+    $skipped = 0;
+    $project = getProject($conn, $projectId);
+    if ($project === null) {
+        throw new InvalidArgumentException(__('projects_error_name'));
+    }
+    if (getProjectAssignMode($project) === 'frozen') {
+        throw new InvalidArgumentException(__('projects_add_frozen'));
+    }
+    $sessionIds = array_values(array_unique(array_map('intval', $sessionIds)));
+    $sessionIds = array_values(array_filter($sessionIds, fn($s) => $s > 0));
+    foreach ($keys as $key) {
+        $parsed = parseProjectLinkKey((string)$key);
+        if ($parsed === null) {
+            $skipped++;
+            continue;
+        }
+        [$fid, $level, $node] = $parsed;
+        if ($level !== 'setup' && $level !== 'panel') {
+            $skipped++;
+            continue;
+        }
+        if (!projectOwnsNode($conn, $projectId, $level, $node)) {
+            $skipped++;
+            continue;
+        }
+        $row = $conn->prepare(
+            "SELECT is_light FROM project_files WHERE file_id = :fid AND level = :level AND node_id = :node LIMIT 1"
+        );
+        $row->execute([':fid' => $fid, ':level' => $level, ':node' => $node]);
+        $link = $row->fetch();
+        if ($link === false || !empty($link['is_light'])) {
+            $skipped++;
+            continue;
+        }
+        // Every session must descend from the link node (same setup / panel).
+        $valid = true;
+        foreach ($sessionIds as $sid) {
+            $st = $conn->prepare(
+                "SELECT pp.setup_id, ss.panel_id FROM project_sessions ss "
+                . "JOIN project_panels pp ON pp.id = ss.panel_id "
+                . "JOIN project_setups ps ON ps.id = pp.setup_id "
+                . "WHERE ss.id = :s AND ps.project_id = :pid LIMIT 1"
+            );
+            $st->execute([':s' => $sid, ':pid' => $projectId]);
+            $srow = $st->fetch();
+            if ($srow === false) {
+                $valid = false;
+                break;
+            }
+            if ($level === 'setup' && (int)$srow['setup_id'] !== $node) {
+                $valid = false;
+                break;
+            }
+            if ($level === 'panel' && (int)$srow['panel_id'] !== $node) {
+                $valid = false;
+                break;
+            }
+        }
+        if (!$valid) {
+            $skipped++;
+            continue;
+        }
+        $conn->beginTransaction();
+        try {
+            $conn->prepare(
+                "DELETE FROM project_calib_scope WHERE file_id = :fid AND level = :level AND node_id = :node"
+            )->execute([':fid' => $fid, ':level' => $level, ':node' => $node]);
+            $ins = $conn->prepare(
+                "INSERT INTO project_calib_scope (file_id, level, node_id, session_id) "
+                . "VALUES (:fid, :level, :node, :sid)"
+            );
+            foreach ($sessionIds as $sid) {
+                $ins->execute([':fid' => $fid, ':level' => $level, ':node' => $node, ':sid' => $sid]);
+            }
+            $conn->commit();
+            $updated++;
+        } catch (Exception $e) {
+            if ($conn->inTransaction()) {
+                $conn->rollBack();
+            }
+            $skipped++;
+        }
+    }
+    return ['updated' => $updated, 'skipped' => $skipped];
+}
+
+/**
  * Bulk remove links from a project (files on disk untouched), pruning
  * emptied nodes bottom-up. Returns the removed count.
  */
@@ -983,13 +1189,16 @@ function projectMatchPlan(PDO $conn, ?array $project, array $row, array $tols, i
     }
     $night = projectAstroNight((string)$row['date_obs']);
     $isLight = strtoupper((string)$row['imgtype']) === 'LIGHT';
+    $isFlat = strtoupper((string)$row['imgtype']) === 'FLAT';
     $filt = trim((string)($row['filter'] ?? ''));
     return [
         'setup_id' => $setupId, 'setup_new' => $setupNew,
         'setup_fp' => $fp, 'setup_label' => projectSetupLabel($row),
         'panel' => $panel,
         'night' => $night,
-        'level' => $isLight ? 'filter' : 'setup',
+        // Lights under filter level; flats in their own night session (setup
+        // fallback when dateless); darks/bias always at setup level.
+        'level' => $isLight ? 'filter' : (($isFlat && $night !== null) ? 'session' : 'setup'),
         'filter_name' => $filt !== '' ? $filt : null,
         'is_light' => $isLight,
     ];
@@ -1023,7 +1232,11 @@ function projectPreviewFiles(PDO $conn, ?int $projectId, array $fileIds): array
             continue;
         }
         [$row, $skipReason] = projectFetchEligibleRow($conn, $fid);
-        if ($row === null || $skipReason !== null) {
+        // Dateless calibrations are still linkable (setup level): only lights
+        // strictly require a date for their night session.
+        $calNoDate = $row !== null && $skipReason === 'no_date'
+            && strtoupper((string)$row['imgtype']) !== 'LIGHT';
+        if ($row === null || ($skipReason !== null && !$calNoDate)) {
             $skipped[] = ['name' => $row !== null ? (string)$row['name'] : '#' . $fid, 'reason' => $skipReason ?? 'not_found'];
             continue;
         }
@@ -1077,7 +1290,94 @@ function projectPreviewFiles(PDO $conn, ?int $projectId, array $fileIds): array
             $panelLabels[(int)$p['id']] = $label;
         }
     }
+    // Duplicate-link warnings: files already linked elsewhere in this project
+    // are still added, but flagged (⧉×n) instead of silently duplicated.
+    $dupWhere = $project !== null ? projectPreviewDupWhere($conn, (int)$project['id'], $groups) : [];
+    foreach ($groups as &$gref) {
+        foreach ($gref['files'] as &$fref) {
+            $fref['dup'] = $dupWhere[(int)$fref['id']] ?? [];
+        }
+        unset($fref);
+    }
+    unset($gref);
     return ['groups' => array_values($groups), 'skipped' => $skipped, 'panels' => $panelLabels];
+}
+
+/**
+ * Existing link locations per file id, as human labels (setup S{n}, panel
+ * P{n}, session {night}). Only files with at least one link are returned.
+ */
+function projectPreviewDupWhere(PDO $conn, int $projectId, array $groups): array
+{
+    $fids = [];
+    foreach ($groups as $g) {
+        foreach ($g['files'] as $f) {
+            $fids[(int)$f['id']] = true;
+        }
+    }
+    if (empty($fids)) {
+        return [];
+    }
+    $in = implode(',', array_fill(0, count($fids), '?'));
+    $lr = $conn->prepare(
+        "SELECT file_id, level, node_id, filter_name FROM project_files WHERE file_id IN ($in)"
+    );
+    $lr->execute(array_keys($fids));
+    $rows = $lr->fetchAll();
+    if (empty($rows)) {
+        return [];
+    }
+    $setups = [];
+    foreach ($conn->query(
+        "SELECT id, setup_no FROM project_setups WHERE project_id = " . (int)$projectId
+    )->fetchAll() as $s) {
+        $setups[(int)$s['id']] = 'setup S' . (int)($s['setup_no'] ?? $s['id']);
+    }
+    $panels = [];
+    foreach ($conn->query(
+        "SELECT pp.id, pp.panel_no FROM project_panels pp "
+        . "JOIN project_setups ps ON ps.id = pp.setup_id WHERE ps.project_id = " . (int)$projectId
+    )->fetchAll() as $p) {
+        $panels[(int)$p['id']] = 'panel P' . (int)($p['panel_no'] ?? $p['id']);
+    }
+    $sessions = [];
+    foreach ($conn->query(
+        "SELECT ss.id, ss.astro_night FROM project_sessions ss "
+        . "JOIN project_panels pp ON pp.id = ss.panel_id "
+        . "JOIN project_setups ps ON ps.id = pp.setup_id WHERE ps.project_id = " . (int)$projectId
+    )->fetchAll() as $s) {
+        $sessions[(int)$s['id']] = 'session ' . (string)$s['astro_night'];
+    }
+    $out = [];
+    foreach ($rows as $r) {
+        $label = null;
+        switch ($r['level']) {
+            case 'project':
+                $label = 'project';
+                break;
+            case 'setup':
+                $label = $setups[(int)$r['node_id']] ?? 'setup #' . (int)$r['node_id'];
+                break;
+            case 'panel':
+                $label = $panels[(int)$r['node_id']] ?? 'panel #' . (int)$r['node_id'];
+                break;
+            case 'session':
+            case 'filter':
+                $label = $sessions[(int)$r['node_id']] ?? 'session #' . (int)$r['node_id'];
+                if ($r['level'] === 'filter' && trim((string)($r['filter_name'] ?? '')) !== '') {
+                    $label .= ' · ' . trim((string)$r['filter_name']);
+                }
+                break;
+        }
+        if ($label !== null) {
+            $out[(int)$r['file_id']][] = $label;
+        }
+    }
+    foreach ($out as &$labels) {
+        $labels = array_values(array_unique($labels));
+    }
+    unset($labels);
+    return $out;
 }
 
 function projectAddFiles(PDO $conn, int $projectId, array $fileIds): array
@@ -1102,7 +1402,10 @@ function projectAddFiles(PDO $conn, int $projectId, array $fileIds): array
             continue;
         }
         [$row, $skipReason] = projectFetchEligibleRow($conn, $fid);
-        if ($row === null || $skipReason !== null) {
+        // See projectPreviewFiles: dateless calibrations fall back to setup level.
+        $calNoDate = $row !== null && $skipReason === 'no_date'
+            && strtoupper((string)$row['imgtype']) !== 'LIGHT';
+        if ($row === null || ($skipReason !== null && !$calNoDate)) {
             $skipped[] = ['name' => $row !== null ? (string)$row['name'] : '#' . $fid, 'reason' => $skipReason ?? 'not_found'];
             continue;
         }
@@ -1127,14 +1430,20 @@ function projectAddFiles(PDO $conn, int $projectId, array $fileIds): array
                 $panelId = $plan['panel']['id'];
             }
 
-            // Session: plain time bucket, find or create.
-            $sessionId = projectFindOrCreateSession($conn, $panelId, $plan['night']);
-
-            // Link: lights under filter level, calibrations at setup level.
+            // Link level comes from the shared match plan (never diverges from
+            // preview): lights under filter level, flats in their night session
+            // (setup fallback when dateless), darks/bias at setup level.
+            // Sessions are plain time buckets, created on demand.
             $isLight = strtoupper((string)$row['imgtype']) === 'LIGHT';
             $filt = trim((string)($row['filter'] ?? ''));
-            if ($isLight) {
+            if ($plan['level'] === 'filter') {
+                $sessionId = projectFindOrCreateSession($conn, $panelId, (string)$plan['night']);
                 $level = 'filter';
+                $node = $sessionId;
+                $filterName = $filt !== '' ? $filt : null;
+            } elseif ($plan['level'] === 'session') {
+                $sessionId = projectFindOrCreateSession($conn, $panelId, (string)$plan['night']);
+                $level = 'session';
                 $node = $sessionId;
                 $filterName = $filt !== '' ? $filt : null;
             } else {

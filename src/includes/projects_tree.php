@@ -80,28 +80,218 @@ function subtreeSummaryText(array $node): string
     return $t;
 }
 
-function renderCalRows(array $cals, string $level, int $node): void
+/**
+ * Move context builders for calibration rows. One step along the chain
+ * (session ⇄ panel ⇄ setup); filter level offers no move targets.
+ */
+function setupDownOptions(array $setup): array
+{
+    $panels = [];
+    foreach ($setup['panels'] ?? [] as $panel) {
+        $sessions = [];
+        foreach ($panel['sessions'] ?? [] as $session) {
+            $sessions[] = ['id' => (int)$session['id'], 'night' => (string)($session['astro_night'] ?? '')];
+        }
+        $panels[] = [
+            'id' => (int)$panel['id'],
+            'no' => (int)($panel['panel_no'] ?? $panel['id']),
+            'sessions' => $sessions,
+        ];
+    }
+    return $panels;
+}
+
+function panelDownOptions(array $panel): array
+{
+    $sessions = [];
+    foreach ($panel['sessions'] ?? [] as $session) {
+        $sessions[] = ['id' => (int)$session['id'], 'night' => (string)($session['astro_night'] ?? '')];
+    }
+    return $sessions;
+}
+
+function calDefaultNight(array $cal): ?string
+{
+    return !empty($cal['date_obs']) ? projectAstroNight((string)$cal['date_obs']) : null;
+}
+
+/**
+ * Group demote default: most frequent own-night among the rows (null when
+ * no row has a date). Ties resolve to the first row's night.
+ */
+function groupDefaultNight(array $rows): ?string
+{
+    $counts = [];
+    $order = [];
+    foreach ($rows as $r) {
+        $n = calDefaultNight($r);
+        if ($n === null) {
+            continue;
+        }
+        if (!isset($counts[$n])) {
+            $counts[$n] = 0;
+            $order[] = $n;
+        }
+        $counts[$n]++;
+    }
+    if (empty($counts)) {
+        return null;
+    }
+    $best = $order[0];
+    foreach ($order as $n) {
+        if ($counts[$n] > $counts[$best]) {
+            $best = $n;
+        }
+    }
+    return $best;
+}
+
+function renderCalRows(array $cals, string $level, int $node, array $moveCtx = []): void
 {
     $rows = array_values(array_filter($cals, fn($c) => isset($c['file_id'])));
     if (empty($rows)) {
         return;
     }
+    $dup = $moveCtx['dup'] ?? [];
+    $tols = $moveCtx['tols'] ?? ['exp_dark' => '10%', 'temp' => '2C'];
+    $groups = groupCalibrations(
+        $rows,
+        (string)($tols['exp_dark'] ?? '10%'),
+        (string)($tols['temp'] ?? '2C')
+    );
     ?>
-    <ul class="flex flex-col gap-0.5 mb-1">
-        <?php foreach ($rows as $c): ?>
+    <?php foreach ($groups as $g): ?>
+        <?php $gFids = implode(',', array_map(fn($r) => (int)$r['file_id'], $g['rows'])); ?>
+        <details open class="cal-group mb-1">
+            <summary class="cursor-pointer text-xs font-semibold text-gray-400 hover:text-gray-200 mt-1 flex items-center gap-2">
+                <span><?= htmlspecialchars(($g['label'] ?? __('projects_cal_bias')) . ' · ' . count($g['rows'])) ?></span>
+                <?php if (isset($moveCtx['up'])): ?>
+                    <button type="button" class="mv-up text-gray-400 hover:text-white leading-none font-normal"
+                            data-fids="<?= htmlspecialchars($gFids) ?>"
+                            data-from-level="<?= htmlspecialchars($level) ?>" data-from-node="<?= $node ?>"
+                            data-to-level="<?= htmlspecialchars($moveCtx['up'][0]) ?>" data-to-node="<?= (int)$moveCtx['up'][1] ?>"
+                            title="<?= htmlspecialchars(__('projects_move_up', ['target' => $moveCtx['up'][2]])) ?>">↑</button>
+                <?php endif; ?>
+                <?php if (isset($moveCtx['down'])): ?>
+                    <button type="button" class="mv-down text-gray-400 hover:text-white leading-none font-normal"
+                            title="<?= __('projects_move_down') ?>">↓</button>
+                    <span class="mv-picker hidden inline-flex items-center gap-1 font-normal">
+                        <?php renderDemotePicker(groupDefaultNight($g['rows']), $level, $node, $moveCtx['down']); ?>
+                        <button type="button" class="mv-go px-2 py-0.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                                data-fids="<?= htmlspecialchars($gFids) ?>"
+                                data-from-level="<?= htmlspecialchars($level) ?>" data-from-node="<?= $node ?>">OK</button>
+                    </span>
+                <?php endif; ?>
+            </summary>
+            <ul class="flex flex-col gap-0.5 mb-1">
+        <?php foreach ($g['rows'] as $c): ?>
             <?php $isPend = !empty($c['pending']); ?>
             <?php $isOff = !$isPend && empty($c['enabled']); ?>
+            <?php $cDup = $dup[(int)$c['file_id']] ?? []; ?>
+            <?php $cScope = $c['scope_nights'] ?? []; ?>
             <li class="flex items-center gap-2 text-xs border-b border-gray-700/40 py-0.5<?= ($isPend || $isOff) ? ' opacity-60' : '' ?>">
                 <?php if (!$isPend): ?>
-                    <input type="checkbox" name="link_keys[]" value="<?= htmlspecialchars(linkKey($c, $level, $node)) ?>" class="pfl-check rounded bg-gray-600 border-gray-500">
+                    <input type="checkbox" name="link_keys[]" value="<?= htmlspecialchars(linkKey($c, $level, $node)) ?>" class="pfl-check rounded bg-gray-600 border-gray-500"<?= !empty($c['scope_sessions']) ? ' data-scope="' . htmlspecialchars(implode(',', $c['scope_sessions'])) . '"' : '' ?><?= isset($moveCtx['setup_id']) ? ' data-setup="' . (int)$moveCtx['setup_id'] . '"' : '' ?>>
                 <?php endif; ?>
                 <span class="text-gray-500">[<?= htmlspecialchars($c['imgtype']) ?>]</span>
                 <span><?= htmlspecialchars($c['name']) ?></span>
                 <?php if ($isPend): ?><span title="<?= __('projects_pending_hypo') ?>">⏳</span><?php endif; ?>
                 <?php if ($isOff): ?><span class="text-gray-500">(<?= __('projects_link_off') ?>)</span><?php endif; ?>
+                <?php if (count($cDup) > 1): ?><span title="<?= htmlspecialchars(__('projects_dup_levels') . ': ' . implode(', ', $cDup)) ?>">⧉×<?= count($cDup) ?></span><?php endif; ?>
+                <?php if (!empty($cScope)): ?><span title="<?= htmlspecialchars(__('projects_scope_title') . ': ' . implode(', ', $cScope)) ?>">◈×<?= count($cScope) ?></span><?php endif; ?>
             </li>
         <?php endforeach; ?>
-    </ul>
+            </ul>
+        </details>
+    <?php endforeach; ?>
+    <?php
+}
+
+/**
+ * Demote destination picker for a calibration group: one select with the
+ * valid one-step targets. From panel: its sessions. From setup: panels +
+ * sessions grouped per panel. $night is the group default (most frequent
+ * own-night); without it there is no "new" entry (see plan point D).
+ */
+function renderDemotePicker(?string $night, string $level, int $node, array $down): void
+{
+    if ($level === 'panel') {
+        $sessions = $down['sessions'] ?? [];
+        $hasNight = false;
+        foreach ($sessions as $s) {
+            if ($night !== null && $s['night'] === $night) {
+                $hasNight = true;
+                break;
+            }
+        }
+        ?>
+        <select class="mv-target px-1 py-0.5 text-xs bg-gray-700 border border-gray-600 rounded text-gray-100">
+            <?php foreach ($sessions as $s): ?>
+                <option value="session:<?= (int)$s['id'] ?>"<?= ($night !== null && $s['night'] === $night) ? ' selected' : '' ?>>
+                    <?= htmlspecialchars(__('projects_session') . ' ' . $s['night']) ?>
+                </option>
+            <?php endforeach; ?>
+            <?php if ($night !== null && !$hasNight): ?>
+                <option value="new:<?= $node ?>:<?= htmlspecialchars($night) ?>" selected>
+                    <?= htmlspecialchars('★ ' . __('projects_move_new_session', ['night' => $night])) ?>
+                </option>
+            <?php endif; ?>
+        </select>
+        <?php if ($night === null): ?>
+            <span class="text-gray-500 text-xs" title="<?= __('projects_move_no_date') ?>">⚠️</span>
+        <?php endif; ?>
+        <?php
+        return;
+    }
+    // From setup: panels and their sessions, grouped per panel.
+    $panels = $down['panels'] ?? [];
+    $defaultPanel = $panels !== [] ? (int)$panels[0]['id'] : 0;
+    if ($night !== null) {
+        foreach ($panels as $p) {
+            foreach ($p['sessions'] as $s) {
+                if ($s['night'] === $night) {
+                    $defaultPanel = (int)$p['id'];
+                    break 2;
+                }
+            }
+        }
+    }
+    ?>
+    <select class="mv-target px-1 py-0.5 text-xs bg-gray-700 border border-gray-600 rounded text-gray-100">
+        <?php foreach ($panels as $p): ?>
+            <optgroup label="<?= htmlspecialchars('panel P' . (int)$p['no']) ?>">
+                <option value="panel:<?= (int)$p['id'] ?>">
+                    <?= htmlspecialchars('⤵ panel P' . (int)$p['no']) ?>
+                </option>
+                <?php foreach ($p['sessions'] as $s): ?>
+                    <option value="session:<?= (int)$s['id'] ?>"<?= ($night !== null && $s['night'] === $night && (int)$p['id'] === $defaultPanel) ? ' selected' : '' ?>>
+                        <?= htmlspecialchars(__('projects_session') . ' ' . $s['night']) ?>
+                    </option>
+                <?php endforeach; ?>
+            </optgroup>
+        <?php endforeach; ?>
+        <?php if ($night !== null && $defaultPanel > 0): ?>
+            <?php
+            $alreadyThere = false;
+            foreach ($panels as $p) {
+                foreach ($p['sessions'] as $s) {
+                    if ((int)$p['id'] === $defaultPanel && $s['night'] === $night) {
+                        $alreadyThere = true;
+                        break 2;
+                    }
+                }
+            }
+            ?>
+            <?php if (!$alreadyThere): ?>
+                <option value="new:<?= $defaultPanel ?>:<?= htmlspecialchars($night) ?>" selected>
+                    <?= htmlspecialchars('★ ' . __('projects_move_new_session', ['night' => $night])) ?>
+                </option>
+            <?php endif; ?>
+        <?php endif; ?>
+    </select>
+    <?php if ($night === null): ?>
+        <span class="text-gray-500 text-xs" title="<?= __('projects_move_no_date') ?>">⚠️</span>
+    <?php endif; ?>
     <?php
 }
 
@@ -120,7 +310,7 @@ if (empty($projectTree['setups'])): ?>
                         <div class="text-xs font-normal text-gray-400 mt-0.5"><?= htmlspecialchars(subtreeSummaryText($setup)) ?></div>
                     </summary>
                     <div class="px-4 py-2">
-                        <?php renderCalRows($setup['calibrations'], 'setup', (int)$setup['id']); ?>
+                        <?php renderCalRows($setup['calibrations'], 'setup', (int)$setup['id'], ['down' => ['panels' => setupDownOptions($setup)], 'setup_id' => (int)$setup['id']] + $calCtxBase); ?>
                         <?php foreach ($setup['panels'] as $panel): ?>
                             <?php
                             $coords = ($panel['ra'] !== null && $panel['dec'] !== null)
@@ -139,7 +329,7 @@ if (empty($projectTree['setups'])): ?>
                                             <span class="ml-2 text-xs font-normal text-gray-400"><?= htmlspecialchars(subtreeSummaryText($panel)) ?></span>
                                         </summary>
                                         <div class="px-3 py-2">
-                                            <?php renderCalRows($panel['calibrations'], 'panel', (int)$panel['id']); ?>
+                                            <?php renderCalRows($panel['calibrations'], 'panel', (int)$panel['id'], ['up' => ['setup', (int)$setup['id'], 'setup S' . (int)($setup['setup_no'] ?? $setup['id'])], 'down' => ['sessions' => panelDownOptions($panel)], 'setup_id' => (int)$setup['id']] + $calCtxBase); ?>
                                             <?php foreach ($panel['sessions'] as $session): ?>
                                                 <div class="tnode mb-2">
                                                     <div class="flex items-start gap-2">
@@ -150,7 +340,7 @@ if (empty($projectTree['setups'])): ?>
                                                                 <span class="ml-2 text-xs text-gray-400"><?= htmlspecialchars(subtreeSummaryText($session)) ?></span>
                                                             </summary>
                                                             <div class="px-3 py-2">
-                                                                <?php renderCalRows($session['calibrations'], 'session', (int)$session['id']); ?>
+                                                                <?php renderCalRows($session['calibrations'], 'session', (int)$session['id'], ['up' => ['panel', (int)$panel['id'], 'panel P' . (int)($panel['panel_no'] ?? $panel['id'])], 'setup_id' => (int)$setup['id']] + $calCtxBase); ?>
                                                                 <?php foreach ($session['filters'] as $filter): ?>
                                             <?php
                                             $realLights = array_values(array_filter($filter['lights'], fn($li) => empty($li['pending']) && !empty($li['enabled'])));
@@ -179,7 +369,7 @@ if (empty($projectTree['setups'])): ?>
                                                                                         <?= htmlspecialchars(__('projects_lights_count', ['count' => count($realLights)])) ?> · <?= htmlspecialchars(fmtExp($realExp)) ?><?php if (!empty($pendLights)): ?> · <?= htmlspecialchars('+' . count($pendLights) . ' ⏳') ?><?php endif; ?><?php if (!empty($offLights)): ?> · <?= htmlspecialchars('+' . count($offLights) . ' ' . __('projects_link_off')) ?><?php endif; ?>
                                                                                     </span>
                                                                                 </div>
-                                                                                <?php renderCalRows($filter['calibrations'], 'filter', (int)$session['id']); ?>
+                                                                                <?php renderCalRows($filter['calibrations'], 'filter', (int)$session['id'], $calCtxBase); ?>
                                                                                 <?php foreach ($expGroups as $eg): ?>
                                                                                     <?php
                                                                                     $egReal = array_values(array_filter($eg['lights'], fn($li) => empty($li['pending']) && !empty($li['enabled'])));
@@ -216,7 +406,7 @@ if (empty($projectTree['setups'])): ?>
                                                                                                          <?php if (!$isPend): ?>
                                                                                                              <input type="checkbox" name="link_keys[]" value="<?= htmlspecialchars(linkKey($li, 'filter', (int)$session['id'])) ?>" class="pfl-check rounded bg-gray-600 border-gray-500 mr-1">
                                                                                                          <?php endif; ?>
-                                                                                                         <?= htmlspecialchars($li['name']) ?><?php if ($isPend): ?> <span title="<?= __('projects_pending_hypo') ?>">⏳</span><?php endif; ?><?php if ($isOff): ?> <span class="text-gray-500">(<?= __('projects_link_off') ?>)</span><?php endif; ?><?php if ($isAuto): ?> <span class="text-red-400">(<?= __('projects_auto_off') ?>)</span><?php endif; ?>
+                                                                                                          <?= htmlspecialchars($li['name']) ?><?php if ($isPend): ?> <span title="<?= __('projects_pending_hypo') ?>">⏳</span><?php endif; ?><?php if ($isOff): ?> <span class="text-gray-500">(<?= __('projects_link_off') ?>)</span><?php endif; ?><?php if ($isAuto): ?> <span class="text-red-400">(<?= __('projects_auto_off') ?>)</span><?php endif; ?><?php $liDup = ($dupLinks ?? [])[(int)$li['file_id']] ?? []; ?><?php if (count($liDup) > 1): ?> <span title="<?= htmlspecialchars(__('projects_dup_levels') . ': ' . implode(', ', $liDup)) ?>">⧉×<?= count($liDup) ?></span><?php endif; ?>
                                                                                                     </td>
                                                                                                     <td class="py-1 px-2 text-right text-gray-400"><?= htmlspecialchars((string)($li['exptime'] ?? '')) ?>s</td>
                                                                                                     <td class="py-1 px-2 whitespace-nowrap"><?= $isPend ? '⏳' : ($isOff ? '—' : '') ?></td>
