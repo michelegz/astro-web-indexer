@@ -247,7 +247,6 @@ return [
 
     // Projekte
     'projects' => 'Projekte',
-    'projects_intro' => 'Gruppiere Lights und Kalibrierungen in WBPP-artige Projekte: Setup, Panel, Session und Filter. Verknüpfungen sind nur logisch, Dateien auf der Platte werden nie verschoben.',
     'projects_new' => 'Neues Projekt',
     'projects_name' => 'Name',
     'projects_notes' => 'Notizen',

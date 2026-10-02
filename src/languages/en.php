@@ -248,7 +248,6 @@ return [
 
     // Projects
     'projects' => 'Projects',
-    'projects_intro' => 'Group lights and calibration files into WBPP-like projects: setup, panel, session and filter. Calibration links are logical only, files on disk are never moved.',
     'projects_new' => 'New project',
     'projects_name' => 'Name',
     'projects_notes' => 'Notes',

@@ -210,10 +210,6 @@ if ($projectBlocked) {
             </div>
         <?php endif; ?>
 
-        <section class="mb-6 bg-gray-800 rounded-lg p-6">
-            <p class="text-sm text-gray-300"><?= __('projects_intro') ?></p>
-        </section>
-
         <?php if ($detail === null && !$projectBlocked): ?>
         <section class="mb-6 bg-gray-800 rounded-lg p-6">
             <h2 class="text-lg font-semibold mb-4"><?= __('projects_new') ?></h2>
@@ -283,8 +279,9 @@ if ($projectBlocked) {
         </section>
         <?php else: ?>
         <section class="mb-6 bg-gray-800 rounded-lg p-6">
-            <h2 class="text-lg font-semibold mb-4"><?= htmlspecialchars($detail['name']) ?></h2>
-            <form method="POST" class="flex flex-col gap-3">
+            <details>
+                <summary class="text-lg font-semibold cursor-pointer"><?= htmlspecialchars($detail['name']) ?></summary>
+            <form method="POST" class="flex flex-col gap-3 mt-4">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <input type="hidden" name="action" value="update">
                 <input type="hidden" name="project_id" value="<?= (int)$detail['id'] ?>">
@@ -304,6 +301,7 @@ if ($projectBlocked) {
                     </button>
                 </div>
             </form>
+            </details>
         </section>
 
         <section class="mb-6 bg-gray-800 rounded-lg p-6">
@@ -426,8 +424,9 @@ if ($projectBlocked) {
         })();
         </script>
 
-        <section class="bg-gray-800 rounded-lg p-6">
-            <h2 class="text-lg font-semibold mb-2"><?= __('projects_tree') ?></h2>
+        <section class="bg-gray-800 rounded-lg p-6 mb-6">
+            <details open>
+            <summary class="text-lg font-semibold cursor-pointer mb-2"><?= __('projects_tree') ?></summary>
             <form method="POST" id="treeBulkForm">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <input type="hidden" name="project_id" value="<?= (int)$detail['id'] ?>">
@@ -448,6 +447,11 @@ if ($projectBlocked) {
                 </div>
                 <?php include __DIR__ . '/includes/projects_tree.php'; ?>
             </form>
+            <div class="text-xs text-gray-400 mt-4 flex flex-wrap items-center gap-x-4 gap-y-1">
+                <span class="font-semibold"><?= __('projects_legend') ?>:</span>
+                <span class="inline-flex gap-1 items-center"><?= diagBox('green', 'B', __('projects_cal_bias')) ?><?= diagBox('green', 'D', __('projects_cal_dark')) ?><?= diagBox('green', 'F', __('projects_cal_flat')) ?> <span><?= htmlspecialchars(__('projects_legend_calib')) ?></span></span>
+            </div>
+            </details>
             <div id="renameModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60">
                 <div class="bg-gray-800 rounded-lg p-6 w-full max-w-md">
                     <h3 class="text-lg font-semibold mb-4"><?= __('projects_setup_rename') ?></h3>
@@ -460,16 +464,11 @@ if ($projectBlocked) {
                     </div>
                 </div>
             </div>
-            <div class="text-xs text-gray-400 mt-4 flex flex-wrap items-center gap-x-4 gap-y-1">
-                <span class="font-semibold"><?= __('projects_legend') ?>:</span>
-                <span class="inline-flex gap-1 items-center"><?= diagBox('green', 'B', __('projects_cal_bias')) ?><?= diagBox('green', 'D', __('projects_cal_dark')) ?><?= diagBox('green', 'F', __('projects_cal_flat')) ?> <span><?= htmlspecialchars(__('projects_legend_calib')) ?></span></span>
-                <span>⏳ <?= htmlspecialchars(__('projects_pending_hypo')) ?></span>
-                <span>(<?= __('projects_link_off') ?>) = <?= htmlspecialchars(__('projects_disable_selected')) ?></span>
-            </div>
         </section>
 
         <section class="bg-gray-800 rounded-lg p-6">
-            <h2 class="text-lg font-semibold mb-2"><?= __('projects_igroups') ?></h2>
+            <details open>
+            <summary class="text-lg font-semibold cursor-pointer mb-2"><?= __('projects_igroups') ?></summary>
             <?php if (!empty($intGroups)): ?>
             <script src="assets/js/vendor/chart.umd.min.js"></script>
             <?php endif; ?>
@@ -667,6 +666,7 @@ if ($projectBlocked) {
                     </div>
                 <?php endforeach; ?>
             <?php endif; ?>
+            </details>
         </section>
         <script>
         (function () {

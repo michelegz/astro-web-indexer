@@ -248,7 +248,6 @@ return [
 
     // Proyectos
     'projects' => 'Proyectos',
-    'projects_intro' => 'Agrupa lights y calibraciones en proyectos estilo WBPP: setup, panel, sesión y filtro. Los enlaces son solo lógicos, los archivos en disco nunca se mueven.',
     'projects_new' => 'Nuevo proyecto',
     'projects_name' => 'Nombre',
     'projects_notes' => 'Notas',
