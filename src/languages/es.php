@@ -296,8 +296,6 @@ return [
     'projects_igroups' => 'Grupos de integración',
     'projects_igroups_empty' => 'Sin grupos: enlaza lights con mismo setup, panel, filtro y exposición.',
     'projects_igroup_nights' => '{count} noches',
-    'projects_igroup_file' => 'Archivo',
-    'projects_igroup_median' => 'Mediana',
     'projects_igroup_total' => 'Total',
     'projects_igroup_groups' => '{count} grupos',
     'projects_igroup_excluded' => 'Excluidos por umbrales: {total}',

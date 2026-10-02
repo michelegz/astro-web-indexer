@@ -296,8 +296,6 @@ return [
     'projects_igroups' => 'Groupes d’intégration',
     'projects_igroups_empty' => 'Aucun groupe : liez des lights partageant setup, panneau, filtre et exposition.',
     'projects_igroup_nights' => '{count} nuits',
-    'projects_igroup_file' => 'Fichier',
-    'projects_igroup_median' => 'Médiane',
     'projects_igroup_total' => 'Total',
     'projects_igroup_groups' => '{count} groupes',
     'projects_igroup_excluded' => 'Exclus par seuils : {total}',

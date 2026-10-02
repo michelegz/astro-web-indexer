@@ -23,12 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const thumbnailViewBtn = document.getElementById('thumbnail-view-btn');
     const thumbnailSizeSlider = document.getElementById('thumbnail-size-slider');
 
-    // --- MODAL ASTROBIN ---
-    const astrobinModal = document.getElementById('astrobinModal');
-    const closeAstrobinModalBtn = document.getElementById('closeAstrobinModalBtn');
-    const astrobinCsvText = document.getElementById('astrobinCsvText');
-    const copyAstrobinCsvBtn = document.getElementById('copyAstrobinCsvBtn');
-
     // --- VIEW MODE & SIZE ---
     function loadViewPreferences() {
         const viewMode = localStorage.getItem('viewMode') || 'list';
@@ -555,91 +549,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- EXPORT ASTROBIN ---
+    // --- EXPORT ASTROBIN (shared logic in astrobin_export.js) ---
     if (exportAstroBinBtn) {
         exportAstroBinBtn.addEventListener('click', () => {
             const selectedIds = getSelectedFiles().map(cb => cb.dataset.id);
             if (selectedIds.length === 0) return;
-
-            const idsQueryString = selectedIds.join(',');
-            const exportUrl = `/api/export_astrobin_csv.php?ids=${idsQueryString}`;
-
-            // Show loading indicator
-            const originalText = exportAstroBinBtn.innerHTML;
-            exportAstroBinBtn.innerHTML = window.i18n?.loading || 'Loading...';
-            exportAstroBinBtn.disabled = true;
-
-            fetch(exportUrl)
-                .then(response => {
-                    if (!response.ok) throw new Error('Network response was not ok.');
-                    return response.text();
-                })
-                .then(csvText => {
-                    if (astrobinCsvText) astrobinCsvText.value = csvText;
-                    if (astrobinModal) astrobinModal.classList.remove('hidden');
-                    // Warn about FITS filters with no AstroBin ID mapping
-                    const warnTextReset = document.getElementById('astrobinMappingWarningText');
-                    if (warnTextReset) warnTextReset.classList.add('hidden');
-                    fetch(`/api/get_unmapped_filters.php?ids=${idsQueryString}`)
-                        .then(response => response.json())
-                        .then(data => {
-                            const warnText = document.getElementById('astrobinMappingWarningText');
-                            const warnMsg = document.getElementById('astrobinMappingWarningMsg');
-                            if (!warnText || !warnMsg) return;
-                            const list = (data && data.unmapped) || [];
-                            if (list.length === 0) return;
-                            const tmpl = warnText.dataset.tmpl || '{count} unmapped filters';
-                            warnMsg.textContent = tmpl.replace('{count}', list.length) + ' (' + list.join(', ') + ')';
-                            warnText.classList.remove('hidden');
-                        })
-                        .catch(() => { /* non-blocking: CSV is already shown */ });
-                })
-                .catch(error => {
-                    alert((window.i18n?.error_fetching_csv_data || 'Error fetching CSV data:') + ' ' + error.message);
-                })
-                .finally(() => {
-                    // Restore button state
-                    exportAstroBinBtn.innerHTML = originalText;
-                    exportAstroBinBtn.disabled = false;
-                });
-        });
-    }
-
-    // --- ASTROBIN MODAL ACTIONS ---
-    if (closeAstrobinModalBtn && astrobinModal) {
-        closeAstrobinModalBtn.addEventListener('click', () => astrobinModal.classList.add('hidden'));
-    }
-    if (astrobinModal) {
-        astrobinModal.addEventListener('click', (e) => {
-            if (e.target === astrobinModal) {
-                astrobinModal.classList.add('hidden');
+            if (typeof window.awiExportAstroBin === 'function') {
+                window.awiExportAstroBin(selectedIds, exportAstroBinBtn);
             }
-        });
-    }
-    if (copyAstrobinCsvBtn && astrobinCsvText) {
-        copyAstrobinCsvBtn.addEventListener('click', () => {
-            // Prima controlla se l'API della clipboard è disponibile
-            if (!navigator.clipboard) {
-                alert((window.i18n?.copy_to_clipboard_failed || 'Failed to copy to clipboard.') + '\n' + 'This feature is only available on secure (HTTPS) sites.');
-                astrobinCsvText.select(); // Seleziona il testo per la copia manuale
-                return; // Interrompi l'esecuzione
-            }
-
-            navigator.clipboard.writeText(astrobinCsvText.value).then(() => {
-                const originalText = copyAstrobinCsvBtn.innerHTML;
-                copyAstrobinCsvBtn.innerHTML = window.i18n?.copied || 'Copied!';
-                copyAstrobinCsvBtn.classList.add('bg-green-600');
-                copyAstrobinCsvBtn.classList.remove('bg-blue-600');
-                
-                setTimeout(() => {
-                    copyAstrobinCsvBtn.innerHTML = originalText;
-                    copyAstrobinCsvBtn.classList.remove('bg-green-600');
-                    copyAstrobinCsvBtn.classList.add('bg-blue-600');
-                }, 2000);
-            }).catch(err => {
-                alert((window.i18n?.copy_to_clipboard_failed || 'Failed to copy to clipboard.') + '\n' + (window.i18n?.astrobin_modal_explanation || 'Please copy the text manually from the text area.'));
-                astrobinCsvText.select(); // Seleziona il testo per la copia manuale
-            });
         });
     }
 

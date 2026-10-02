@@ -202,11 +202,13 @@ function getProjectTree(PDO $conn, int $projectId, bool $includePending = false)
     }
 
     // All links of this project with file metadata, one query.
+    // f.* carries every column the shared file table can render
+    // (preview, path/object, star & frame metrics, SFF/duplicates data).
+    // project_files has no `id` column, so f.* is unambiguous; file_id
+    // aliases f.id for callers using the link-oriented key.
     $links = $conn->prepare(
         "SELECT pf.level, pf.node_id, pf.filter_name, pf.role, pf.is_light, pf.enabled, "
-        . "f.id AS file_id, f.name, f.path, f.imgtype, f.filter, f.exptime, f.date_obs, "
-        . "f.xbinning, f.ybinning, f.gain, f.ccd_temp, "
-        . "f.hfr, f.fwhm, f.hfr_sd, f.eccentricity, f.star_count, f.snr_weight, f.psf_signal "
+        . "f.*, f.id AS file_id "
         . "FROM project_files pf JOIN files f ON f.id = pf.file_id "
         . "WHERE (pf.level = 'project' AND pf.node_id = :pid) "
         . "OR (pf.level = 'setup' AND pf.node_id IN (SELECT id FROM project_setups WHERE project_id = :pid2)) "
@@ -224,8 +226,7 @@ function getProjectTree(PDO $conn, int $projectId, bool $includePending = false)
         $pend = $conn->prepare(
             "SELECT s.id AS suggestion_id, s.level, s.node_id, s.filter_name, s.role, s.reason, "
             . "CASE WHEN UPPER(f.imgtype) = 'LIGHT' THEN 1 ELSE 0 END AS is_light, "
-            . "f.id AS file_id, f.name, f.path, f.imgtype, f.filter, f.exptime, f.date_obs, "
-            . "f.xbinning, f.ybinning, f.gain, f.ccd_temp "
+            . "f.*, f.id AS file_id "
             . "FROM project_suggestions s JOIN files f ON f.id = s.file_id "
             . "WHERE s.project_id = :pid AND s.status = 'pending' "
             . "ORDER BY s.created_at ASC LIMIT 2000"
@@ -503,6 +504,44 @@ function diagnoseProjectTree(array $tree, array $tols): array
             }
         }
     }
+    return $out;
+}
+
+/**
+ * All file ids linked in a project tree (lights + calibrations at every
+ * level, including project_links). Pending rows are skipped unless
+ * $includePending is true. Sorted, unique integers.
+ */
+function getProjectTreeFileIds(array $tree, bool $includePending = false): array
+{
+    $ids = [];
+    $collect = function (array $rows) use (&$ids, $includePending): void {
+        foreach ($rows as $r) {
+            if (!empty($r['pending']) && !$includePending) {
+                continue;
+            }
+            $fid = (int)($r['file_id'] ?? $r['id'] ?? 0);
+            if ($fid > 0) {
+                $ids[$fid] = true;
+            }
+        }
+    };
+    $collect($tree['project_links'] ?? []);
+    foreach ($tree['setups'] ?? [] as $setup) {
+        $collect($setup['calibrations'] ?? []);
+        foreach ($setup['panels'] ?? [] as $panel) {
+            $collect($panel['calibrations'] ?? []);
+            foreach ($panel['sessions'] ?? [] as $session) {
+                $collect($session['calibrations'] ?? []);
+                foreach ($session['filters'] ?? [] as $filter) {
+                    $collect($filter['lights'] ?? []);
+                    $collect($filter['calibrations'] ?? []);
+                }
+            }
+        }
+    }
+    $out = array_keys($ids);
+    sort($out);
     return $out;
 }
 

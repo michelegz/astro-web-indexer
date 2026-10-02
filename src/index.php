@@ -35,6 +35,7 @@ $jsVersion = max(
 );
 ?>
 <script src="assets/js/main.js?v=<?= $jsVersion ?>"></script>
+<script src="assets/js/astrobin_export.js?v=<?= @filemtime(__DIR__ . '/assets/js/astrobin_export.js') ?: $jsVersion ?>"></script>
 <script src="assets/js/sff.js?v=<?= $jsVersion ?>"></script> <!-- Include the new SFF script -->
 
 </body>

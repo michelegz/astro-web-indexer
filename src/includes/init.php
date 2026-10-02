@@ -17,6 +17,7 @@ require_once __DIR__ . '/language.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/template_functions.php';
 require_once __DIR__ . '/columns.php';
+require_once __DIR__ . '/file_cells.php';
 
 // Enforce authentication
 requireAuth();
@@ -61,6 +62,13 @@ $frameKeys = array_keys($columnGroups['frame']['columns']);
 $visibleFrameKeys = array_values(array_diff($frameKeys, $hiddenCols));
 $visibleBaseKeys = array_values(array_diff(array_keys(getBaseColumns()), $hiddenCols)); // 'name' can never be hidden
 $tableColspan = 1 + count($visibleBaseKeys) + count($visibleAdvKeys) + count($visibleStarKeys) + count($visibleFrameKeys);
+
+// Independent column visibility for the project integration-group tables
+// (cookie `hiddenColsProjects`). Defaults to the old fixed igroup columns.
+$hiddenColsProjects = resolveHiddenColumnsForCookie($toggleableKeys, 'hiddenColsProjects', getProjectsDefaultVisible());
+$visibleProjectAdvKeys = array_values(array_diff($advKeys, $hiddenColsProjects));
+$visibleProjectStarKeys = $showStarMetrics ? array_values(array_diff($starKeys, $hiddenColsProjects)) : [];
+$visibleProjectFrameKeys = array_values(array_diff($frameKeys, $hiddenColsProjects));
 
 $conn = connectDB();
 

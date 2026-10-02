@@ -296,8 +296,6 @@ return [
     'projects_igroups' => 'Gruppi di integrazione',
     'projects_igroups_empty' => 'Ancora nessun gruppo: collega light con stesso setup, pannello, filtro ed esposizione.',
     'projects_igroup_nights' => '{count} notti',
-    'projects_igroup_file' => 'File',
-    'projects_igroup_median' => 'Mediana',
     'projects_igroup_total' => 'Totale',
     'projects_igroup_groups' => '{count} gruppi',
     'projects_igroup_excluded' => 'Esclusi da soglie: {total}',

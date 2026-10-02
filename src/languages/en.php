@@ -296,8 +296,6 @@ return [
     'projects_igroups' => 'Integration groups',
     'projects_igroups_empty' => 'No integration groups yet: link lights sharing setup, panel, filter and exposure.',
     'projects_igroup_nights' => '{count} nights',
-    'projects_igroup_file' => 'File',
-    'projects_igroup_median' => 'Median',
     'projects_igroup_total' => 'Total',
     'projects_igroup_groups' => '{count} groups',
     'projects_igroup_excluded' => 'Excluded by thresholds: {total}',

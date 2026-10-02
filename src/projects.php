@@ -431,6 +431,13 @@ if ($projectBlocked) {
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <input type="hidden" name="project_id" value="<?= (int)$detail['id'] ?>">
                 <div class="flex flex-wrap justify-end gap-2 mb-4">
+                    <?php $projectExportIds = $projectTree !== null ? getProjectTreeFileIds($projectTree) : []; ?>
+                    <?php if (!empty($projectExportIds)): ?>
+                    <button type="button" id="projectAstroBinBtn" data-ids="<?= htmlspecialchars(implode(',', $projectExportIds)) ?>"
+                            class="px-3 py-1 text-sm bg-sky-600 hover:bg-sky-700 text-white rounded transition-colors">
+                        <?= __('export_astrobin_csv') ?>
+                    </button>
+                    <?php endif; ?>
                     <button type="submit" name="action" value="enable_links"
                             class="px-3 py-1 text-sm bg-green-700 hover:bg-green-600 text-white rounded transition-colors">
                         <?= __('projects_enable_selected') ?>
@@ -497,6 +504,7 @@ if ($projectBlocked) {
                     <?= htmlspecialchars(__('projects_igroup_total')) ?>:
                     <?= htmlspecialchars(__('projects_igroup_groups', ['count' => count($intGroups)])) ?> · <?= htmlspecialchars(__('projects_lights_count', ['count' => $totCount])) ?> · <span title="<?= htmlspecialchars(fmtExp($totExp)) ?>"><?= htmlspecialchars(number_format($totExp / 3600, 1)) ?> h</span> · <?= htmlspecialchars(__('projects_igroup_nights', ['count' => count($totNights)])) ?> · <?= htmlspecialchars(__('projects_igroup_excluded', ['total' => $totAuto])) ?>
                 </div>
+                <?php include __DIR__ . '/includes/columns_modal_projects.php'; ?>
                 <?php foreach ($intGroups as $gi => $grp): ?>
                     <?php $grpAuto = count(array_filter($grp['lights'], fn($li) => !empty($li['auto_off']))); ?>
                     <div class="mb-2 border border-gray-700 rounded-lg igroup" data-group="<?= (int)$gi ?>">
@@ -508,52 +516,8 @@ if ($projectBlocked) {
                         </div>
                         <details>
                             <summary class="cursor-pointer px-4 py-1.5 hover:bg-gray-700/40 rounded text-sm text-gray-300">📁 <?= __('projects_igroup_show_files', ['count' => count($grp['lights'])]) ?></summary>
-                        <div class="px-4 py-2 overflow-x-auto">
-                            <table class="w-full text-xs text-left igroup-table" data-group="<?= (int)$gi ?>">
-                                <thead class="sticky top-0 bg-gray-800 z-10 text-gray-400 border-b border-gray-700">
-                                    <tr>
-                                        <th class="py-1 px-2 cursor-pointer hover:text-white" data-type="text"><?= __('projects_igroup_file') ?> ↕</th>
-                                        <th class="py-1 px-2 cursor-pointer hover:text-white" data-type="text"><?= __('date') ?> ↕</th>
-                                        <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('hfr') ?> ↕</th>
-                                        <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('hfr_sd') ?> ↕</th>
-                                        <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('fwhm') ?> ↕</th>
-                                        <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('eccentricity') ?> ↕</th>
-                                        <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('star_count') ?> ↕</th>
-                                        <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('snr_weight') ?> ↕</th>
-                                        <th class="py-1 px-2 cursor-pointer hover:text-white text-right" data-type="num"><?= __('psf_signal') ?> ↕</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($grp['lights'] as $li): ?>
-                                        <?php $liOff = empty($li['enabled']); ?>
-                                        <?php $liAuto = !$liOff && !empty($li['auto_off']); ?>
-                                        <tr class="border-b border-gray-700/40<?= ($liOff || $liAuto) ? ' opacity-60' : '' ?>" data-enabled="<?= $liOff ? '0' : '1' ?>" data-auto="<?= $liAuto ? '1' : '0' ?>" data-hfr-sd="<?= htmlspecialchars((string)($li['hfr_sd'] ?? '')) ?>" data-psf="<?= htmlspecialchars((string)($li['psf_signal'] ?? '')) ?>" data-linkkey="<?= htmlspecialchars((string)($li['link_key'] ?? '')) ?>">
-                                            <td class="py-1 px-2 max-w-xs" data-val="<?= htmlspecialchars((string)$li['name']) ?>"><span class="block truncate" title="<?= htmlspecialchars((string)$li['name']) ?>"><?= htmlspecialchars($li['name']) ?></span><?php if ($liOff): ?> <span class="text-gray-500">(<?= __('projects_link_off') ?>)</span><?php elseif ($liAuto): ?> <span class="text-gray-500">(<?= __('projects_auto_off') ?>)</span><?php endif; ?></td>
-                                            <td class="py-1 px-2 whitespace-nowrap" data-val="<?= htmlspecialchars((string)($li['date_obs'] ?? '')) ?>"><?= htmlspecialchars((string)($li['date_obs'] ?? '')) ?></td>
-                                            <td class="py-1 px-2 text-right whitespace-nowrap" data-val="<?= htmlspecialchars((string)($li['hfr'] ?? '')) ?>"><?= htmlspecialchars($li['hfr'] !== null && $li['hfr'] !== '' ? number_format((float)$li['hfr'], 2) : '—') ?></td>
-                                            <td class="py-1 px-2 text-right whitespace-nowrap" data-val="<?= htmlspecialchars((string)($li['hfr_sd'] ?? '')) ?>"><?= htmlspecialchars($li['hfr_sd'] !== null && $li['hfr_sd'] !== '' ? number_format((float)$li['hfr_sd'], 2) : '—') ?></td>
-                                            <td class="py-1 px-2 text-right whitespace-nowrap" data-val="<?= htmlspecialchars((string)($li['fwhm'] ?? '')) ?>"><?= htmlspecialchars($li['fwhm'] !== null && $li['fwhm'] !== '' ? number_format((float)$li['fwhm'], 2) : '—') ?></td>
-                                            <td class="py-1 px-2 text-right whitespace-nowrap" data-val="<?= htmlspecialchars((string)($li['eccentricity'] ?? '')) ?>"><?= htmlspecialchars($li['eccentricity'] !== null && $li['eccentricity'] !== '' ? number_format((float)$li['eccentricity'], 3) : '—') ?></td>
-                                            <td class="py-1 px-2 text-right whitespace-nowrap" data-val="<?= htmlspecialchars((string)($li['star_count'] ?? '')) ?>"><?= htmlspecialchars($li['star_count'] !== null && $li['star_count'] !== '' ? (string)$li['star_count'] : '—') ?></td>
-                                            <td class="py-1 px-2 text-right whitespace-nowrap" data-val="<?= htmlspecialchars((string)($li['snr_weight'] ?? '')) ?>"><?= htmlspecialchars($li['snr_weight'] !== null && $li['snr_weight'] !== '' ? number_format((float)$li['snr_weight'], 2) : '—') ?></td>
-                                            <td class="py-1 px-2 text-right whitespace-nowrap" data-val="<?= htmlspecialchars((string)($li['psf_signal'] ?? '')) ?>"><?= htmlspecialchars($li['psf_signal'] !== null && $li['psf_signal'] !== '' ? number_format((float)$li['psf_signal'], 6) : '—') ?></td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                                <tfoot>
-                                    <tr class="border-t border-gray-600 font-medium text-gray-200">
-                                        <td class="py-1 px-2"><?= __('projects_igroup_median') ?></td>
-                                        <td class="py-1 px-2"></td>
-                                        <td class="py-1 px-2 text-right whitespace-nowrap"><?= htmlspecialchars($grp['medians']['hfr'] !== null ? number_format((float)$grp['medians']['hfr'], 2) : '—') ?></td>
-                                        <td class="py-1 px-2 text-right whitespace-nowrap"><?= htmlspecialchars($grp['medians']['hfr_sd'] !== null ? number_format((float)$grp['medians']['hfr_sd'], 2) : '—') ?></td>
-                                        <td class="py-1 px-2 text-right whitespace-nowrap"><?= htmlspecialchars($grp['medians']['fwhm'] !== null ? number_format((float)$grp['medians']['fwhm'], 2) : '—') ?></td>
-                                        <td class="py-1 px-2 text-right whitespace-nowrap"><?= htmlspecialchars($grp['medians']['eccentricity'] !== null ? number_format((float)$grp['medians']['eccentricity'], 3) : '—') ?></td>
-                                        <td class="py-1 px-2 text-right whitespace-nowrap"><?= htmlspecialchars($grp['medians']['star_count'] !== null ? number_format((float)$grp['medians']['star_count'], 0) : '—') ?></td>
-                                        <td class="py-1 px-2 text-right whitespace-nowrap"><?= htmlspecialchars($grp['medians']['snr_weight'] !== null ? number_format((float)$grp['medians']['snr_weight'], 2) : '—') ?></td>
-                                        <td class="py-1 px-2 text-right whitespace-nowrap"><?= htmlspecialchars($grp['medians']['psf_signal'] !== null ? number_format((float)$grp['medians']['psf_signal'], 6) : '—') ?></td>
-                                    </tr>
-                                </tfoot>
-                            </table>
+                        <div class="px-4 py-2">
+                            <?php include __DIR__ . '/includes/igroup_files_table.php'; ?>
                         </div>
                     </details>
                     <details>
@@ -671,46 +635,52 @@ if ($projectBlocked) {
         <script>
         (function () {
             // Clickable headers sort each integration group table (numeric-aware).
+            // Key-based: cells are looked up by data-col, so hidden/reordered
+            // columns never break sorting, charts or threshold evaluation.
+            // Columns with data-type="none" (preview, SFF buttons) are not sortable.
+            function igSortTableByKey(table, key, dir) {
+                const th = table.querySelector('thead th[data-col="' + key + '"]');
+                if (!th || th.dataset.type === 'none') return;
+                const numeric = th.dataset.type === 'num';
+                const asc = dir === 'asc';
+                table.querySelectorAll('thead th').forEach(h => { delete h.dataset.asc; const ind = h.querySelector('.ig-sort-ind'); if (ind) ind.textContent = ''; });
+                th.dataset.asc = asc ? '1' : '0';
+                const ind = th.querySelector('.ig-sort-ind');
+                if (ind) ind.textContent = asc ? ' ▲' : ' ▼';
+                const rows = Array.from(table.querySelectorAll('tbody tr'));
+                rows.sort((a, b) => {
+                    const va = a.querySelector('td[data-col="' + key + '"]')?.dataset.val ?? '';
+                    const vb = b.querySelector('td[data-col="' + key + '"]')?.dataset.val ?? '';
+                    if (numeric) {
+                        const na = parseFloat(va);
+                        const nb = parseFloat(vb);
+                        if (isNaN(na) && isNaN(nb)) return 0;
+                        if (isNaN(na)) return 1;
+                        if (isNaN(nb)) return -1;
+                        return asc ? na - nb : nb - na;
+                    }
+                    return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+                });
+                const tb = table.querySelector('tbody');
+                rows.forEach(r => tb.appendChild(r));
+                if (typeof refreshIgroupCharts === 'function') refreshIgroupCharts(table);
+            }
             document.querySelectorAll('.igroup-table thead th').forEach(th => {
                 th.addEventListener('click', () => {
                     const table = th.closest('table');
-                    const idx = Array.from(th.parentNode.children).indexOf(th);
-                    const numeric = th.dataset.type === 'num';
+                    const key = th.dataset.col || '';
+                    if (!key || th.dataset.type === 'none') return;
                     const asc = th.dataset.asc !== '1';
-                    table.querySelectorAll('thead th').forEach(h => delete h.dataset.asc);
-                    th.dataset.asc = asc ? '1' : '0';
-                    const rows = Array.from(table.querySelectorAll('tbody tr'));
-                    rows.sort((a, b) => {
-                        const va = a.children[idx]?.dataset.val ?? '';
-                        const vb = b.children[idx]?.dataset.val ?? '';
-                        if (numeric) {
-                            const na = parseFloat(va);
-                            const nb = parseFloat(vb);
-                            if (isNaN(na) && isNaN(nb)) return 0;
-                            if (isNaN(na)) return 1;
-                            if (isNaN(nb)) return -1;
-                            return asc ? na - nb : nb - na;
-                        }
-                        return asc ? va.localeCompare(vb) : vb.localeCompare(va);
-                    });
-                    const tb = table.querySelector('tbody');
-                    rows.forEach(r => tb.appendChild(r));
-                    if (typeof refreshIgroupCharts === 'function') refreshIgroupCharts(table);
+                    igSortTableByKey(table, key, asc ? 'asc' : 'desc');
                 });
             });
 
-            // Chart ▲▼ buttons reuse the column sort verbatim: preset the toggle
-            // state to the opposite so the synthetic click lands deterministically.
+            // Chart ▲▼ buttons reuse the column sort verbatim.
             document.querySelectorAll('.ig-sort').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const table = document.querySelector('.igroup-table[data-group="' + btn.dataset.group + '"]');
                     if (!table) return;
-                    const series = IGROUP_SERIES.find(s => s.key === btn.dataset.metric);
-                    if (!series || series.cell === undefined) return;
-                    const th = table.querySelectorAll('thead th')[series.cell];
-                    if (!th) return;
-                    th.dataset.asc = btn.dataset.dir === 'asc' ? '0' : '1';
-                    th.click();
+                    igSortTableByKey(table, btn.dataset.metric, btn.dataset.dir);
                 });
             });
 
@@ -718,13 +688,13 @@ if ($projectBlocked) {
             // X axis follows the table's current row order; bars are greyed
             // when the file is disabled at project level.
             const IGROUP_SERIES = [
-                { key: 'hfr', label: <?= json_encode(__('hfr') . ' (px)') ?>, color: '#60a5fa', cell: 2 },
-                { key: 'hfr_sd', label: <?= json_encode(__('hfr_sd') . ' (px)') ?>, color: '#a78bfa', cell: 3 },
-                { key: 'fwhm', label: <?= json_encode(__('fwhm') . ' (arcsec)') ?>, color: '#34d399', cell: 4 },
-                { key: 'eccentricity', label: <?= json_encode(__('eccentricity')) ?>, color: '#fbbf24', cell: 5 },
-                { key: 'star_count', label: <?= json_encode(__('star_count')) ?>, color: '#f472b6', cell: 6 },
-                { key: 'snr_weight', label: <?= json_encode(__('snr_weight')) ?>, color: '#22d3ee', cell: 7 },
-                { key: 'psf_signal', label: <?= json_encode(__('psf_signal')) ?>, color: '#fb7185', cell: 8 },
+                { key: 'hfr', label: <?= json_encode(__('hfr') . ' (px)') ?>, color: '#60a5fa' },
+                { key: 'hfr_sd', label: <?= json_encode(__('hfr_sd') . ' (px)') ?>, color: '#a78bfa' },
+                { key: 'fwhm', label: <?= json_encode(__('fwhm') . ' (arcsec)') ?>, color: '#34d399' },
+                { key: 'eccentricity', label: <?= json_encode(__('eccentricity')) ?>, color: '#fbbf24' },
+                { key: 'star_count', label: <?= json_encode(__('star_count')) ?>, color: '#f472b6' },
+                { key: 'snr_weight', label: <?= json_encode(__('snr_weight')) ?>, color: '#22d3ee' },
+                { key: 'psf_signal', label: <?= json_encode(__('psf_signal')) ?>, color: '#fb7185' },
             ];
             const IGROUP_OFF_COLOR = '#4b5563';
             const IGROUP_MEDIAN_LABEL = <?= json_encode(__('metrics_median')) ?>;
@@ -737,16 +707,15 @@ if ($projectBlocked) {
             }
             function igRowsInOrder(table) {
                 return Array.from(table.querySelectorAll('tbody tr')).map(tr => {
-                    const cells = tr.children;
                     const num = (raw) => {
                         const v = parseFloat(raw ?? '');
                         return isNaN(v) ? null : v;
                     };
                     const vals = {};
                     IGROUP_SERIES.forEach(s => {
-                        vals[s.key] = s.cell !== undefined ? num(cells[s.cell]?.dataset.val) : num(tr.dataset[s.attr]);
+                        vals[s.key] = num(tr.querySelector('td[data-col="' + s.key + '"]')?.dataset.val);
                     });
-                    return { name: cells[0]?.dataset.val || '', enabled: tr.dataset.enabled === '1', linkkey: tr.dataset.linkkey || '', vals };
+                    return { name: tr.querySelector('td[data-col="name"]')?.dataset.val || '', enabled: tr.dataset.enabled === '1', linkkey: tr.dataset.linkkey || '', vals };
                 });
             }
             // Shared rejection evaluation for one group table: rows failing any
@@ -905,7 +874,7 @@ if ($projectBlocked) {
                     .filter(tr => tr.dataset.enabled === '1' && tr.dataset.auto !== '1')
                     .map(tr => ({
                         fid: parseInt((tr.dataset.linkkey || '').split(':')[0], 10),
-                        name: tr.querySelector('td')?.dataset.val || '',
+                        name: tr.querySelector('td[data-col="name"]')?.dataset.val || '',
                         tr,
                     }))
                     .filter(f => Number.isInteger(f.fid) && f.fid > 0);
@@ -1188,5 +1157,60 @@ if ($projectBlocked) {
         </script>
         <?php endif; ?>
     </main>
+    <?php include __DIR__ . '/includes/sff_modal.php'; ?>
+    <?php include __DIR__ . '/includes/astrobin_modal.php'; ?>
+    <script type="text/javascript">
+        // Minimal i18n bundle for sff.js / astrobin_export.js (the full bundle
+        // lives in footer.php, which the standalone projects page does not include).
+        window.i18n = Object.assign(window.i18n || {}, {
+            loading: <?= json_encode(__('loading...')) ?>,
+            copied: <?= json_encode(__('copied')) ?>,
+            copy_to_clipboard_failed: <?= json_encode(__('copy_to_clipboard_failed')) ?>,
+            error_fetching_csv_data: <?= json_encode(__('error_fetching_csv_data')) ?>,
+            astrobin_modal_explanation: <?= json_encode(__('astrobin_modal_explanation')) ?>,
+            sff_total_exposure: <?= json_encode(__('sff_total_exposure')) ?>,
+            sff_modal_title: <?= json_encode(__('sff_modal_title')) ?>,
+            sff_loading_filters: <?= json_encode(__('sff_loading_filters')) ?>,
+            sff_error_loading_filters: <?= json_encode(__('sff_error_loading_filters')) ?>,
+            sff_searching: <?= json_encode(__('sff_searching')) ?>,
+            sff_frames_found_js: <?= json_encode(__('sff_frames_found_js')) ?>,
+            sff_configure_and_run: <?= json_encode(__('sff_configure_and_run')) ?>
+        });
+    </script>
+    <script src="assets/js/sff.js?v=<?= @filemtime(__DIR__ . '/assets/js/sff.js') ?: 0 ?>"></script>
+    <script src="assets/js/astrobin_export.js?v=<?= @filemtime(__DIR__ . '/assets/js/astrobin_export.js') ?: 0 ?>"></script>
+    <script>
+    // Project tree AstroBin export: all linked files, same shared logic as home.
+    document.addEventListener('DOMContentLoaded', function() {
+        const btn = document.getElementById('projectAstroBinBtn');
+        if (!btn) return;
+        btn.addEventListener('click', () => {
+            if (typeof window.awiExportAstroBin !== 'function') return;
+            window.awiExportAstroBin((btn.dataset.ids || '').split(','), btn);
+        });
+    });
+    </script>
+    <script>
+    // Same UTC -> local conversion as the main page (main.js): the shared
+    // file cells render .utc-date spans with a data-timestamp.
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.utc-date').forEach(function(el) {
+            const timestamp = el.getAttribute('data-timestamp');
+            if (timestamp && !isNaN(timestamp)) {
+                const date = new Date(timestamp * 1000);
+                const options = {
+                    year: 'numeric', month: 'numeric', day: 'numeric',
+                    hour: 'numeric', minute: 'numeric', second: 'numeric',
+                    hour12: false
+                };
+                try {
+                    el.textContent = date.toLocaleString(undefined, options);
+                } catch (e) {
+                    el.textContent = date.toLocaleString();
+                }
+            }
+        });
+    });
+    </script>
 </body>
 </html>
