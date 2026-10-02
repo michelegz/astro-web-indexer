@@ -72,10 +72,10 @@ function renderPendCals(array $cals, array $tols): void
     $showHeaders = count($groups) > 1;
     foreach ($groups as $g) {
         ?>
-        <details open class="cal-group mb-1">
+        <details class="cal-group mb-1 ml-4">
             <?php if ($showHeaders): ?>
-            <summary class="cursor-pointer text-xs font-semibold text-gray-400 hover:text-gray-200 mt-1">
-                <?= htmlspecialchars(($g['label'] ?? '—') . ' · ' . count($g['rows'])) ?>
+            <summary class="cursor-pointer px-3 py-1.5 hover:bg-gray-700/40 rounded text-sm font-medium">
+                <?= htmlspecialchars(calGroupTitle($g)) ?>
             </summary>
             <?php endif; ?>
         <?php

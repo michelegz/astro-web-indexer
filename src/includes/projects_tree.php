@@ -161,10 +161,18 @@ function renderCalRows(array $cals, string $level, int $node, array $moveCtx = [
     );
     ?>
     <?php foreach ($groups as $g): ?>
-        <?php $gFids = implode(',', array_map(fn($r) => (int)$r['file_id'], $g['rows'])); ?>
-        <details open class="cal-group mb-1">
-            <summary class="cursor-pointer text-xs font-semibold text-gray-400 hover:text-gray-200 mt-1 flex items-center gap-2">
-                <span><?= htmlspecialchars(($g['label'] ?? __('projects_cal_bias')) . ' · ' . count($g['rows'])) ?></span>
+        <?php
+        $gReal = array_values(array_filter($g['rows'], fn($r) => empty($r['pending'])));
+        $gFids = implode(',', array_map(fn($r) => (int)$r['file_id'], $gReal));
+        ?>
+        <details class="cal-group mb-1 ml-4">
+            <summary class="cursor-pointer px-3 py-1.5 hover:bg-gray-700/40 rounded text-sm font-medium">
+                <?php if ($gReal !== []): ?>
+                    <input type="checkbox" class="cgroup-check rounded bg-gray-600 border-gray-500"
+                           title="<?= __('projects_select_group') ?>">
+                <?php endif; ?>
+                <span class="cal-arrow">▶︎</span>
+                <span><?= htmlspecialchars(calGroupTitle($g)) ?></span>
                 <?php if (isset($moveCtx['up'])): ?>
                     <button type="button" class="mv-up text-gray-400 hover:text-white leading-none font-normal"
                             data-fids="<?= htmlspecialchars($gFids) ?>"

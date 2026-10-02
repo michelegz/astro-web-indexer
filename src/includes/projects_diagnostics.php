@@ -802,13 +802,24 @@ function darkCalGroupLabel($exptime, $temp): string
 {
     $label = fmtExpShort($exptime);
     if ($temp === null) {
-        return $label . ' · —';
+        return $label;
     }
     $t = round((float)$temp, 1);
     if ($t == 0) {
         $t = 0.0; // avoid "-0.0"
     }
-    return $label . ' · ' . number_format($t, 1, '.', '') . ' °C';
+    return $label . ', ' . number_format($t, 1, '.', '') . ' °C';
+}
+
+/**
+ * One-line group header: "[DARK] 300 s, 0.0 °C (5)". No middle-dot
+ * separators; bias/other groups show type and count only.
+ */
+function calGroupTitle(array $g): string
+{
+    $type = $g['kind'] === 'other' ? (string)($g['label'] ?? '') : strtoupper((string)$g['kind']);
+    $rest = ($g['kind'] === 'other' || ($g['label'] ?? null) === null) ? '' : ' ' . $g['label'];
+    return '[' . $type . ']' . $rest . ' (' . count($g['rows']) . ')';
 }
 
 /**

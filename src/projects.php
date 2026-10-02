@@ -620,7 +620,7 @@ if ($projectBlocked) {
             (function () {
                 const bulk = document.getElementById('treeBulkForm');
                 if (!bulk) return;
-                function postMove(fields) {
+                function postForm(action, fields) {
                     const f = document.createElement('form');
                     f.method = 'POST';
                     f.action = window.location.pathname + window.location.search;
@@ -631,13 +631,16 @@ if ($projectBlocked) {
                     };
                     add('csrf_token', bulk.querySelector('input[name="csrf_token"]')?.value || '');
                     add('project_id', bulk.querySelector('input[name="project_id"]')?.value || '');
-                    add('action', 'move_links');
+                    add('action', action);
                     Object.entries(fields).forEach(([k, v]) => {
                         if (Array.isArray(v)) v.forEach(item => add(k + '[]', item));
                         else add(k, v);
                     });
                     document.body.appendChild(f);
                     f.submit();
+                }
+                function postMove(fields) {
+                    postForm('move_links', fields);
                 }
                 document.querySelectorAll('#treeBulkForm .mv-up').forEach(btn => {
                     btn.addEventListener('click', (e) => {
@@ -660,9 +663,22 @@ if ($projectBlocked) {
                         if (picker) picker.classList.toggle('hidden');
                     });
                 });
-                // Clicks inside the picker (select/OK) must not toggle the group <details>.
-                document.querySelectorAll('#treeBulkForm .mv-picker').forEach(picker => {
-                    picker.addEventListener('click', (e) => e.stopPropagation());
+                // Clicks on interactive elements inside group headers (buttons,
+                // labels, picker) must not toggle the group <details>.
+                document.querySelectorAll('#treeBulkForm .cal-group > summary button, #treeBulkForm .cal-group > summary label, #treeBulkForm .cal-group > summary input, #treeBulkForm .cal-group > summary select').forEach(el => {
+                    el.addEventListener('click', (e) => e.stopPropagation());
+                });
+                // Group header checkbox selects every file in its calibration group.
+                document.querySelectorAll('#treeBulkForm .cgroup-check').forEach(box => {
+                    box.addEventListener('click', (e) => e.stopPropagation());
+                    box.addEventListener('change', () => {
+                        const group = box.closest('details.cal-group');
+                        if (!group) return;
+                        group.querySelectorAll('.pfl-check').forEach(cb => {
+                            cb.checked = box.checked;
+                            cb.dispatchEvent(new Event('change', { bubbles: true }));
+                        });
+                    });
                 });
                 document.querySelectorAll('#treeBulkForm .mv-go').forEach(btn => {
                     btn.addEventListener('click', (e) => {
@@ -1391,6 +1407,20 @@ if ($projectBlocked) {
                 box.checked = checked === files.length;
                 box.indeterminate = checked > 0 && checked < files.length;
             }
+            // Calibration group header box reflects its own <ul> only.
+            function syncCalGroupBox(group) {
+                const box = group.querySelector(':scope > summary .cgroup-check');
+                if (!box) return;
+                const files = group.querySelectorAll('.pfl-check');
+                if (!files.length) {
+                    box.checked = false;
+                    box.indeterminate = false;
+                    return;
+                }
+                const checked = group.querySelectorAll('.pfl-check:checked').length;
+                box.checked = checked === files.length;
+                box.indeterminate = checked > 0 && checked < files.length;
+            }
             form.addEventListener('change', (e) => {
                 if (e.target.classList.contains('pgroup-check')) {
                     const scope = e.target.closest('.tnode');
@@ -1403,6 +1433,7 @@ if ($projectBlocked) {
                         }
                     });
                     e.target.indeterminate = false;
+                    scope.querySelectorAll('details.cal-group').forEach(syncCalGroupBox);
                     let above = scope.parentElement?.closest('.tnode') ?? null;
                     while (above) {
                         syncGroupBox(above);
@@ -1411,6 +1442,8 @@ if ($projectBlocked) {
                     return;
                 }
                 if (e.target.classList.contains('pfl-check')) {
+                    const group = e.target.closest('details.cal-group');
+                    if (group) syncCalGroupBox(group);
                     let scope = e.target.closest('.tnode');
                     while (scope) {
                         syncGroupBox(scope);
