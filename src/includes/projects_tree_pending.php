@@ -81,7 +81,7 @@ function renderPendCals(array $cals, array $tols): void
         <?php
         foreach ($g['rows'] as $cal) {
             ?>
-        <li class="flex items-start gap-2 text-xs border-b border-gray-700/40 py-1 opacity-70">
+        <li class="flex items-start gap-2 text-xs border-b border-gray-700/40 py-1 px-3 opacity-70">
             <input type="checkbox" name="suggestion_ids[]" value="<?= (int)$cal['suggestion_id'] ?>" class="sug-check mt-0.5 rounded bg-gray-600 border-gray-500">
             <span>
                 <span class="font-medium"><?= htmlspecialchars($cal['name']) ?></span>

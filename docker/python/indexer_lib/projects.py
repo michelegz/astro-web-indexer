@@ -278,9 +278,19 @@ def find_or_create_session(dcur, panel_id, night):
     row = dcur.fetchone()
     if row:
         return row['id'], False
+    # Next consecutive session_no within the project (stable: never reused).
     dcur.execute(
-        "INSERT INTO project_sessions (panel_id, astro_night) VALUES (%s, %s)",
-        (panel_id, night),
+        "SELECT COALESCE(MAX(ss.session_no), 0) AS max_no FROM project_sessions ss "
+        "JOIN project_panels pp ON pp.id = ss.panel_id "
+        "JOIN project_setups ps ON ps.id = pp.setup_id "
+        "WHERE ps.project_id = (SELECT ps2.project_id FROM project_setups ps2 "
+        "JOIN project_panels pp2 ON pp2.setup_id = ps2.id WHERE pp2.id = %s)",
+        (panel_id,),
+    )
+    next_no = (dcur.fetchone()['max_no'] or 0) + 1
+    dcur.execute(
+        "INSERT INTO project_sessions (panel_id, astro_night, session_no) VALUES (%s, %s, %s)",
+        (panel_id, night, next_no),
     )
     return dcur.lastrowid, True
 

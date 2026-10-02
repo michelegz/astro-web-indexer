@@ -1136,8 +1136,18 @@ function projectFindOrCreateSession(PDO $conn, int $panelId, string $night): int
     if ($sessRow !== false) {
         return (int)$sessRow['id'];
     }
-    $ins = $conn->prepare("INSERT INTO project_sessions (panel_id, astro_night) VALUES (:panel, :night)");
-    $ins->execute([':panel' => $panelId, ':night' => $night]);
+    // Next consecutive number within the project (stable: never reused).
+    $maxNo = $conn->prepare(
+        "SELECT COALESCE(MAX(ss.session_no), 0) FROM project_sessions ss "
+        . "JOIN project_panels pp ON pp.id = ss.panel_id "
+        . "JOIN project_setups ps ON ps.id = pp.setup_id "
+        . "WHERE ps.project_id = (SELECT ps2.project_id FROM project_setups ps2 "
+        . "JOIN project_panels pp2 ON pp2.setup_id = ps2.id WHERE pp2.id = :panel)"
+    );
+    $maxNo->execute([':panel' => $panelId]);
+    $nextNo = (int)$maxNo->fetchColumn() + 1;
+    $ins = $conn->prepare("INSERT INTO project_sessions (panel_id, astro_night, session_no) VALUES (:panel, :night, :no)");
+    $ins->execute([':panel' => $panelId, ':night' => $night, ':no' => $nextNo]);
     return (int)$conn->lastInsertId();
 }
 

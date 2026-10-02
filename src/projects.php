@@ -596,7 +596,7 @@ if ($projectBlocked) {
                                             <label class="flex items-center gap-2 py-1 text-sm text-gray-200 cursor-pointer">
                                                 <input type="checkbox" name="scope_sessions[]" value="<?= (int)$scSession['id'] ?>" data-setup="<?= (int)$scSetup['id'] ?>"
                                                        class="scope-session-check rounded bg-gray-600 border-gray-500">
-                                                <?= htmlspecialchars((string)$scSession['astro_night']) ?>
+                                                <?= htmlspecialchars(sessionShortLabel($scSession)) ?>
                                             </label>
                                         <?php endforeach; ?>
                                     <?php endforeach; ?>
@@ -669,15 +669,21 @@ if ($projectBlocked) {
                     el.addEventListener('click', (e) => e.stopPropagation());
                 });
                 // Group header checkbox selects every file in its calibration group.
+                // Manual toggle: the native checkbox default must be cancelled,
+                // otherwise the click also flips the enclosing group <details>.
                 document.querySelectorAll('#treeBulkForm .cgroup-check').forEach(box => {
-                    box.addEventListener('click', (e) => e.stopPropagation());
-                    box.addEventListener('change', () => {
+                    box.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        box.checked = !box.checked;
                         const group = box.closest('details.cal-group');
-                        if (!group) return;
-                        group.querySelectorAll('.pfl-check').forEach(cb => {
-                            cb.checked = box.checked;
-                            cb.dispatchEvent(new Event('change', { bubbles: true }));
-                        });
+                        if (group) {
+                            group.open = true;
+                            group.querySelectorAll('.pfl-check').forEach(cb => {
+                                cb.checked = box.checked;
+                                cb.dispatchEvent(new Event('change', { bubbles: true }));
+                            });
+                        }
                     });
                 });
                 document.querySelectorAll('#treeBulkForm .mv-go').forEach(btn => {

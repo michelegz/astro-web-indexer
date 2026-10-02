@@ -90,7 +90,7 @@ function setupDownOptions(array $setup): array
     foreach ($setup['panels'] ?? [] as $panel) {
         $sessions = [];
         foreach ($panel['sessions'] ?? [] as $session) {
-            $sessions[] = ['id' => (int)$session['id'], 'night' => (string)($session['astro_night'] ?? '')];
+            $sessions[] = ['id' => (int)$session['id'], 'night' => (string)($session['astro_night'] ?? ''), 'no' => isset($session['session_no']) ? (int)$session['session_no'] : null];
         }
         $panels[] = [
             'id' => (int)$panel['id'],
@@ -105,7 +105,7 @@ function panelDownOptions(array $panel): array
 {
     $sessions = [];
     foreach ($panel['sessions'] ?? [] as $session) {
-        $sessions[] = ['id' => (int)$session['id'], 'night' => (string)($session['astro_night'] ?? '')];
+        $sessions[] = ['id' => (int)$session['id'], 'night' => (string)($session['astro_night'] ?? ''), 'no' => isset($session['session_no']) ? (int)$session['session_no'] : null];
     }
     return $sessions;
 }
@@ -191,7 +191,7 @@ function renderCalRows(array $cals, string $level, int $node, array $moveCtx = [
                     </span>
                 <?php endif; ?>
             </summary>
-            <ul class="flex flex-col gap-0.5 mb-1">
+            <ul class="flex flex-col gap-0.5 mb-1 px-3">
         <?php foreach ($g['rows'] as $c): ?>
             <?php $isPend = !empty($c['pending']); ?>
             <?php $isOff = !$isPend && empty($c['enabled']); ?>
@@ -236,7 +236,7 @@ function renderDemotePicker(?string $night, string $level, int $node, array $dow
         <select class="mv-target px-1 py-0.5 text-xs bg-gray-700 border border-gray-600 rounded text-gray-100">
             <?php foreach ($sessions as $s): ?>
                 <option value="session:<?= (int)$s['id'] ?>"<?= ($night !== null && $s['night'] === $night) ? ' selected' : '' ?>>
-                    <?= htmlspecialchars(__('projects_session') . ' ' . $s['night']) ?>
+                    <?= htmlspecialchars(__('projects_session') . ' ' . ($s['no'] !== null ? 'S' . $s['no'] . ' · ' : '') . $s['night']) ?>
                 </option>
             <?php endforeach; ?>
             <?php if ($night !== null && !$hasNight): ?>
@@ -273,7 +273,7 @@ function renderDemotePicker(?string $night, string $level, int $node, array $dow
                 </option>
                 <?php foreach ($p['sessions'] as $s): ?>
                     <option value="session:<?= (int)$s['id'] ?>"<?= ($night !== null && $s['night'] === $night && (int)$p['id'] === $defaultPanel) ? ' selected' : '' ?>>
-                        <?= htmlspecialchars(__('projects_session') . ' ' . $s['night']) ?>
+                        <?= htmlspecialchars(__('projects_session') . ' ' . ($s['no'] !== null ? 'S' . $s['no'] . ' · ' : '') . $s['night']) ?>
                     </option>
                 <?php endforeach; ?>
             </optgroup>
@@ -344,7 +344,7 @@ if (empty($projectTree['setups'])): ?>
                                                         <input type="checkbox" class="pgroup-check mt-2 rounded bg-gray-600 border-gray-500" title="<?= __('projects_select_group') ?>">
                                                         <details class="flex-1 min-w-0 border border-gray-700/40 rounded">
                                                             <summary class="cursor-pointer px-3 py-1.5 hover:bg-gray-700/40 rounded text-sm">
-                                                                <?= __('projects_session') ?> <?= htmlspecialchars((string)$session['astro_night']) ?>
+                                                                <?= __('projects_session') ?> <?= htmlspecialchars(sessionShortLabel($session)) ?>
                                                                 <span class="ml-2 text-xs text-gray-400"><?= htmlspecialchars(subtreeSummaryText($session)) ?></span>
                                                             </summary>
                                                             <div class="px-3 py-2">

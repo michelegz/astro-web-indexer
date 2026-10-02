@@ -195,7 +195,7 @@ function getProjectTree(PDO $conn, int $projectId, bool $includePending = false)
     if (!empty($panelIds)) {
         $inPanels = implode(',', array_fill(0, count($panelIds), '?'));
         $sessions = $conn->prepare(
-            "SELECT id, panel_id, astro_night FROM project_sessions WHERE panel_id IN ($inPanels) ORDER BY astro_night ASC, id ASC"
+            "SELECT id, panel_id, astro_night, session_no FROM project_sessions WHERE panel_id IN ($inPanels) ORDER BY astro_night ASC, id ASC"
         );
         $sessions->execute($panelIds);
         $sessionRows = $sessions->fetchAll();
@@ -392,7 +392,7 @@ function attachCalibScopes(PDO $conn, array &$tree): void
         $params[] = (int)$n;
     }
     $st = $conn->prepare(
-        "SELECT s.file_id, s.level, s.node_id, s.session_id, ss.astro_night "
+        "SELECT s.file_id, s.level, s.node_id, s.session_id, ss.astro_night, ss.session_no "
         . "FROM project_calib_scope s JOIN project_sessions ss ON ss.id = s.session_id "
         . "WHERE (s.file_id, s.level, s.node_id) IN ($ph)"
     );
@@ -401,7 +401,8 @@ function attachCalibScopes(PDO $conn, array &$tree): void
     foreach ($st->fetchAll() as $r) {
         $k = (int)$r['file_id'] . '|' . $r['level'] . '|' . (int)$r['node_id'];
         $map[$k]['sessions'][] = (int)$r['session_id'];
-        $map[$k]['nights'][] = (string)$r['astro_night'];
+        $night = (string)$r['astro_night'];
+        $map[$k]['nights'][] = $r['session_no'] !== null ? 'S' . (int)$r['session_no'] . ' · ' . $night : $night;
     }
     if (empty($map)) {
         return;
@@ -820,6 +821,19 @@ function calGroupTitle(array $g): string
     $type = $g['kind'] === 'other' ? (string)($g['label'] ?? '') : strtoupper((string)$g['kind']);
     $rest = ($g['kind'] === 'other' || ($g['label'] ?? null) === null) ? '' : ' ' . $g['label'];
     return '[' . $type . ']' . $rest . ' (' . count($g['rows']) . ')';
+}
+
+/**
+ * Short session label with progressive number: "S3 · 2024-05-01" (night only
+ * when session_no is missing, e.g. partially migrated rows).
+ */
+function sessionShortLabel(array $session): string
+{
+    $night = (string)($session['astro_night'] ?? '');
+    if (!isset($session['session_no']) || $session['session_no'] === null) {
+        return $night;
+    }
+    return 'S' . (int)$session['session_no'] . ' · ' . $night;
 }
 
 /**
