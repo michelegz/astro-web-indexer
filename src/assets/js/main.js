@@ -161,6 +161,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // --- PROJECTS PANEL (right side, symmetric to the folders menu) ---
+    window.toggleProjectsPanel = () => {
+        const panel = document.getElementById('projects-panel');
+        const isHidden = panel?.classList.toggle('translate-x-full');
+
+        if (window.innerWidth >= 768) { // md breakpoint
+            if (!isHidden) {
+                contentArea?.classList.add('md:mr-60');
+            } else {
+                contentArea?.classList.remove('md:mr-60');
+            }
+        }
+    };
+
     // --- SELECT ALL CHECKBOX ---
     if (selectAllCheckbox) {
         selectAllCheckbox.addEventListener('change', () => {

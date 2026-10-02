@@ -140,6 +140,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = $e->getMessage();
             $messageType = 'error';
         }
+        // Canvas Relaunch: successful actions triggered from the home
+        // projects panel carry a `return` path -> go back home (PRG).
+        $returnTo = (string)($_POST['return'] ?? '');
+        if ($messageType === 'success' && $returnTo !== ''
+            && str_starts_with($returnTo, '/') && !str_starts_with($returnTo, '//')) {
+            if (strpos($returnTo, 'panel=projects') === false) {
+                $returnTo .= (strpos($returnTo, '?') === false ? '?' : '&') . 'panel=projects';
+            }
+            header('Location: ' . $returnTo);
+            exit;
+        }
     }
 }
 
@@ -154,6 +165,11 @@ $detailId = (int)($_GET['id'] ?? 0);
 $detail = $detailId > 0 ? getProject($conn, $detailId) : null;
 if ($detailId > 0 && $detail === null) {
     $detailId = 0;
+}
+// Detail-only page: the project list lives in the home canvas now.
+if ($detail === null && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header('Location: /?panel=projects');
+    exit;
 }
 $globals = getGlobalTolerances($conn);
 $defs = getToleranceDefs();
@@ -281,7 +297,7 @@ if ($projectBlocked) {
         <section class="mb-6 bg-gray-800 rounded-lg p-6">
             <details>
                 <summary class="text-lg font-semibold cursor-pointer"><?= htmlspecialchars($detail['name']) ?></summary>
-            <form method="POST" class="flex flex-col gap-3 mt-4">
+            <form method="POST" id="projectUpdateForm" class="flex flex-col gap-3 mt-4">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <input type="hidden" name="action" value="update">
                 <input type="hidden" name="project_id" value="<?= (int)$detail['id'] ?>">
@@ -294,13 +310,24 @@ if ($projectBlocked) {
                     <textarea name="notes" rows="2"
                               class="mt-1 w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100"><?= htmlspecialchars((string)($detail['notes'] ?? '')) ?></textarea>
                 </label>
-                <div class="flex justify-end gap-2">
+            </form>
+            <div class="flex justify-between gap-2 mt-3">
+                <form method="POST" onsubmit="return confirm(<?= htmlspecialchars(json_encode(__('projects_confirm_delete'))) ?>);">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="project_id" value="<?= (int)$detail['id'] ?>">
+                    <input type="hidden" name="return" value="/">
+                    <button type="submit" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
+                        <?= __('projects_delete') ?>
+                    </button>
+                </form>
+                <div class="flex gap-2">
                     <a href="/projects.php" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"><?= __('back') ?></a>
-                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                    <button type="submit" form="projectUpdateForm" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
                         <?= __('projects_save') ?>
                     </button>
                 </div>
-            </form>
+            </div>
             </details>
         </section>
 
