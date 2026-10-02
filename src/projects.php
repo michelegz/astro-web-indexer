@@ -202,7 +202,7 @@ if ($projectBlocked) {
         </div>
     </header>
 
-    <main class="flex-grow px-4 py-8 max-w-4xl mx-auto w-full">
+    <main class="flex-grow px-4 md:px-6 py-8 w-full max-w-[1600px] mx-auto">
 
         <?php if ($message): ?>
             <div class="mb-6 p-3 rounded text-sm <?= $messageType === 'success' ? 'bg-green-900/50 border border-green-700 text-green-300' : 'bg-red-900/50 border border-red-700 text-red-300' ?>">
@@ -375,7 +375,7 @@ if ($projectBlocked) {
         </section>
 
         <div id="sugModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60">
-            <div class="bg-gray-800 rounded-lg p-6 w-full max-w-4xl max-h-[85vh] overflow-y-auto">
+            <div class="bg-gray-800 rounded-lg p-6 w-full max-w-6xl max-h-[85vh] overflow-y-auto">
                 <div class="flex items-center justify-between mb-2">
                     <h2 class="text-lg font-semibold"><?= __('projects_review', ['count' => $detailPending]) ?></h2>
                     <button type="button" id="sugModalClose" class="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
@@ -511,7 +511,7 @@ if ($projectBlocked) {
                             <summary class="cursor-pointer px-4 py-1.5 hover:bg-gray-700/40 rounded text-sm text-gray-300">📁 <?= __('projects_igroup_show_files', ['count' => count($grp['lights'])]) ?></summary>
                         <div class="px-4 py-2 overflow-x-auto">
                             <table class="w-full text-xs text-left igroup-table" data-group="<?= (int)$gi ?>">
-                                <thead class="text-gray-400 border-b border-gray-700">
+                                <thead class="sticky top-0 bg-gray-800 z-10 text-gray-400 border-b border-gray-700">
                                     <tr>
                                         <th class="py-1 px-2 cursor-pointer hover:text-white" data-type="text"><?= __('projects_igroup_file') ?> ↕</th>
                                         <th class="py-1 px-2 cursor-pointer hover:text-white" data-type="text"><?= __('date') ?> ↕</th>
@@ -529,15 +529,15 @@ if ($projectBlocked) {
                                         <?php $liOff = empty($li['enabled']); ?>
                                         <?php $liAuto = !$liOff && !empty($li['auto_off']); ?>
                                         <tr class="border-b border-gray-700/40<?= ($liOff || $liAuto) ? ' opacity-60' : '' ?>" data-enabled="<?= $liOff ? '0' : '1' ?>" data-auto="<?= $liAuto ? '1' : '0' ?>" data-hfr-sd="<?= htmlspecialchars((string)($li['hfr_sd'] ?? '')) ?>" data-psf="<?= htmlspecialchars((string)($li['psf_signal'] ?? '')) ?>" data-linkkey="<?= htmlspecialchars((string)($li['link_key'] ?? '')) ?>">
-                                            <td class="py-1 px-2" data-val="<?= htmlspecialchars((string)$li['name']) ?>"><?= htmlspecialchars($li['name']) ?><?php if ($liOff): ?> <span class="text-gray-500">(<?= __('projects_link_off') ?>)</span><?php elseif ($liAuto): ?> <span class="text-gray-500">(<?= __('projects_auto_off') ?>)</span><?php endif; ?></td>
-                                            <td class="py-1 px-2" data-val="<?= htmlspecialchars((string)($li['date_obs'] ?? '')) ?>"><?= htmlspecialchars((string)($li['date_obs'] ?? '')) ?></td>
-                                            <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['hfr'] ?? '')) ?>"><?= htmlspecialchars($li['hfr'] !== null && $li['hfr'] !== '' ? number_format((float)$li['hfr'], 2) : '—') ?></td>
-                                            <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['hfr_sd'] ?? '')) ?>"><?= htmlspecialchars($li['hfr_sd'] !== null && $li['hfr_sd'] !== '' ? number_format((float)$li['hfr_sd'], 2) : '—') ?></td>
-                                            <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['fwhm'] ?? '')) ?>"><?= htmlspecialchars($li['fwhm'] !== null && $li['fwhm'] !== '' ? number_format((float)$li['fwhm'], 2) : '—') ?></td>
-                                            <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['eccentricity'] ?? '')) ?>"><?= htmlspecialchars($li['eccentricity'] !== null && $li['eccentricity'] !== '' ? number_format((float)$li['eccentricity'], 3) : '—') ?></td>
-                                            <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['star_count'] ?? '')) ?>"><?= htmlspecialchars($li['star_count'] !== null && $li['star_count'] !== '' ? (string)$li['star_count'] : '—') ?></td>
-                                            <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['snr_weight'] ?? '')) ?>"><?= htmlspecialchars($li['snr_weight'] !== null && $li['snr_weight'] !== '' ? number_format((float)$li['snr_weight'], 2) : '—') ?></td>
-                                            <td class="py-1 px-2 text-right" data-val="<?= htmlspecialchars((string)($li['psf_signal'] ?? '')) ?>"><?= htmlspecialchars($li['psf_signal'] !== null && $li['psf_signal'] !== '' ? number_format((float)$li['psf_signal'], 6) : '—') ?></td>
+                                            <td class="py-1 px-2 max-w-xs" data-val="<?= htmlspecialchars((string)$li['name']) ?>"><span class="block truncate" title="<?= htmlspecialchars((string)$li['name']) ?>"><?= htmlspecialchars($li['name']) ?></span><?php if ($liOff): ?> <span class="text-gray-500">(<?= __('projects_link_off') ?>)</span><?php elseif ($liAuto): ?> <span class="text-gray-500">(<?= __('projects_auto_off') ?>)</span><?php endif; ?></td>
+                                            <td class="py-1 px-2 whitespace-nowrap" data-val="<?= htmlspecialchars((string)($li['date_obs'] ?? '')) ?>"><?= htmlspecialchars((string)($li['date_obs'] ?? '')) ?></td>
+                                            <td class="py-1 px-2 text-right whitespace-nowrap" data-val="<?= htmlspecialchars((string)($li['hfr'] ?? '')) ?>"><?= htmlspecialchars($li['hfr'] !== null && $li['hfr'] !== '' ? number_format((float)$li['hfr'], 2) : '—') ?></td>
+                                            <td class="py-1 px-2 text-right whitespace-nowrap" data-val="<?= htmlspecialchars((string)($li['hfr_sd'] ?? '')) ?>"><?= htmlspecialchars($li['hfr_sd'] !== null && $li['hfr_sd'] !== '' ? number_format((float)$li['hfr_sd'], 2) : '—') ?></td>
+                                            <td class="py-1 px-2 text-right whitespace-nowrap" data-val="<?= htmlspecialchars((string)($li['fwhm'] ?? '')) ?>"><?= htmlspecialchars($li['fwhm'] !== null && $li['fwhm'] !== '' ? number_format((float)$li['fwhm'], 2) : '—') ?></td>
+                                            <td class="py-1 px-2 text-right whitespace-nowrap" data-val="<?= htmlspecialchars((string)($li['eccentricity'] ?? '')) ?>"><?= htmlspecialchars($li['eccentricity'] !== null && $li['eccentricity'] !== '' ? number_format((float)$li['eccentricity'], 3) : '—') ?></td>
+                                            <td class="py-1 px-2 text-right whitespace-nowrap" data-val="<?= htmlspecialchars((string)($li['star_count'] ?? '')) ?>"><?= htmlspecialchars($li['star_count'] !== null && $li['star_count'] !== '' ? (string)$li['star_count'] : '—') ?></td>
+                                            <td class="py-1 px-2 text-right whitespace-nowrap" data-val="<?= htmlspecialchars((string)($li['snr_weight'] ?? '')) ?>"><?= htmlspecialchars($li['snr_weight'] !== null && $li['snr_weight'] !== '' ? number_format((float)$li['snr_weight'], 2) : '—') ?></td>
+                                            <td class="py-1 px-2 text-right whitespace-nowrap" data-val="<?= htmlspecialchars((string)($li['psf_signal'] ?? '')) ?>"><?= htmlspecialchars($li['psf_signal'] !== null && $li['psf_signal'] !== '' ? number_format((float)$li['psf_signal'], 6) : '—') ?></td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -545,13 +545,13 @@ if ($projectBlocked) {
                                     <tr class="border-t border-gray-600 font-medium text-gray-200">
                                         <td class="py-1 px-2"><?= __('projects_igroup_median') ?></td>
                                         <td class="py-1 px-2"></td>
-                                        <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['hfr'] !== null ? number_format((float)$grp['medians']['hfr'], 2) : '—') ?></td>
-                                        <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['hfr_sd'] !== null ? number_format((float)$grp['medians']['hfr_sd'], 2) : '—') ?></td>
-                                        <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['fwhm'] !== null ? number_format((float)$grp['medians']['fwhm'], 2) : '—') ?></td>
-                                        <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['eccentricity'] !== null ? number_format((float)$grp['medians']['eccentricity'], 3) : '—') ?></td>
-                                        <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['star_count'] !== null ? number_format((float)$grp['medians']['star_count'], 0) : '—') ?></td>
-                                        <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['snr_weight'] !== null ? number_format((float)$grp['medians']['snr_weight'], 2) : '—') ?></td>
-                                        <td class="py-1 px-2 text-right"><?= htmlspecialchars($grp['medians']['psf_signal'] !== null ? number_format((float)$grp['medians']['psf_signal'], 6) : '—') ?></td>
+                                        <td class="py-1 px-2 text-right whitespace-nowrap"><?= htmlspecialchars($grp['medians']['hfr'] !== null ? number_format((float)$grp['medians']['hfr'], 2) : '—') ?></td>
+                                        <td class="py-1 px-2 text-right whitespace-nowrap"><?= htmlspecialchars($grp['medians']['hfr_sd'] !== null ? number_format((float)$grp['medians']['hfr_sd'], 2) : '—') ?></td>
+                                        <td class="py-1 px-2 text-right whitespace-nowrap"><?= htmlspecialchars($grp['medians']['fwhm'] !== null ? number_format((float)$grp['medians']['fwhm'], 2) : '—') ?></td>
+                                        <td class="py-1 px-2 text-right whitespace-nowrap"><?= htmlspecialchars($grp['medians']['eccentricity'] !== null ? number_format((float)$grp['medians']['eccentricity'], 3) : '—') ?></td>
+                                        <td class="py-1 px-2 text-right whitespace-nowrap"><?= htmlspecialchars($grp['medians']['star_count'] !== null ? number_format((float)$grp['medians']['star_count'], 0) : '—') ?></td>
+                                        <td class="py-1 px-2 text-right whitespace-nowrap"><?= htmlspecialchars($grp['medians']['snr_weight'] !== null ? number_format((float)$grp['medians']['snr_weight'], 2) : '—') ?></td>
+                                        <td class="py-1 px-2 text-right whitespace-nowrap"><?= htmlspecialchars($grp['medians']['psf_signal'] !== null ? number_format((float)$grp['medians']['psf_signal'], 6) : '—') ?></td>
                                     </tr>
                                 </tfoot>
                             </table>
