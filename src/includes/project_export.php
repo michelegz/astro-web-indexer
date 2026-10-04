@@ -5,14 +5,13 @@
 // (missing files are filtered at zip time and reported as skipped).
 //
 // Layout (mirror tree + WBPP path keywords, see tmp/project-zip-export-plan.md):
-//   SETUP_S1_<label>/DARK_EXP300_Tm10C/[DARKSET_S1S3/]dark.fits
-//   SETUP_S1_<label>/BIAS/bias.fits
-//   SETUP_S1_<label>/PANEL_P1/SESSION_N1_20240501[_DARKSET_N1N3]/LIGHT_Ha/light.fits
-//   SETUP_S1_<label>/PANEL_P1/SESSION_N1_20240501/FLAT_Ha/flat.fits
+//   SETUP_S1/DARK/EXP300_Tm10C/[DARKSET_N1N3/]dark.fits
+//   SETUP_S1/BIAS/bias.fits
+//   SETUP_S1/PANEL_P1/SESSION_N1[_DARKSET_N1N3]/LIGHT/FILTER_Ha/light.fits
+//   SETUP_S1/PANEL_P1/SESSION_N1/FLAT/FILTER_Ha/flat.fits
 //
-// Rules: effective files only (enabled, not pending, not auto_off); masters
-// preferred over subs per group; one copy per file_id (first in top-down walk
-// wins); scope sets become single-value DARKSET_/FLATSET_ tokens on both sides.
+// Session folders carry only the N id (nights live in the manifest); type
+// folders nest as TYPE/GROUP so FILTER_ works as a WBPP keyword everywhere.
 
 /**
  * Filesystem- and WBPP-safe token: strict [A-Za-z0-9_].
@@ -298,7 +297,8 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
         foreach (groupCalibrations($live, $tolDark, $tolTemp) as $g) {
             $kind = $g['kind'];
             if ($kind === 'flat') {
-                $leaf = 'FLAT_' . exportSanitize((string)($g['label'] ?? ''));
+                $flabel = exportSanitize((string)($g['label'] ?? ''));
+                $leaf = 'FLAT/FILTER_' . ($flabel !== '' ? $flabel : 'NOFILTER');
             } elseif ($kind === 'dark') {
                 $exp = null;
                 $tmp = null;
@@ -306,12 +306,13 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
                     $exp = $g['rows'][0]['exptime'] ?? null;
                     $tmp = $g['rows'][0]['ccd_temp'] ?? null;
                 }
-                $leaf = 'DARK_' . exportSanitize(exportExpFrag($exp) . ($tmp !== null && $tmp !== '' ? '_' . exportTempFrag($tmp) : ''));
+                $leaf = 'DARK/' . exportSanitize(exportExpFrag($exp) . ($tmp !== null && $tmp !== '' ? '_' . exportTempFrag($tmp) : ''));
                 $leaf = rtrim($leaf, '_');
             } elseif ($kind === 'bias') {
                 $leaf = 'BIAS';
             } else {
-                $leaf = exportSanitize(strtoupper((string)($g['label'] ?? 'CAL')));
+                $oleaf = exportSanitize(strtoupper((string)($g['label'] ?? 'CAL')));
+                $leaf = $oleaf !== '' ? $oleaf : 'CAL';
             }
             // Scoped rows go to per-set subfolders; unscoped stay in the group dir.
             $scoped = [];
@@ -350,10 +351,7 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
     };
 
     foreach ($projectTree['setups'] ?? [] as $setup) {
-        $setupLabel = ($setup['label'] !== null && $setup['label'] !== '')
-            ? (string)$setup['label'] : substr((string)$setup['fingerprint'], 0, 48);
-        $setupDir = 'SETUP_S' . (int)($setup['setup_no'] ?? $setup['id'])
-            . '_' . exportSanitize($setupLabel);
+        $setupDir = 'SETUP_S' . (int)($setup['setup_no'] ?? $setup['id']);
         $emitNodeCals($setupDir, $setup['calibrations'] ?? []);
         foreach ($setup['panels'] ?? [] as $panel) {
             $panelDir = $setupDir . '/PANEL_P' . (int)($panel['panel_no'] ?? $panel['id']);
@@ -361,8 +359,7 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
             foreach ($panel['sessions'] ?? [] as $session) {
                 $sno = isset($session['session_no']) ? (int)$session['session_no'] : null;
                 $sessDir = $panelDir . '/SESSION_'
-                    . ($sno !== null ? 'N' . $sno . '_' : '')
-                    . exportNight((string)($session['astro_night'] ?? ''));
+                    . ($sno !== null ? 'N' . $sno : exportNight((string)($session['astro_night'] ?? '')));
                 foreach ($sessionTokens[(int)$session['id']] ?? [] as $tok) {
                     $sessDir .= '_' . $tok;
                 }
@@ -380,12 +377,11 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
                         if (strtoupper((string)($li['imgtype'] ?? '')) !== 'LIGHT') {
                             continue;
                         }
-                        $leaf = 'LIGHT' . ($fname !== '' ? '_' . exportSanitize($fname) : '');
+                        $leaf = 'LIGHT' . ($fname !== '' ? '/FILTER_' . exportSanitize($fname) : '');
                         $addFile($sessDir . '/' . $leaf, $li, 'light', null);
                     }
                     // Filter-level calibrations live next to their lights.
-                    $fdir = $sessDir . '/' . ('FILTER' . ($fname !== '' ? '_' . exportSanitize($fname) : ''));
-                    $emitNodeCals($fdir, $filter['calibrations'] ?? []);
+                    $emitNodeCals($sessDir, $filter['calibrations'] ?? []);
                 }
                 // Session-level calibrations: out-of-scope rows are ineffective.
                 $sessCals = [];
