@@ -490,10 +490,6 @@ if ($projectBlocked) {
                         <?= __('export_astrobin_csv') ?>
                     </button>
                     <?php endif; ?>
-                    <button type="button" id="scopeModalOpen"
-                            class="px-3 py-1 text-sm bg-purple-700 hover:bg-purple-600 text-white rounded transition-colors">
-                        <?= __('projects_scope_button') ?>
-                    </button>
                     <button type="submit" name="action" value="enable_links"
                             class="px-3 py-1 text-sm bg-green-700 hover:bg-green-600 text-white rounded transition-colors">
                         <?= __('projects_enable_selected') ?>
@@ -503,12 +499,16 @@ if ($projectBlocked) {
                         <?= __('projects_disable_selected') ?>
                     </button>
                     <button type="submit" name="action" value="promote_links"
-                            class="px-3 py-1 text-sm bg-teal-700 hover:bg-teal-600 text-white rounded transition-colors">
+                            class="px-3 py-1 text-sm bg-blue-700 hover:bg-blue-600 text-white rounded transition-colors">
                         <?= __('projects_promote') ?>
                     </button>
                     <button type="submit" name="action" value="demote_links"
-                            class="px-3 py-1 text-sm bg-teal-700 hover:bg-teal-600 text-white rounded transition-colors">
+                            class="px-3 py-1 text-sm bg-orange-700 hover:bg-orange-600 text-white rounded transition-colors">
                         <?= __('projects_demote') ?>
+                    </button>
+                    <button type="button" id="scopeModalOpen"
+                            class="px-3 py-1 text-sm bg-purple-700 hover:bg-purple-600 text-white rounded transition-colors">
+                        <?= __('projects_scope_button') ?>
                     </button>
                     <button type="submit" name="action" value="remove_links"
                             onclick="return confirm(<?= htmlspecialchars(json_encode(__('projects_confirm_remove'))) ?>);"

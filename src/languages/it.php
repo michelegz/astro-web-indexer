@@ -294,7 +294,7 @@ return [
     'projects_demote' => 'Retrocedi',
     'projects_dup_levels' => 'Linkato in',
     'projects_scope_title' => 'Solo queste sessioni',
-    'projects_scope_button' => 'Scope…',
+    'projects_scope_button' => 'Scope',
     'projects_scope_modal' => 'Limita calibrazioni alle sessioni',
     'projects_scope_hint' => 'Seleziona le sessioni a cui si applicano i file selezionati. Nessuna selezione = vale ovunque (azzera).',
     'projects_scope_all' => 'Nessuna',

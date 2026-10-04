@@ -293,7 +293,7 @@ return [
     'projects_demote' => 'Herabstufen',
     'projects_dup_levels' => 'Verknüpft in',
     'projects_scope_title' => 'Nur diese Sessions',
-    'projects_scope_button' => 'Scope…',
+    'projects_scope_button' => 'Scope',
     'projects_scope_modal' => 'Kalibrierungen auf Sessions begrenzen',
     'projects_scope_hint' => 'Wähle die Sessions, für die die Dateien gelten. Keine Auswahl = überall gültig (zurücksetzen).',
     'projects_scope_all' => 'Keine',

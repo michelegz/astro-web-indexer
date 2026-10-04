@@ -294,7 +294,7 @@ return [
     'projects_demote' => 'Demote',
     'projects_dup_levels' => 'Linked in',
     'projects_scope_title' => 'Only these sessions',
-    'projects_scope_button' => 'Scope…',
+    'projects_scope_button' => 'Scope',
     'projects_scope_modal' => 'Limit calibrations to sessions',
     'projects_scope_hint' => 'Select the sessions the selected files apply to. No selection = applies everywhere (clears).',
     'projects_scope_all' => 'None',

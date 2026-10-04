@@ -294,7 +294,7 @@ return [
     'projects_demote' => 'Degradar',
     'projects_dup_levels' => 'Enlazado en',
     'projects_scope_title' => 'Solo estas sesiones',
-    'projects_scope_button' => 'Scope…',
+    'projects_scope_button' => 'Scope',
     'projects_scope_modal' => 'Limitar calibraciones a sesiones',
     'projects_scope_hint' => 'Selecciona las sesiones correspondientes. Sin selección = vale en todas (restablece).',
     'projects_scope_all' => 'Ninguna',

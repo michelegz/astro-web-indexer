@@ -294,7 +294,7 @@ return [
     'projects_demote' => 'Rétrograder',
     'projects_dup_levels' => 'Lié dans',
     'projects_scope_title' => 'Ces sessions uniquement',
-    'projects_scope_button' => 'Scope…',
+    'projects_scope_button' => 'Scope',
     'projects_scope_modal' => 'Limiter les calibrations aux sessions',
     'projects_scope_hint' => 'Sélectionne les sessions concernées. Aucune sélection = partout (réinitialise).',
     'projects_scope_all' => 'Aucune',
