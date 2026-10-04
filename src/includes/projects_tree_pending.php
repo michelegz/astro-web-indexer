@@ -153,7 +153,7 @@ unset($__s, $__p, $__sess, $__f);
                                 <?php if (!sessionHasPend($session)) continue; ?>
                                 <details open class="mb-2 border border-gray-700/40 rounded">
                                     <summary class="cursor-pointer px-3 py-1.5 hover:bg-gray-700/40 rounded text-sm">
-                                        <?= __('projects_session') ?> <?= htmlspecialchars((string)$session['astro_night']) ?>
+                                        <?= __('projects_session') ?> <?= htmlspecialchars(sessionShortLabel($session)) ?>
                                     </summary>
                                     <div class="px-3 py-2">
                                         <?php foreach ($session['filters'] as $filter): ?>

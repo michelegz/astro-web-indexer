@@ -402,7 +402,7 @@ function attachCalibScopes(PDO $conn, array &$tree): void
         $k = (int)$r['file_id'] . '|' . $r['level'] . '|' . (int)$r['node_id'];
         $map[$k]['sessions'][] = (int)$r['session_id'];
         $night = (string)$r['astro_night'];
-        $map[$k]['nights'][] = $r['session_no'] !== null ? 'S' . (int)$r['session_no'] . ' · ' . $night : $night;
+        $map[$k]['nights'][] = $r['session_no'] !== null ? 'N' . (int)$r['session_no'] . ' · ' . $night : $night;
     }
     if (empty($map)) {
         return;
@@ -824,8 +824,9 @@ function calGroupTitle(array $g): string
 }
 
 /**
- * Short session label with progressive number: "S3 · 2024-05-01" (night only
- * when session_no is missing, e.g. partially migrated rows).
+ * Short session label with progressive number: "N3 · 2024-05-01" (night only
+ * when session_no is missing, e.g. partially migrated rows). Sessions use N
+ * so they can never be confused with setup S numbers.
  */
 function sessionShortLabel(array $session): string
 {
@@ -833,7 +834,7 @@ function sessionShortLabel(array $session): string
     if (!isset($session['session_no']) || $session['session_no'] === null) {
         return $night;
     }
-    return 'S' . (int)$session['session_no'] . ' · ' . $night;
+    return 'N' . (int)$session['session_no'] . ' · ' . $night;
 }
 
 /**

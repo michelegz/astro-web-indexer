@@ -7,8 +7,8 @@
 // Layout (mirror tree + WBPP path keywords, see tmp/project-zip-export-plan.md):
 //   SETUP_S1_<label>/DARK_EXP300_Tm10C/[DARKSET_S1S3/]dark.fits
 //   SETUP_S1_<label>/BIAS/bias.fits
-//   SETUP_S1_<label>/PANEL_P1/SESSION_S1_20240501[_DARKSET_S1S3]/LIGHT_Ha/light.fits
-//   SETUP_S1_<label>/PANEL_P1/SESSION_S1_20240501/FLAT_Ha/flat.fits
+//   SETUP_S1_<label>/PANEL_P1/SESSION_N1_20240501[_DARKSET_N1N3]/LIGHT_Ha/light.fits
+//   SETUP_S1_<label>/PANEL_P1/SESSION_N1_20240501/FLAT_Ha/flat.fits
 //
 // Rules: effective files only (enabled, not pending, not auto_off); masters
 // preferred over subs per group; one copy per file_id (first in top-down walk
@@ -64,14 +64,15 @@ function exportTempFrag($temp): string
 }
 
 /**
- * Set token value from session numbers: [1,3] -> S1S3. Unambiguous because
- * every component is S+digits.
+ * Set token value from session numbers: [1,3] -> N1N3. Unambiguous because
+ * every component is N+digits. N (night) keeps session sets distinct from
+ * setup S numbers.
  */
 function exportSetValue(array $nos): string
 {
     $nos = array_values(array_unique(array_map('intval', $nos)));
     sort($nos);
-    return 'S' . implode('S', $nos);
+    return 'N' . implode('N', $nos);
 }
 
 /**
@@ -360,7 +361,7 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
             foreach ($panel['sessions'] ?? [] as $session) {
                 $sno = isset($session['session_no']) ? (int)$session['session_no'] : null;
                 $sessDir = $panelDir . '/SESSION_'
-                    . ($sno !== null ? 'S' . $sno . '_' : '')
+                    . ($sno !== null ? 'N' . $sno . '_' : '')
                     . exportNight((string)($session['astro_night'] ?? ''));
                 foreach ($sessionTokens[(int)$session['id']] ?? [] as $tok) {
                     $sessDir .= '_' . $tok;
