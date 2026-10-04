@@ -587,6 +587,151 @@ function setProjectCalibScope(PDO $conn, int $projectId, array $keys, array $ses
 }
 
 /**
+ * Bulk promote calibration links one level up (session/filter->panel,
+ * panel->setup). Lights and setup-level links are skipped. Returns
+ * ['done' => n, 'skipped' => m].
+ */
+function promoteCalibLinks(PDO $conn, int $projectId, array $keys): array
+{
+    $done = 0;
+    $skipped = 0;
+    $project = getProject($conn, $projectId);
+    if ($project === null) {
+        throw new InvalidArgumentException(__('projects_error_name'));
+    }
+    if (getProjectAssignMode($project) === 'frozen') {
+        throw new InvalidArgumentException(__('projects_add_frozen'));
+    }
+    foreach ($keys as $key) {
+        $parsed = parseProjectLinkKey((string)$key);
+        if ($parsed === null) {
+            $skipped++;
+            continue;
+        }
+        [$fid, $level, $node] = $parsed;
+        if (!in_array($level, ['session', 'filter', 'panel'], true)) {
+            $skipped++;
+            continue;
+        }
+        if (!projectOwnsNode($conn, $projectId, $level, $node)) {
+            $skipped++;
+            continue;
+        }
+        $row = $conn->prepare(
+            "SELECT is_light FROM project_files WHERE file_id = :fid AND level = :level AND node_id = :node LIMIT 1"
+        );
+        $row->execute([':fid' => $fid, ':level' => $level, ':node' => $node]);
+        $link = $row->fetch();
+        if ($link === false || !empty($link['is_light'])) {
+            $skipped++;
+            continue;
+        }
+        if ($level === 'panel') {
+            $pst = $conn->prepare("SELECT setup_id FROM project_panels WHERE id = :n");
+            $pst->execute([':n' => $node]);
+            $prow = $pst->fetch();
+            if ($prow === false) {
+                $skipped++;
+                continue;
+            }
+            $to = ['setup', (int)$prow['setup_id']];
+        } else {
+            // Session- and filter-level links both live on a session row.
+            $sst = $conn->prepare("SELECT panel_id FROM project_sessions WHERE id = :n");
+            $sst->execute([':n' => $node]);
+            $srow = $sst->fetch();
+            if ($srow === false) {
+                $skipped++;
+                continue;
+            }
+            $to = ['panel', (int)$srow['panel_id']];
+        }
+        try {
+            moveProjectLink($conn, $projectId, $fid, $level, $node, $to[0], $to[1]);
+            $done++;
+        } catch (Exception $e) {
+            $skipped++;
+        }
+    }
+    return ['done' => $done, 'skipped' => $skipped];
+}
+
+/**
+ * Bulk demote calibration links to their own night session (panel/setup
+ * level only; created when missing). Files without date_obs and lights are
+ * skipped. For setup-level links the panel holding a session on that night
+ * wins, else the first panel by panel_no. Returns ['done', 'skipped'].
+ */
+function demoteCalibLinks(PDO $conn, int $projectId, array $keys): array
+{
+    $done = 0;
+    $skipped = 0;
+    $project = getProject($conn, $projectId);
+    if ($project === null) {
+        throw new InvalidArgumentException(__('projects_error_name'));
+    }
+    if (getProjectAssignMode($project) === 'frozen') {
+        throw new InvalidArgumentException(__('projects_add_frozen'));
+    }
+    foreach ($keys as $key) {
+        $parsed = parseProjectLinkKey((string)$key);
+        if ($parsed === null) {
+            $skipped++;
+            continue;
+        }
+        [$fid, $level, $node] = $parsed;
+        if ($level !== 'panel' && $level !== 'setup') {
+            $skipped++;
+            continue;
+        }
+        if (!projectOwnsNode($conn, $projectId, $level, $node)) {
+            $skipped++;
+            continue;
+        }
+        $row = $conn->prepare(
+            "SELECT f.date_obs, pf.is_light FROM project_files pf "
+            . "JOIN files f ON f.id = pf.file_id "
+            . "WHERE pf.file_id = :fid AND pf.level = :level AND pf.node_id = :node LIMIT 1"
+        );
+        $row->execute([':fid' => $fid, ':level' => $level, ':node' => $node]);
+        $link = $row->fetch();
+        if ($link === false || !empty($link['is_light']) || empty($link['date_obs'])) {
+            $skipped++;
+            continue;
+        }
+        $night = projectAstroNight((string)$link['date_obs']);
+        if ($night === null) {
+            $skipped++;
+            continue;
+        }
+        if ($level === 'panel') {
+            $targetPanel = $node;
+        } else {
+            $pst = $conn->prepare(
+                "SELECT pp.id FROM project_panels pp "
+                . "LEFT JOIN project_sessions ss ON ss.panel_id = pp.id AND ss.astro_night = :night "
+                . "WHERE pp.setup_id = :sid ORDER BY (ss.id IS NULL), pp.panel_no ASC, pp.id ASC LIMIT 1"
+            );
+            $pst->execute([':sid' => $node, ':night' => $night]);
+            $prow = $pst->fetch();
+            if ($prow === false) {
+                $skipped++;
+                continue;
+            }
+            $targetPanel = (int)$prow['id'];
+        }
+        try {
+            $targetSession = projectFindOrCreateSession($conn, $targetPanel, $night);
+            moveProjectLink($conn, $projectId, $fid, $level, $node, 'session', $targetSession);
+            $done++;
+        } catch (Exception $e) {
+            $skipped++;
+        }
+    }
+    return ['done' => $done, 'skipped' => $skipped];
+}
+
+/**
  * Bulk remove links from a project (files on disk untouched), pruning
  * emptied nodes bottom-up. Returns the removed count.
  */

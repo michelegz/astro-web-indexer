@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = $_POST['action'] ?? '';
         try {
             // Project-scoped actions require an accessible project first.
-            $needsProject = ['update', 'save_mode', 'delete', 'accept_suggestions', 'dismiss_suggestions', 'save_tolerances', 'remove_links', 'disable_links', 'enable_links', 'move_link', 'move_links', 'set_scope', 'save_thresholds', 'rename_setup'];
+            $needsProject = ['update', 'save_mode', 'delete', 'accept_suggestions', 'dismiss_suggestions', 'save_tolerances', 'remove_links', 'disable_links', 'enable_links', 'promote_links', 'demote_links', 'set_scope', 'save_thresholds', 'rename_setup'];
             if (in_array($action, $needsProject, true)) {
                 $gid = (int)($_POST['project_id'] ?? 0);
                 $gproj = $gid > 0 ? getProject($conn, $gid) : null;
@@ -101,66 +101,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $message = __('projects_links_set', ['count' => $done]);
                 }
                 $messageType = 'success';
-            } elseif ($action === 'move_link') {
+            } elseif ($action === 'promote_links' || $action === 'demote_links') {
                 $id = (int)($_POST['project_id'] ?? 0);
-                $fid = (int)($_POST['file_id'] ?? 0);
-                $fromLevel = (string)($_POST['from_level'] ?? '');
-                $fromNode = (int)($_POST['from_node'] ?? 0);
-                $toLevel = (string)($_POST['to_level'] ?? '');
-                $toNode = (int)($_POST['to_node'] ?? 0);
-                $mvProj = getProject($conn, $id);
-                if ($mvProj !== null && getProjectAssignMode($mvProj) === 'frozen') {
-                    throw new InvalidArgumentException(__('projects_add_frozen'));
-                }
-                // Demote to a brand-new night session: create it first (panel
-                // ownership + night format validated, like any other target).
-                if ($toLevel === 'session' && $toNode <= 0) {
-                    $toPanel = (int)($_POST['to_panel'] ?? 0);
-                    $toNight = (string)($_POST['to_night'] ?? '');
-                    if (!projectOwnsNode($conn, $id, 'panel', $toPanel)
-                        || preg_match('/^\d{4}-\d{2}-\d{2}$/', $toNight) !== 1) {
-                        throw new InvalidArgumentException(__('projects_error_name'));
-                    }
-                    $toNode = projectFindOrCreateSession($conn, $toPanel, $toNight);
-                }
-                moveProjectLink($conn, $id, $fid, $fromLevel, $fromNode, $toLevel, $toNode);
-                $message = __('projects_moved');
-                $messageType = 'success';
-            } elseif ($action === 'move_links') {
-                $id = (int)($_POST['project_id'] ?? 0);
-                $fids = array_values(array_filter(array_map('intval', (array)($_POST['file_ids'] ?? []))));
-                $fromLevel = (string)($_POST['from_level'] ?? '');
-                $fromNode = (int)($_POST['from_node'] ?? 0);
-                $toLevel = (string)($_POST['to_level'] ?? '');
-                $toNode = (int)($_POST['to_node'] ?? 0);
-                $mvProj = getProject($conn, $id);
-                if ($mvProj !== null && getProjectAssignMode($mvProj) === 'frozen') {
-                    throw new InvalidArgumentException(__('projects_add_frozen'));
-                }
-                // Demote to a brand-new night session: create it once, then move all.
-                if ($toLevel === 'session' && $toNode <= 0) {
-                    $toPanel = (int)($_POST['to_panel'] ?? 0);
-                    $toNight = (string)($_POST['to_night'] ?? '');
-                    if (!projectOwnsNode($conn, $id, 'panel', $toPanel)
-                        || preg_match('/^\d{4}-\d{2}-\d{2}$/', $toNight) !== 1) {
-                        throw new InvalidArgumentException(__('projects_error_name'));
-                    }
-                    $toNode = projectFindOrCreateSession($conn, $toPanel, $toNight);
-                }
-                $done = 0;
-                $failed = 0;
-                foreach ($fids as $fid) {
-                    if ($fid <= 0) {
-                        continue;
-                    }
-                    try {
-                        moveProjectLink($conn, $id, $fid, $fromLevel, $fromNode, $toLevel, $toNode);
-                        $done++;
-                    } catch (Exception $e) {
-                        $failed++;
-                    }
-                }
-                $message = __('projects_moved_bulk', ['done' => $done, 'failed' => $failed]);
+                $keys = array_values((array)($_POST['link_keys'] ?? []));
+                $res = $action === 'promote_links'
+                    ? promoteCalibLinks($conn, $id, $keys)
+                    : demoteCalibLinks($conn, $id, $keys);
+                $message = __('projects_moved_bulk', ['done' => $res['done'], 'failed' => $res['skipped']]);
                 $messageType = 'success';
             } elseif ($action === 'set_scope') {
                 $id = (int)($_POST['project_id'] ?? 0);
@@ -555,6 +502,14 @@ if ($projectBlocked) {
                             class="px-3 py-1 text-sm bg-yellow-700 hover:bg-yellow-600 text-white rounded transition-colors">
                         <?= __('projects_disable_selected') ?>
                     </button>
+                    <button type="submit" name="action" value="promote_links"
+                            class="px-3 py-1 text-sm bg-teal-700 hover:bg-teal-600 text-white rounded transition-colors">
+                        <?= __('projects_promote') ?>
+                    </button>
+                    <button type="submit" name="action" value="demote_links"
+                            class="px-3 py-1 text-sm bg-teal-700 hover:bg-teal-600 text-white rounded transition-colors">
+                        <?= __('projects_demote') ?>
+                    </button>
                     <button type="submit" name="action" value="remove_links"
                             onclick="return confirm(<?= htmlspecialchars(json_encode(__('projects_confirm_remove'))) ?>);"
                             class="px-3 py-1 text-sm bg-red-700 hover:bg-red-600 text-white rounded transition-colors">
@@ -614,101 +569,34 @@ if ($projectBlocked) {
                 <?php include __DIR__ . '/includes/projects_tree.php'; ?>
             </form>
             <script>
-            // Calibration level moves (↑/↓ in the tree). Rows live inside the
-            // bulk form, so nested <form> tags are impossible: posts go through
-            // a dynamically built form carrying the bulk form's CSRF/project.
             (function () {
                 const bulk = document.getElementById('treeBulkForm');
                 if (!bulk) return;
-                function postForm(action, fields) {
-                    const f = document.createElement('form');
-                    f.method = 'POST';
-                    f.action = window.location.pathname + window.location.search;
-                    const add = (k, v) => {
-                        const i = document.createElement('input');
-                        i.type = 'hidden'; i.name = k; i.value = v;
-                        f.appendChild(i);
-                    };
-                    add('csrf_token', bulk.querySelector('input[name="csrf_token"]')?.value || '');
-                    add('project_id', bulk.querySelector('input[name="project_id"]')?.value || '');
-                    add('action', action);
-                    Object.entries(fields).forEach(([k, v]) => {
-                        if (Array.isArray(v)) v.forEach(item => add(k + '[]', item));
-                        else add(k, v);
-                    });
-                    document.body.appendChild(f);
-                    f.submit();
-                }
-                function postMove(fields) {
-                    postForm('move_links', fields);
-                }
-                document.querySelectorAll('#treeBulkForm .mv-up').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        postMove({
-                            file_ids: (btn.dataset.fids || '').split(',').filter(Boolean),
-                            from_level: btn.dataset.fromLevel,
-                            from_node: btn.dataset.fromNode,
-                            to_level: btn.dataset.toLevel,
-                            to_node: btn.dataset.toNode,
-                        });
-                    });
-                });
-                document.querySelectorAll('#treeBulkForm .mv-down').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const picker = btn.parentElement?.querySelector('.mv-picker');
-                        if (picker) picker.classList.toggle('hidden');
-                    });
-                });
-                // Clicks on interactive elements inside group headers (buttons,
-                // labels, picker) must not toggle the group <details>.
-                document.querySelectorAll('#treeBulkForm .cal-group > summary button, #treeBulkForm .cal-group > summary label, #treeBulkForm .cal-group > summary input, #treeBulkForm .cal-group > summary select').forEach(el => {
-                    el.addEventListener('click', (e) => e.stopPropagation());
-                });
                 // Group header checkbox selects every file in its calibration group.
-                // Manual toggle: the native checkbox default must be cancelled,
-                // otherwise the click also flips the enclosing group <details>.
+                // It lives outside the <details> (same pattern as pgroup-check),
+                // so the native behavior just works. No synthetic events here:
+                // ancestor boxes are synced explicitly, so a failing listener
+                // can never abort the loop mid-way (only the first row selected).
                 document.querySelectorAll('#treeBulkForm .cgroup-check').forEach(box => {
-                    box.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        box.checked = !box.checked;
-                        const group = box.closest('details.cal-group');
-                        if (group) {
-                            group.open = true;
-                            group.querySelectorAll('.pfl-check').forEach(cb => {
-                                cb.checked = box.checked;
-                                cb.dispatchEvent(new Event('change', { bubbles: true }));
-                            });
+                    box.addEventListener('change', () => {
+                        const wrap = box.closest('.cal-group-wrap');
+                        if (!wrap) return;
+                        const details = wrap.querySelector('details.cal-group');
+                        if (box.checked && details) details.open = true;
+                        const boxes = Array.from(wrap.querySelectorAll('.pfl-check'));
+                        boxes.forEach(cb => { cb.checked = box.checked; });
+                        box.indeterminate = false;
+                        let scope = wrap.closest('.tnode');
+                        while (scope) {
+                            const gbox = scope.querySelector(':scope > div > .pgroup-check');
+                            if (gbox) {
+                                const files = scope.querySelectorAll('.pfl-check');
+                                const n = scope.querySelectorAll('.pfl-check:checked').length;
+                                gbox.checked = files.length > 0 && n === files.length;
+                                gbox.indeterminate = n > 0 && n < files.length;
+                            }
+                            scope = scope.parentElement?.closest('.tnode') ?? null;
                         }
-                    });
-                });
-                document.querySelectorAll('#treeBulkForm .mv-go').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const sel = btn.parentElement?.querySelector('.mv-target');
-                        if (!sel || !sel.value) return;
-                        // Values: "session:ID", "panel:ID", "new:PANELID:NIGHT".
-                        const parts = sel.value.split(':');
-                        const fields = {
-                            file_ids: (btn.dataset.fids || '').split(',').filter(Boolean),
-                            from_level: btn.dataset.fromLevel,
-                            from_node: btn.dataset.fromNode,
-                        };
-                        if (parts[0] === 'new') {
-                            fields.to_level = 'session';
-                            fields.to_node = '0';
-                            fields.to_panel = parts[1] || '0';
-                            fields.to_night = parts[2] || '';
-                        } else {
-                            fields.to_level = parts[0] || '';
-                            fields.to_node = parts[1] || '0';
-                        }
-                        postMove(fields);
                     });
                 });
             })();
@@ -1413,9 +1301,9 @@ if ($projectBlocked) {
                 box.checked = checked === files.length;
                 box.indeterminate = checked > 0 && checked < files.length;
             }
-            // Calibration group header box reflects its own <ul> only.
+            // Calibration group header box reflects its own group only.
             function syncCalGroupBox(group) {
-                const box = group.querySelector(':scope > summary .cgroup-check');
+                const box = group.parentElement?.querySelector(':scope > .cgroup-check');
                 if (!box) return;
                 const files = group.querySelectorAll('.pfl-check');
                 if (!files.length) {
