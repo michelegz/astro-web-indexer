@@ -5,7 +5,7 @@
 // via checkboxes (suggestion_ids[]), accept/discard buttons live in the modal form.
 $__ptree = $pendingTree ?? ['setups' => []];
 $__pendTols = [
-    'exp_dark' => (string)(($projectTols['tol_exp_dark'] ?? null) ?? '10%'),
+    'exp' => (string)(($projectTols['tol_exp'] ?? null) ?? '1%'),
     'temp' => (string)(($projectTols['tol_temp'] ?? null) ?? '2C'),
 ];
 function pendFileRows(array $lights): array
@@ -69,6 +69,11 @@ function renderPendCals(array $cals, array $tols): void
     if (empty($pend)) {
         return;
     }
+    $groups = groupCalibrations(
+        $pend,
+        (string)($tols['exp'] ?? '1%'),
+        (string)($tols['temp'] ?? '2C')
+    );
     $showHeaders = count($groups) > 1;
     foreach ($groups as $g) {
         ?>
@@ -167,7 +172,7 @@ unset($__s, $__p, $__sess, $__f);
                                                     <span class="ml-2 text-xs font-normal text-gray-400"><?= count($prows) ?><?= $pcalN > 0 ? ' (+' . $pcalN . ' cal)' : '' ?></span>
                                                 </div>
                                                 <?php foreach ($expGroups as $eg): ?>
-                                                <div class="text-xs text-gray-300 mb-1 ml-4">⏳ <?= __('projects_exposure') ?> <?= htmlspecialchars(fmtExpShort($eg['exptime'])) ?> <span class="text-gray-500"><?= count($eg['lights']) ?></span></div>
+                                                <div class="text-xs text-gray-300 mb-1 ml-4">⏳ <?= __('projects_exposure') ?> <?= htmlspecialchars(fmtExpShort($eg['exptime'])) ?><?php $egTempMed = projectMedian(array_column($eg['lights'], 'ccd_temp')); ?><?php if ($egTempMed !== null): ?> · <?= htmlspecialchars(repTempDisplay($egTempMed)) ?><?php endif; ?> <span class="text-gray-500"><?= count($eg['lights']) ?></span></div>
                                                 <ul class="flex flex-col gap-1 ml-4">
                                                     <?php foreach ($eg['lights'] as $li): ?>
                                                         <li class="flex items-start gap-2 text-xs border-b border-gray-700/40 py-1">

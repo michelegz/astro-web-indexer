@@ -813,7 +813,6 @@ function getToleranceDefs(): array
 {
     return [
         'tol_exp' => ['default' => '1%', 'hint' => '% or s'],
-        'tol_exp_dark' => ['default' => '10%', 'hint' => '% or s'],
         'tol_temp' => ['default' => '2C', 'hint' => '°C'],
         'tol_rot' => ['default' => '3deg', 'hint' => '°'],
         'tol_pos_arcmin' => ['default' => '5', 'hint' => 'arcmin'],

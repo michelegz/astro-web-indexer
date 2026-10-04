@@ -29,7 +29,6 @@ logger = logging.getLogger('reindex.projects')
 ELIGIBLE_IMGTYPES = ('LIGHT', 'DARK', 'FLAT', 'BIAS')
 
 DEFAULT_TOLS = {
-    'tol_exp_dark': '10%',
     'tol_temp': '2C',
     'tol_rot': '3deg',
     'tol_pos_arcmin': '5',

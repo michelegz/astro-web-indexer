@@ -5,9 +5,9 @@
 // (missing files are filtered at zip time and reported as skipped).
 //
 // Layout (mirror tree + WBPP path keywords, see tmp/project-zip-export-plan.md):
-//   SETUP_S1/DARK/EXP300_Tm10C/[DARKSET_N1N3/]dark.fits
+//   SETUP_S1/DARK/EXPS_300/TEMPC_m10/[DARKSET_N1N3/]dark.fits
 //   SETUP_S1/BIAS/bias.fits
-//   SETUP_S1/PANEL_P1/SESSION_N1[_DARKSET_N1N3]/LIGHT/FILTER_Ha/light.fits
+//   SETUP_S1/PANEL_P1/SESSION_N1[_DARKSET_N1N3]/LIGHT/FILTER_Ha/EXPS_300/TEMPC_m10/light.fits
 //   SETUP_S1/PANEL_P1/SESSION_N1/FLAT/FILTER_Ha/flat.fits
 //
 // Session folders carry only the N id (nights live in the manifest); type
@@ -28,38 +28,6 @@ function exportSanitize(string $s): string
 function exportNight(string $night): string
 {
     return str_replace('-', '', trim($night));
-}
-
-/**
- * Exposure folder fragment: 300 -> EXP300, 12.5 -> EXP12.5.
- */
-function exportExpFrag($exptime): string
-{
-    if ($exptime === null || $exptime === '') {
-        return 'EXPX';
-    }
-    $v = (float)$exptime;
-    $s = $v == floor($v) ? (string)(int)$v : rtrim(rtrim(number_format($v, 2, '.', ''), '0'), '.');
-    return 'EXP' . $s;
-}
-
-/**
- * Temperature folder fragment: -10.2 -> Tm10.2 (minus would break parsing).
- */
-function exportTempFrag($temp): string
-{
-    if ($temp === null || $temp === '') {
-        return '';
-    }
-    $t = round((float)$temp, 1);
-    if ($t == 0) {
-        $t = 0.0;
-    }
-    $s = number_format($t, 1, '.', '');
-    if (str_starts_with($s, '-')) {
-        $s = 'm' . substr($s, 1);
-    }
-    return 'T' . $s . 'C';
 }
 
 /**
@@ -128,7 +96,8 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
         indexAutoOffLights(getIntegrationGroups(
             $tree,
             $tolExpRaw,
-            getProjectThresholds($conn, $projectId)
+            getProjectThresholds($conn, $projectId),
+            (string)($tols['tol_temp'] ?? '2C')
         ))
     );
 
@@ -264,7 +233,7 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
     }
     unset($tl);
 
-    $tolDark = (string)($tols['tol_exp_dark'] ?? '10%');
+    $tolExp = (string)($tols['tol_exp'] ?? '1%');
     $tolTemp = (string)($tols['tol_temp'] ?? '2C');
 
     // Emit one calibration group folder (masters preferred over subs).
@@ -289,25 +258,25 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
     };
 
     // Calibrations attached to one tree node (setup/panel/session/filter/project).
-    $emitNodeCals = function (string $dir, array $cals) use (&$emitCalGroup, &$skip, $tolDark, $tolTemp, &$sets): void {
+    $emitNodeCals = function (string $dir, array $cals) use (&$emitCalGroup, &$skip, $tolExp, $tolTemp, &$sets): void {
         $live = array_values(array_filter($cals, fn($c) => empty($c['pending']) && !empty($c['enabled'])));
         if (empty($live)) {
             return;
         }
-        foreach (groupCalibrations($live, $tolDark, $tolTemp) as $g) {
+        foreach (groupCalibrations($live, $tolExp, $tolTemp) as $g) {
             $kind = $g['kind'];
             if ($kind === 'flat') {
                 $flabel = exportSanitize((string)($g['label'] ?? ''));
                 $leaf = 'FLAT/FILTER_' . ($flabel !== '' ? $flabel : 'NOFILTER');
             } elseif ($kind === 'dark') {
-                $exp = null;
-                $tmp = null;
-                if (!empty($g['rows'])) {
-                    $exp = $g['rows'][0]['exptime'] ?? null;
-                    $tmp = $g['rows'][0]['ccd_temp'] ?? null;
+                // Exposure + temperature command as a pair: same directory.
+                $parts = [repExpToken($g['rep_exp'] ?? null)];
+                $ttok = repTempToken($g['rep_temp'] ?? null);
+                if ($ttok !== null) {
+                    $parts[] = $ttok;
                 }
-                $leaf = 'DARK/' . exportSanitize(exportExpFrag($exp) . ($tmp !== null && $tmp !== '' ? '_' . exportTempFrag($tmp) : ''));
-                $leaf = rtrim($leaf, '_');
+                $leaf = 'DARK/' . implode('_', $parts);
+            } elseif ($kind === 'bias') {
             } elseif ($kind === 'bias') {
                 $leaf = 'BIAS';
             } else {
@@ -378,6 +347,12 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
                             continue;
                         }
                         $leaf = 'LIGHT' . ($fname !== '' ? '/FILTER_' . exportSanitize($fname) : '');
+                        $lparts = [repExpToken($li['exptime'] ?? null)];
+                        $ltok = repTempToken($li['ccd_temp'] ?? null);
+                        if ($ltok !== null) {
+                            $lparts[] = $ltok;
+                        }
+                        $leaf .= '/' . implode('_', $lparts);
                         $addFile($sessDir . '/' . $leaf, $li, 'light', null);
                     }
                     // Filter-level calibrations live next to their lights.

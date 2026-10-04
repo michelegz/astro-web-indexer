@@ -114,7 +114,8 @@ function getToggleableKeys(): array
  */
 function getProjectsDefaultVisible(): array
 {
-    return ['preview', 'date_obs', 'hfr', 'fwhm', 'hfr_sd', 'eccentricity', 'star_count', 'snr_weight', 'psf_signal'];
+    return ['preview', 'date_obs', 'hfr', 'fwhm', 'hfr_sd', 'eccentricity',
+        'star_count', 'snr_weight', 'psf_signal', 'ccd_temp'];
 }
 
 /**

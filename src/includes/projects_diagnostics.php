@@ -10,7 +10,7 @@
  * a master in a level shadows subs of the same type in that level.
  *
  * Match rules (tolerances resolved per project, see resolve_tol()):
- * - dark-light:  exptime within tol_exp_dark + same binning/gain + ccd_temp within tol_temp
+ * - dark-light:  exptime within tol_exp + same binning/gain + ccd_temp within tol_temp
  * - flat-light:  same filter (case-insensitive) + same binning
  * - bias:        same binning (+gain when both known)
  * Missing comparison fields => yellow (unverifiable), no candidate => red.
@@ -85,12 +85,12 @@ function matchDark(array $light, array $dark, array $tols): string
     if ($light['exptime'] === null || $dark['exptime'] === null) {
         return 'yellow';
     }
-    $tol = parseTolFraction((string)($tols['tol_exp_dark'] ?? '10%'), 0.10);
+    $tol = parseTolFraction((string)($tols['tol_exp'] ?? '1%'), 0.01);
     $ref = (float)$light['exptime'];
     if ($ref <= 0) {
         return 'yellow';
     }
-    if (abs((float)$dark['exptime'] - $ref) > expTolSeconds((string)($tols['tol_exp_dark'] ?? '10%'), $ref, $tol) + 1e-9) {
+    if (abs((float)$dark['exptime'] - $ref) > expTolSeconds((string)($tols['tol_exp'] ?? '1%'), $ref, $tol) + 1e-9) {
         return 'red';
     }
     $bin = sameBinning($light, $dark);
@@ -706,7 +706,7 @@ function indexDuplicateLinks(array $tree): array
  * 'rows' => [...]]] for direct rendering; single-group nodes render without
  * a header. Pure display: matching and diagnostics are unaffected.
  */
-function groupCalibrations(array $cals, string $tolExpDark, string $tolTemp): array
+function groupCalibrations(array $cals, string $tolExp, string $tolTemp): array
 {
     $flats = $darks = $bias = $other = [];
     foreach ($cals as $c) {
@@ -741,9 +741,17 @@ function groupCalibrations(array $cals, string $tolExpDark, string $tolTemp): ar
         }
     }
     if (!empty($darks)) {
-        foreach (clusterExposures($darks, $tolExpDark, 0.10) as $eg) {
+        foreach (clusterExposures($darks, $tolExp, 0.01) as $eg) {
             foreach (bucketCalibTemps($eg['lights'], $tolTemp) as $tb) {
-                $groups[] = ['kind' => 'dark', 'label' => darkCalGroupLabel($eg['exptime'], $tb['temp']), 'rows' => $tb['rows']];
+                $medExp = projectMedian(array_column($tb['rows'], 'exptime'));
+                $medTemp = projectMedian(array_column($tb['rows'], 'ccd_temp'));
+                $groups[] = [
+                    'kind' => 'dark',
+                    'label' => darkCalGroupLabel($medExp, $medTemp),
+                    'rep_exp' => $medExp,
+                    'rep_temp' => $medTemp,
+                    'rows' => $tb['rows'],
+                ];
             }
         }
     }
@@ -799,17 +807,52 @@ function bucketCalibTemps(array $rows, string $tolTempRaw): array
     return $groups;
 }
 
-function darkCalGroupLabel($exptime, $temp): string
+function darkCalGroupLabel($medExp, $medTemp): string
 {
-    $label = fmtExpShort($exptime);
-    if ($temp === null) {
+    $label = fmtExpShort($medExp);
+    if ($medTemp === null) {
         return $label;
     }
-    $t = round((float)$temp, 1);
-    if ($t == 0) {
-        $t = 0.0; // avoid "-0.0"
+    return $label . ', ' . repTempDisplay($medTemp);
+}
+
+/**
+ * Shared representative-value rules (tree labels, export folders, WBPP
+ * keyword values): medians, never anchors. Exposure: integer when integral,
+ * else 1 decimal. Temperature: always integer, -0 normalized to 0.
+ */
+function repTempInt($medTemp): ?int
+{
+    if ($medTemp === null || $medTemp === '') {
+        return null;
     }
-    return $label . ', ' . number_format($t, 1, '.', '') . ' °C';
+    $t = (int)round((float)$medTemp);
+    return $t === 0 ? 0 : $t;
+}
+
+function repTempDisplay($medTemp): string
+{
+    $t = repTempInt($medTemp);
+    return $t === null ? '—' : $t . ' °C';
+}
+
+function repExpToken($medExp): string
+{
+    if ($medExp === null || $medExp === '') {
+        return 'EXPS_X';
+    }
+    $r = round((float)$medExp, 1);
+    $s = $r == floor($r) ? (string)(int)$r : rtrim(rtrim(number_format($r, 2, '.', ''), '0'), '.');
+    return 'EXPS_' . $s;
+}
+
+function repTempToken($medTemp): ?string
+{
+    $t = repTempInt($medTemp);
+    if ($t === null) {
+        return null;
+    }
+    return 'TEMPC_' . ($t < 0 ? 'm' . abs($t) : (string)$t);
 }
 
 /**
@@ -866,7 +909,7 @@ function projectMedian(array $values): ?float
  * 'auto_off' (fails stored thresholds); counts, exposure and medians cover
  * effectively included files (manually enabled AND passing thresholds).
  */
-function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMap = []): array
+function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMap = [], string $tolTempRaw = '2C'): array
 {
     $pools = [];
     foreach ($tree['setups'] ?? [] as $setup) {
@@ -918,6 +961,8 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
     $groups = [];
     foreach ($pools as $pool) {
         foreach (clusterExposures($pool['lights'], $tolExpRaw) as $eg) {
+            // Thresholds stay keyed by exposure (stored per exptime value);
+            // temperature only splits the group so UI matches export folders.
             $tkey = groupThresholdKey(
                 $pool['setup_id'],
                 $pool['panel_id'],
@@ -925,9 +970,10 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
                 $eg['exptime']
             );
             $tols = $thresholdMap[$tkey] ?? array_fill_keys(array_keys(groupThresholdDirs()), null);
+            foreach (bucketCalibTemps($eg['lights'], $tolTempRaw) as $tb) {
             $egLights = [];
             $effective = [];
-            foreach ($eg['lights'] as $li) {
+            foreach ($tb['rows'] as $li) {
                 // Manually disabled files are excluded from integration groups entirely.
                 if (empty($li['enabled'])) {
                     continue;
@@ -959,6 +1005,8 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
                 'panel_no' => $pool['panel_no'],
                 'filter' => $pool['filter'],
                 'exptime' => $eg['exptime'],
+                'rep_exp' => projectMedian(array_column($egLights, 'exptime')),
+                'rep_temp' => projectMedian(array_column($egLights, 'ccd_temp')),
                 'nights' => $nightList,
                 'lights' => $egLights,
                 'count' => count($effective),
@@ -973,11 +1021,12 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
                     'psf_signal' => projectMedian(array_column($effective, 'psf_signal')),
                 ],
             ];
+            }
         }
     }
     usort($groups, fn($a, $b) =>
-        [$a['setup_no'], $a['panel_no'], $a['filter'], (float)($a['exptime'] ?? -1)]
-        <=> [$b['setup_no'], $b['panel_no'], $b['filter'], (float)($b['exptime'] ?? -1)]);
+        [$a['setup_no'], $a['panel_no'], $a['filter'], (float)($a['exptime'] ?? -1), (float)($a['rep_temp'] ?? -9999)]
+        <=> [$b['setup_no'], $b['panel_no'], $b['filter'], (float)($b['exptime'] ?? -1), (float)($b['rep_temp'] ?? -9999)]);
     return $groups;
 }
 

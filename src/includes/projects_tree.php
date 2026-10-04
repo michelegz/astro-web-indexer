@@ -87,10 +87,10 @@ function renderCalRows(array $cals, string $level, int $node, array $moveCtx = [
         return;
     }
     $dup = $moveCtx['dup'] ?? [];
-    $tols = $moveCtx['tols'] ?? ['exp_dark' => '10%', 'temp' => '2C'];
+    $tols = $moveCtx['tols'] ?? ['exp' => '1%', 'temp' => '2C'];
     $groups = groupCalibrations(
         $rows,
-        (string)($tols['exp_dark'] ?? '10%'),
+        (string)($tols['exp'] ?? '1%'),
         (string)($tols['temp'] ?? '2C')
     );
     ?>
@@ -203,9 +203,9 @@ if (empty($projectTree['setups'])): ?>
                                                                             <div class="flex-1 min-w-0">
                                                 <div class="text-sm font-medium mb-1">
                                                     <?php if ($worstB === null): ?><?= empty($pendLights) ? '' : '⏳' ?><?php else: ?><?= diagBox($worstB, 'B', __('projects_cal_bias')) ?><?= diagBox($worstD, 'D', __('projects_cal_dark')) ?><?= diagBox($worstF, 'F', __('projects_cal_flat')) ?><?php endif; ?> <?= __('projects_filter') ?> <?= htmlspecialchars($filter['name'] !== '' ? $filter['name'] : '—') ?>
-                                                                                    <span class="ml-2 text-xs font-normal text-gray-400">
-                                                                                        <?= htmlspecialchars(__('projects_lights_count', ['count' => count($realLights)])) ?> · <?= htmlspecialchars(fmtExp($realExp)) ?><?php if (!empty($pendLights)): ?> · <?= htmlspecialchars('+' . count($pendLights) . ' ⏳') ?><?php endif; ?><?php if (!empty($offLights)): ?> · <?= htmlspecialchars('+' . count($offLights) . ' ' . __('projects_link_off')) ?><?php endif; ?>
-                                                                                    </span>
+                                                                                     <span class="ml-2 text-xs font-normal text-gray-400">
+                                                                                         <?= htmlspecialchars(__('projects_lights_count', ['count' => count($realLights)])) ?> · <?= htmlspecialchars(fmtExp($realExp)) ?><?php if (!empty($pendLights)): ?> · <?= htmlspecialchars('+' . count($pendLights) . ' ⏳') ?><?php endif; ?><?php if (!empty($offLights)): ?> · <?= htmlspecialchars('+' . count($offLights) . ' ' . __('projects_link_off')) ?><?php endif; ?>
+                                                                                     </span>
                                                                                 </div>
                                                                                 <?php renderCalRows($filter['calibrations'], 'filter', (int)$session['id'], $calCtxBase); ?>
                                                                                 <?php foreach ($expGroups as $eg): ?>
@@ -227,10 +227,10 @@ if (empty($projectTree['setups'])): ?>
                                                                                         <div class="flex items-start gap-2">
                                                                                             <input type="checkbox" class="pgroup-check mt-1 rounded bg-gray-600 border-gray-500" title="<?= __('projects_select_group') ?>">
                                                                                             <div class="flex-1 min-w-0">
-                                                                                                <div class="text-xs font-medium text-gray-300 mb-1">
-                                                                                                    <?php if ($egWorstB !== null): ?><?= diagBox($egWorstB, 'B', __('projects_cal_bias')) ?><?= diagBox($egWorstD, 'D', __('projects_cal_dark')) ?><?= diagBox($egWorstF, 'F', __('projects_cal_flat')) ?> <?php endif; ?><?= __('projects_exposure') ?> <?= htmlspecialchars(fmtExpShort($eg['exptime'])) ?>
-                                                                                                    <span class="ml-2 font-normal text-gray-500"><?= count($egReal) ?> · <?= htmlspecialchars(fmtExp($egExp)) ?></span>
-                                                                                                </div>
+                                                                                                 <div class="text-xs font-medium text-gray-300 mb-1">
+                                                                                                     <?php if ($egWorstB !== null): ?><?= diagBox($egWorstB, 'B', __('projects_cal_bias')) ?><?= diagBox($egWorstD, 'D', __('projects_cal_dark')) ?><?= diagBox($egWorstF, 'F', __('projects_cal_flat')) ?> <?php endif; ?><?= __('projects_exposure') ?> <?= htmlspecialchars(fmtExpShort($eg['exptime'])) ?><?php $egTempMed = projectMedian(array_column($egReal, 'ccd_temp')); ?><?php if ($egTempMed !== null): ?> · <?= htmlspecialchars(repTempDisplay($egTempMed)) ?><?php endif; ?>
+                                                                                                     <span class="ml-2 font-normal text-gray-500"><?= count($egReal) ?> · <?= htmlspecialchars(fmtExp($egExp)) ?></span>
+                                                                                                 </div>
                                                                                 <div class="overflow-x-auto">
                                                                                     <table class="w-full text-xs text-left">
                                                                                         <tbody>
