@@ -18,6 +18,7 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/template_functions.php';
 require_once __DIR__ . '/columns.php';
 require_once __DIR__ . '/file_cells.php';
+require_once __DIR__ . '/project_export.php';
 
 // Enforce authentication
 requireAuth();

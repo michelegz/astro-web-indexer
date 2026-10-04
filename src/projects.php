@@ -490,6 +490,10 @@ if ($projectBlocked) {
                             class="px-3 py-1 text-sm bg-sky-600 hover:bg-sky-700 text-white rounded transition-colors">
                         <?= __('export_astrobin_csv') ?>
                     </button>
+                    <button type="button" id="projectZipBtn" data-project-id="<?= (int)$detail['id'] ?>"
+                            class="px-3 py-1 text-sm bg-teal-600 hover:bg-teal-700 text-white rounded transition-colors">
+                        <?= __('projects_export_zip') ?>
+                    </button>
                     <?php endif; ?>
                     <button type="submit" name="action" value="enable_links"
                             class="px-3 py-1 text-sm bg-green-700 hover:bg-green-600 text-white rounded transition-colors disabled:opacity-50">
@@ -640,12 +644,21 @@ if ($projectBlocked) {
                     const checked = Array.from(
                         document.querySelectorAll('#treeBulkForm .pfl-check:checked')
                     );
-                    // Scope is only meaningful within the same setup: show sessions
-                    // of the setups present in the selection (server re-validates).
+                    // Cross-setup associations are forbidden: scope applies
+                    // within one setup only (server re-validates per link).
                     const setups = new Set();
                     checked.forEach(cb => { if (cb.dataset.setup) setups.add(cb.dataset.setup); });
+                    if (setups.size === 0) {
+                        alert(window.i18n?.projects_scope_no_cal || 'Select at least one setup/panel calibration.');
+                        return;
+                    }
+                    if (setups.size > 1) {
+                        alert(window.i18n?.projects_scope_single_setup || 'Select calibrations from a single setup.');
+                        return;
+                    }
+                    const onlySetup = Array.from(setups)[0];
                     modal.querySelectorAll('.scope-setup-group').forEach(gr => {
-                        gr.style.display = (setups.size === 0 || setups.has(gr.dataset.setup)) ? '' : 'none';
+                        gr.style.display = gr.dataset.setup === onlySetup ? '' : 'none';
                     });
                     modal.querySelectorAll('.scope-session-check').forEach(box => {
                         const visible = box.closest('.scope-setup-group')?.style.display !== 'none';
@@ -700,6 +713,123 @@ if ($projectBlocked) {
                 </div>
             </div>
         </section>
+
+        <div id="zipModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60">
+            <div class="bg-gray-800 rounded-lg p-6 w-full max-w-6xl max-h-[85vh] overflow-y-auto">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="text-lg font-semibold"><?= __('projects_export_zip') ?></h2>
+                    <button type="button" id="zipModalClose" class="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
+                </div>
+                <div id="zipPreviewBody" class="text-sm text-gray-300"></div>
+                <form id="zipDownloadForm" method="POST" action="api/export_project_zip.php" class="hidden">
+                    <input type="hidden" name="project_id" value="<?= (int)$detail['id'] ?>">
+                </form>
+                <div class="flex justify-end gap-2 mt-4">
+                    <button type="button" id="zipModalCancel" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"><?= __('projects_cancel') ?></button>
+                    <button type="button" id="zipDownloadBtn" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors disabled:opacity-50" disabled>
+                        <?= __('projects_export_zip') ?>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <script>
+        // Project ZIP export preview: same shared builder as the download, so
+        // the preview can never diverge from the archive.
+        (function () {
+            const modal = document.getElementById('zipModal');
+            const openBtn = document.getElementById('projectZipBtn');
+            const closeBtn = document.getElementById('zipModalClose');
+            const cancelBtn = document.getElementById('zipModalCancel');
+            const body = document.getElementById('zipPreviewBody');
+            const dlBtn = document.getElementById('zipDownloadBtn');
+            const dlForm = document.getElementById('zipDownloadForm');
+            if (!modal || !openBtn || !body) return;
+            const esc = (s) => String(s ?? '').replace(/[&<>'"]/g,
+                c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
+            function renderTree(entries) {
+                const root = {};
+                entries.forEach(e => {
+                    const parts = String(e.zip_path || '').split('/');
+                    let node = root;
+                    parts.forEach((p, i) => {
+                        const last = i === parts.length - 1;
+                        node.children = node.children || {};
+                        if (last) {
+                            node.files = node.files || [];
+                            node.files.push(e);
+                        } else {
+                            node.children[p] = node.children[p] || {};
+                            node = node.children[p];
+                        }
+                    });
+                });
+                const countFiles = (n) => (n.files || []).length
+                    + Object.values(n.children || {}).reduce((a, c) => a + countFiles(c), 0);
+                const render = (n) => {
+                    let html = '';
+                    Object.keys(n.children || {}).sort().forEach(dir => {
+                        const c = n.children[dir];
+                        const count = countFiles(c);
+                        html += `<details open class="mb-1 ml-4"><summary class="cursor-pointer px-2 py-1 hover:bg-gray-700/40 rounded text-sm text-gray-200">📁 ${esc(dir)} <span class="text-xs text-gray-500">${count}</span></summary><div class="ml-2">${render(c)}</div></details>`;
+                    });
+                    (n.files || []).forEach(f => {
+                        const badges = [];
+                        if (f.master) badges.push('M');
+                        if (f.scope && f.scope.length) badges.push('◈×' + f.scope.length);
+                        html += `<div class="text-xs text-gray-400 py-0.5 ml-4 truncate" title="${esc(f.zip_path)}">${esc(f.zip_path.split('/').pop())}${badges.length ? ' <span class="text-gray-500">(' + badges.join(' ') + ')</span>' : ''}</div>`;
+                    });
+                    return html;
+                };
+                return { html: render(root), total: countFiles(root) };
+            }
+            function open() {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                if (dlBtn) dlBtn.disabled = true;
+                body.innerHTML = `<p class="text-gray-500">${esc(window.i18n?.loading || 'Loading...')}</p>`;
+                fetch('api/project_export_preview.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ project_id: parseInt(openBtn.dataset.projectId || '0', 10) }),
+                })
+                    .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                    .then(({ ok, data }) => {
+                        if (!ok || !data || data.success !== true) {
+                            throw new Error((data && data.error) || 'Request failed');
+                        }
+                        const t = renderTree(data.entries || []);
+                        let html = `<p class="text-gray-200 mb-2">${t.total} file</p>${t.html}`;
+                        if (data.sets && Object.keys(data.sets).length) {
+                            html += `<div class="mt-3 text-xs text-gray-400">`
+                                + Object.entries(data.sets).map(([name, s]) =>
+                                    `<div>🔑 <span class="font-mono">${esc(name)}</span> → ${esc((s.nights || []).join(', '))}</div>`).join('')
+                                + `</div>`;
+                        }
+                        const skipped = data.skipped || [];
+                        if (skipped.length) {
+                            html += `<details class="mt-3"><summary class="cursor-pointer text-xs text-gray-400">`
+                                + `${esc(window.i18n?.projects_export_skipped || 'Skipped')} (${skipped.length})</summary><ul class="text-xs text-gray-500">`
+                                + skipped.map(s => `<li>${esc(s.name)} — ${esc(s.reason)}</li>`).join('')
+                                + `</ul></details>`;
+                        }
+                        body.innerHTML = html;
+                        if (dlBtn) dlBtn.disabled = t.total === 0;
+                    })
+                    .catch(err => {
+                        body.innerHTML = `<p class="text-red-400">Error: ${esc(err.message)}</p>`;
+                    });
+            }
+            function close() {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+            openBtn.addEventListener('click', open);
+            if (closeBtn) closeBtn.addEventListener('click', close);
+            if (cancelBtn) cancelBtn.addEventListener('click', close);
+            modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+            if (dlBtn && dlForm) dlBtn.addEventListener('click', () => dlForm.submit());
+        })();
+        </script>
 
         <section class="bg-gray-800 rounded-lg p-6">
             <details open>
@@ -1431,7 +1561,9 @@ if ($projectBlocked) {
             sff_error_loading_filters: <?= json_encode(__('sff_error_loading_filters')) ?>,
             sff_searching: <?= json_encode(__('sff_searching')) ?>,
             sff_frames_found_js: <?= json_encode(__('sff_frames_found_js')) ?>,
-            sff_configure_and_run: <?= json_encode(__('sff_configure_and_run')) ?>
+            sff_configure_and_run: <?= json_encode(__('sff_configure_and_run')) ?>,
+            projects_scope_no_cal: <?= json_encode(__('projects_scope_no_cal')) ?>,
+            projects_scope_single_setup: <?= json_encode(__('projects_scope_single_setup')) ?>
         });
     </script>
     <script src="assets/js/sff.js?v=<?= @filemtime(__DIR__ . '/assets/js/sff.js') ?: 0 ?>"></script>
