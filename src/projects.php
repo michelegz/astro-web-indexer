@@ -482,7 +482,8 @@ if ($projectBlocked) {
             <form method="POST" id="treeBulkForm">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <input type="hidden" name="project_id" value="<?= (int)$detail['id'] ?>">
-                <div class="flex flex-wrap justify-end gap-2 mb-4">
+                <div class="flex flex-col items-end gap-2 mb-4">
+                    <div class="flex flex-wrap justify-end gap-2">
                     <?php $projectExportIds = $projectTree !== null ? getProjectTreeFileIds($projectTree) : []; ?>
                     <?php if (!empty($projectExportIds)): ?>
                     <button type="button" id="projectAstroBinBtn" data-ids="<?= htmlspecialchars(implode(',', $projectExportIds)) ?>"
@@ -491,30 +492,33 @@ if ($projectBlocked) {
                     </button>
                     <?php endif; ?>
                     <button type="submit" name="action" value="enable_links"
-                            class="px-3 py-1 text-sm bg-green-700 hover:bg-green-600 text-white rounded transition-colors">
+                            class="px-3 py-1 text-sm bg-green-700 hover:bg-green-600 text-white rounded transition-colors disabled:opacity-50">
                         <?= __('projects_enable_selected') ?>
                     </button>
                     <button type="submit" name="action" value="disable_links"
-                            class="px-3 py-1 text-sm bg-yellow-700 hover:bg-yellow-600 text-white rounded transition-colors">
+                            class="px-3 py-1 text-sm bg-yellow-700 hover:bg-yellow-600 text-white rounded transition-colors disabled:opacity-50">
                         <?= __('projects_disable_selected') ?>
-                    </button>
-                    <button type="submit" name="action" value="promote_links"
-                            class="px-3 py-1 text-sm bg-blue-700 hover:bg-blue-600 text-white rounded transition-colors">
-                        <?= __('projects_promote') ?>
-                    </button>
-                    <button type="submit" name="action" value="demote_links"
-                            class="px-3 py-1 text-sm bg-orange-700 hover:bg-orange-600 text-white rounded transition-colors">
-                        <?= __('projects_demote') ?>
-                    </button>
-                    <button type="button" id="scopeModalOpen"
-                            class="px-3 py-1 text-sm bg-purple-700 hover:bg-purple-600 text-white rounded transition-colors">
-                        <?= __('projects_scope_button') ?>
                     </button>
                     <button type="submit" name="action" value="remove_links"
                             onclick="return confirm(<?= htmlspecialchars(json_encode(__('projects_confirm_remove'))) ?>);"
-                            class="px-3 py-1 text-sm bg-red-700 hover:bg-red-600 text-white rounded transition-colors">
+                            class="px-3 py-1 text-sm bg-red-700 hover:bg-red-600 text-white rounded transition-colors disabled:opacity-50">
                         <?= __('projects_remove_selected') ?>
                     </button>
+                    </div>
+                    <div class="flex flex-wrap justify-end gap-2">
+                    <button type="submit" name="action" value="promote_links"
+                            class="px-3 py-1 text-sm bg-blue-700 hover:bg-blue-600 text-white rounded transition-colors disabled:opacity-50">
+                        <?= __('projects_promote') ?>
+                    </button>
+                    <button type="submit" name="action" value="demote_links"
+                            class="px-3 py-1 text-sm bg-orange-700 hover:bg-orange-600 text-white rounded transition-colors disabled:opacity-50">
+                        <?= __('projects_demote') ?>
+                    </button>
+                    <button type="button" id="scopeModalOpen"
+                            class="px-3 py-1 text-sm bg-purple-700 hover:bg-purple-600 text-white rounded transition-colors disabled:opacity-50">
+                        <?= __('projects_scope_button') ?>
+                    </button>
+                    </div>
                 </div>
                 <div id="scopeModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60">
                     <div class="bg-gray-800 rounded-lg p-6 w-full max-w-md max-h-[85vh] overflow-y-auto">
@@ -560,7 +564,7 @@ if ($projectBlocked) {
                         </div>
                         <div class="flex justify-end gap-2">
                             <button type="button" id="scopeModalCancel" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"><?= __('projects_cancel') ?></button>
-                            <button type="submit" name="action" value="set_scope" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
+                            <button type="submit" name="action" value="set_scope" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors disabled:opacity-50">
                                 <?= __('projects_save') ?>
                             </button>
                         </div>
@@ -1333,6 +1337,7 @@ if ($projectBlocked) {
                         syncGroupBox(above);
                         above = above.parentElement?.closest('.tnode') ?? null;
                     }
+                    updateTreeBulkButtons();
                     return;
                 }
                 if (e.target.classList.contains('pfl-check')) {
@@ -1344,7 +1349,18 @@ if ($projectBlocked) {
                         scope = scope.parentElement?.closest('.tnode') ?? null;
                     }
                 }
+                updateTreeBulkButtons();
             });
+            // Bulk actions need a selection: toggle them with the checkboxes.
+            // AstroBin exports the whole project, so it stays always enabled.
+            function updateTreeBulkButtons() {
+                const hasSelection = form.querySelectorAll('.pfl-check:checked').length > 0;
+                form.querySelectorAll('button[type="submit"][name="action"]').forEach(btn => {
+                    btn.disabled = !hasSelection;
+                });
+                document.getElementById('scopeModalOpen')?.toggleAttribute('disabled', !hasSelection);
+            }
+            updateTreeBulkButtons();
             // Rename setup custom label via modal (empty clears it).
             // The pencil lives inside <summary>: stop the click from also
             // toggling the details element.
