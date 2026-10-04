@@ -290,6 +290,7 @@ return [
     'projects_links_removed' => '{count} Dateien aus dem Projekt entfernt.',
     'projects_links_set' => '{count} Dateien aktualisiert.',
     'projects_moved_bulk' => '{done} verschoben, {failed} fehlgeschlagen.',
+    'projects_move_noop' => 'Für diese Auswahl gibt es nichts zu verschieben.',
     'projects_move_exists' => 'Datei ist auf dieser Ebene bereits verknüpft.',
     'projects_promote' => 'Hochstufen',
     'projects_demote' => 'Herabstufen',

@@ -291,6 +291,7 @@ return [
     'projects_links_removed' => '{count} file rimossi dal progetto.',
     'projects_links_set' => '{count} file aggiornati.',
     'projects_moved_bulk' => '{done} spostati, {failed} falliti.',
+    'projects_move_noop' => 'Nessuno spostamento possibile per la selezione.',
     'projects_move_exists' => 'Il file è già linkato a quel livello.',
     'projects_promote' => 'Promuovi',
     'projects_demote' => 'Retrocedi',

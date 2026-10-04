@@ -107,7 +107,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $res = $action === 'promote_links'
                     ? promoteCalibLinks($conn, $id, $keys)
                     : demoteCalibLinks($conn, $id, $keys);
-                $message = __('projects_moved_bulk', ['done' => $res['done'], 'failed' => $res['skipped']]);
+                if ($res['done'] === 0 && ($res['noop'] ?? 0) > 0 && $res['skipped'] === 0) {
+                    $message = __('projects_move_noop');
+                } else {
+                    $message = __('projects_moved_bulk', ['done' => $res['done'], 'failed' => $res['skipped'] + ($res['noop'] ?? 0)]);
+                }
                 $messageType = 'success';
             } elseif ($action === 'set_scope') {
                 $id = (int)($_POST['project_id'] ?? 0);
@@ -512,11 +516,11 @@ if ($projectBlocked) {
                     <div class="flex flex-wrap justify-end gap-2">
                     <button type="submit" name="action" value="promote_links"
                             class="px-3 py-1 text-sm bg-blue-700 hover:bg-blue-600 text-white rounded transition-colors disabled:opacity-50">
-                        <?= __('projects_promote') ?>
+                        ↑ <?= __('projects_promote') ?>
                     </button>
                     <button type="submit" name="action" value="demote_links"
                             class="px-3 py-1 text-sm bg-orange-700 hover:bg-orange-600 text-white rounded transition-colors disabled:opacity-50">
-                        <?= __('projects_demote') ?>
+                        ↓ <?= __('projects_demote') ?>
                     </button>
                     <button type="button" id="scopeModalOpen"
                             class="px-3 py-1 text-sm bg-purple-700 hover:bg-purple-600 text-white rounded transition-colors disabled:opacity-50">

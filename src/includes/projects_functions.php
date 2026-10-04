@@ -588,13 +588,14 @@ function setProjectCalibScope(PDO $conn, int $projectId, array $keys, array $ses
 
 /**
  * Bulk promote calibration links one level up (session/filter->panel,
- * panel->setup). Lights and setup-level links are skipped. Returns
- * ['done' => n, 'skipped' => m].
+ * panel->setup). Lights and setup-level links are no-ops, not failures.
+ * Returns ['done' => n, 'skipped' => m, 'noop' => k].
  */
 function promoteCalibLinks(PDO $conn, int $projectId, array $keys): array
 {
     $done = 0;
     $skipped = 0;
+    $noop = 0;
     $project = getProject($conn, $projectId);
     if ($project === null) {
         throw new InvalidArgumentException(__('projects_error_name'));
@@ -610,7 +611,7 @@ function promoteCalibLinks(PDO $conn, int $projectId, array $keys): array
         }
         [$fid, $level, $node] = $parsed;
         if (!in_array($level, ['session', 'filter', 'panel'], true)) {
-            $skipped++;
+            $noop++;
             continue;
         }
         if (!projectOwnsNode($conn, $projectId, $level, $node)) {
@@ -622,8 +623,12 @@ function promoteCalibLinks(PDO $conn, int $projectId, array $keys): array
         );
         $row->execute([':fid' => $fid, ':level' => $level, ':node' => $node]);
         $link = $row->fetch();
-        if ($link === false || !empty($link['is_light'])) {
+        if ($link === false) {
             $skipped++;
+            continue;
+        }
+        if (!empty($link['is_light'])) {
+            $noop++;
             continue;
         }
         if ($level === 'panel') {
@@ -653,19 +658,21 @@ function promoteCalibLinks(PDO $conn, int $projectId, array $keys): array
             $skipped++;
         }
     }
-    return ['done' => $done, 'skipped' => $skipped];
+    return ['done' => $done, 'skipped' => $skipped, 'noop' => $noop];
 }
 
 /**
  * Bulk demote calibration links to their own night session (panel/setup
- * level only; created when missing). Files without date_obs and lights are
- * skipped. For setup-level links the panel holding a session on that night
- * wins, else the first panel by panel_no. Returns ['done', 'skipped'].
+ * level only; created when missing). Lights, session-level links and files
+ * without date_obs are no-ops, not failures. For setup-level links the panel
+ * holding a session on that night wins, else the first panel by panel_no.
+ * Returns ['done', 'skipped', 'noop'].
  */
 function demoteCalibLinks(PDO $conn, int $projectId, array $keys): array
 {
     $done = 0;
     $skipped = 0;
+    $noop = 0;
     $project = getProject($conn, $projectId);
     if ($project === null) {
         throw new InvalidArgumentException(__('projects_error_name'));
@@ -681,7 +688,7 @@ function demoteCalibLinks(PDO $conn, int $projectId, array $keys): array
         }
         [$fid, $level, $node] = $parsed;
         if ($level !== 'panel' && $level !== 'setup') {
-            $skipped++;
+            $noop++;
             continue;
         }
         if (!projectOwnsNode($conn, $projectId, $level, $node)) {
@@ -695,13 +702,17 @@ function demoteCalibLinks(PDO $conn, int $projectId, array $keys): array
         );
         $row->execute([':fid' => $fid, ':level' => $level, ':node' => $node]);
         $link = $row->fetch();
-        if ($link === false || !empty($link['is_light']) || empty($link['date_obs'])) {
+        if ($link === false) {
             $skipped++;
+            continue;
+        }
+        if (!empty($link['is_light']) || empty($link['date_obs'])) {
+            $noop++;
             continue;
         }
         $night = projectAstroNight((string)$link['date_obs']);
         if ($night === null) {
-            $skipped++;
+            $noop++;
             continue;
         }
         if ($level === 'panel') {
@@ -728,7 +739,7 @@ function demoteCalibLinks(PDO $conn, int $projectId, array $keys): array
             $skipped++;
         }
     }
-    return ['done' => $done, 'skipped' => $skipped];
+    return ['done' => $done, 'skipped' => $skipped, 'noop' => $noop];
 }
 
 /**

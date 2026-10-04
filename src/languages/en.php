@@ -291,6 +291,7 @@ return [
     'projects_links_removed' => '{count} files removed from the project.',
     'projects_links_set' => '{count} files updated.',
     'projects_moved_bulk' => '{done} moved, {failed} failed.',
+    'projects_move_noop' => 'Nothing to move for this selection.',
     'projects_move_exists' => 'File is already linked at that level.',
     'projects_promote' => 'Promote',
     'projects_demote' => 'Demote',
