@@ -28,6 +28,28 @@ logger = logging.getLogger('reindex.projects')
 
 ELIGIBLE_IMGTYPES = ('LIGHT', 'DARK', 'FLAT', 'BIAS')
 
+
+def normalize_imgtype(raw):
+    """Canonical IMAGETYP at ingest: cameras/drivers write many variants
+    ('Light Frame', 'DarkFrame', 'BIAS', 'DarkFlat'...). Everything downstream
+    (projects, star metrics, thumbnails) matches the four exact values, so
+    unrecognized files used to vanish silently. Unrecognized input falls back
+    to the raw uppercased value (today's behavior for true unknowns)."""
+    text = str(raw or '').upper().replace(' ', '').replace('_', '').replace('-', '')
+    if not text:
+        return 'UNKNOWN'
+    if 'DARK' in text:
+        return 'DARK'  # DARK, DARKFRAME, DARKFLAT, FLATDARK
+    if 'FLAT' in text:
+        return 'FLAT'  # FLAT, FLATFRAME, SKYFLAT, DOMEFLAT, FLATFIELD
+    if 'BIAS' in text:
+        return 'BIAS'  # BIAS, BIASFRAME
+    if text.startswith('LIGHT') or text in ('SCIENCE',):
+        return 'LIGHT'  # LIGHT, LIGHTFRAME
+    if text == 'UNKNOWN':
+        return 'UNKNOWN'
+    return text
+
 DEFAULT_TOLS = {
     'tol_temp': '2C',
     'tol_rot': '3deg',

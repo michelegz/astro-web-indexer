@@ -22,7 +22,7 @@ from indexer_lib.file_utils import calculate_hash, get_header_value, get_xisf_he
 from indexer_lib.db_utils import soft_delete_missing_files, purge_deleted_files, update_duplicate_counts
 from indexer_lib.ephemeris import get_moon_ephemeris
 from indexer_lib.schema_upgrade import SCHEMA_VERSION_FIELDS, schema_upgrade_worker
-from indexer_lib.projects import suggest_projects_for_files, suggest_projects_backfill
+from indexer_lib.projects import suggest_projects_for_files, suggest_projects_backfill, normalize_imgtype
 from datetime import datetime, timezone
 
 # Configure logging
@@ -154,7 +154,7 @@ def process_file_worker(full_path, fits_root, thumb_size, star_metrics=True, wit
             exptime = get_value(header, 'EXPOSURE', 0, float)
         
         filt = get_value(header, 'FILTER', '', str)
-        imgtype = get_value(header, 'IMAGETYP', 'UNKNOWN', str).upper()
+        imgtype = normalize_imgtype(get_value(header, 'IMAGETYP', 'UNKNOWN', str))
         xbinning = get_value(header, 'XBINNING', None, int)
         ybinning = get_value(header, 'YBINNING', None, int)
         egain = get_value(header, 'EGAIN', None, float)
