@@ -1133,6 +1133,10 @@ function projectNormPart($value): string
 
 function projectBuildFingerprint(array $row): string
 {
+    // Instrument fingerprint: INSTRUME|TELESCOP|CAMERAID|XBINxYBIN|GAIN|XPIXSZ|OFFSET.
+    // Numeric parts rely on PHP's shortest round-trip float formatting
+    // (100.0 -> "100", 3.76 -> "3.76"); the Python builder applies the same
+    // canonical rule, so both sides match byte-identically. NULL/missing -> '?'.
     $xb = $row['xbinning'] ?? null;
     $yb = $row['ybinning'] ?? null;
     $bin = ($xb !== null && $xb !== '' ? $xb : '?') . 'X' . ($yb !== null && $yb !== '' ? $yb : '?');
@@ -1143,6 +1147,7 @@ function projectBuildFingerprint(array $row): string
         $bin,
         projectNormPart($row['gain'] ?? null),
         projectNormPart($row['xpixsz'] ?? null),
+        projectNormPart($row['offset'] ?? null),
     ]);
 }
 
@@ -1242,7 +1247,7 @@ function projectFetchEligibleRow(PDO $conn, int $fid): array
     if ($meta === null) {
         $meta = $conn->prepare(
             "SELECT id, path, name, imgtype, `filter`, exptime, date_obs, instrume, telescop, "
-            . "cameraid, xbinning, ybinning, gain, xpixsz, ra, `dec`, objctra, objctdec, "
+            . "cameraid, xbinning, ybinning, gain, `offset`, xpixsz, ra, `dec`, objctra, objctdec, "
             . "`object`, fov_w, fov_h, objctrot "
             . "FROM files WHERE id = :id AND deleted_at IS NULL"
         );

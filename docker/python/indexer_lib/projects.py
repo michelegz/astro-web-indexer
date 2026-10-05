@@ -46,8 +46,34 @@ def _norm(value):
     return text if text else '?'
 
 
+def _fnum(value):
+    """Canonical numeric fingerprint part, mirroring PHP's (string) cast.
+
+    Integral floats become ints ('100', not '100.0') so both builders match
+    byte-identically; anything non-numeric falls back to _norm. '?' when missing.
+    """
+    if value is None:
+        return '?'
+    if isinstance(value, str):
+        text = ' '.join(value.strip().upper().split())
+        if text == '':
+            return '?'
+        try:
+            f = float(text)
+        except ValueError:
+            return text
+    else:
+        try:
+            f = float(value)
+        except (TypeError, ValueError):
+            return _norm(value)
+    if f.is_integer():
+        return str(int(f))
+    return repr(f)
+
+
 def build_setup_fingerprint(meta):
-    """Instrument fingerprint: INSTRUME|TELESCOP|CAMERAID|XBINxYBIN|GAIN|XPIXSZ."""
+    """Instrument fingerprint: INSTRUME|TELESCOP|CAMERAID|XBINxYBIN|GAIN|XPIXSZ|OFFSET."""
     xb = meta.get('xbinning')
     yb = meta.get('ybinning')
     binning = f"{xb if xb else '?'}X{yb if yb else '?'}"
@@ -56,8 +82,9 @@ def build_setup_fingerprint(meta):
         _norm(meta.get('telescop')),
         _norm(meta.get('cameraid')),
         binning,
-        _norm(meta.get('gain')),
-        _norm(meta.get('xpixsz')),
+        _fnum(meta.get('gain')),
+        _fnum(meta.get('xpixsz')),
+        _fnum(meta.get('offset')),
     ]
     return '|'.join(parts)
 
@@ -436,7 +463,7 @@ def suggest_file(dcur, project, globals_, meta, file_id):
 
 
 FILE_COLUMNS = ("id, path, imgtype, `filter`, exptime, date_obs, instrume, telescop, "
-                "cameraid, xbinning, ybinning, gain, xpixsz, ccd_temp, ra, `dec`, "
+                "cameraid, xbinning, ybinning, gain, `offset`, xpixsz, ccd_temp, ra, `dec`, "
                 "objctra, objctdec, `object`, fov_w, fov_h, objctrot")
 
 

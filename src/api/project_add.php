@@ -99,7 +99,7 @@ try {
     $customSkipped = [];
     if (!empty($customSetups)) {
         $fpRow = $conn->prepare(
-            "SELECT id, name, instrume, telescop, cameraid, xbinning, ybinning, gain, xpixsz FROM files WHERE id = :fid"
+            "SELECT id, name, instrume, telescop, cameraid, xbinning, ybinning, gain, `offset`, xpixsz FROM files WHERE id = :fid"
         );
         // Existing custom names in this project (case-insensitive): creating
         // a duplicate is blocked with a message instead of silently reusing.
