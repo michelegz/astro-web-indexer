@@ -871,7 +871,7 @@ if ($projectBlocked) {
                     <?php $grpAuto = count(array_filter($grp['lights'], fn($li) => !empty($li['auto_off']))); ?>
                     <div class="mb-2 border border-gray-700 rounded-lg igroup" data-group="<?= (int)$gi ?>">
                         <div class="px-4 pt-2 text-sm font-medium">
-                            <?= 'S' . (int)($grp['setup_no'] ?? 0) ?> · <?= htmlspecialchars($grp['panel_label']) ?> · <?= __('projects_filter') ?> <?= htmlspecialchars($grp['filter'] !== '' ? $grp['filter'] : '—') ?> · <?= htmlspecialchars(fmtExpShort($grp['rep_exp'] ?? $grp['exptime'])) ?><?php if (array_key_exists('rep_temp', $grp) && $grp['rep_temp'] !== null): ?> · <?= htmlspecialchars(repTempDisplay($grp['rep_temp'])) ?><?php endif; ?>
+                            <?= 'S' . (int)($grp['setup_no'] ?? 0) ?> · <?= htmlspecialchars($grp['panel_label']) ?> · <?= __('projects_filter') ?> <?= htmlspecialchars($grp['filter'] !== '' ? $grp['filter'] : '—') ?> · <?= htmlspecialchars(fmtExpShort($grp['rep_exp'] ?? $grp['exptime'])) ?>
                         </div>
                         <div class="px-4 pb-2 text-xs text-gray-400">
                             <?= htmlspecialchars(__('projects_lights_count', ['count' => $grp['count']])) ?> · <span title="<?= htmlspecialchars(fmtExp((float)$grp['exposure'])) ?>"><?= htmlspecialchars(number_format((float)$grp['exposure'] / 3600, 1)) ?> h</span> · <?= htmlspecialchars(__('projects_igroup_nights', ['count' => count($grp['nights'])])) ?>: <?= htmlspecialchars(implode(', ', $grp['nights'])) ?> · <?= htmlspecialchars(__('projects_igroup_excluded', ['total' => $grpAuto])) ?>

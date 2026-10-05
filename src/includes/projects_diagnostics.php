@@ -807,13 +807,11 @@ function bucketCalibTemps(array $rows, string $tolTempRaw): array
     return $groups;
 }
 
-function darkCalGroupLabel($medExp, $medTemp): string
+function darkCalGroupLabel($medExp, $medTemp = null): string
 {
-    $label = fmtExpShort($medExp);
-    if ($medTemp === null) {
-        return $label;
-    }
-    return $label . ', ' . repTempDisplay($medTemp);
+    // Header shows exposure only; temperature lives in the rows (ccd_temp
+    // column), the export folders (TEMPC_ keyword) and matching tolerances.
+    return fmtExpShort($medExp);
 }
 
 /**
@@ -961,8 +959,9 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
     $groups = [];
     foreach ($pools as $pool) {
         foreach (clusterExposures($pool['lights'], $tolExpRaw) as $eg) {
-            // Thresholds stay keyed by exposure (stored per exptime value);
-            // temperature only splits the group so UI matches export folders.
+            // Temperature splits calibration (which dark) but never integration
+            // (which lights stack): one group per exposure cluster, with the
+            // median temperature shown for information only.
             $tkey = groupThresholdKey(
                 $pool['setup_id'],
                 $pool['panel_id'],
@@ -970,10 +969,9 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
                 $eg['exptime']
             );
             $tols = $thresholdMap[$tkey] ?? array_fill_keys(array_keys(groupThresholdDirs()), null);
-            foreach (bucketCalibTemps($eg['lights'], $tolTempRaw) as $tb) {
             $egLights = [];
             $effective = [];
-            foreach ($tb['rows'] as $li) {
+            foreach ($eg['lights'] as $li) {
                 // Manually disabled files are excluded from integration groups entirely.
                 if (empty($li['enabled'])) {
                     continue;
@@ -1021,12 +1019,11 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
                     'psf_signal' => projectMedian(array_column($effective, 'psf_signal')),
                 ],
             ];
-            }
         }
     }
     usort($groups, fn($a, $b) =>
-        [$a['setup_no'], $a['panel_no'], $a['filter'], (float)($a['exptime'] ?? -1), (float)($a['rep_temp'] ?? -9999)]
-        <=> [$b['setup_no'], $b['panel_no'], $b['filter'], (float)($b['exptime'] ?? -1), (float)($b['rep_temp'] ?? -9999)]);
+        [$a['setup_no'], $a['panel_no'], $a['filter'], (float)($a['exptime'] ?? -1)]
+        <=> [$b['setup_no'], $b['panel_no'], $b['filter'], (float)($b['exptime'] ?? -1)]);
     return $groups;
 }
 
