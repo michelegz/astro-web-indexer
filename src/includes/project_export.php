@@ -151,8 +151,8 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
 
     $st = [
         'entries' => [], 'sets' => [], 'skipped' => [],
-        // 'seen' maps fid => first zip_path emitted, 'dups' is the report
-        // keyed the same way (see $addFile).
+        // 'seen' maps fid => most recent zip_path emitted (for dedup lookup),
+        // 'dups' is the report keyed the same way (see $addFile).
         'seen' => [], 'dups' => [], 'used' => [],
     ];
 

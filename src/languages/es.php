@@ -298,7 +298,7 @@ return [
     'projects_links_set' => '{count} archivos actualizados.',
     'projects_moved_bulk' => '{done} movidos, {failed} fallidos.',
     'projects_move_noop' => 'Nada que mover para esta selección.',
-    'projects_scope_cleared' => 'Atención: {count} calibraciones movidas têm o escopo limpo, verifique a atribuição.',
+    'projects_scope_cleared' => 'Atención: {count} calibraciones movidas con el ámbito restablecido, revisa la asignación.',
     'projects_move_exists' => 'El archivo ya está enlazado en ese nivel.',
     'projects_promote' => 'Promover',
     'projects_demote' => 'Degradar',

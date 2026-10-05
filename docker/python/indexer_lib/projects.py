@@ -439,27 +439,28 @@ def already_processed(dcur, project_id, file_id, project=None, globals_=None):
         return True
     dcur.execute(
         "SELECT id, status, config_hash, match_inputs FROM project_suggestions "
-        "WHERE project_id = %s AND file_id = %s LIMIT 1",
+        "WHERE project_id = %s AND file_id = %s",
         (project_id, file_id),
     )
-    row = dcur.fetchone()
-    if row is None:
+    rows = dcur.fetchall()
+    if not rows:
         return False
-    if row['status'] != 'dismissed':
+    if any(r['status'] != 'dismissed' for r in rows):
         return True
-    # NULL on either component means the row predates the stale tracking (or was
-    # written before this snapshot existed): treat it as stale so every
-    # dismissal is reconsidered exactly once.
-    if row['config_hash'] is None or row['match_inputs'] is None:
-        dcur.execute("DELETE FROM project_suggestions WHERE id = %s", (row['id'],))
-        return False
+    # Only dismissed rows from here on. A NULL component predates the stale
+    # tracking: treat it as stale so every dismissal is reconsidered once.
     if project is None or globals_ is None:
         return True
-    if row['config_hash'] == _suggest_config_hash(project, globals_):
-        if row['match_inputs'] == _suggest_match_inputs(dcur, file_id):
-            return True
-    dcur.execute("DELETE FROM project_suggestions WHERE id = %s", (row['id'],))
-    return False
+    cur_hash = _suggest_config_hash(project, globals_)
+    cur_inputs = _suggest_match_inputs(dcur, file_id)
+    stale_ids = [
+        r['id'] for r in rows
+        if r['config_hash'] is None or r['match_inputs'] is None
+        or r['config_hash'] != cur_hash or r['match_inputs'] != cur_inputs
+    ]
+    for sid in stale_ids:
+        dcur.execute("DELETE FROM project_suggestions WHERE id = %s", (sid,))
+    return len(stale_ids) != len(rows)
 
 
 def get_override_setup(dcur, project_id, file_id):
