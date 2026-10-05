@@ -239,6 +239,15 @@ $grouping = $detail !== null ? getProjectGrouping($conn, (int)$detail['id']) : d
 $intGroups = $projectTree !== null
     ? getIntegrationGroups($projectTree, $tolExpRaw, $detail !== null ? getProjectThresholds($conn, (int)$detail['id']) : [], (string)($projectTols['tol_temp'] ?? '2C'), $grouping, $projectTols)
     : [];
+// Tile diagnostics: when cross-setup merging is effective, explain the
+// cross-setup panel pairs that did NOT merge (blocking criterion each).
+$tilesEffective = groupingTilesEffective($grouping);
+$tileHints = [];
+if ($tilesEffective && $projectTree !== null) {
+    $flatPanels = flatTreePanels($projectTree);
+    $tileClust = clusterCrossSetupPanels($flatPanels, $projectTols);
+    $tileHints = tileMergeHints($flatPanels, $projectTols, $tileClust['panelTile']);
+}
 if ($projectTree !== null && !empty($intGroups)) {
     $projectTree = markTreeAutoOff($projectTree, indexAutoOffLights($intGroups));
 }
@@ -946,6 +955,21 @@ if ($projectBlocked) {
                         sync();
                     })();
                     </script>
+                    <?php if ($tilesEffective): ?>
+                        <?php if (empty($tileHints)): ?>
+                        <p class="text-xs text-green-400/90 mt-1">✓ <?= htmlspecialchars(__('projects_tiles_ok')) ?></p>
+                        <?php else: ?>
+                        <div class="text-xs text-gray-400 mt-1">
+                            <p class="font-medium text-gray-300"><?= htmlspecialchars(__('projects_tiles_unmerged')) ?></p>
+                            <ul class="list-disc ml-5 mt-1 flex flex-col gap-0.5">
+                                <?php foreach (array_slice($tileHints, 0, 10) as $th): ?>
+                                <li>S<?= (int)$th['a']['setup_no'] ?>/P<?= (int)$th['a']['panel_no'] ?> ↔ S<?= (int)$th['b']['setup_no'] ?>/P<?= (int)$th['b']['panel_no'] ?>: <?= htmlspecialchars(tileHintReasonText($th['reason'])) ?></li>
+                                <?php endforeach; ?>
+                            </ul>
+                            <?php if (count($tileHints) > 10): ?><p class="text-gray-500 mt-1"><?= htmlspecialchars(__('projects_tiles_more', ['count' => count($tileHints) - 10])) ?></p><?php endif; ?>
+                        </div>
+                        <?php endif; ?>
+                    <?php endif; ?>
                     <div class="flex justify-end gap-2 mt-1">
                         <button type="submit" name="reset_grouping" value="1"
                                 class="px-3 py-1 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors">
@@ -990,7 +1014,7 @@ if ($projectBlocked) {
                     <?php $grpAuto = count(array_filter($grp['lights'], fn($li) => !empty($li['auto_off']))); ?>
                     <div class="mb-2 border border-gray-700 rounded-lg igroup" data-group="<?= (int)$gi ?>">
                         <div class="px-4 pt-2 text-sm font-medium">
-                            <?php if (!empty($grp['tile'])): ?>T<?= (int)$grp['tile']['no'] ?> · S<?= htmlspecialchars(implode('+S', array_map('strval', $grp['tile']['setups']))) ?> · <?= htmlspecialchars($grp['tile']['label']) ?><?php elseif (!empty($grp['merged_setup'])): ?><span class="text-gray-400">S*</span><?php else: ?>S<?= (int)($grp['setup_no'] ?? 0) ?><?php endif; ?><?php if (empty($grp['tile'])): ?> · <?php if (!empty($grp['merged_panel'])): ?><span class="text-gray-400">P*</span><?php else: ?><?= htmlspecialchars($grp['panel_label']) ?><?php endif; ?><?php endif; ?><?php if (empty($grp['merged_filter'])): ?> · <?= __('projects_filter') ?> <?= htmlspecialchars($grp['filter'] !== '' ? $grp['filter'] : '—') ?><?php endif; ?> · <?= htmlspecialchars(fmtExpShort($grp['rep_exp'] ?? $grp['exptime'])) ?><?php if ($grp['exptime'] === null): ?> <span class="text-gray-400" title="<?= htmlspecialchars(__('projects_grouping_merged')) ?>">*</span><?php endif; ?><?php if (!empty($grouping['split_temp']) && $grp['rep_temp'] !== null): ?> · <?= htmlspecialchars(repTempDisplay($grp['rep_temp'])) ?><?php endif; ?>
+                            <?php if (!empty($grp['tile'])): ?>T<?= (int)$grp['tile']['no'] ?> · S<?= htmlspecialchars(implode('+S', array_map('strval', $grp['tile']['setups']))) ?> · <?= htmlspecialchars($grp['tile']['label']) ?><?php elseif (!empty($grp['merged_setup'])): ?><span class="text-gray-400">S*</span><?php else: ?>S<?= (int)($grp['setup_no'] ?? 0) ?><?php endif; ?><?php if (empty($grp['tile'])): ?> · <?php if (!empty($grp['merged_panel'])): ?><span class="text-gray-400">P*</span><?php else: ?><?= htmlspecialchars($grp['panel_label']) ?><?php endif; ?><?php endif; ?><?php if (empty($grp['merged_filter'])): ?> · <?= __('projects_filter') ?> <?= htmlspecialchars($grp['filter'] !== '' ? $grp['filter'] : '—') ?><?php endif; ?> · <?= htmlspecialchars(fmtExpShort($grp['rep_exp'] ?? $grp['exptime'])) ?><?php if ($grp['exptime'] === null): ?> <span class="text-gray-400" title="<?= htmlspecialchars(__('projects_grouping_merged')) ?>">*</span><?php endif; ?><?php if (!empty($grouping['split_temp'])): ?><?php if ($grp['rep_temp'] !== null): ?> · <?= htmlspecialchars(repTempDisplay($grp['rep_temp'])) ?><?php endif; ?><?php else: ?><?php $grpTempRange = repTempRange($grp['temp_min'] ?? null, $grp['temp_max'] ?? null); ?><?php if ($grpTempRange !== '—'): ?> · <?= htmlspecialchars($grpTempRange) ?><?php endif; ?><?php endif; ?>
                         </div>
                         <div class="px-4 pb-2 text-xs text-gray-400">
                             <?= htmlspecialchars(__('projects_lights_count', ['count' => $grp['count']])) ?> · <span title="<?= htmlspecialchars(fmtExp((float)$grp['exposure'])) ?>"><?= htmlspecialchars(number_format((float)$grp['exposure'] / 3600, 1)) ?> h</span> · <?= htmlspecialchars(__('projects_igroup_nights', ['count' => count($grp['nights'])])) ?>: <?= htmlspecialchars(implode(', ', $grp['nights'])) ?> · <?= htmlspecialchars(__('projects_igroup_excluded', ['total' => $grpAuto])) ?>

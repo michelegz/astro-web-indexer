@@ -834,6 +834,24 @@ function repTempDisplay($medTemp): string
     return $t === null ? '—' : $t . ' °C';
 }
 
+/**
+ * Temperature range display for merged (non-temp-split) groups: "−10…+20 °C",
+ * collapsing to the single value when min and max round equally. Exposes
+ * bimodal distributions (e.g. cooler failure one night) that a median hides.
+ */
+function repTempRange($minTemp, $maxTemp): string
+{
+    $a = repTempInt($minTemp);
+    $b = repTempInt($maxTemp);
+    if ($a === null || $b === null) {
+        return '—';
+    }
+    if ($a === $b) {
+        return $a . ' °C';
+    }
+    return $a . '…' . $b . ' °C';
+}
+
 function repExpToken($medExp): string
 {
     if ($medExp === null || $medExp === '') {
@@ -899,6 +917,35 @@ function projectMedian(array $values): ?float
 }
 
 /**
+ * Numeric values of a list, ignoring null/empty entries.
+ */
+function projectNums(array $values): array
+{
+    $nums = [];
+    foreach ($values as $v) {
+        if ($v !== null && $v !== '') {
+            $nums[] = (float)$v;
+        }
+    }
+    return $nums;
+}
+
+/**
+ * Min/max of a numeric list, ignoring null/empty values. Null when empty.
+ */
+function projectMin(array $values): ?float
+{
+    $nums = projectNums($values);
+    return empty($nums) ? null : min($nums);
+}
+
+function projectMax(array $values): ?float
+{
+    $nums = projectNums($values);
+    return empty($nums) ? null : max($nums);
+}
+
+/**
  * Cross-setup tile clustering for multi-setup mosaics: panels of DIFFERENT
  * setups sharing sky position/rotation/FoV become one tile. Same rules as
  * panel matching (projectFindPanel): angular separation within tol_pos,
@@ -914,49 +961,84 @@ function projectMedian(array $values): ?float
  * 'panelTile' => [panelId => tileIdx]]. Tile order (T1..) follows first
  * appearance, so numbering is stable for a given tree.
  */
+function panelFovMinDeg(?array $p): ?float
+{
+    if ($p === null) {
+        return null;
+    }
+    if (($p['fov_w'] ?? null) !== null && ($p['fov_h'] ?? null) !== null
+        && (float)$p['fov_w'] > 0 && (float)$p['fov_h'] > 0) {
+        return min((float)$p['fov_w'], (float)$p['fov_h']) / 60.0;
+    }
+    return null;
+}
+
+/**
+ * Parsed position/rotation/FoV tolerances shared by panel matching and tile
+ * clustering. Returns [arcminTolDeg, fovFrac, tolRotDeg, tolFovFrac].
+ */
+function parsePosTols(array $posTols): array
+{
+    return [
+        max(projectNumPrefix((string)($posTols['tol_pos_arcmin'] ?? '5'), 5.0) / 60.0, 1e-6),
+        projectNumPrefix((string)($posTols['tol_pos_fovfrac'] ?? '0.2'), 0.2),
+        projectNumPrefix((string)($posTols['tol_rot'] ?? '3deg'), 3.0),
+        projectNumPrefix((string)($posTols['tol_fov'] ?? '10%'), 10.0) / 100.0,
+    ];
+}
+
+/**
+ * Why two panels of DIFFERENT setups do not share a tile. Null when they
+ * match (same rules as projectFindPanel). Same-setup pairs never merge by
+ * design; panels without coordinates never merge either.
+ *
+ * Returns null or ['code' => 'same_setup|coords|pos|rot|fov',
+ * 'actual' => float|null, 'limit' => float|null] with degrees (pos/rot) or
+ * fractions (fov) for display.
+ */
+function crossPanelMismatch(array $a, array $b, array $posTols): ?array
+{
+    if ((int)($a['setup_id'] ?? 0) === (int)($b['setup_id'] ?? 0)) {
+        return ['code' => 'same_setup', 'actual' => null, 'limit' => null];
+    }
+    if (($a['ra'] ?? null) === null || ($a['dec'] ?? null) === null
+        || ($b['ra'] ?? null) === null || ($b['dec'] ?? null) === null) {
+        return ['code' => 'coords', 'actual' => null, 'limit' => null];
+    }
+    [$arcminTol, $fovFrac, $tolRot, $tolFov] = parsePosTols($posTols);
+    $knownFovs = [];
+    foreach ([panelFovMinDeg($a), panelFovMinDeg($b)] as $f) {
+        if ($f !== null) {
+            $knownFovs[] = $f;
+        }
+    }
+    $tolPos = $arcminTol;
+    if (!empty($knownFovs)) {
+        $tolPos = max($tolPos, $fovFrac * min($knownFovs));
+    }
+    $sep = projectHaversine((float)$a['ra'], (float)$a['dec'], (float)$b['ra'], (float)$b['dec']);
+    if ($sep > $tolPos) {
+        return ['code' => 'pos', 'actual' => $sep, 'limit' => $tolPos];
+    }
+    [$dist, $unknown] = projectRotDist($a['rot_mean'] ?? null, $b['rot_mean'] ?? null);
+    if (!$unknown && $dist > $tolRot) {
+        return ['code' => 'rot', 'actual' => $dist, 'limit' => $tolRot];
+    }
+    if (count($knownFovs) === 2 && max($knownFovs) > 0
+        && abs($knownFovs[0] - $knownFovs[1]) / max($knownFovs) > $tolFov) {
+        return [
+            'code' => 'fov',
+            'actual' => abs($knownFovs[0] - $knownFovs[1]) / max($knownFovs),
+            'limit' => $tolFov,
+        ];
+    }
+    return null;
+}
+
 function clusterCrossSetupPanels(array $panels, array $posTols): array
 {
-    $arcminTol = max(projectNumPrefix((string)($posTols['tol_pos_arcmin'] ?? '5'), 5.0) / 60.0, 1e-6);
-    $fovFrac = projectNumPrefix((string)($posTols['tol_pos_fovfrac'] ?? '0.2'), 0.2);
-    $tolRot = projectNumPrefix((string)($posTols['tol_rot'] ?? '3deg'), 3.0);
-    $tolFov = projectNumPrefix((string)($posTols['tol_fov'] ?? '10%'), 10.0) / 100.0;
-    $fovMinOf = function (array $p): ?float {
-        if ($p['fov_w'] !== null && $p['fov_h'] !== null
-            && (float)$p['fov_w'] > 0 && (float)$p['fov_h'] > 0) {
-            return min((float)$p['fov_w'], (float)$p['fov_h']) / 60.0;
-        }
-        return null;
-    };
-    $matches = function (array $a, array $b) use ($arcminTol, $fovFrac, $tolRot, $tolFov, $fovMinOf): bool {
-        if ((int)$a['setup_id'] === (int)$b['setup_id']) {
-            return false;
-        }
-        if ($a['ra'] === null || $a['dec'] === null || $b['ra'] === null || $b['dec'] === null) {
-            return false;
-        }
-        $knownFovs = [];
-        foreach ([$fovMinOf($a), $fovMinOf($b)] as $f) {
-            if ($f !== null) {
-                $knownFovs[] = $f;
-            }
-        }
-        $tolPos = $arcminTol;
-        if (!empty($knownFovs)) {
-            $tolPos = max($tolPos, $fovFrac * min($knownFovs));
-        }
-        if (projectHaversine((float)$a['ra'], (float)$a['dec'], (float)$b['ra'], (float)$b['dec']) > $tolPos) {
-            return false;
-        }
-        [$dist, $unknown] = projectRotDist($a['rot_mean'] ?? null, $b['rot_mean'] ?? null);
-        if (!$unknown && $dist > $tolRot) {
-            return false;
-        }
-        if (count($knownFovs) === 2 && max($knownFovs) > 0) {
-            if (abs($knownFovs[0] - $knownFovs[1]) / max($knownFovs) > $tolFov) {
-                return false;
-            }
-        }
-        return true;
+    $matches = function (array $a, array $b) use ($posTols): bool {
+        return crossPanelMismatch($a, $b, $posTols) === null;
     };
     $tiles = [];
     $panelTile = [];
@@ -984,6 +1066,73 @@ function clusterCrossSetupPanels(array $panels, array $posTols): array
         unset($tiles[$ti]['rep']);
     }
     return ['tiles' => $tiles, 'panelTile' => $panelTile];
+}
+
+/**
+ * Unmerged cross-setup panel pairs with the blocking reason: for every pair
+ * of panels from different setups that did NOT land in the same tile, the
+ * first failing criterion from crossPanelMismatch(). Powers the "why not
+ * merged" hint in the grouping UI. Same-setup pairs are skipped (they never
+ * merge by design, no explanation needed).
+ *
+ * Returns [['a' => panel, 'b' => panel, 'reason' => [...]], ...] in panel order.
+ */
+function tileMergeHints(array $panels, array $posTols, array $panelTile): array
+{
+    $out = [];
+    $n = count($panels);
+    for ($i = 0; $i < $n; $i++) {
+        for ($j = $i + 1; $j < $n; $j++) {
+            $a = $panels[$i];
+            $b = $panels[$j];
+            if ((int)($a['setup_id'] ?? 0) === (int)($b['setup_id'] ?? 0)) {
+                continue;
+            }
+            $ta = $panelTile[(int)($a['id'] ?? 0)] ?? null;
+            $tb = $panelTile[(int)($b['id'] ?? 0)] ?? null;
+            if ($ta !== null && $ta === $tb) {
+                continue;
+            }
+            $reason = crossPanelMismatch($a, $b, $posTols);
+            if ($reason === null) {
+                continue;
+            }
+            if ($reason['code'] === 'same_setup') {
+                continue;
+            }
+            $out[] = ['a' => $a, 'b' => $b, 'reason' => $reason];
+        }
+    }
+    return $out;
+}
+
+/**
+ * Localized one-line explanation of a tileMergeHints() reason. Position in
+ * arcminutes, rotation in degrees, FoV as percent difference.
+ */
+function tileHintReasonText(array $reason): string
+{
+    switch ($reason['code'] ?? '') {
+        case 'pos':
+            return __('projects_tiles_why_pos', [
+                'actual' => number_format((float)($reason['actual'] ?? 0) * 60, 1),
+                'limit' => number_format((float)($reason['limit'] ?? 0) * 60, 1),
+            ]);
+        case 'rot':
+            return __('projects_tiles_why_rot', [
+                'actual' => number_format((float)($reason['actual'] ?? 0), 1),
+                'limit' => number_format((float)($reason['limit'] ?? 0), 1),
+            ]);
+        case 'fov':
+            return __('projects_tiles_why_fov', [
+                'actual' => number_format((float)($reason['actual'] ?? 0) * 100, 1),
+                'limit' => number_format((float)($reason['limit'] ?? 0) * 100, 1),
+            ]);
+        case 'coords':
+            return __('projects_tiles_why_coords');
+        default:
+            return '';
+    }
 }
 
 /**
@@ -1182,6 +1331,8 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
             'exptime' => $exptime,
             'rep_exp' => projectMedian(array_column($egLights, 'exptime')),
             'rep_temp' => projectMedian(array_column($egLights, 'ccd_temp')),
+            'temp_min' => projectMin(array_column($egLights, 'ccd_temp')),
+            'temp_max' => projectMax(array_column($egLights, 'ccd_temp')),
             'nights' => $nightList,
             'lights' => $egLights,
             'count' => count($effective),
