@@ -320,6 +320,8 @@ return [
     'projects_grouping_exp_tol' => 'Belichtungstoleranz',
     'projects_grouping_temp_tol' => 'Temperaturtoleranz',
     'projects_grouping_merged' => 'vereint',
+    'projects_grouping_tiles' => 'Panels setupübergreifend vereinen (Tiles)',
+    'projects_grouping_tiles_hint' => 'Multi-Setup-Mosaik: dieselbe Himmelskachel durch verschiedene Optiken (gleiche Koordinaten/Rotation/FoV). Nur wirksam mit Setup-Split AUS. Fügt das TILE_-Keyword zum ZIP hinzu.',
     'projects_grouping_reset' => 'Defaults',
     'projects_igroups' => 'Integrationsgruppen',
     'projects_igroups_empty' => 'Noch keine Gruppen: verlinke Lights mit gleichem Setup, Panel, Filter und Belichtung.',

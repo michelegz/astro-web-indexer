@@ -321,6 +321,8 @@ return [
     'projects_grouping_exp_tol' => 'Tolerancia de exposición',
     'projects_grouping_temp_tol' => 'Tolerancia de temperatura',
     'projects_grouping_merged' => 'fusionados',
+    'projects_grouping_tiles' => 'Fusionar paneles entre setups (teselas)',
+    'projects_grouping_tiles_hint' => 'Mosaico multi-setup: misma tesela de cielo con ópticas distintas (mismas coordenadas/rotación/campo). Solo efectivo con separación por setup DESACTIVADA. Añade la keyword TILE_ al ZIP.',
     'projects_grouping_reset' => 'Defecto',
     'projects_igroups' => 'Grupos de integración',
     'projects_igroups_empty' => 'Sin grupos: enlaza lights con mismo setup, panel, filtro y exposición.',

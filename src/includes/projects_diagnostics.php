@@ -899,6 +899,120 @@ function projectMedian(array $values): ?float
 }
 
 /**
+ * Cross-setup tile clustering for multi-setup mosaics: panels of DIFFERENT
+ * setups sharing sky position/rotation/FoV become one tile. Same rules as
+ * panel matching (projectFindPanel): angular separation within tol_pos,
+ * rotation within tol_rot, FoV within tol_fov. Panels without coordinates
+ * never merge; same-setup panels never merge (they were kept apart at
+ * assignment time by design).
+ *
+ * $panels: flat list of ['id','setup_id','setup_no','panel_no','ra','dec',
+ * 'rot_mean','fov_w','fov_h','label']. $posTols: raw tolerance strings
+ * (tol_pos_arcmin, tol_pos_fovfrac, tol_rot, tol_fov).
+ *
+ * Returns ['tiles' => [['panels' => [...], 'multi' => bool], ...],
+ * 'panelTile' => [panelId => tileIdx]]. Tile order (T1..) follows first
+ * appearance, so numbering is stable for a given tree.
+ */
+function clusterCrossSetupPanels(array $panels, array $posTols): array
+{
+    $arcminTol = max(projectNumPrefix((string)($posTols['tol_pos_arcmin'] ?? '5'), 5.0) / 60.0, 1e-6);
+    $fovFrac = projectNumPrefix((string)($posTols['tol_pos_fovfrac'] ?? '0.2'), 0.2);
+    $tolRot = projectNumPrefix((string)($posTols['tol_rot'] ?? '3deg'), 3.0);
+    $tolFov = projectNumPrefix((string)($posTols['tol_fov'] ?? '10%'), 10.0) / 100.0;
+    $fovMinOf = function (array $p): ?float {
+        if ($p['fov_w'] !== null && $p['fov_h'] !== null
+            && (float)$p['fov_w'] > 0 && (float)$p['fov_h'] > 0) {
+            return min((float)$p['fov_w'], (float)$p['fov_h']) / 60.0;
+        }
+        return null;
+    };
+    $matches = function (array $a, array $b) use ($arcminTol, $fovFrac, $tolRot, $tolFov, $fovMinOf): bool {
+        if ((int)$a['setup_id'] === (int)$b['setup_id']) {
+            return false;
+        }
+        if ($a['ra'] === null || $a['dec'] === null || $b['ra'] === null || $b['dec'] === null) {
+            return false;
+        }
+        $knownFovs = [];
+        foreach ([$fovMinOf($a), $fovMinOf($b)] as $f) {
+            if ($f !== null) {
+                $knownFovs[] = $f;
+            }
+        }
+        $tolPos = $arcminTol;
+        if (!empty($knownFovs)) {
+            $tolPos = max($tolPos, $fovFrac * min($knownFovs));
+        }
+        if (projectHaversine((float)$a['ra'], (float)$a['dec'], (float)$b['ra'], (float)$b['dec']) > $tolPos) {
+            return false;
+        }
+        [$dist, $unknown] = projectRotDist($a['rot_mean'] ?? null, $b['rot_mean'] ?? null);
+        if (!$unknown && $dist > $tolRot) {
+            return false;
+        }
+        if (count($knownFovs) === 2 && max($knownFovs) > 0) {
+            if (abs($knownFovs[0] - $knownFovs[1]) / max($knownFovs) > $tolFov) {
+                return false;
+            }
+        }
+        return true;
+    };
+    $tiles = [];
+    $panelTile = [];
+    foreach ($panels as $p) {
+        $placed = false;
+        foreach ($tiles as $ti => $t) {
+            if ($matches($t['rep'], $p)) {
+                $tiles[$ti]['panels'][] = $p;
+                $panelTile[(int)$p['id']] = $ti;
+                $placed = true;
+                break;
+            }
+        }
+        if (!$placed) {
+            $panelTile[(int)$p['id']] = count($tiles);
+            $tiles[] = ['rep' => $p, 'panels' => [$p]];
+        }
+    }
+    foreach ($tiles as $ti => $t) {
+        $setups = [];
+        foreach ($t['panels'] as $p) {
+            $setups[(int)$p['setup_no']] = true;
+        }
+        $tiles[$ti]['multi'] = count($setups) > 1;
+        unset($tiles[$ti]['rep']);
+    }
+    return ['tiles' => $tiles, 'panelTile' => $panelTile];
+}
+
+/**
+ * Flat panel list of a project tree with setup context, in tree order.
+ * Shared by tile clustering here and the export builder.
+ */
+function flatTreePanels(array $tree): array
+{
+    $out = [];
+    foreach ($tree['setups'] ?? [] as $setup) {
+        foreach ($setup['panels'] ?? [] as $panel) {
+            $out[] = [
+                'id' => (int)$panel['id'],
+                'setup_id' => (int)$setup['id'],
+                'setup_no' => (int)($setup['setup_no'] ?? $setup['id']),
+                'panel_no' => (int)($panel['panel_no'] ?? $panel['id']),
+                'ra' => $panel['ra'] ?? null,
+                'dec' => $panel['dec'] ?? null,
+                'rot_mean' => $panel['rot_mean'] ?? null,
+                'fov_w' => $panel['fov_w'] ?? null,
+                'fov_h' => $panel['fov_h'] ?? null,
+                'label_object' => $panel['label_object'] ?? null,
+            ];
+        }
+    }
+    return $out;
+}
+
+/**
  * Integration groups: enabled linked LIGHTS sharing the active split levels,
  * transversal to sessions (i.e. stackable sets, multi-night by design).
  * Returns stable-sorted groups with covered nights and total exposure.
@@ -908,21 +1022,25 @@ function projectMedian(array $values): ?float
  * split_exposure ON = clusterExposures() with exp_tol (else one bucket);
  * split_temp ON = absolute-°C buckets with temp_tol (else median display only).
  * NULL/empty exp_tol/temp_tol inherit $tolExpRaw/$tolTempRaw.
- * Session/night never splits; binning/gain ride inside the setup fingerprint.
+ * merge_tiles ON (with split_setup OFF and split_panel ON) pools panels of
+ * different setups sharing sky position/rotation/FoV into one tile
+ * (clusterCrossSetupPanels with $posTols); session/night never splits and
+ * binning/gain ride inside the setup fingerprint.
  *
  * Thresholds resolve per exposure bucket on the representative coordinates
  * (first light's setup/panel; filter/exptime normalized to NULL when their
- * split is OFF and shared across temp buckets), with fallback to the legacy
- * full key so pre-existing rows keep working. Merged setups/panels therefore
- * share thresholds by design (exceptional configs only).
+ * split is OFF and shared across temp buckets and tiles), with fallback to
+ * the legacy full key so pre-existing rows keep working. Merged
+ * setups/panels/tiles therefore share thresholds by design.
  * Each light carries 'auto_off' (fails stored thresholds); counts, exposure
  * and medians cover effectively included files (enabled AND passing).
  */
-function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMap = [], string $tolTempRaw = '2C', ?array $grouping = null): array
+function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMap = [], string $tolTempRaw = '2C', ?array $grouping = null, ?array $posTols = null): array
 {
     $g = $grouping ?? (function_exists('defaultProjectGrouping') ? defaultProjectGrouping() : [
         'split_setup' => true, 'split_panel' => true, 'split_filter' => true,
-        'split_exposure' => true, 'split_temp' => false, 'exp_tol' => null, 'temp_tol' => null,
+        'split_exposure' => true, 'split_temp' => false, 'merge_tiles' => false,
+        'exp_tol' => null, 'temp_tol' => null,
     ]);
     $expTolEff = trim((string)($g['exp_tol'] ?? ''));
     if ($expTolEff === '') {
@@ -931,6 +1049,33 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
     $tempTolEff = trim((string)($g['temp_tol'] ?? ''));
     if ($tempTolEff === '') {
         $tempTolEff = $tolTempRaw;
+    }
+    // Tile mode: split_setup OFF + split_panel ON + merge_tiles ON pools
+    // panels of different setups sharing sky position/rotation/FoV.
+    $tileMode = !empty($g['merge_tiles']) && empty($g['split_setup']) && !empty($g['split_panel']);
+    $panelTile = [];
+    $tileLabels = [];
+    if ($tileMode) {
+        $flatPanels = flatTreePanels($tree);
+        $clust = clusterCrossSetupPanels($flatPanels, $posTols ?? []);
+        $panelTile = $clust['panelTile'];
+        foreach ($clust['tiles'] as $ti => $t) {
+            $rep = $t['panels'][0];
+            $coords = ($rep['ra'] !== null && $rep['dec'] !== null)
+                ? number_format((float)$rep['ra'], 3) . ' / ' . number_format((float)$rep['dec'], 3) : '?';
+            $snos = [];
+            foreach ($t['panels'] as $p) {
+                $snos[(int)$p['setup_no']] = true;
+            }
+            ksort($snos);
+            $tileLabels[$ti] = [
+                'no' => $ti + 1,
+                'setups' => array_keys($snos),
+                'label' => $coords . (($rep['label_object'] ?? null) !== null && $rep['label_object'] !== ''
+                    ? ' ' . $rep['label_object'] : ''),
+                'multi' => $t['multi'],
+            ];
+        }
     }
     $pools = [];
     foreach ($tree['setups'] ?? [] as $setup) {
@@ -943,6 +1088,7 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
             if ($panel['label_object'] !== null && $panel['label_object'] !== '') {
                 $panelLabel .= ' ' . $panel['label_object'];
             }
+            $tileIdx = $tileMode ? ($panelTile[(int)$panel['id']] ?? null) : null;
             foreach ($panel['sessions'] as $session) {
                 foreach ($session['filters'] as $filter) {
                     foreach ($filter['lights'] as $li) {
@@ -959,7 +1105,8 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
                         }
                         $fname = trim((string)($li['filter_name'] ?? $li['filter'] ?? ''));
                         $key = (!empty($g['split_setup']) ? (int)$setup['id'] : '*')
-                            . '|' . (!empty($g['split_panel']) ? (int)$panel['id'] : '*')
+                            . '|' . ($tileMode && $tileIdx !== null ? 'T' . $tileIdx
+                                : (!empty($g['split_panel']) ? (int)$panel['id'] : '*'))
                             . '|' . (!empty($g['split_filter']) ? strtoupper($fname) : '*');
                         if (!isset($pools[$key])) {
                             $pools[$key] = [
@@ -973,8 +1120,16 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
                                 'merged_setup' => empty($g['split_setup']),
                                 'merged_panel' => empty($g['split_panel']),
                                 'merged_filter' => empty($g['split_filter']),
+                                'tile' => $tileIdx !== null ? ($tileLabels[$tileIdx] ?? null) : null,
                                 'lights' => [],
                             ];
+                        }
+                        if ($tileIdx !== null && $pools[$key]['tile'] !== null) {
+                            $sn = (int)($setup['setup_no'] ?? $setup['id']);
+                            if (!in_array($sn, $pools[$key]['tile']['setups'], true)) {
+                                $pools[$key]['tile']['setups'][] = $sn;
+                                sort($pools[$key]['tile']['setups']);
+                            }
                         }
                         $li['night'] = (string)$session['astro_night'];
                         $li['link_key'] = (int)$li['file_id'] . ':' . ($li['level'] ?? 'filter') . ':' . (int)$session['id'];
@@ -1022,6 +1177,7 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
             'merged_setup' => $pool['merged_setup'],
             'merged_panel' => $pool['merged_panel'],
             'merged_filter' => $pool['merged_filter'],
+            'tile' => $pool['tile'] ?? null,
             'exptime' => $exptime,
             'rep_exp' => projectMedian(array_column($egLights, 'exptime')),
             'rep_temp' => projectMedian(array_column($egLights, 'ccd_temp')),

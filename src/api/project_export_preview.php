@@ -33,6 +33,7 @@ try {
         'success' => true,
         'entries' => $map['entries'],
         'sets' => $map['sets'],
+        'tiles' => $map['tiles'] ?? [],
         'skipped' => $map['skipped'],
         'duplicates_resolved' => $map['duplicates_resolved'],
         'manifest' => $map['manifest'],

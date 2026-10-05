@@ -321,6 +321,8 @@ return [
     'projects_grouping_exp_tol' => 'Exposure tolerance',
     'projects_grouping_temp_tol' => 'Temperature tolerance',
     'projects_grouping_merged' => 'merged',
+    'projects_grouping_tiles' => 'Merge panels across setups (tiles)',
+    'projects_grouping_tiles_hint' => 'Multi-setup mosaic: same sky tile through different optics (same coordinates/rotation/FoV). Only effective with setup split OFF. Adds the TILE_ keyword to the ZIP.',
     'projects_grouping_reset' => 'Defaults',
     'projects_igroups' => 'Integration groups',
     'projects_igroups_empty' => 'No integration groups yet: link lights sharing setup, panel, filter and exposure.',

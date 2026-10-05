@@ -7,8 +7,14 @@
 // Layout (mirror tree + WBPP path keywords, see tmp/project-zip-export-plan.md):
 //   SETUP_S1/DARK/EXPS_300/TEMPC_m10/[DARKSET_N1N3/]dark.fits
 //   SETUP_S1/BIAS/bias.fits
-//   SETUP_S1/PANEL_P1/SESSION_N1[_DARKSET_N1N3]/LIGHT/FILTER_Ha/EXPS_300/TEMPC_m10/light.fits
+//   SETUP_S1/PANEL_P1[_TILE_T1]/SESSION_N1[_DARKSET_N1N3]/LIGHT/FILTER_Ha/EXPS_300/TEMPC_m10/light.fits
 //   SETUP_S1/PANEL_P1/SESSION_N1/FLAT/FILTER_Ha/flat.fits
+//
+// TILE_Tn qualifies the panel folder only when cross-setup tile merging is
+// enabled (merge_tiles with split_setup OFF): PANEL_P1_TILE_T1 under S1 and
+// PANEL_P2_TILE_T1 under S2 share TILE_T1, so WBPP can group the same sky
+// tile through different optics. Panel level (not LIGHT) because the tile is
+// a panel identity; same combined-token pattern as SESSION_N1_DARKSET_N1N3.
 //
 // Session folders carry only the N id (nights live in the manifest); type
 // folders nest as TYPE/GROUP so FILTER_ works as a WBPP keyword everywhere.
@@ -60,7 +66,7 @@ function validateExportTokens(array $entries): void
         if (!preg_match('#^[A-Za-z0-9_/.]+$#', $dir)) {
             throw new InvalidArgumentException('export_bad_token: ' . $p);
         }
-        foreach (['SESSION_', 'DARKSET_', 'FLATSET_', 'PANEL_', 'SETUP_'] as $kw) {
+        foreach (['SESSION_', 'DARKSET_', 'FLATSET_', 'PANEL_', 'SETUP_', 'TILE_'] as $kw) {
             if (substr_count($dir, $kw) > 1) {
                 throw new InvalidArgumentException('export_dup_keyword: ' . $kw . ' in ' . $p);
             }
@@ -91,6 +97,7 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
     if ($tolExpRaw === '') {
         $tolExpRaw = '1%';
     }
+    $grouping = getProjectGrouping($conn, $projectId);
     $projectTree = markTreeAutoOff(
         $tree,
         indexAutoOffLights(getIntegrationGroups(
@@ -98,9 +105,27 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
             $tolExpRaw,
             getProjectThresholds($conn, $projectId),
             (string)($tols['tol_temp'] ?? '2C'),
-            getProjectGrouping($conn, $projectId)
+            $grouping,
+            $tols
         ))
     );
+    // Cross-setup tiles (mosaics): panel id => tile number, shared by lights
+    // of different setups so WBPP can group by TILE_. Active only with
+    // split_setup OFF + split_panel ON + merge_tiles ON; otherwise empty.
+    $tileMode = !empty($grouping['merge_tiles']) && empty($grouping['split_setup']) && !empty($grouping['split_panel']);
+    $panelTileNo = [];
+    $tileLegend = [];
+    if ($tileMode) {
+        $clust = clusterCrossSetupPanels(flatTreePanels($projectTree), $tols);
+        foreach ($clust['tiles'] as $ti => $t) {
+            $panels = [];
+            foreach ($t['panels'] as $p) {
+                $panelTileNo[(int)$p['id']] = $ti + 1;
+                $panels[] = 'S' . (int)$p['setup_no'] . '/P' . (int)$p['panel_no'];
+            }
+            $tileLegend['TILE_T' . ($ti + 1)] = ['panels' => $panels, 'multi' => $t['multi']];
+        }
+    }
 
     // Session registry for set tokens and legends.
     $sessions = [];
@@ -324,7 +349,12 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
         $setupDir = 'SETUP_S' . (int)($setup['setup_no'] ?? $setup['id']);
         $emitNodeCals($setupDir, $setup['calibrations'] ?? []);
         foreach ($setup['panels'] ?? [] as $panel) {
-            $panelDir = $setupDir . '/PANEL_P' . (int)($panel['panel_no'] ?? $panel['id']);
+            // Tile qualifier lives on the panel folder (tile = sky tile shared
+            // across setups): PANEL_P1_TILE_T1 under S1 and PANEL_P2_TILE_T1
+            // under S2 share TILE_T1, so WBPP can group by tile. Same combined-
+            // token pattern as SESSION_N1_DARKSET_N1N3. Only with merge_tiles.
+            $panelDir = $setupDir . '/PANEL_P' . (int)($panel['panel_no'] ?? $panel['id'])
+                . (isset($panelTileNo[(int)$panel['id']]) ? '_TILE_T' . $panelTileNo[(int)$panel['id']] : '');
             $emitNodeCals($panelDir, $panel['calibrations'] ?? []);
             foreach ($panel['sessions'] ?? [] as $session) {
                 $sno = isset($session['session_no']) ? (int)$session['session_no'] : null;
@@ -406,12 +436,14 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
     return [
         'entries' => $st['entries'],
         'sets' => $sets,
+        'tiles' => $tileLegend,
         'skipped' => $st['skipped'],
         'duplicates_resolved' => $st['dups'],
         'manifest' => [
             'project' => (string)($project['name'] ?? ''),
             'exported_at' => date('c'),
             'sets' => $sets,
+            'tiles' => $tileLegend,
             'folders' => $folders,
             'skipped' => $st['skipped'],
             'duplicates_resolved' => $st['dups'],

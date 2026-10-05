@@ -321,6 +321,8 @@ return [
     'projects_grouping_exp_tol' => 'Tolleranza esposizione',
     'projects_grouping_temp_tol' => 'Tolleranza temperatura',
     'projects_grouping_merged' => 'fusi',
+    'projects_grouping_tiles' => 'Unisci pannelli tra setup (tile)',
+    'projects_grouping_tiles_hint' => 'Mosaico multi-setup: stesso tile di cielo attraverso ottiche diverse (stesse coordinate/rotazione/FoV). Ha effetto solo con split setup OFF. Aggiunge la keyword TILE_ allo ZIP.',
     'projects_grouping_reset' => 'Default',
     'projects_igroups' => 'Gruppi di integrazione',
     'projects_igroups_empty' => 'Ancora nessun gruppo: collega light con stesso setup, pannello, filtro ed esposizione.',

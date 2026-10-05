@@ -1802,6 +1802,7 @@ function defaultProjectGrouping(): array
         'split_filter' => true,
         'split_exposure' => true,
         'split_temp' => false,
+        'merge_tiles' => false,
         'exp_tol' => null,
         'temp_tol' => null,
     ];
@@ -1820,7 +1821,7 @@ function getProjectGrouping(PDO $conn, int $projectId): array
     if ($row === false) {
         return $out;
     }
-    foreach (['split_setup', 'split_panel', 'split_filter', 'split_exposure', 'split_temp'] as $k) {
+    foreach (['split_setup', 'split_panel', 'split_filter', 'split_exposure', 'split_temp', 'merge_tiles'] as $k) {
         if (array_key_exists($k, $row)) {
             $out[$k] = (bool)$row[$k];
         }
@@ -1845,7 +1846,7 @@ function saveProjectGrouping(PDO $conn, int $projectId, array $values): void
         throw new InvalidArgumentException('Invalid project');
     }
     $g = defaultProjectGrouping();
-    foreach (['split_setup', 'split_panel', 'split_filter', 'split_exposure', 'split_temp'] as $k) {
+    foreach (['split_setup', 'split_panel', 'split_filter', 'split_exposure', 'split_temp', 'merge_tiles'] as $k) {
         if (array_key_exists($k, $values)) {
             $g[$k] = !empty($values[$k]);
         }
@@ -1856,11 +1857,12 @@ function saveProjectGrouping(PDO $conn, int $projectId, array $values): void
     }
     $conn->prepare(
         "INSERT INTO project_grouping "
-        . "(project_id, split_setup, split_panel, split_filter, split_exposure, split_temp, exp_tol, temp_tol) "
-        . "VALUES (:pid, :ss, :sp, :sf, :se, :st, :et, :tt) "
+        . "(project_id, split_setup, split_panel, split_filter, split_exposure, split_temp, merge_tiles, exp_tol, temp_tol) "
+        . "VALUES (:pid, :ss, :sp, :sf, :se, :st, :mt, :et, :tt) "
         . "ON DUPLICATE KEY UPDATE split_setup = VALUES(split_setup), split_panel = VALUES(split_panel), "
         . "split_filter = VALUES(split_filter), split_exposure = VALUES(split_exposure), "
-        . "split_temp = VALUES(split_temp), exp_tol = VALUES(exp_tol), temp_tol = VALUES(temp_tol)"
+        . "split_temp = VALUES(split_temp), merge_tiles = VALUES(merge_tiles), "
+        . "exp_tol = VALUES(exp_tol), temp_tol = VALUES(temp_tol)"
     )->execute([
         ':pid' => $projectId,
         ':ss' => $g['split_setup'] ? 1 : 0,
@@ -1868,6 +1870,7 @@ function saveProjectGrouping(PDO $conn, int $projectId, array $values): void
         ':sf' => $g['split_filter'] ? 1 : 0,
         ':se' => $g['split_exposure'] ? 1 : 0,
         ':st' => $g['split_temp'] ? 1 : 0,
+        ':mt' => $g['merge_tiles'] ? 1 : 0,
         ':et' => $g['exp_tol'],
         ':tt' => $g['temp_tol'],
     ]);
