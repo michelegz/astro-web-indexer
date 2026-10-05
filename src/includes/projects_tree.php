@@ -91,7 +91,8 @@ function renderCalRows(array $cals, string $level, int $node, array $moveCtx = [
     $groups = groupCalibrations(
         $rows,
         (string)($tols['exp'] ?? '1%'),
-        (string)($tols['temp'] ?? '2C')
+        (string)($tols['temp'] ?? '2C'),
+        $moveCtx['filterAliases'] ?? []
     );
     ?>
     <?php foreach ($groups as $g): ?>

@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = $_POST['action'] ?? '';
         try {
             // Project-scoped actions require an accessible project first.
-            $needsProject = ['update', 'save_mode', 'delete', 'accept_suggestions', 'dismiss_suggestions', 'save_tolerances', 'save_grouping', 'remove_links', 'disable_links', 'enable_links', 'promote_links', 'demote_links', 'set_scope', 'save_thresholds', 'rename_setup'];
+            $needsProject = ['update', 'save_mode', 'delete', 'accept_suggestions', 'dismiss_suggestions', 'save_tolerances', 'save_grouping', 'save_filter_aliases', 'remove_links', 'disable_links', 'enable_links', 'promote_links', 'demote_links', 'set_scope', 'save_thresholds', 'rename_setup'];
             if (in_array($action, $needsProject, true)) {
                 $gid = (int)($_POST['project_id'] ?? 0);
                 $gproj = $gid > 0 ? getProject($conn, $gid) : null;
@@ -182,6 +182,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $message = __('projects_updated');
                 $messageType = 'success';
+            } elseif ($action === 'save_filter_aliases') {
+                $id = (int)($_POST['project_id'] ?? 0);
+                if ($id <= 0 || getProject($conn, $id) === null) {
+                    throw new InvalidArgumentException(__('projects_error_name'));
+                }
+                if (isset($_POST['reset_aliases'])) {
+                    $conn->prepare("DELETE FROM project_filter_aliases WHERE project_id = :pid")
+                        ->execute([':pid' => $id]);
+                } else {
+                    $pairs = [];
+                    foreach ((array)($_POST['aliases'] ?? []) as $alias => $canon) {
+                        $pairs[(string)$alias] = (string)$canon;
+                    }
+                    saveProjectFilterAliases($conn, $id, $pairs);
+                }
+                $message = __('projects_updated');
+                $messageType = 'success';
             }
         } catch (Exception $e) {
             $message = $e->getMessage();
@@ -234,10 +251,11 @@ $tolExpRaw = trim((string)($projectTols['tol_exp'] ?? '1%'));
 if ($tolExpRaw === '') {
     $tolExpRaw = '1%';
 }
-$projectDiag = $projectTree !== null ? diagnoseProjectTree($projectTree, $projectTols) : [];
+$filterAliases = $detail !== null ? getProjectFilterAliases($conn, (int)$detail['id']) : [];
+$projectDiag = $projectTree !== null ? diagnoseProjectTree($projectTree, $projectTols, $filterAliases) : [];
 $grouping = $detail !== null ? getProjectGrouping($conn, (int)$detail['id']) : defaultProjectGrouping();
 $intGroups = $projectTree !== null
-    ? getIntegrationGroups($projectTree, $tolExpRaw, $detail !== null ? getProjectThresholds($conn, (int)$detail['id']) : [], (string)($projectTols['tol_temp'] ?? '2C'), $grouping, $projectTols)
+    ? getIntegrationGroups($projectTree, $tolExpRaw, $detail !== null ? getProjectThresholds($conn, (int)$detail['id']) : [], (string)($projectTols['tol_temp'] ?? '2C'), $grouping, $projectTols, $filterAliases)
     : [];
 // Tile diagnostics: when cross-setup merging is effective, explain the
 // cross-setup panel pairs that did NOT merge (blocking criterion each).
@@ -256,6 +274,7 @@ $dupLinks = $projectTree !== null ? indexDuplicateLinks($projectTree) : [];
 // Shared render context for calibration rows: duplicates + grouping tolerances.
 $calCtxBase = [
     'dup' => $dupLinks,
+    'filterAliases' => $filterAliases,
     'tols' => [
         'exp' => (string)($projectTols['tol_exp'] ?? '1%'),
         'temp' => (string)($projectTols['tol_temp'] ?? '2C'),
@@ -463,6 +482,80 @@ if ($projectBlocked) {
                     </button>
                 </div>
             </form>
+            </details>
+        </section>
+
+        <section class="mb-6 bg-gray-800 rounded-lg p-6">
+            <details>
+                <summary class="text-lg font-semibold cursor-pointer"><?= __('projects_filter_aliases') ?></summary>
+                <p class="text-sm text-gray-400 my-4"><?= htmlspecialchars(__('projects_filter_aliases_intro')) ?></p>
+            <?php
+            $aliasTree = $pendingTree ?? $projectTree;
+            $aliasFilters = [];
+            if ($aliasTree !== null) {
+                $aliasCollect = function (array $rows, bool $isLight) use (&$aliasFilters): void {
+                    foreach ($rows as $r) {
+                        $raw = trim((string)($isLight ? ($r['filter_name'] ?? $r['filter'] ?? '') : ($r['filter'] ?? '')));
+                        if ($raw === '') {
+                            continue;
+                        }
+                        $aliasFilters[$raw] = ($aliasFilters[$raw] ?? 0) + 1;
+                    }
+                };
+                foreach ($aliasTree['setups'] ?? [] as $asSetup) {
+                    $aliasCollect($asSetup['calibrations'] ?? [], false);
+                    foreach ($asSetup['panels'] ?? [] as $asPanel) {
+                        $aliasCollect($asPanel['calibrations'] ?? [], false);
+                        foreach ($asPanel['sessions'] ?? [] as $asSession) {
+                            $aliasCollect($asSession['calibrations'] ?? [], false);
+                            foreach ($asSession['filters'] ?? [] as $asFilter) {
+                                $aliasCollect($asFilter['lights'] ?? [], true);
+                                $aliasCollect($asFilter['calibrations'] ?? [], false);
+                            }
+                        }
+                    }
+                }
+                uksort($aliasFilters, 'strcasecmp');
+            }
+            ?>
+            <?php if (empty($aliasFilters)): ?>
+                <p class="text-sm text-gray-500"><?= __('projects_filter_aliases_empty') ?></p>
+            <?php else: ?>
+            <form method="POST" class="flex flex-col gap-3">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                <input type="hidden" name="action" value="save_filter_aliases">
+                <input type="hidden" name="project_id" value="<?= (int)$detail['id'] ?>">
+                <datalist id="aliasNames">
+                    <?php foreach (array_keys($aliasFilters) as $asName): ?>
+                    <option value="<?= htmlspecialchars($asName) ?>"></option>
+                    <?php endforeach; ?>
+                </datalist>
+                <?php foreach ($aliasFilters as $asRaw => $asCount): ?>
+                    <?php $asTarget = $filterAliases[mb_strtolower($asRaw)] ?? ''; ?>
+                    <label class="flex items-center justify-between gap-4 text-sm">
+                        <span class="text-gray-300"><?= htmlspecialchars($asRaw) ?>
+                            <span class="text-gray-500">(<?= (int)$asCount ?>)</span>
+                            <?php if ($asTarget !== ''): ?>
+                            <span class="text-teal-400">→ <?= htmlspecialchars($asTarget) ?></span>
+                            <?php endif; ?>
+                        </span>
+                        <input type="text" name="aliases[<?= htmlspecialchars($asRaw) ?>]" maxlength="50" list="aliasNames"
+                               value="<?= htmlspecialchars($asTarget) ?>"
+                               placeholder="<?= htmlspecialchars(__('projects_filter_aliases_canonical')) ?>"
+                               class="w-40 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100">
+                    </label>
+                <?php endforeach; ?>
+                <div class="flex justify-end gap-2 mt-2">
+                    <button type="submit" name="reset_aliases" value="1"
+                            class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors">
+                        <?= __('projects_reset') ?>
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                        <?= __('projects_save') ?>
+                    </button>
+                </div>
+            </form>
+            <?php endif; ?>
             </details>
         </section>
 

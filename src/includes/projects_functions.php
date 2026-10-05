@@ -1861,7 +1861,9 @@ function saveGroupThresholds(PDO $conn, int $projectId, int $setupId, int $panel
         || !projectOwnsNode($conn, $projectId, 'panel', $panelId)) {
         throw new InvalidArgumentException('Invalid group nodes');
     }
-    $filter = ($filter !== null && $filter !== '') ? substr($filter, 0, 50) : null;
+    // Threshold keys use the canonical filter so aliased names share one row.
+    $canon = canonFilterName(getProjectFilterAliases($conn, $projectId), $filter);
+    $filter = $canon !== '' ? substr($canon, 0, 50) : null;
     $exp = ($exptime !== null && $exptime !== '') ? round((float)$exptime, 3) : null;
     $cols = [];
     $anyAction = false;
@@ -2021,4 +2023,95 @@ function saveProjectGrouping(PDO $conn, int $projectId, array $values): void
         ':et' => $g['exp_tol'],
         ':tt' => $g['temp_tol'],
     ]);
+}
+
+/**
+ * Per-project filter alias map: [lowercase alias => canonical name].
+ * Always queried fresh (tiny indexed lookup); callers load it once per
+ * request and thread it through the pure canonicalization helper below.
+ */
+function getProjectFilterAliases(PDO $conn, int $projectId): array
+{
+    $out = [];
+    try {
+        $stmt = $conn->prepare("SELECT alias, canonical FROM project_filter_aliases WHERE project_id = :pid");
+        $stmt->execute([':pid' => $projectId]);
+        $rows = $stmt->fetchAll();
+    } catch (Exception $e) {
+        return $out;
+    }
+    if (!is_array($rows)) {
+        return $out;
+    }
+    foreach ($rows as $row) {
+        $alias = trim((string)($row['alias'] ?? ''));
+        $canon = trim((string)($row['canonical'] ?? ''));
+        if ($alias !== '' && $canon !== '') {
+            $out[mb_strtolower($alias)] = $canon;
+        }
+    }
+    return $out;
+}
+
+/**
+ * Canonical filter name for display-independent identity: trimmed raw name
+ * unless an alias maps it (case-insensitive) to a canonical name. Empty
+ * stays empty (the "no filter" group).
+ */
+function canonFilterName(array $aliasMap, ?string $name): string
+{
+    $trimmed = trim((string)($name ?? ''));
+    if ($trimmed === '') {
+        return '';
+    }
+    return $aliasMap[mb_strtolower($trimmed)] ?? $trimmed;
+}
+
+/**
+ * Upsert per-project filter aliases from [rawAlias => rawCanonical] pairs.
+ * Empty canonical deletes the mapping; alias equal to its canonical
+ * (case-insensitive) is a no-op delete. Canonicals that are themselves
+ * aliases are rejected (no chains, single-hop resolution only). Matching is
+ * always case-insensitive regardless of DB collation.
+ */
+function saveProjectFilterAliases(PDO $conn, int $projectId, array $pairs): void
+{
+    if (getProject($conn, $projectId) === null) {
+        throw new InvalidArgumentException('Invalid project');
+    }
+    $existing = getProjectFilterAliases($conn, $projectId);
+    $canonValues = function () use (&$existing): array {
+        $out = [];
+        foreach ($existing as $canon) {
+            $out[mb_strtolower($canon)] = true;
+        }
+        return $out;
+    };
+    $del = $conn->prepare(
+        "DELETE FROM project_filter_aliases WHERE project_id = :pid AND LOWER(alias) = LOWER(:alias)"
+    );
+    $ins = $conn->prepare(
+        "INSERT INTO project_filter_aliases (project_id, alias, canonical) VALUES (:pid, :alias, :canon)"
+    );
+    foreach ($pairs as $rawAlias => $rawCanon) {
+        $alias = substr(trim((string)$rawAlias), 0, 50);
+        $canon = substr(trim((string)$rawCanon), 0, 50);
+        if ($alias === '') {
+            continue;
+        }
+        $aliasLower = mb_strtolower($alias);
+        // Refresh existing view as we go (same-request chains stay rejected).
+        if ($canon === '' || $aliasLower === mb_strtolower($canon)) {
+            $del->execute([':pid' => $projectId, ':alias' => $alias]);
+            unset($existing[$aliasLower]);
+            continue;
+        }
+        $canonLower = mb_strtolower($canon);
+        if (isset($existing[$canonLower]) || isset($canonValues()[$aliasLower])) {
+            throw new InvalidArgumentException(__('projects_filter_aliases_error_loop', ['name' => $canon]));
+        }
+        $del->execute([':pid' => $projectId, ':alias' => $alias]);
+        $ins->execute([':pid' => $projectId, ':alias' => $alias, ':canon' => $canon]);
+        $existing[$aliasLower] = $canon;
+    }
 }

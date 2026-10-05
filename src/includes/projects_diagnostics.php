@@ -110,10 +110,11 @@ function matchDark(array $light, array $dark, array $tols): string
     return ($bin === null || $gain === null) ? 'yellow' : 'green';
 }
 
-function matchFlat(array $light, array $flat): string
+function matchFlat(array $light, array $flat, array $filterAliases = []): string
 {
-    $lf = trim((string)($light['filter'] ?? ''));
-    $ff = trim((string)($flat['filter'] ?? ''));
+    // Filter identity is canonical: aliased names (Ha/H-alpha) match.
+    $lf = canonFilterName($filterAliases, (string)($light['filter'] ?? ''));
+    $ff = canonFilterName($filterAliases, (string)($flat['filter'] ?? ''));
     if ($lf === '' || $ff === '' || strcasecmp($lf, $ff) !== 0) {
         return 'red';
     }
@@ -173,7 +174,9 @@ function bestCalibStatus(array $candidates, callable $matcher): string
 function getProjectTree(PDO $conn, int $projectId, bool $includePending = false): array
 {
     $tree = ['setups' => [], 'project_links' => []];
-
+    // Filter aliases (per project): filter nodes group by canonical name so
+    // 'Ha' and 'H-alpha' share one node, one export folder and one threshold key.
+    $filterAliases = getProjectFilterAliases($conn, $projectId);
     $setups = $conn->prepare("SELECT id, fingerprint, label, setup_no FROM project_setups WHERE project_id = :pid ORDER BY id ASC");
     $setups->execute([':pid' => $projectId]);
     $setupRows = $setups->fetchAll();
@@ -280,7 +283,7 @@ function getProjectTree(PDO $conn, int $projectId, bool $includePending = false)
                     }
                 }
                 foreach ($linksByNode['filter:' . $session['id']] ?? [] as $l) {
-                    $key = trim((string)($l['filter_name'] ?? $l['filter'] ?? ''));
+                    $key = canonFilterName($filterAliases, (string)($l['filter_name'] ?? $l['filter'] ?? ''));
                     $key = $key !== '' ? $key : '__nofilter__';
                     if ((int)$l['is_light'] === 1) {
                         $byFilter[$key][] = $l;
@@ -572,7 +575,7 @@ function fmtExpShort($exptime): string
  * Candidate pool per light = calibrations linked at filter/session/panel/setup/project
  * levels along its own chain (masters shadow subs per level+type).
  */
-function diagnoseProjectTree(array $tree, array $tols): array
+function diagnoseProjectTree(array $tree, array $tols, array $filterAliases = []): array
 {
     $out = [];
     $projectCals = array_values(array_filter(
@@ -604,7 +607,7 @@ function diagnoseProjectTree(array $tree, array $tols): array
                         $biases = array_values(array_filter($pool, fn($c) => strtoupper((string)$c['imgtype']) === 'BIAS'));
                         $out[(int)$light['file_id']] = [
                             'dark' => bestCalibStatus($darks, fn($c) => matchDark($light, $c, $tols)),
-                            'flat' => bestCalibStatus($flats, fn($c) => matchFlat($light, $c)),
+                            'flat' => bestCalibStatus($flats, fn($c) => matchFlat($light, $c, $filterAliases)),
                             'bias' => bestCalibStatus($biases, fn($c) => matchBias($light, $c)),
                         ];
                     }
@@ -706,7 +709,7 @@ function indexDuplicateLinks(array $tree): array
  * 'rows' => [...]]] for direct rendering; single-group nodes render without
  * a header. Pure display: matching and diagnostics are unaffected.
  */
-function groupCalibrations(array $cals, string $tolExp, string $tolTemp): array
+function groupCalibrations(array $cals, string $tolExp, string $tolTemp, array $filterAliases = []): array
 {
     $flats = $darks = $bias = $other = [];
     foreach ($cals as $c) {
@@ -728,10 +731,10 @@ function groupCalibrations(array $cals, string $tolExp, string $tolTemp): array
     if (!empty($flats)) {
         $byFilter = [];
         foreach ($flats as $f) {
-            $raw = trim((string)($f['filter'] ?? ''));
-            $key = mb_strtolower($raw);
+            $canon = canonFilterName($filterAliases, (string)($f['filter'] ?? ''));
+            $key = mb_strtolower($canon);
             if (!isset($byFilter[$key])) {
-                $byFilter[$key] = ['label' => $raw !== '' ? $raw : '—', 'rows' => []];
+                $byFilter[$key] = ['label' => $canon !== '' ? $canon : '—', 'rows' => []];
             }
             $byFilter[$key]['rows'][] = $f;
         }
@@ -1184,7 +1187,7 @@ function flatTreePanels(array $tree): array
  * Each light carries 'auto_off' (fails stored thresholds); counts, exposure
  * and medians cover effectively included files (enabled AND passing).
  */
-function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMap = [], string $tolTempRaw = '2C', ?array $grouping = null, ?array $posTols = null): array
+function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMap = [], string $tolTempRaw = '2C', ?array $grouping = null, ?array $posTols = null, array $filterAliases = []): array
 {
     $g = $grouping ?? (function_exists('defaultProjectGrouping') ? defaultProjectGrouping() : [
         'split_setup' => true, 'split_panel' => true, 'split_filter' => true,
@@ -1254,10 +1257,11 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
                             continue;
                         }
                         $fname = trim((string)($li['filter_name'] ?? $li['filter'] ?? ''));
+                        $canon = canonFilterName($filterAliases, $fname);
                         $key = (!empty($g['split_setup']) ? (int)$setup['id'] : '*')
                             . '|' . ($tileMode && $tileIdx !== null ? 'T' . $tileIdx
                                 : (!empty($g['split_panel']) ? (int)$panel['id'] : '*'))
-                            . '|' . (!empty($g['split_filter']) ? strtoupper($fname) : '*');
+                            . '|' . (!empty($g['split_filter']) ? strtoupper($canon) : '*');
                         if (!isset($pools[$key])) {
                             $pools[$key] = [
                                 'setup_id' => (int)$setup['id'],
@@ -1266,7 +1270,8 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
                                 'panel_id' => (int)$panel['id'],
                                 'panel_no' => (int)($panel['panel_no'] ?? $panel['id']),
                                 'panel_label' => $panelLabel,
-                                'filter' => $fname,
+                                'filter' => $canon,
+                                'filter_raw' => $fname,
                                 'merged_setup' => empty($g['split_setup']),
                                 'merged_panel' => empty($g['split_panel']),
                                 'merged_filter' => empty($g['split_filter']),
@@ -1354,7 +1359,10 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
             : [['exptime' => null, 'lights' => $pool['lights']]];
         foreach ($expBuckets as $eg) {
             // Thresholds are shared across temp buckets (never keyed by temp).
+            // Filter component is canonical; the legacy key keeps the raw
+            // first-seen name so pre-alias threshold rows still resolve.
             $repFilter = $pool['filter'] !== '' ? $pool['filter'] : null;
+            $rawFilter = ($pool['filter_raw'] ?? $pool['filter']) !== '' ? ($pool['filter_raw'] ?? $pool['filter']) : null;
             $tkey = groupThresholdKey(
                 $pool['setup_id'],
                 $pool['panel_id'],
@@ -1364,7 +1372,7 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
             $legacyKey = groupThresholdKey(
                 $pool['setup_id'],
                 $pool['panel_id'],
-                $repFilter,
+                $rawFilter,
                 $eg['exptime']
             );
             $tols = $thresholdMap[$tkey] ?? $thresholdMap[$legacyKey]

@@ -8,6 +8,7 @@ $__pendTols = [
     'exp' => (string)(($projectTols['tol_exp'] ?? null) ?? '1%'),
     'temp' => (string)(($projectTols['tol_temp'] ?? null) ?? '2C'),
 ];
+$__pendAliases = $filterAliases ?? [];
 function pendFileRows(array $lights): array
 {
     return array_values(array_filter($lights, fn($li) => !empty($li['pending'])));
@@ -63,7 +64,7 @@ function setupHasPend(array $setup): bool
     return false;
 }
 
-function renderPendCals(array $cals, array $tols): void
+function renderPendCals(array $cals, array $tols, array $filterAliases = []): void
 {
     $pend = array_values(array_filter($cals, fn($c) => !empty($c['pending'])));
     if (empty($pend)) {
@@ -72,7 +73,8 @@ function renderPendCals(array $cals, array $tols): void
     $groups = groupCalibrations(
         $pend,
         (string)($tols['exp'] ?? '1%'),
-        (string)($tols['temp'] ?? '2C')
+        (string)($tols['temp'] ?? '2C'),
+        $filterAliases
     );
     $showHeaders = count($groups) > 1;
     foreach ($groups as $g) {
@@ -130,7 +132,7 @@ unset($__s, $__p, $__sess, $__f);
                 <?php $setupPendCals = array_values(array_filter($setup['calibrations'], fn($c) => !empty($c['pending']))); ?>
                 <?php if (!empty($setupPendCals)): ?>
                     <ul class="flex flex-col gap-1 mb-2">
-                        <?php renderPendCals($setup['calibrations'], $__pendTols); ?>
+                        <?php renderPendCals($setup['calibrations'], $__pendTols, $__pendAliases); ?>
                     </ul>
                 <?php endif; ?>
                 <?php foreach ($setup['panels'] as $panel): ?>
@@ -151,7 +153,7 @@ unset($__s, $__p, $__sess, $__f);
                             <?php $panelPendCals = array_values(array_filter($panel['calibrations'], fn($c) => !empty($c['pending']))); ?>
                             <?php if (!empty($panelPendCals)): ?>
                                 <ul class="flex flex-col gap-1 mb-2">
-                                    <?php renderPendCals($panel['calibrations'], $__pendTols); ?>
+                                    <?php renderPendCals($panel['calibrations'], $__pendTols, $__pendAliases); ?>
                                 </ul>
                             <?php endif; ?>
                             <?php foreach ($panel['sessions'] as $session): ?>
@@ -187,14 +189,14 @@ unset($__s, $__p, $__sess, $__f);
                                                 </ul>
                                                 <?php endforeach; ?>
                                                 <ul class="flex flex-col gap-1">
-                                                    <?php renderPendCals($filter['calibrations'], $__pendTols); ?>
+                                                     <?php renderPendCals($filter['calibrations'], $__pendTols, $__pendAliases); ?>
                                                 </ul>
                                             </div>
                                         <?php endforeach; ?>
                                         <?php $sessPendCals = array_values(array_filter($session['calibrations'], fn($c) => !empty($c['pending']))); ?>
                                         <?php if (!empty($sessPendCals)): ?>
                                             <ul class="flex flex-col gap-1 mb-1">
-                                                <?php renderPendCals($session['calibrations'], $__pendTols); ?>
+                                                 <?php renderPendCals($session['calibrations'], $__pendTols, $__pendAliases); ?>
                                             </ul>
                                         <?php endif; ?>
                                     </div>

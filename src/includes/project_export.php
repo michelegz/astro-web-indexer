@@ -98,6 +98,7 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
         $tolExpRaw = '1%';
     }
     $grouping = getProjectGrouping($conn, $projectId);
+    $filterAliases = getProjectFilterAliases($conn, $projectId);
     $projectTree = markTreeAutoOff(
         $tree,
         indexAutoOffLights(getIntegrationGroups(
@@ -106,7 +107,8 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
             getProjectThresholds($conn, $projectId),
             (string)($tols['tol_temp'] ?? '2C'),
             $grouping,
-            $tols
+            $tols,
+            $filterAliases
         ))
     );
     // Cross-setup tiles (mosaics): panel id => tile number, shared by lights
@@ -284,12 +286,12 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
     };
 
     // Calibrations attached to one tree node (setup/panel/session/filter/project).
-    $emitNodeCals = function (string $dir, array $cals) use (&$emitCalGroup, &$skip, $tolExp, $tolTemp, &$sets): void {
+    $emitNodeCals = function (string $dir, array $cals) use (&$emitCalGroup, &$skip, $tolExp, $tolTemp, &$sets, $filterAliases): void {
         $live = array_values(array_filter($cals, fn($c) => empty($c['pending']) && !empty($c['enabled'])));
         if (empty($live)) {
             return;
         }
-        foreach (groupCalibrations($live, $tolExp, $tolTemp) as $g) {
+        foreach (groupCalibrations($live, $tolExp, $tolTemp, $filterAliases) as $g) {
             $kind = $g['kind'];
             if ($kind === 'flat') {
                 $flabel = exportSanitize((string)($g['label'] ?? ''));
