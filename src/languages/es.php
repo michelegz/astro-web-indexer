@@ -387,7 +387,7 @@ return [
 
     // Asistente
     'projects_review' => 'Sugerencias por revisar ({count})',
-    'projects_review_intro' => 'Enlaces propuestos. Acepta para enlazarlos al proyecto, descarta para no proponerlos nunca más. Los archivos en disco no se tocan.',
+    'projects_review_intro' => 'Enlaces propuestos. Acepta para enlazarlos al proyecto, descarta para no proponerlos mientras no cambien las tolerancias o las cabeceras. Los archivos en disco no se tocan.',
     'projects_file' => 'Archivo',
     'projects_target' => 'Destino',
     'projects_reason' => 'Motivo',
@@ -395,6 +395,10 @@ return [
     'projects_discard_selected' => 'Descartar selección',
     'projects_accepted' => '{count} sugerencias aceptadas.',
     'projects_discarded' => '{count} sugerencias descartadas.',
+    'projects_resuggest' => 'Reproponer ({count})',
+    'projects_resuggest_hint' => 'Borra los descartes y vuelve a proponer todo en la próxima reindexación.',
+    'projects_resuggested' => '{count} descartes borrados: se propondrán de nuevo en la próxima reindexación.',
+    'projects_resuggested_none' => 'Nada que reproponer.',
     'projects_no_pending' => 'Nada que revisar. Los nuevos archivos aparecerán aquí en modo sugerencia.',
 
     // Añadir al proyecto

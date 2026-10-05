@@ -19,6 +19,7 @@ Subject identity is coordinates + FoV; OBJECT is display-only / fallback.
 Rotation (objctrot) splits panels beyond tolerance; NULL = wildcard.
 """
 
+import hashlib
 import json
 import logging
 import math
@@ -57,6 +58,78 @@ DEFAULT_TOLS = {
     'tol_pos_fovfrac': '0.2',
     'tol_fov': '10%',
 }
+
+# Tolerances the suggester actually reads. tol_exp is absent on purpose (the
+# PHP side carries it for diagnostics/grouping only): including it would
+# re-open dismissed rows that can never match. Order is part of the contract
+# with projects_functions.php::getProjectSuggestConfigHash().
+SUGGEST_TOL_KEYS = ('tol_pos_arcmin', 'tol_pos_fovfrac', 'tol_rot', 'tol_fov')
+
+# Header columns the matcher consumes, raw values only. Order is part of the
+# contract with projects_functions.php::getProjectSuggestMatchInputs().
+SUGGEST_MATCH_FIELDS = (
+    'imgtype', 'filter', 'instrume', 'telescop', 'cameraid', 'xbinning',
+    'ybinning', 'gain', 'offset', 'xpixsz', 'ra', 'dec', 'objctra',
+    'objctdec', 'object', 'fov_w', 'fov_h', 'objctrot', 'date_obs',
+)
+
+
+def _suggest_tol_token(raw):
+    """Canonical form of one tolerance value.
+
+    Mirrors projectSuggestTolToken() in projects_functions.php: numeric prefix
+    normalized with string ops only (never float formatting, which differs
+    between runtimes), so '5', '5.0' and ' 5.00 ' collapse to one token.
+    Unparsable values keep their trimmed raw form.
+    """
+    text = str(raw).strip()
+    num = ''
+    for ch in text:
+        if ch.isdigit() or ch in '.-':
+            num += ch
+        else:
+            break
+    if num in ('', '-', '.', '-.'):
+        return text
+    sign = ''
+    if num.startswith('-'):
+        sign = '-'
+        num = num[1:]
+    if '.' in num:
+        int_part, frac = num.split('.', 1)
+    else:
+        int_part, frac = num, ''
+    int_part = int_part.lstrip('0') or '0'
+    frac = frac.rstrip('0')
+    return sign + int_part + ('.' + frac if frac else '')
+
+
+def _suggest_config_hash(project, globals_):
+    """md5 of the effective tolerances the suggester reads.
+
+    Effective values (override ?? global ?? default), same resolution as
+    tol(), so the PHP side hashing resolve_tol() produces the same digest.
+    """
+    lines = [k + '=' + _suggest_tol_token(tol(project, globals_, k))
+             for k in SUGGEST_TOL_KEYS]
+    return hashlib.md5('\n'.join(lines).encode('utf-8')).hexdigest()
+
+
+def _suggest_match_inputs(dcur, file_id):
+    """Canonical snapshot of the raw header values feeding the matcher.
+
+    Every column is read as CAST(... AS CHAR) so MySQL produces one text
+    rendering for both languages: this driver hands floats back as float
+    objects while PDO hands them back as strings, and comparing those would
+    silently make every dismissal stale.
+    """
+    selects = ', '.join('CAST(`%s` AS CHAR) AS `%s`' % (f, f) for f in SUGGEST_MATCH_FIELDS)
+    dcur.execute('SELECT %s FROM files WHERE id = %%s LIMIT 1' % selects, (file_id,))
+    row = dcur.fetchone()
+    if row is None:
+        return None
+    return '\n'.join('%s=%s' % (f, '~' if row.get(f) is None else row[f])
+                     for f in SUGGEST_MATCH_FIELDS)
 
 
 def _norm(value):
@@ -343,8 +416,15 @@ def find_or_create_session(dcur, panel_id, night):
     return dcur.lastrowid, True
 
 
-def already_processed(dcur, project_id, file_id):
-    """Linked already, or any suggestion row exists (pending/accepted/dismissed)."""
+def already_processed(dcur, project_id, file_id, project=None, globals_=None):
+    """Linked already, or a live suggestion row exists.
+
+    A dismissed row blocks the file only while it is still meaningful: it stays
+    valid while the matching config and the file headers are unchanged, and goes
+    stale as soon as either moves. Stale rows are deleted here so the caller can
+    rematch from scratch (a fresh INSERT could otherwise hit the UNIQUE
+    (project_id, file_id, level, node_id) index with a different node).
+    """
     dcur.execute(
         "SELECT 1 FROM project_files WHERE file_id = %s AND "
         "(node_id IN (SELECT id FROM project_setups WHERE project_id = %s) AND level = 'setup' "
@@ -358,10 +438,28 @@ def already_processed(dcur, project_id, file_id):
     if dcur.fetchone():
         return True
     dcur.execute(
-        "SELECT 1 FROM project_suggestions WHERE project_id = %s AND file_id = %s LIMIT 1",
+        "SELECT id, status, config_hash, match_inputs FROM project_suggestions "
+        "WHERE project_id = %s AND file_id = %s LIMIT 1",
         (project_id, file_id),
     )
-    return dcur.fetchone() is not None
+    row = dcur.fetchone()
+    if row is None:
+        return False
+    if row['status'] != 'dismissed':
+        return True
+    # NULL on either component means the row predates the stale tracking (or was
+    # written before this snapshot existed): treat it as stale so every
+    # dismissal is reconsidered exactly once.
+    if row['config_hash'] is None or row['match_inputs'] is None:
+        dcur.execute("DELETE FROM project_suggestions WHERE id = %s", (row['id'],))
+        return False
+    if project is None or globals_ is None:
+        return True
+    if row['config_hash'] == _suggest_config_hash(project, globals_):
+        if row['match_inputs'] == _suggest_match_inputs(dcur, file_id):
+            return True
+    dcur.execute("DELETE FROM project_suggestions WHERE id = %s", (row['id'],))
+    return False
 
 
 def get_override_setup(dcur, project_id, file_id):
@@ -374,13 +472,22 @@ def get_override_setup(dcur, project_id, file_id):
     return row['id'] if row else None
 
 
-def _insert_suggestion(dcur, project_id, file_id, level, node_id, filter_name, role, reason):
+def _insert_suggestion(dcur, project_id, file_id, level, node_id, filter_name, role,
+                       reason, config_hash=None, match_inputs=None):
+    """Insert a queued suggestion.
+
+    config_hash / match_inputs describe the context the suggestion was computed
+    with, so the UI can show it and a dismissed row is comparable. They are not
+    the source of truth for staleness: dismissSuggestion() rewrites them, since
+    the decision context is the one at dismissal time, not at suggestion time.
+    """
     try:
         dcur.execute(
             "INSERT INTO project_suggestions "
-            "(project_id, file_id, level, node_id, filter_name, role, reason) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
-            (project_id, file_id, level, node_id, filter_name, role, reason),
+            "(project_id, file_id, level, node_id, filter_name, role, reason, config_hash, match_inputs) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            (project_id, file_id, level, node_id, filter_name, role, reason,
+             config_hash, match_inputs),
         )
         return True
     except Exception as err:
@@ -402,7 +509,7 @@ def suggest_file(dcur, project, globals_, meta, file_id):
     mode = project['mode']
     if mode in ('manual', 'frozen'):
         return 'skipped'
-    if already_processed(dcur, project['id'], file_id):
+    if already_processed(dcur, project['id'], file_id, project, globals_):
         return 'skipped'
 
     imgtype = (meta.get('imgtype') or '').upper()
@@ -471,16 +578,21 @@ def suggest_file(dcur, project, globals_, meta, file_id):
     pos_note = (f"coords {ra:.4f}/{dec:+.4f} ({pos_source})" if ra is not None
                 else f"no coords, OBJECT bucket '{object_bucket}'")
     rot_note = 'rot unknown' if rot_unknown else f"rot Δ{rot_d:.1f}°"
+    config_hash = _suggest_config_hash(project, globals_)
+    # Short hash of the matching config, so the UI can tell which tolerances a
+    # suggestion (or an old dismissal) was computed with.
     reason = (f"{setup_note}; panel {sep * 60:.1f}′ away, {rot_note}; "
               f"night {night if night is not None else '?'}; {pos_note}; rule {imgtype}→{level}"
-              + (f" filter {filt}" if filt else ""))
+              + (f" filter {filt}" if filt else "")
+              + f"; cfg:{config_hash[:8]}")
 
     if mode == 'auto':
         _insert_link(dcur, file_id, level, node_id, filter_name, role, is_light)
         logger.info(f"Auto-linked {meta.get('path')} into project '{project['name']}': {reason}")
         return 'linked'
 
-    ok = _insert_suggestion(dcur, project['id'], file_id, level, node_id, filter_name, role, reason)
+    ok = _insert_suggestion(dcur, project['id'], file_id, level, node_id, filter_name, role,
+                            reason, config_hash, _suggest_match_inputs(dcur, file_id))
     return 'suggested' if ok else 'skipped'
 
 
@@ -530,7 +642,9 @@ def suggest_projects_for_files(conn, metas):
 def suggest_projects_backfill(conn, project_id=None):
     """Retroactive pass over the whole archive (on-demand --suggest-projects).
 
-    Never touches frozen projects, manual links, or dismissed suggestions.
+    Never touches frozen projects, manual links, or accepted/pending
+    suggestions. Dismissed rows are revisited only when the matching config or
+    the file headers changed since they were dismissed (see already_processed).
     """
     dcur = conn.cursor(dictionary=True)
     try:

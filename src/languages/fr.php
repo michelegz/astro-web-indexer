@@ -387,7 +387,7 @@ return [
 
     // Assistant
     'projects_review' => 'Suggestions à réviser ({count})',
-    'projects_review_intro' => 'Liens proposés. Acceptez pour les lier au projet, écartez pour ne plus jamais les proposer. Les fichiers sur disque ne sont pas touchés.',
+    'projects_review_intro' => 'Liens proposés. Acceptez pour les lier au projet, écartez pour ne plus les proposer tant que les tolérances ou les en-têtes ne changent pas. Les fichiers sur disque ne sont pas touchés.',
     'projects_file' => 'Fichier',
     'projects_target' => 'Cible',
     'projects_reason' => 'Motif',
@@ -395,6 +395,10 @@ return [
     'projects_discard_selected' => 'Écarter la sélection',
     'projects_accepted' => '{count} suggestions acceptées.',
     'projects_discarded' => '{count} suggestions écartées.',
+    'projects_resuggest' => 'Relancer ({count})',
+    'projects_resuggest_hint' => 'Efface les rejets et repropose tout au prochain réindexage.',
+    'projects_resuggested' => '{count} rejets effacés : ils seront reproposés au prochain réindexage.',
+    'projects_resuggested_none' => 'Aucun rejet à relancer.',
     'projects_no_pending' => 'Rien à réviser. Les nouveaux fichiers apparaîtront ici en mode suggestion.',
 
     // Ajout au projet

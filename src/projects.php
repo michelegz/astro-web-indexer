@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = $_POST['action'] ?? '';
         try {
             // Project-scoped actions require an accessible project first.
-            $needsProject = ['update', 'save_mode', 'delete', 'accept_suggestions', 'dismiss_suggestions', 'save_tolerances', 'save_grouping', 'save_filter_aliases', 'remove_links', 'disable_links', 'enable_links', 'promote_links', 'demote_links', 'set_scope', 'save_thresholds', 'rename_setup'];
+            $needsProject = ['update', 'save_mode', 'delete', 'accept_suggestions', 'dismiss_suggestions', 'resuggest_dismissed', 'save_tolerances', 'save_grouping', 'save_filter_aliases', 'remove_links', 'disable_links', 'enable_links', 'promote_links', 'demote_links', 'set_scope', 'save_thresholds', 'rename_setup'];
             if (in_array($action, $needsProject, true)) {
                 $gid = (int)($_POST['project_id'] ?? 0);
                 $gproj = $gid > 0 ? getProject($conn, $gid) : null;
@@ -89,6 +89,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message = $action === 'accept_suggestions'
                     ? __('projects_accepted', ['count' => $done])
                     : __('projects_discarded', ['count' => $done]);
+                $messageType = 'success';
+            } elseif ($action === 'resuggest_dismissed') {
+                $id = (int)($_POST['project_id'] ?? 0);
+                $target = $id > 0 ? getProject($conn, $id) : null;
+                if ($target === null) {
+                    throw new InvalidArgumentException(__('projects_error_name'));
+                }
+                // Only offered outside frozen mode, where nothing is ever
+                // proposed in the first place.
+                if (getProjectAssignMode($target) === 'frozen') {
+                    throw new InvalidArgumentException(__('projects_add_frozen'));
+                }
+                $done = resuggestDismissed($conn, $id);
+                $message = $done > 0
+                    ? __('projects_resuggested', ['count' => $done])
+                    : __('projects_resuggested_none');
                 $messageType = 'success';
             } elseif ($action === 'remove_links' || $action === 'disable_links' || $action === 'enable_links') {
                 $id = (int)($_POST['project_id'] ?? 0);
@@ -245,6 +261,7 @@ $defs = getToleranceDefs();
 $detailOverrides = $detail !== null ? getProjectTolerances($detail['tolerances']) : [];
 $detailMode = $detail !== null ? getProjectAssignMode($detail) : 'suggest';
 $detailPending = $detail !== null ? getPendingCount($conn, (int)$detail['id']) : 0;
+$detailDismissed = $detail !== null ? getDismissedCount($conn, (int)$detail['id']) : 0;
 $assignModes = getAssignModes();
 $pendingTree = $detail !== null ? getProjectTree($conn, (int)$detail['id'], true) : null;
 $projectTree = $pendingTree !== null ? stripPendingTree($pendingTree) : null;
@@ -576,6 +593,17 @@ if ($projectBlocked) {
                     <button type="button" id="sugModalClose" class="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
                 </div>
                 <p class="text-sm text-gray-400 mb-4"><?= __('projects_review_intro') ?></p>
+                <?php if ($detailDismissed > 0): ?>
+                <form method="POST" class="mb-4">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                    <input type="hidden" name="project_id" value="<?= (int)$detail['id'] ?>">
+                    <button type="submit" name="action" value="resuggest_dismissed"
+                            class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white rounded text-sm transition-colors">
+                        <?= __('projects_resuggest', ['count' => $detailDismissed]) ?>
+                    </button>
+                    <span class="text-xs text-gray-500 ml-2"><?= __('projects_resuggest_hint') ?></span>
+                </form>
+                <?php endif; ?>
             <?php if ($detailPending === 0): ?>
                 <p class="text-gray-500 text-sm"><?= __('projects_no_pending') ?></p>
             <?php else: ?>

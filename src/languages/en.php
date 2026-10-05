@@ -387,7 +387,7 @@ return [
 
     // Wizard
     'projects_review' => 'Review suggestions ({count})',
-    'projects_review_intro' => 'Proposed file links. Accept to link them into the project, discard to never propose them again. Files on disk are never touched.',
+    'projects_review_intro' => 'Proposed file links. Accept to link them into the project, discard to stop proposing them until tolerances or headers change. Files on disk are never touched.',
     'projects_file' => 'File',
     'projects_target' => 'Target',
     'projects_reason' => 'Why',
@@ -395,6 +395,10 @@ return [
     'projects_discard_selected' => 'Discard selected',
     'projects_accepted' => '{count} suggestions accepted.',
     'projects_discarded' => '{count} suggestions discarded.',
+    'projects_resuggest' => 'Fish again ({count})',
+    'projects_resuggest_hint' => 'Clears the discards and reproposes everything on the next reindex.',
+    'projects_resuggested' => '{count} discards cleared: they will be reproposed on the next reindex.',
+    'projects_resuggested_none' => 'Nothing to fish again.',
     'projects_no_pending' => 'Nothing to review. New indexed files will appear here in suggest mode.',
 
     // Add to project

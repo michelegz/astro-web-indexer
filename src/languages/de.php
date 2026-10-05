@@ -386,7 +386,7 @@ return [
 
     // Assistent
     'projects_review' => 'Vorschläge prüfen ({count})',
-    'projects_review_intro' => 'Vorgeschlagene Verknüpfungen. Annehmen zum Verlinken, verwerfen um sie nie wieder vorzuschlagen. Dateien auf der Platte bleiben unberührt.',
+    'projects_review_intro' => 'Vorgeschlagene Verknüpfungen. Annehmen zum Verlinken, verwerfen um sie nicht mehr vorzuschlagen, bis sich Toleranzen oder Header ändern. Dateien auf der Platte bleiben unberührt.',
     'projects_file' => 'Datei',
     'projects_target' => 'Ziel',
     'projects_reason' => 'Grund',
@@ -394,6 +394,10 @@ return [
     'projects_discard_selected' => 'Auswahl verwerfen',
     'projects_accepted' => '{count} Vorschläge angenommen.',
     'projects_discarded' => '{count} Vorschläge verworfen.',
+    'projects_resuggest' => 'Neu vorschlagen ({count})',
+    'projects_resuggest_hint' => 'Entfernt die Verwerfungen und schlägt beim nächsten Reindex alles erneut vor.',
+    'projects_resuggested' => '{count} Verwerfungen entfernt: sie werden beim nächsten Reindex erneut vorgeschlagen.',
+    'projects_resuggested_none' => 'Nichts zum erneuten Vorschlagen.',
     'projects_no_pending' => 'Nichts zu prüfen. Neue Dateien erscheinen hier im Vorschlagsmodus.',
 
     // Zum Projekt hinzufügen

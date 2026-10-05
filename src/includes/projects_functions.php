@@ -47,6 +47,20 @@ function getPendingCount(PDO $conn, int $projectId): int
 }
 
 /**
+ * Suggestions previously discarded by the user. They still come back on their
+ * own when the matching config or the file headers change, so this count is
+ * informational: the manual "fish again" button is the fallback.
+ */
+function getDismissedCount(PDO $conn, int $projectId): int
+{
+    $stmt = $conn->prepare(
+        "SELECT COUNT(*) FROM project_suggestions WHERE project_id = :id AND status = 'dismissed'"
+    );
+    $stmt->execute([':id' => $projectId]);
+    return (int)$stmt->fetchColumn();
+}
+
+/**
  * Wizard queue: pending suggestions with file info for display.
  */
 function getPendingSuggestions(PDO $conn, int $projectId, int $limit = 500): array
@@ -160,14 +174,122 @@ function acceptSuggestion(PDO $conn, int $projectId, int $suggestionId): bool
 }
 
 /**
- * Discard a suggestion: never proposed again. Prunes the node if it became
- * an empty panel/session with no other references.
+ * Tolerances the Python suggester actually reads (docker/python/
+ * indexer_lib/projects.py, suggest_file). tol_exp and tol_temp are excluded on
+ * purpose: they drive diagnostics/grouping only, so including them would
+ * re-open dismissed rows that can never match.
+ * Order is part of the contract with the Python side.
+ */
+const PROJECT_SUGGEST_TOL_KEYS = ['tol_pos_arcmin', 'tol_pos_fovfrac', 'tol_rot', 'tol_fov'];
+
+/**
+ * File header columns the suggester matches on, in a fixed order. Raw values
+ * only: no parsing is shared with Python, so the two implementations cannot
+ * drift on RA/DEC or fingerprint formatting. Order is part of the contract.
+ */
+const PROJECT_SUGGEST_MATCH_FIELDS = [
+    'imgtype', 'filter', 'instrume', 'telescop', 'cameraid', 'xbinning',
+    'ybinning', 'gain', 'offset', 'xpixsz', 'ra', 'dec', 'objctra',
+    'objctdec', 'object', 'fov_w', 'fov_h', 'objctrot', 'date_obs',
+];
+
+/**
+ * Canonical token for one tolerance value: numeric prefix normalized with
+ * string ops only (no float formatting, which differs across runtimes), so
+ * '5', '5.0' and ' 5.00 ' all collapse to the same token. Unparsable values
+ * keep their trimmed raw form. Mirrors _suggest_tol_token() in projects.py.
+ */
+function projectSuggestTolToken(string $raw): string
+{
+    $text = trim($raw);
+    $num = '';
+    foreach (str_split($text) as $ch) {
+        if (ctype_digit($ch) || $ch === '.' || $ch === '-') {
+            $num .= $ch;
+        } else {
+            break;
+        }
+    }
+    if ($num === '' || $num === '-' || $num === '.' || $num === '-.') {
+        return $text;
+    }
+    $sign = '';
+    if ($num[0] === '-') {
+        $sign = '-';
+        $num = substr($num, 1);
+    }
+    $dot = strpos($num, '.');
+    if ($dot === false) {
+        $int = $num;
+        $frac = '';
+    } else {
+        $int = substr($num, 0, $dot);
+        $frac = substr($num, $dot + 1);
+    }
+    $int = ltrim($int, '0');
+    if ($int === '') {
+        $int = '0';
+    }
+    $frac = rtrim($frac, '0');
+    return $sign . $int . ($frac !== '' ? '.' . $frac : '');
+}
+
+/**
+ * md5 of the effective tolerances the suggester reads (project override ??>
+ * global ??> code default, exactly as resolve_tol()/Python tol() do).
+ * Stored at dismissal time so a later dismissal stays valid until the user
+ * really changes the matching config.
+ */
+function getProjectSuggestConfigHash(PDO $conn, int $projectId): string
+{
+    $lines = [];
+    foreach (PROJECT_SUGGEST_TOL_KEYS as $key) {
+        $lines[] = $key . '=' . projectSuggestTolToken(resolve_tol($conn, $projectId, $key));
+    }
+    return md5(implode("\n", $lines));
+}
+
+/**
+ * Canonical snapshot of the raw header values the matcher consumes.
+ *
+ * Every column is read as CAST(... AS CHAR) on purpose: PDO hands floats and
+ * doubles back as strings while the Python driver hands back float objects,
+ * so the same value would otherwise be rendered differently on each side.
+ * Letting MySQL produce one text rendering for both makes the comparison
+ * byte-exact and keeps this side free of any parsing logic.
+ */
+function getProjectSuggestMatchInputs(PDO $conn, int $fileId): ?string
+{
+    $selects = [];
+    foreach (PROJECT_SUGGEST_MATCH_FIELDS as $f) {
+        $selects[] = 'CAST(`' . $f . '` AS CHAR) AS `' . $f . '`';
+    }
+    $stmt = $conn->prepare(
+        'SELECT ' . implode(', ', $selects) . ' FROM files WHERE id = :id LIMIT 1'
+    );
+    $stmt->execute([':id' => $fileId]);
+    $row = $stmt->fetch();
+    if ($row === false) {
+        return null;
+    }
+    $lines = [];
+    foreach (PROJECT_SUGGEST_MATCH_FIELDS as $f) {
+        $v = $row[$f] ?? null;
+        $lines[] = $f . '=' . ($v === null ? '~' : (string)$v);
+    }
+    return implode("\n", $lines);
+}
+
+/**
+ * Discard a suggestion: never proposed again until the matching config or the
+ * file headers change (compare config_hash / match_inputs). Prunes the node if
+ * it became an empty panel/session with no other references.
  * Returns true if a pending row was actually discarded.
  */
 function dismissSuggestion(PDO $conn, int $projectId, int $suggestionId): bool
 {
     $stmt = $conn->prepare(
-        "SELECT s.level, s.node_id, f.path FROM project_suggestions s "
+        "SELECT s.level, s.node_id, s.file_id, f.path FROM project_suggestions s "
         . "JOIN files f ON f.id = s.file_id "
         . "WHERE s.id = :sid AND s.project_id = :pid AND s.status = 'pending'"
     );
@@ -180,10 +302,19 @@ function dismissSuggestion(PDO $conn, int $projectId, int $suggestionId): bool
         && function_exists('canAccessPath') && !canAccessPath((string)$row['path'])) {
         return false;
     }
+    // Snapshot the decision context INSIDE the transaction: the hash must
+    // describe the config as it is at dismissal time, not as it was when the
+    // file was suggested.
     $conn->beginTransaction();
     try {
-        $conn->prepare("UPDATE project_suggestions SET status = 'dismissed' WHERE id = :sid")
-            ->execute([':sid' => $suggestionId]);
+        $conn->prepare(
+            "UPDATE project_suggestions SET status = 'dismissed', "
+            . "config_hash = :hash, match_inputs = :inputs WHERE id = :sid"
+        )->execute([
+            ':hash' => getProjectSuggestConfigHash($conn, $projectId),
+            ':inputs' => getProjectSuggestMatchInputs($conn, (int)$row['file_id']),
+            ':sid' => $suggestionId,
+        ]);
         // Bottom-up prune chain (shared with manual link removal).
         projectPruneUpwards($conn, (string)$row['level'], (int)$row['node_id']);
         $conn->commit();
@@ -192,6 +323,20 @@ function dismissSuggestion(PDO $conn, int $projectId, int $suggestionId): bool
         $conn->rollBack();
         throw $e;
     }
+}
+
+/**
+ * Drop every dismissed suggestion of a project so the next suggest pass
+ * reproposes them all (manual "fish again" escape hatch). Pending and accepted
+ * rows are untouched. Returns the number of dismissed rows removed.
+ */
+function resuggestDismissed(PDO $conn, int $projectId): int
+{
+    $stmt = $conn->prepare(
+        "DELETE FROM project_suggestions WHERE project_id = :pid AND status = 'dismissed'"
+    );
+    $stmt->execute([':pid' => $projectId]);
+    return $stmt->rowCount();
 }
 
 /**

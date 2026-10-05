@@ -387,7 +387,7 @@ return [
 
     // Wizard
     'projects_review' => 'Suggerimenti da revisionare ({count})',
-    'projects_review_intro' => 'Collegamenti proposti. Accetta per collegarli al progetto, scarta per non riproporli mai più. I file su disco non vengono toccati.',
+    'projects_review_intro' => 'Collegamenti proposti. Accetta per collegarli al progetto, scarta per non riproporli finché tolleranze e header non cambiano. I file su disco non vengono toccati.',
     'projects_file' => 'File',
     'projects_target' => 'Destinazione',
     'projects_reason' => 'Motivo',
@@ -395,6 +395,10 @@ return [
     'projects_discard_selected' => 'Scarta selezionati',
     'projects_accepted' => '{count} suggerimenti accettati.',
     'projects_discarded' => '{count} suggerimenti scartati.',
+    'projects_resuggest' => 'Ripesca ({count})',
+    'projects_resuggest_hint' => 'Rimuove gli scarti e ripropone tutto al prossimo reindex.',
+    'projects_resuggested' => '{count} scarti rimossi: verranno riproposti al prossimo reindex.',
+    'projects_resuggested_none' => 'Nessuno scarto da ripescare.',
     'projects_no_pending' => 'Nulla da revisionare. I nuovi file appariranno qui in modalità suggerimento.',
 
     // Aggiunta a progetto
