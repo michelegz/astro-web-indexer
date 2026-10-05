@@ -220,6 +220,15 @@ function pruneSessionNode(PDO $conn, int $nodeId): ?int
     if ($live->fetch() !== false) {
         return null;
     }
+    // A session targeted by a calibration scope is not empty: it carries
+    // live intent just like a pending suggestion (see moveProjectLink).
+    $scoped = $conn->prepare(
+        "SELECT 1 FROM project_calib_scope WHERE session_id = :node LIMIT 1"
+    );
+    $scoped->execute([':node' => $nodeId]);
+    if ($scoped->fetch() !== false) {
+        return null;
+    }
     $parent = $conn->prepare("SELECT panel_id FROM project_sessions WHERE id = :node");
     $parent->execute([':node' => $nodeId]);
     $r = $parent->fetch();
@@ -259,6 +268,16 @@ function prunePanelNode(PDO $conn, int $nodeId): ?int
     );
     $live->execute([':node' => $nodeId]);
     if ($live->fetch() !== false) {
+        return null;
+    }
+    // Same live-intent rule for scopes targeting this panel's sessions.
+    $scoped = $conn->prepare(
+        "SELECT 1 FROM project_calib_scope sc "
+        . "JOIN project_sessions ss ON ss.id = sc.session_id "
+        . "WHERE ss.panel_id = :node LIMIT 1"
+    );
+    $scoped->execute([':node' => $nodeId]);
+    if ($scoped->fetch() !== false) {
         return null;
     }
     $parent = $conn->prepare("SELECT setup_id FROM project_panels WHERE id = :node");
@@ -304,6 +323,17 @@ function pruneEmptySetup(PDO $conn, int $setupId): void
     $ov = $conn->prepare("SELECT 1 FROM setup_overrides WHERE setup_id = :sid LIMIT 1");
     $ov->execute([':sid' => $setupId]);
     if ($ov->fetch() !== false) {
+        return;
+    }
+    // Scopes targeting this setup's sessions keep it alive (see above).
+    $scoped = $conn->prepare(
+        "SELECT 1 FROM project_calib_scope sc "
+        . "JOIN project_sessions ss ON ss.id = sc.session_id "
+        . "JOIN project_panels pp ON pp.id = ss.panel_id "
+        . "WHERE pp.setup_id = :sid LIMIT 1"
+    );
+    $scoped->execute([':sid' => $setupId]);
+    if ($scoped->fetch() !== false) {
         return;
     }
     $conn->prepare("DELETE FROM project_setups WHERE id = :sid")->execute([':sid' => $setupId]);
@@ -381,10 +411,37 @@ function parseProjectLinkKey(string $key): ?array
 }
 
 /**
+ * Session ids descending from a setup/panel node (empty for other levels).
+ */
+function projectSessionsUnder(PDO $conn, string $level, int $nodeId): array
+{
+    if ($level === 'setup') {
+        $st = $conn->prepare(
+            "SELECT ss.id FROM project_sessions ss "
+            . "JOIN project_panels pp ON pp.id = ss.panel_id "
+            . "WHERE pp.setup_id = :n"
+        );
+        $st->execute([':n' => $nodeId]);
+        return array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+    }
+    if ($level === 'panel') {
+        $st = $conn->prepare("SELECT id FROM project_sessions WHERE panel_id = :n");
+        $st->execute([':n' => $nodeId]);
+        return array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+    }
+    return [];
+}
+
+/**
  * Move one calibration link one level along its chain (session ⇄ panel ⇄ setup).
  * The move is DELETE + INSERT preserving role/enabled/filter_name/is_light,
- * then the old chain is pruned bottom-up. Throws on missing link, frozen
- * project, foreign nodes or non-adjacent targets (no identical duplicates).
+ * then the old chain is pruned bottom-up. Session scope (project_calib_scope)
+ * follows the link: rows are re-keyed onto the new identity, keeping only
+ * sessions that still descend from the target node (same validity rule as
+ * setProjectCalibScope). Moves to session/filter level drop the scope, which
+ * cannot exist there: the unscoped link keeps working by position.
+ * Throws on missing link, frozen project, foreign nodes or non-adjacent
+ * targets (no identical duplicates).
  */
 function moveProjectLink(PDO $conn, int $projectId, int $fid,
     string $fromLevel, int $fromNode, string $toLevel, int $toNode): void
@@ -428,8 +485,18 @@ function moveProjectLink(PDO $conn, int $projectId, int $fid,
     }
     $conn->beginTransaction();
     try {
+        $scopeRows = $conn->prepare(
+            "SELECT session_id FROM project_calib_scope WHERE file_id = :fid AND level = :level AND node_id = :node"
+        );
+        $scopeRows->execute([':fid' => $fid, ':level' => $fromLevel, ':node' => $fromNode]);
+        $scopeSessions = array_map('intval', $scopeRows->fetchAll(PDO::FETCH_COLUMN));
         $conn->prepare(
             "DELETE FROM project_files WHERE file_id = :fid AND level = :level AND node_id = :node"
+        )->execute([':fid' => $fid, ':level' => $fromLevel, ':node' => $fromNode]);
+        // Explicit cleanup on top of the FK cascade (engine-independent):
+        // stale rows under the old identity must never resurrect.
+        $conn->prepare(
+            "DELETE FROM project_calib_scope WHERE file_id = :fid AND level = :level AND node_id = :node"
         )->execute([':fid' => $fid, ':level' => $fromLevel, ':node' => $fromNode]);
         $conn->prepare(
             "INSERT INTO project_files (file_id, level, node_id, filter_name, role, is_light, enabled) "
@@ -439,6 +506,23 @@ function moveProjectLink(PDO $conn, int $projectId, int $fid,
             ':filter' => $link['filter_name'], ':role' => $link['role'],
             ':light' => $link['is_light'], ':en' => $link['enabled'],
         ]);
+        if (!empty($scopeSessions) && ($toLevel === 'setup' || $toLevel === 'panel')) {
+            // The DELETE above cascade-drops the old scope rows: re-key the
+            // surviving ones onto the new link identity. Sessions outside the
+            // target subtree are dropped (they would match nothing, same as
+            // the setProjectCalibScope validity rule).
+            $under = projectSessionsUnder($conn, $toLevel, $toNode);
+            $keep = array_values(array_intersect($scopeSessions, $under));
+            if (!empty($keep)) {
+                $ins = $conn->prepare(
+                    "INSERT INTO project_calib_scope (file_id, level, node_id, session_id) "
+                    . "VALUES (:fid, :level, :node, :sid)"
+                );
+                foreach ($keep as $sid) {
+                    $ins->execute([':fid' => $fid, ':level' => $toLevel, ':node' => $toNode, ':sid' => $sid]);
+                }
+            }
+        }
         projectPruneUpwards($conn, $fromLevel, $fromNode);
         $conn->commit();
     } catch (Exception $e) {
@@ -766,6 +850,11 @@ function removeProjectLinks(PDO $conn, int $projectId, array $keys): int
             $del->execute([':fid' => $fid, ':level' => $level, ':node' => $node]);
             if ($del->rowCount() > 0) {
                 $removed++;
+                // Scope rows carry no enforced FK: drop them explicitly or a
+                // future re-link at the same identity would resurrect them.
+                $conn->prepare(
+                    "DELETE FROM project_calib_scope WHERE file_id = :fid AND level = :level AND node_id = :node"
+                )->execute([':fid' => $fid, ':level' => $level, ':node' => $node]);
                 // A removed file becomes a candidate again: drop its accepted
                 // history row so the next scan can re-propose it. Dismissed
                 // rows stay dismissed (explicit rejection wins).
@@ -911,9 +1000,29 @@ function deleteProject(PDO $conn, int $id): void
 {
     // project_files has no FK to the project tables (node_id is level-scoped),
     // so remove this project's links explicitly. Setups/panels/sessions,
-    // overrides, merges and suggestions cascade via FK.
+    // overrides, merges and suggestions cascade via FK. Scope rows carry no
+    // enforced FK either: clean them explicitly (by link identity and by
+    // session) or they linger as garbage that a future re-link could resurrect.
     $conn->beginTransaction();
     try {
+        $conn->prepare(
+            "DELETE sc FROM project_calib_scope sc "
+            . "JOIN project_files pf ON pf.file_id = sc.file_id AND pf.level = sc.level AND pf.node_id = sc.node_id "
+            . "WHERE (pf.level = 'project' AND pf.node_id = :pid) "
+            . "OR (pf.level = 'setup' AND pf.node_id IN (SELECT id FROM project_setups WHERE project_id = :pid2)) "
+            . "OR (pf.level = 'panel' AND pf.node_id IN (SELECT pp.id FROM project_panels pp "
+            . "JOIN project_setups ps ON ps.id = pp.setup_id WHERE ps.project_id = :pid3)) "
+            . "OR (pf.level IN ('session','filter') AND pf.node_id IN (SELECT ss.id FROM project_sessions ss "
+            . "JOIN project_panels pp ON pp.id = ss.panel_id "
+            . "JOIN project_setups ps ON ps.id = pp.setup_id WHERE ps.project_id = :pid4))"
+        )->execute([':pid' => $id, ':pid2' => $id, ':pid3' => $id, ':pid4' => $id]);
+        $conn->prepare(
+            "DELETE sc FROM project_calib_scope sc "
+            . "JOIN project_sessions ss ON ss.id = sc.session_id "
+            . "JOIN project_panels pp ON pp.id = ss.panel_id "
+            . "JOIN project_setups ps ON ps.id = pp.setup_id "
+            . "WHERE ps.project_id = :pid"
+        )->execute([':pid' => $id]);
         $conn->prepare(
             "DELETE FROM project_files WHERE (level = 'project' AND node_id = :pid) "
             . "OR (level = 'setup' AND node_id IN (SELECT id FROM project_setups WHERE project_id = :pid2)) "
