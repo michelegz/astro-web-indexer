@@ -35,7 +35,7 @@ try {
         'sets' => $map['sets'],
         'tiles' => $map['tiles'] ?? [],
         'skipped' => $map['skipped'],
-        'duplicates_resolved' => $map['duplicates_resolved'],
+        'duplicated_files' => $map['duplicated_files'],
         'manifest' => $map['manifest'],
     ]);
 } catch (Exception $e) {

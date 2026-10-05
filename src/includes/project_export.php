@@ -151,6 +151,8 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
 
     $st = [
         'entries' => [], 'sets' => [], 'skipped' => [],
+        // 'seen' maps fid => first zip_path emitted, 'dups' is the report
+        // keyed the same way (see $addFile).
         'seen' => [], 'dups' => [], 'used' => [],
     ];
 
@@ -159,11 +161,10 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
         if ($fid <= 0) {
             return;
         }
-        if (isset($st['seen'][$fid])) {
-            $st['dups'][] = ['name' => (string)($f['name'] ?? "#$fid"), 'kept_in' => $st['seen'][$fid], 'skipped_in' => $dir];
-            return;
-        }
         $base = (string)($f['name'] ?? "file_$fid.fits");
+        // Name collisions are resolved per target folder (used is keyed by
+        // dir + "\0" + name), so the same file emitted into two folders keeps
+        // its plain name in both and both paths stay distinct.
         $name = $base;
         $i = 1;
         while (isset($st['used'][$dir . "\0" . $name])) {
@@ -171,10 +172,24 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
             $name = $dot === false ? $base . '_' . $i : substr($base, 0, $dot) . '_' . $i . substr($base, $dot);
             $i++;
         }
+        $zipPath = $dir . '/' . $name;
+        // A file requested by more than one folder is emitted in every one of
+        // them: each setup needs its own calibration on disk. Report it
+        // instead of silently dropping one copy.
+        if (isset($st['seen'][$fid])) {
+            if (!isset($st['dups'][$fid])) {
+                $st['dups'][$fid] = [
+                    'name' => $base,
+                    'fid' => $fid,
+                    'paths' => [$st['seen'][$fid]],
+                ];
+            }
+            $st['dups'][$fid]['paths'][] = $zipPath;
+        }
         $st['used'][$dir . "\0" . $name] = true;
-        $st['seen'][$fid] = $dir . '/' . $name;
+        $st['seen'][$fid] = $zipPath;
         $st['entries'][] = [
-            'zip_path' => $dir . '/' . $name,
+            'zip_path' => $zipPath,
             'fid' => $fid,
             'src' => (string)($f['path'] ?? ''),
             'kind' => $kind,
@@ -318,7 +333,6 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
                 }
                 $leaf = ($kind === 'darkflat' ? 'DARKFLAT/' : 'DARK/') . implode('_', $parts);
             } elseif ($kind === 'bias') {
-            } elseif ($kind === 'bias') {
                 $leaf = 'BIAS';
             } else {
                 $oleaf = exportSanitize(strtoupper((string)($g['label'] ?? 'CAL')));
@@ -448,12 +462,15 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
         }
     }
     ksort($folders);
+    // Map keyed by fid while walking (O(1) duplicate lookup), reported as a
+    // flat list: one record per file, holding every folder it was copied into.
+    $duplicatedFiles = array_values($st['dups']);
     return [
         'entries' => $st['entries'],
         'sets' => $sets,
         'tiles' => $tileLegend,
         'skipped' => $st['skipped'],
-        'duplicates_resolved' => $st['dups'],
+        'duplicated_files' => $duplicatedFiles,
         'manifest' => [
             'project' => (string)($project['name'] ?? ''),
             'exported_at' => date('c'),
@@ -461,7 +478,7 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
             'tiles' => $tileLegend,
             'folders' => $folders,
             'skipped' => $st['skipped'],
-            'duplicates_resolved' => $st['dups'],
+            'duplicated_files' => $duplicatedFiles,
         ],
     ];
 }

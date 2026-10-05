@@ -111,6 +111,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $message = __('projects_move_noop');
                 } else {
                     $message = __('projects_moved_bulk', ['done' => $res['done'], 'failed' => $res['skipped'] + ($res['noop'] ?? 0)]);
+                    // Any move drops the session scope: say it out loud
+                    // instead of leaving the user with a silently wider link.
+                    if (($res['scope_cleared'] ?? 0) > 0) {
+                        $message .= ' ' . __('projects_scope_cleared', ['count' => $res['scope_cleared']]);
+                    }
                 }
                 $messageType = 'success';
             } elseif ($action === 'set_scope') {
@@ -958,6 +963,15 @@ if ($projectBlocked) {
                             html += `<details class="mt-3"><summary class="cursor-pointer text-xs text-gray-400">`
                                 + `${esc(window.i18n?.projects_export_skipped || 'Skipped')} (${skipped.length})</summary><ul class="text-xs text-gray-500">`
                                 + skipped.map(s => `<li>${esc(s.name)} — ${esc(s.reason)}</li>`).join('')
+                                + `</ul></details>`;
+                        }
+                        // Files requested by more than one folder are copied
+                        // into each of them, so the ZIP carries N copies.
+                        const duplicated = data.duplicated_files || [];
+                        if (duplicated.length) {
+                            html += `<details class="mt-3" open><summary class="cursor-pointer text-xs text-gray-400">`
+                                + `${esc(window.i18n?.projects_export_duplicated || 'Duplicated')} (${duplicated.length})</summary><ul class="text-xs text-gray-500">`
+                                + duplicated.map(d => `<li>${esc(d.name)} — ${d.paths.map(esc).join(', ')}</li>`).join('')
                                 + `</ul></details>`;
                         }
                         body.innerHTML = html;
@@ -1810,7 +1824,9 @@ if ($projectBlocked) {
             sff_frames_found_js: <?= json_encode(__('sff_frames_found_js')) ?>,
             sff_configure_and_run: <?= json_encode(__('sff_configure_and_run')) ?>,
             projects_scope_no_cal: <?= json_encode(__('projects_scope_no_cal')) ?>,
-            projects_scope_single_setup: <?= json_encode(__('projects_scope_single_setup')) ?>
+            projects_scope_single_setup: <?= json_encode(__('projects_scope_single_setup')) ?>,
+            projects_export_skipped: <?= json_encode(__('projects_export_skipped')) ?>,
+            projects_export_duplicated: <?= json_encode(__('projects_export_duplicated')) ?>
         });
     </script>
     <script src="assets/js/sff.js?v=<?= @filemtime(__DIR__ . '/assets/js/sff.js') ?: 0 ?>"></script>

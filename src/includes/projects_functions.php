@@ -411,40 +411,20 @@ function parseProjectLinkKey(string $key): ?array
 }
 
 /**
- * Session ids descending from a setup/panel node (empty for other levels).
- */
-function projectSessionsUnder(PDO $conn, string $level, int $nodeId): array
-{
-    if ($level === 'setup') {
-        $st = $conn->prepare(
-            "SELECT ss.id FROM project_sessions ss "
-            . "JOIN project_panels pp ON pp.id = ss.panel_id "
-            . "WHERE pp.setup_id = :n"
-        );
-        $st->execute([':n' => $nodeId]);
-        return array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
-    }
-    if ($level === 'panel') {
-        $st = $conn->prepare("SELECT id FROM project_sessions WHERE panel_id = :n");
-        $st->execute([':n' => $nodeId]);
-        return array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
-    }
-    return [];
-}
-
-/**
  * Move one calibration link one level along its chain (session ⇄ panel ⇄ setup).
  * The move is DELETE + INSERT preserving role/enabled/filter_name/is_light,
  * then the old chain is pruned bottom-up. Session scope (project_calib_scope)
- * follows the link: rows are re-keyed onto the new identity, keeping only
- * sessions that still descend from the target node (same validity rule as
- * setProjectCalibScope). Moves to session/filter level drop the scope, which
- * cannot exist there: the unscoped link keeps working by position.
+ * is always dropped: the user picks the target node, not a subset of sessions
+ * under it, so carrying (or silently intersecting) the old scope would either
+ * lose it without notice or hand back a scope the user never asked for. The
+ * unscoped link keeps working by position. Callers surface scope_cleared so
+ * the UI can tell the user to re-check the assignment.
+ * Returns ['moved' => true, 'scope_cleared' => bool].
  * Throws on missing link, frozen project, foreign nodes or non-adjacent
  * targets (no identical duplicates).
  */
 function moveProjectLink(PDO $conn, int $projectId, int $fid,
-    string $fromLevel, int $fromNode, string $toLevel, int $toNode): void
+    string $fromLevel, int $fromNode, string $toLevel, int $toNode): array
 {
     $allowed = ['session', 'panel', 'setup'];
     if ($fid <= 0 || !in_array($fromLevel, $allowed, true) || !in_array($toLevel, $allowed, true)) {
@@ -506,25 +486,11 @@ function moveProjectLink(PDO $conn, int $projectId, int $fid,
             ':filter' => $link['filter_name'], ':role' => $link['role'],
             ':light' => $link['is_light'], ':en' => $link['enabled'],
         ]);
-        if (!empty($scopeSessions) && ($toLevel === 'setup' || $toLevel === 'panel')) {
-            // The DELETE above cascade-drops the old scope rows: re-key the
-            // surviving ones onto the new link identity. Sessions outside the
-            // target subtree are dropped (they would match nothing, same as
-            // the setProjectCalibScope validity rule).
-            $under = projectSessionsUnder($conn, $toLevel, $toNode);
-            $keep = array_values(array_intersect($scopeSessions, $under));
-            if (!empty($keep)) {
-                $ins = $conn->prepare(
-                    "INSERT INTO project_calib_scope (file_id, level, node_id, session_id) "
-                    . "VALUES (:fid, :level, :node, :sid)"
-                );
-                foreach ($keep as $sid) {
-                    $ins->execute([':fid' => $fid, ':level' => $toLevel, ':node' => $toNode, ':sid' => $sid]);
-                }
-            }
-        }
+        // The DELETE above already dropped every scope row of the old identity
+        // and none is re-inserted: the scope is reported to the caller instead.
         projectPruneUpwards($conn, $fromLevel, $fromNode);
         $conn->commit();
+        return ['moved' => true, 'scope_cleared' => !empty($scopeSessions)];
     } catch (Exception $e) {
         if ($conn->inTransaction()) {
             $conn->rollBack();
@@ -673,13 +639,14 @@ function setProjectCalibScope(PDO $conn, int $projectId, array $keys, array $ses
 /**
  * Bulk promote calibration links one level up (session/filter->panel,
  * panel->setup). Lights and setup-level links are no-ops, not failures.
- * Returns ['done' => n, 'skipped' => m, 'noop' => k].
+ * Returns ['done' => n, 'skipped' => m, 'noop' => k, 'scope_cleared' => n].
  */
 function promoteCalibLinks(PDO $conn, int $projectId, array $keys): array
 {
     $done = 0;
     $skipped = 0;
     $noop = 0;
+    $scopeCleared = 0;
     $project = getProject($conn, $projectId);
     if ($project === null) {
         throw new InvalidArgumentException(__('projects_error_name'));
@@ -736,13 +703,18 @@ function promoteCalibLinks(PDO $conn, int $projectId, array $keys): array
             $to = ['panel', (int)$srow['panel_id']];
         }
         try {
-            moveProjectLink($conn, $projectId, $fid, $level, $node, $to[0], $to[1]);
+            $res = moveProjectLink($conn, $projectId, $fid, $level, $node, $to[0], $to[1]);
             $done++;
+            // Only successful moves can have dropped a scope: a throw rolls
+            // the whole move back, so nothing was cleared.
+            if (!empty($res['scope_cleared'])) {
+                $scopeCleared++;
+            }
         } catch (Exception $e) {
             $skipped++;
         }
     }
-    return ['done' => $done, 'skipped' => $skipped, 'noop' => $noop];
+    return ['done' => $done, 'skipped' => $skipped, 'noop' => $noop, 'scope_cleared' => $scopeCleared];
 }
 
 /**
@@ -750,13 +722,14 @@ function promoteCalibLinks(PDO $conn, int $projectId, array $keys): array
  * level only; created when missing). Lights, session-level links and files
  * without date_obs are no-ops, not failures. For setup-level links the panel
  * holding a session on that night wins, else the first panel by panel_no.
- * Returns ['done', 'skipped', 'noop'].
+ * Returns ['done', 'skipped', 'noop', 'scope_cleared'].
  */
 function demoteCalibLinks(PDO $conn, int $projectId, array $keys): array
 {
     $done = 0;
     $skipped = 0;
     $noop = 0;
+    $scopeCleared = 0;
     $project = getProject($conn, $projectId);
     if ($project === null) {
         throw new InvalidArgumentException(__('projects_error_name'));
@@ -817,13 +790,18 @@ function demoteCalibLinks(PDO $conn, int $projectId, array $keys): array
         }
         try {
             $targetSession = projectFindOrCreateSession($conn, $targetPanel, $night);
-            moveProjectLink($conn, $projectId, $fid, $level, $node, 'session', $targetSession);
+            $res = moveProjectLink($conn, $projectId, $fid, $level, $node, 'session', $targetSession);
             $done++;
+            // Only successful moves can have dropped a scope: a throw rolls
+            // the whole move back, so nothing was cleared.
+            if (!empty($res['scope_cleared'])) {
+                $scopeCleared++;
+            }
         } catch (Exception $e) {
             $skipped++;
         }
     }
-    return ['done' => $done, 'skipped' => $skipped, 'noop' => $noop];
+    return ['done' => $done, 'skipped' => $skipped, 'noop' => $noop, 'scope_cleared' => $scopeCleared];
 }
 
 /**
