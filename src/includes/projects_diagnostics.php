@@ -899,16 +899,39 @@ function projectMedian(array $values): ?float
 }
 
 /**
- * Integration groups: enabled linked LIGHTS sharing setup + panel + filter +
- * exposure (tolerance), transversal to sessions (i.e. stackable sets).
+ * Integration groups: enabled linked LIGHTS sharing the active split levels,
+ * transversal to sessions (i.e. stackable sets, multi-night by design).
  * Returns stable-sorted groups with covered nights and total exposure.
  *
- * With $thresholdMap (from getProjectThresholds()), each light also carries
- * 'auto_off' (fails stored thresholds); counts, exposure and medians cover
- * effectively included files (manually enabled AND passing thresholds).
+ * $grouping (from getProjectGrouping(), defaults = historical behaviour):
+ * split_setup/split_panel/split_filter ON = separate pools per level;
+ * split_exposure ON = clusterExposures() with exp_tol (else one bucket);
+ * split_temp ON = absolute-°C buckets with temp_tol (else median display only).
+ * NULL/empty exp_tol/temp_tol inherit $tolExpRaw/$tolTempRaw.
+ * Session/night never splits; binning/gain ride inside the setup fingerprint.
+ *
+ * Thresholds resolve per exposure bucket on the representative coordinates
+ * (first light's setup/panel; filter/exptime normalized to NULL when their
+ * split is OFF and shared across temp buckets), with fallback to the legacy
+ * full key so pre-existing rows keep working. Merged setups/panels therefore
+ * share thresholds by design (exceptional configs only).
+ * Each light carries 'auto_off' (fails stored thresholds); counts, exposure
+ * and medians cover effectively included files (enabled AND passing).
  */
-function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMap = [], string $tolTempRaw = '2C'): array
+function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMap = [], string $tolTempRaw = '2C', ?array $grouping = null): array
 {
+    $g = $grouping ?? (function_exists('defaultProjectGrouping') ? defaultProjectGrouping() : [
+        'split_setup' => true, 'split_panel' => true, 'split_filter' => true,
+        'split_exposure' => true, 'split_temp' => false, 'exp_tol' => null, 'temp_tol' => null,
+    ]);
+    $expTolEff = trim((string)($g['exp_tol'] ?? ''));
+    if ($expTolEff === '') {
+        $expTolEff = $tolExpRaw;
+    }
+    $tempTolEff = trim((string)($g['temp_tol'] ?? ''));
+    if ($tempTolEff === '') {
+        $tempTolEff = $tolTempRaw;
+    }
     $pools = [];
     foreach ($tree['setups'] ?? [] as $setup) {
         $setupLabel = ($setup['label'] !== null && $setup['label'] !== '')
@@ -935,7 +958,9 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
                             continue;
                         }
                         $fname = trim((string)($li['filter_name'] ?? $li['filter'] ?? ''));
-                        $key = $setup['id'] . '|' . $panel['id'] . '|' . strtoupper($fname);
+                        $key = (!empty($g['split_setup']) ? (int)$setup['id'] : '*')
+                            . '|' . (!empty($g['split_panel']) ? (int)$panel['id'] : '*')
+                            . '|' . (!empty($g['split_filter']) ? strtoupper($fname) : '*');
                         if (!isset($pools[$key])) {
                             $pools[$key] = [
                                 'setup_id' => (int)$setup['id'],
@@ -945,6 +970,9 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
                                 'panel_no' => (int)($panel['panel_no'] ?? $panel['id']),
                                 'panel_label' => $panelLabel,
                                 'filter' => $fname,
+                                'merged_setup' => empty($g['split_setup']),
+                                'merged_panel' => empty($g['split_panel']),
+                                'merged_filter' => empty($g['split_filter']),
                                 'lights' => [],
                             ];
                         }
@@ -957,73 +985,95 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
         }
     }
     $groups = [];
+    $pushGroup = function (array $pool, $exptime, array $bucketLights, array $tols, string $tkey) use (&$groups): void {
+        $egLights = [];
+        $effective = [];
+        foreach ($bucketLights as $li) {
+            // Manually disabled files are excluded from integration groups entirely.
+            if (empty($li['enabled'])) {
+                continue;
+            }
+            $li['auto_off'] = lightThresholdRejected($li, $tols);
+            $egLights[] = $li;
+            if (empty($li['auto_off'])) {
+                $effective[] = $li;
+            }
+        }
+        $nights = [];
+        $exp = 0.0;
+        foreach ($effective as $li) {
+            $exp += (float)($li['exptime'] ?? 0);
+            if (isset($li['night'])) {
+                $nights[$li['night']] = true;
+            }
+        }
+        $nightList = array_keys($nights);
+        sort($nightList);
+        $groups[] = [
+            'setup_id' => $pool['setup_id'],
+            'setup_no' => $pool['setup_no'],
+            'panel_id' => $pool['panel_id'],
+            'tkey' => $tkey,
+            'thresholds' => $tols,
+            'setup_label' => $pool['setup_label'],
+            'panel_label' => $pool['panel_label'],
+            'panel_no' => $pool['panel_no'],
+            'filter' => $pool['filter'],
+            'merged_setup' => $pool['merged_setup'],
+            'merged_panel' => $pool['merged_panel'],
+            'merged_filter' => $pool['merged_filter'],
+            'exptime' => $exptime,
+            'rep_exp' => projectMedian(array_column($egLights, 'exptime')),
+            'rep_temp' => projectMedian(array_column($egLights, 'ccd_temp')),
+            'nights' => $nightList,
+            'lights' => $egLights,
+            'count' => count($effective),
+            'exposure' => $exp,
+            'medians' => [
+                'hfr' => projectMedian(array_column($effective, 'hfr')),
+                'fwhm' => projectMedian(array_column($effective, 'fwhm')),
+                'hfr_sd' => projectMedian(array_column($effective, 'hfr_sd')),
+                'eccentricity' => projectMedian(array_column($effective, 'eccentricity')),
+                'star_count' => projectMedian(array_column($effective, 'star_count')),
+                'snr_weight' => projectMedian(array_column($effective, 'snr_weight')),
+                'psf_signal' => projectMedian(array_column($effective, 'psf_signal')),
+            ],
+        ];
+    };
     foreach ($pools as $pool) {
-        foreach (clusterExposures($pool['lights'], $tolExpRaw) as $eg) {
-            // Temperature splits calibration (which dark) but never integration
-            // (which lights stack): one group per exposure cluster, with the
-            // median temperature shown for information only.
+        $expBuckets = !empty($g['split_exposure'])
+            ? clusterExposures($pool['lights'], $expTolEff)
+            : [['exptime' => null, 'lights' => $pool['lights']]];
+        foreach ($expBuckets as $eg) {
+            // Thresholds are shared across temp buckets (never keyed by temp).
+            $repFilter = $pool['filter'] !== '' ? $pool['filter'] : null;
             $tkey = groupThresholdKey(
                 $pool['setup_id'],
                 $pool['panel_id'],
-                $pool['filter'] !== '' ? $pool['filter'] : null,
+                empty($g['split_filter']) ? null : $repFilter,
+                !empty($g['split_exposure']) ? $eg['exptime'] : null
+            );
+            $legacyKey = groupThresholdKey(
+                $pool['setup_id'],
+                $pool['panel_id'],
+                $repFilter,
                 $eg['exptime']
             );
-            $tols = $thresholdMap[$tkey] ?? array_fill_keys(array_keys(groupThresholdDirs()), null);
-            $egLights = [];
-            $effective = [];
-            foreach ($eg['lights'] as $li) {
-                // Manually disabled files are excluded from integration groups entirely.
-                if (empty($li['enabled'])) {
-                    continue;
+            $tols = $thresholdMap[$tkey] ?? $thresholdMap[$legacyKey]
+                ?? array_fill_keys(array_keys(groupThresholdDirs()), null);
+            if (!empty($g['split_temp'])) {
+                foreach (bucketCalibTemps($eg['lights'], $tempTolEff) as $tb) {
+                    $pushGroup($pool, $eg['exptime'], $tb['rows'], $tols, $tkey);
                 }
-                $li['auto_off'] = lightThresholdRejected($li, $tols);
-                $egLights[] = $li;
-                if (empty($li['auto_off'])) {
-                    $effective[] = $li;
-                }
+            } else {
+                // One group per exposure bucket, median temperature for info only.
+                $pushGroup($pool, $eg['exptime'], $eg['lights'], $tols, $tkey);
             }
-            $nights = [];
-            $exp = 0.0;
-            foreach ($effective as $li) {
-                $exp += (float)($li['exptime'] ?? 0);
-                if (isset($li['night'])) {
-                    $nights[$li['night']] = true;
-                }
-            }
-            $nightList = array_keys($nights);
-            sort($nightList);
-            $groups[] = [
-                'setup_id' => $pool['setup_id'],
-                'setup_no' => $pool['setup_no'],
-                'panel_id' => $pool['panel_id'],
-                'tkey' => $tkey,
-                'thresholds' => $tols,
-                'setup_label' => $pool['setup_label'],
-                'panel_label' => $pool['panel_label'],
-                'panel_no' => $pool['panel_no'],
-                'filter' => $pool['filter'],
-                'exptime' => $eg['exptime'],
-                'rep_exp' => projectMedian(array_column($egLights, 'exptime')),
-                'rep_temp' => projectMedian(array_column($egLights, 'ccd_temp')),
-                'nights' => $nightList,
-                'lights' => $egLights,
-                'count' => count($effective),
-                'exposure' => $exp,
-                'medians' => [
-                    'hfr' => projectMedian(array_column($effective, 'hfr')),
-                    'fwhm' => projectMedian(array_column($effective, 'fwhm')),
-                    'hfr_sd' => projectMedian(array_column($effective, 'hfr_sd')),
-                    'eccentricity' => projectMedian(array_column($effective, 'eccentricity')),
-                    'star_count' => projectMedian(array_column($effective, 'star_count')),
-                    'snr_weight' => projectMedian(array_column($effective, 'snr_weight')),
-                    'psf_signal' => projectMedian(array_column($effective, 'psf_signal')),
-                ],
-            ];
         }
     }
     usort($groups, fn($a, $b) =>
-        [$a['setup_no'], $a['panel_no'], $a['filter'], (float)($a['exptime'] ?? -1)]
-        <=> [$b['setup_no'], $b['panel_no'], $b['filter'], (float)($b['exptime'] ?? -1)]);
+        [$a['setup_no'], $a['panel_no'], $a['filter'], (float)($a['exptime'] ?? -1), (float)($a['rep_temp'] ?? -9999)]
+        <=> [$b['setup_no'], $b['panel_no'], $b['filter'], (float)($b['exptime'] ?? -1), (float)($b['rep_temp'] ?? -9999)]);
     return $groups;
 }
 

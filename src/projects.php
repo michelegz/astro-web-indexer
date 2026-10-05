@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = $_POST['action'] ?? '';
         try {
             // Project-scoped actions require an accessible project first.
-            $needsProject = ['update', 'save_mode', 'delete', 'accept_suggestions', 'dismiss_suggestions', 'save_tolerances', 'remove_links', 'disable_links', 'enable_links', 'promote_links', 'demote_links', 'set_scope', 'save_thresholds', 'rename_setup'];
+            $needsProject = ['update', 'save_mode', 'delete', 'accept_suggestions', 'dismiss_suggestions', 'save_tolerances', 'save_grouping', 'remove_links', 'disable_links', 'enable_links', 'promote_links', 'demote_links', 'set_scope', 'save_thresholds', 'rename_setup'];
             if (in_array($action, $needsProject, true)) {
                 $gid = (int)($_POST['project_id'] ?? 0);
                 $gproj = $gid > 0 ? getProject($conn, $gid) : null;
@@ -154,6 +154,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $message = __('projects_updated');
                 $messageType = 'success';
+            } elseif ($action === 'save_grouping') {
+                $id = (int)($_POST['project_id'] ?? 0);
+                if ($id <= 0 || getProject($conn, $id) === null) {
+                    throw new InvalidArgumentException(__('projects_error_name'));
+                }
+                if (isset($_POST['reset_grouping'])) {
+                    $conn->prepare("DELETE FROM project_grouping WHERE project_id = :pid")
+                        ->execute([':pid' => $id]);
+                } else {
+                    saveProjectGrouping($conn, $id, [
+                        'split_setup' => !empty($_POST['split_setup']),
+                        'split_panel' => !empty($_POST['split_panel']),
+                        'split_filter' => !empty($_POST['split_filter']),
+                        'split_exposure' => !empty($_POST['split_exposure']),
+                        'split_temp' => !empty($_POST['split_temp']),
+                        'exp_tol' => trim((string)($_POST['exp_tol'] ?? '')),
+                        'temp_tol' => trim((string)($_POST['temp_tol'] ?? '')),
+                    ]);
+                }
+                $message = __('projects_updated');
+                $messageType = 'success';
             }
         } catch (Exception $e) {
             $message = $e->getMessage();
@@ -207,8 +228,9 @@ if ($tolExpRaw === '') {
     $tolExpRaw = '1%';
 }
 $projectDiag = $projectTree !== null ? diagnoseProjectTree($projectTree, $projectTols) : [];
+$grouping = $detail !== null ? getProjectGrouping($conn, (int)$detail['id']) : defaultProjectGrouping();
 $intGroups = $projectTree !== null
-    ? getIntegrationGroups($projectTree, $tolExpRaw, $detail !== null ? getProjectThresholds($conn, (int)$detail['id']) : [], (string)($projectTols['tol_temp'] ?? '2C'))
+    ? getIntegrationGroups($projectTree, $tolExpRaw, $detail !== null ? getProjectThresholds($conn, (int)$detail['id']) : [], (string)($projectTols['tol_temp'] ?? '2C'), $grouping)
     : [];
 if ($projectTree !== null && !empty($intGroups)) {
     $projectTree = markTreeAutoOff($projectTree, indexAutoOffLights($intGroups));
@@ -482,7 +504,7 @@ if ($projectBlocked) {
 
         <section class="bg-gray-800 rounded-lg p-6 mb-6">
             <details open>
-            <summary class="text-lg font-semibold cursor-pointer mb-2"><?= __('projects_tree') ?></summary>
+            <summary class="text-lg font-semibold cursor-pointer mb-2"><?= __('projects_tree') ?> <span class="ml-2 inline-block px-2 py-0.5 text-xs font-medium rounded bg-blue-900/50 border border-blue-700 text-blue-300 align-middle"><?= htmlspecialchars(__('projects_pre_badge')) ?></span></summary>
             <form method="POST" id="treeBulkForm">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <input type="hidden" name="project_id" value="<?= (int)$detail['id'] ?>">
@@ -837,7 +859,45 @@ if ($projectBlocked) {
 
         <section class="bg-gray-800 rounded-lg p-6">
             <details open>
-            <summary class="text-lg font-semibold cursor-pointer mb-2"><?= __('projects_igroups') ?></summary>
+            <summary class="text-lg font-semibold cursor-pointer mb-2"><?= __('projects_igroups') ?> <span class="ml-2 inline-block px-2 py-0.5 text-xs font-medium rounded bg-teal-900/50 border border-teal-700 text-teal-300 align-middle"><?= htmlspecialchars(__('projects_post_badge')) ?></span></summary>
+            <details class="mb-4 border border-gray-700 rounded-lg">
+                <summary class="cursor-pointer px-4 py-2 hover:bg-gray-700/40 rounded text-sm font-medium"><?= htmlspecialchars(__('projects_grouping')) ?></summary>
+                <form method="POST" class="px-4 py-3 flex flex-col gap-2">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                    <input type="hidden" name="action" value="save_grouping">
+                    <input type="hidden" name="project_id" value="<?= (int)$detail['id'] ?>">
+                    <p class="text-xs text-gray-400"><?= htmlspecialchars(__('projects_grouping_intro')) ?></p>
+                    <div class="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+                        <?php foreach (['split_setup' => 'projects_grouping_setup', 'split_panel' => 'projects_grouping_panel', 'split_filter' => 'projects_grouping_filter', 'split_exposure' => 'projects_grouping_exposure', 'split_temp' => 'projects_grouping_temp'] as $gk => $glabel): ?>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" name="<?= $gk ?>" value="1" <?= !empty($grouping[$gk]) ? 'checked' : '' ?> class="rounded bg-gray-600 border-gray-500">
+                            <?= htmlspecialchars(__($glabel)) ?>
+                        </label>
+                        <?php endforeach; ?>
+                    </div>
+                    <div class="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+                        <label class="flex items-center gap-2 text-gray-300"><?= htmlspecialchars(__('projects_grouping_exp_tol')) ?>
+                            <input type="text" name="exp_tol" maxlength="64" value="<?= htmlspecialchars((string)($grouping['exp_tol'] ?? '')) ?>"
+                                   placeholder="<?= htmlspecialchars(__('projects_inherit_default', ['value' => $tolExpRaw])) ?>"
+                                   class="w-28 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100">
+                        </label>
+                        <label class="flex items-center gap-2 text-gray-300"><?= htmlspecialchars(__('projects_grouping_temp_tol')) ?>
+                            <input type="text" name="temp_tol" maxlength="64" value="<?= htmlspecialchars((string)($grouping['temp_tol'] ?? '')) ?>"
+                                   placeholder="<?= htmlspecialchars(__('projects_inherit_default', ['value' => (string)($projectTols['tol_temp'] ?? '2C')])) ?>"
+                                   class="w-28 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100">
+                        </label>
+                    </div>
+                    <div class="flex justify-end gap-2 mt-1">
+                        <button type="submit" name="reset_grouping" value="1"
+                                class="px-3 py-1 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors">
+                            <?= __('projects_grouping_reset') ?>
+                        </button>
+                        <button type="submit" class="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors">
+                            <?= __('projects_save') ?>
+                        </button>
+                    </div>
+                </form>
+            </details>
             <?php if (!empty($intGroups)): ?>
             <script src="assets/js/vendor/chart.umd.min.js"></script>
             <?php endif; ?>
@@ -871,7 +931,7 @@ if ($projectBlocked) {
                     <?php $grpAuto = count(array_filter($grp['lights'], fn($li) => !empty($li['auto_off']))); ?>
                     <div class="mb-2 border border-gray-700 rounded-lg igroup" data-group="<?= (int)$gi ?>">
                         <div class="px-4 pt-2 text-sm font-medium">
-                            <?= 'S' . (int)($grp['setup_no'] ?? 0) ?> · <?= htmlspecialchars($grp['panel_label']) ?> · <?= __('projects_filter') ?> <?= htmlspecialchars($grp['filter'] !== '' ? $grp['filter'] : '—') ?> · <?= htmlspecialchars(fmtExpShort($grp['rep_exp'] ?? $grp['exptime'])) ?>
+                            <?php if (!empty($grp['merged_setup'])): ?><span class="text-gray-400">S*</span><?php else: ?>S<?= (int)($grp['setup_no'] ?? 0) ?><?php endif; ?> · <?php if (!empty($grp['merged_panel'])): ?><span class="text-gray-400">P*</span><?php else: ?><?= htmlspecialchars($grp['panel_label']) ?><?php endif; ?><?php if (empty($grp['merged_filter'])): ?> · <?= __('projects_filter') ?> <?= htmlspecialchars($grp['filter'] !== '' ? $grp['filter'] : '—') ?><?php endif; ?> · <?= htmlspecialchars(fmtExpShort($grp['rep_exp'] ?? $grp['exptime'])) ?><?php if ($grp['exptime'] === null): ?> <span class="text-gray-400" title="<?= htmlspecialchars(__('projects_grouping_merged')) ?>">*</span><?php endif; ?><?php if (!empty($grouping['split_temp']) && $grp['rep_temp'] !== null): ?> · <?= htmlspecialchars(repTempDisplay($grp['rep_temp'])) ?><?php endif; ?>
                         </div>
                         <div class="px-4 pb-2 text-xs text-gray-400">
                             <?= htmlspecialchars(__('projects_lights_count', ['count' => $grp['count']])) ?> · <span title="<?= htmlspecialchars(fmtExp((float)$grp['exposure'])) ?>"><?= htmlspecialchars(number_format((float)$grp['exposure'] / 3600, 1)) ?> h</span> · <?= htmlspecialchars(__('projects_igroup_nights', ['count' => count($grp['nights'])])) ?>: <?= htmlspecialchars(implode(', ', $grp['nights'])) ?> · <?= htmlspecialchars(__('projects_igroup_excluded', ['total' => $grpAuto])) ?>
@@ -885,7 +945,7 @@ if ($projectBlocked) {
                     <details>
                         <summary class="cursor-pointer px-4 py-1.5 hover:bg-gray-700/40 rounded text-sm text-gray-300">📏 <?= __('projects_reject_title') ?></summary>
                         <div class="px-4 py-2">
-                            <div class="igroup-reject" data-setup="<?= (int)$grp['setup_id'] ?>" data-panel="<?= (int)$grp['panel_id'] ?>" data-filter="<?= htmlspecialchars($grp['filter']) ?>" data-exp="<?= htmlspecialchars((string)($grp['exptime'] ?? '')) ?>">
+                            <div class="igroup-reject" data-setup="<?= (int)$grp['setup_id'] ?>" data-panel="<?= (int)$grp['panel_id'] ?>" data-filter="<?= htmlspecialchars(!empty($grp['merged_filter']) ? '' : $grp['filter']) ?>" data-exp="<?= htmlspecialchars((string)($grp['exptime'] ?? '')) ?>">
                                 <div class="flex flex-wrap gap-x-4 gap-y-2">
                                     <?php
                                     $rejLabels = ['hfr' => __('hfr'), 'fwhm' => __('fwhm'), 'hfr_sd' => __('hfr_sd'), 'eccentricity' => __('eccentricity'), 'star_count' => __('star_count'), 'snr_weight' => __('snr_weight'), 'psf_signal' => __('psf_signal')];

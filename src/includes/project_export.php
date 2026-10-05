@@ -97,7 +97,8 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
             $tree,
             $tolExpRaw,
             getProjectThresholds($conn, $projectId),
-            (string)($tols['tol_temp'] ?? '2C')
+            (string)($tols['tol_temp'] ?? '2C'),
+            getProjectGrouping($conn, $projectId)
         ))
     );
 

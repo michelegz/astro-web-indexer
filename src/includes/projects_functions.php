@@ -1788,3 +1788,87 @@ function lightThresholdRejected(array $light, array $tols): bool
     }
     return false;
 }
+
+/**
+ * Integration-group split criteria for a project. Missing row (table absent
+ * on old DBs, or never saved) => historical defaults: everything ON except
+ * temperature, no tolerance overrides (NULL = inherit tol_exp/tol_temp).
+ */
+function defaultProjectGrouping(): array
+{
+    return [
+        'split_setup' => true,
+        'split_panel' => true,
+        'split_filter' => true,
+        'split_exposure' => true,
+        'split_temp' => false,
+        'exp_tol' => null,
+        'temp_tol' => null,
+    ];
+}
+
+function getProjectGrouping(PDO $conn, int $projectId): array
+{
+    $out = defaultProjectGrouping();
+    try {
+        $stmt = $conn->prepare("SELECT * FROM project_grouping WHERE project_id = :pid");
+        $stmt->execute([':pid' => $projectId]);
+        $row = $stmt->fetch();
+    } catch (Exception $e) {
+        return $out;
+    }
+    if ($row === false) {
+        return $out;
+    }
+    foreach (['split_setup', 'split_panel', 'split_filter', 'split_exposure', 'split_temp'] as $k) {
+        if (array_key_exists($k, $row)) {
+            $out[$k] = (bool)$row[$k];
+        }
+    }
+    foreach (['exp_tol', 'temp_tol'] as $k) {
+        if (array_key_exists($k, $row)) {
+            $v = trim((string)($row[$k] ?? ''));
+            $out[$k] = $v !== '' ? substr($v, 0, 64) : null;
+        }
+    }
+    return $out;
+}
+
+/**
+ * Upsert grouping criteria. Checkbox-style values: truthy = ON.
+ * Tolerance strings are validated loosely (empty = inherit); hard failures
+ * come from the parsers at grouping time, never here.
+ */
+function saveProjectGrouping(PDO $conn, int $projectId, array $values): void
+{
+    if (getProject($conn, $projectId) === null) {
+        throw new InvalidArgumentException('Invalid project');
+    }
+    $g = defaultProjectGrouping();
+    foreach (['split_setup', 'split_panel', 'split_filter', 'split_exposure', 'split_temp'] as $k) {
+        if (array_key_exists($k, $values)) {
+            $g[$k] = !empty($values[$k]);
+        }
+    }
+    foreach (['exp_tol', 'temp_tol'] as $k) {
+        $raw = trim((string)($values[$k] ?? ''));
+        $g[$k] = $raw !== '' ? substr($raw, 0, 64) : null;
+    }
+    $conn->prepare(
+        "INSERT INTO project_grouping "
+        . "(project_id, split_setup, split_panel, split_filter, split_exposure, split_temp, exp_tol, temp_tol) "
+        . "VALUES (:pid, :ss, :sp, :sf, :se, :st, :et, :tt) "
+        . "ON DUPLICATE KEY UPDATE split_setup = VALUES(split_setup), split_panel = VALUES(split_panel), "
+        . "split_filter = VALUES(split_filter), split_exposure = VALUES(split_exposure), "
+        . "split_temp = VALUES(split_temp), exp_tol = VALUES(exp_tol), temp_tol = VALUES(temp_tol)"
+    )->execute([
+        ':pid' => $projectId,
+        ':ss' => $g['split_setup'] ? 1 : 0,
+        ':sp' => $g['split_panel'] ? 1 : 0,
+        ':sf' => $g['split_filter'] ? 1 : 0,
+        ':se' => $g['split_exposure'] ? 1 : 0,
+        ':st' => $g['split_temp'] ? 1 : 0,
+        ':et' => $g['exp_tol'],
+        ':tt' => $g['temp_tol'],
+    ]);
+}
