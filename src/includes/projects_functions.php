@@ -1131,6 +1131,28 @@ function projectNormPart($value): string
     return $text !== '' ? $text : '?';
 }
 
+/**
+ * Human-readable setup fingerprint: each part labeled so positional values
+ * (gain, pixel size, offset...) are identifiable. Handles legacy 6-part
+ * fingerprints (no offset) and the '|CUSTOM:name' suffix. Returns plain
+ * text; callers escape for HTML.
+ */
+function renderSetupFingerprint(?string $fp): string
+{
+    $labels = ['instrume', 'telescop', 'cameraid', 'binning', 'gain', 'xpixsz', 'offset'];
+    $out = [];
+    foreach (explode('|', (string)($fp ?? '')) as $i => $part) {
+        $part = trim($part);
+        if (str_starts_with($part, 'CUSTOM:')) {
+            $out[] = trim(substr($part, 7)) !== '' ? trim(substr($part, 7)) : $part;
+            continue;
+        }
+        $label = $labels[$i] ?? null;
+        $out[] = ($label !== null ? __($label) . ': ' : '') . ($part !== '' ? $part : '?');
+    }
+    return implode(' | ', $out);
+}
+
 function projectBuildFingerprint(array $row): string
 {
     // Instrument fingerprint: INSTRUME|TELESCOP|CAMERAID|XBINxYBIN|GAIN|XPIXSZ|OFFSET.
