@@ -1836,6 +1836,17 @@ function getProjectGrouping(PDO $conn, int $projectId): array
 }
 
 /**
+ * Whether cross-setup tile merging actually applies: merge_tiles ON with
+ * setup split OFF and panel split ON. Any other combination ignores the
+ * flag (with panel split OFF everything merges anyway; with setup split ON
+ * there is nothing cross-setup to merge).
+ */
+function groupingTilesEffective(array $g): bool
+{
+    return !empty($g['merge_tiles']) && empty($g['split_setup']) && !empty($g['split_panel']);
+}
+
+/**
  * Upsert grouping criteria. Checkbox-style values: truthy = ON.
  * Tolerance strings are validated loosely (empty = inherit); hard failures
  * come from the parsers at grouping time, never here.

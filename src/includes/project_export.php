@@ -112,7 +112,7 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
     // Cross-setup tiles (mosaics): panel id => tile number, shared by lights
     // of different setups so WBPP can group by TILE_. Active only with
     // split_setup OFF + split_panel ON + merge_tiles ON; otherwise empty.
-    $tileMode = !empty($grouping['merge_tiles']) && empty($grouping['split_setup']) && !empty($grouping['split_panel']);
+    $tileMode = groupingTilesEffective($grouping);
     $panelTileNo = [];
     $tileLegend = [];
     if ($tileMode) {

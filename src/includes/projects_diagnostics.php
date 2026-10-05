@@ -1052,7 +1052,8 @@ function getIntegrationGroups(array $tree, string $tolExpRaw, array $thresholdMa
     }
     // Tile mode: split_setup OFF + split_panel ON + merge_tiles ON pools
     // panels of different setups sharing sky position/rotation/FoV.
-    $tileMode = !empty($g['merge_tiles']) && empty($g['split_setup']) && !empty($g['split_panel']);
+    $tileMode = function_exists('groupingTilesEffective') ? groupingTilesEffective($g)
+        : (!empty($g['merge_tiles']) && empty($g['split_setup']) && !empty($g['split_panel']));
     $panelTile = [];
     $tileLabels = [];
     if ($tileMode) {

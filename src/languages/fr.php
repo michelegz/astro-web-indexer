@@ -322,7 +322,7 @@ return [
     'projects_grouping_temp_tol' => 'Tolérance de température',
     'projects_grouping_merged' => 'fusionnés',
     'projects_grouping_tiles' => 'Fusionner les panneaux entre setups (tuiles)',
-    'projects_grouping_tiles_hint' => 'Mosaïque multi-setup : même tuile de ciel à travers des optiques différentes (mêmes coordonnées/rotation/champ). Effectif uniquement avec séparation par setup DÉSACTIVÉE. Ajoute le mot-clé TILE_ au ZIP.',
+    'projects_grouping_tiles_hint' => 'Mosaïque multi-setup : même tuile de ciel à travers des optiques différentes (mêmes coordonnées/rotation/champ). Effectif uniquement avec séparation par setup DÉSACTIVÉE et par panneau ACTIVÉE. Ajoute le mot-clé TILE_ au ZIP.',
     'projects_grouping_reset' => 'Défauts',
     'projects_igroups' => 'Groupes d’intégration',
     'projects_igroups_empty' => 'Aucun groupe : liez des lights partageant setup, panneau, filtre et exposition.',

@@ -163,13 +163,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $conn->prepare("DELETE FROM project_grouping WHERE project_id = :pid")
                         ->execute([':pid' => $id]);
                 } else {
+                    // A disabled merge_tiles checkbox is not submitted: when tiles
+                    // cannot apply (setup split ON or panel split OFF) keep the
+                    // stored value instead of silently clearing it.
+                    $groupingPrev = getProjectGrouping($conn, $id);
+                    $splitSetup = !empty($_POST['split_setup']);
+                    $splitPanel = !empty($_POST['split_panel']);
                     saveProjectGrouping($conn, $id, [
-                        'split_setup' => !empty($_POST['split_setup']),
-                        'split_panel' => !empty($_POST['split_panel']),
+                        'split_setup' => $splitSetup,
+                        'split_panel' => $splitPanel,
                         'split_filter' => !empty($_POST['split_filter']),
                         'split_exposure' => !empty($_POST['split_exposure']),
                         'split_temp' => !empty($_POST['split_temp']),
-                        'merge_tiles' => !empty($_POST['merge_tiles']),
+                        'merge_tiles' => ($splitSetup || !$splitPanel) ? !empty($groupingPrev['merge_tiles']) : !empty($_POST['merge_tiles']),
                         'exp_tol' => trim((string)($_POST['exp_tol'] ?? '')),
                         'temp_tol' => trim((string)($_POST['temp_tol'] ?? '')),
                     ]);
@@ -874,30 +880,72 @@ if ($projectBlocked) {
                     <input type="hidden" name="action" value="save_grouping">
                     <input type="hidden" name="project_id" value="<?= (int)$detail['id'] ?>">
                     <p class="text-xs text-gray-400"><?= htmlspecialchars(__('projects_grouping_intro')) ?></p>
-                    <div class="flex flex-wrap gap-x-5 gap-y-1 text-sm">
-                        <?php foreach (['split_setup' => 'projects_grouping_setup', 'split_panel' => 'projects_grouping_panel', 'split_filter' => 'projects_grouping_filter', 'split_exposure' => 'projects_grouping_exposure', 'split_temp' => 'projects_grouping_temp'] as $gk => $glabel): ?>
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" name="<?= $gk ?>" value="1" <?= !empty($grouping[$gk]) ? 'checked' : '' ?> class="rounded bg-gray-600 border-gray-500">
-                            <?= htmlspecialchars(__($glabel)) ?>
+                    <div id="groupingRows" class="flex flex-col gap-1.5 text-sm mt-1">
+                        <label class="flex items-center gap-2 cursor-pointer w-fit">
+                            <input type="checkbox" name="split_setup" value="1" <?= !empty($grouping['split_setup']) ? 'checked' : '' ?> class="rounded bg-gray-600 border-gray-500">
+                            <?= htmlspecialchars(__('projects_grouping_setup')) ?>
                         </label>
-                        <?php endforeach; ?>
-                        <label class="flex items-center gap-2 cursor-pointer" title="<?= htmlspecialchars(__('projects_grouping_tiles_hint')) ?>">
-                            <input type="checkbox" name="merge_tiles" value="1" <?= !empty($grouping['merge_tiles']) ? 'checked' : '' ?> class="rounded bg-gray-600 border-gray-500">
-                            <?= htmlspecialchars(__('projects_grouping_tiles')) ?>
+                        <label class="flex items-center gap-2 cursor-pointer w-fit">
+                            <input type="checkbox" name="split_panel" value="1" <?= !empty($grouping['split_panel']) ? 'checked' : '' ?> class="rounded bg-gray-600 border-gray-500">
+                            <?= htmlspecialchars(__('projects_grouping_panel')) ?>
                         </label>
+                        <div class="ml-6 flex flex-col gap-0.5">
+                            <label class="flex items-center gap-2 cursor-pointer w-fit" id="mergeTilesLabel">
+                                <input type="checkbox" name="merge_tiles" value="1" <?= !empty($grouping['merge_tiles']) ? 'checked' : '' ?> class="rounded bg-gray-600 border-gray-500">
+                                <?= htmlspecialchars(__('projects_grouping_tiles')) ?>
+                            </label>
+                            <p class="text-xs text-gray-500"><?= htmlspecialchars(__('projects_grouping_tiles_hint')) ?></p>
+                        </div>
+                        <label class="flex items-center gap-2 cursor-pointer w-fit">
+                            <input type="checkbox" name="split_filter" value="1" <?= !empty($grouping['split_filter']) ? 'checked' : '' ?> class="rounded bg-gray-600 border-gray-500">
+                            <?= htmlspecialchars(__('projects_grouping_filter')) ?>
+                        </label>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" name="split_exposure" value="1" <?= !empty($grouping['split_exposure']) ? 'checked' : '' ?> class="rounded bg-gray-600 border-gray-500">
+                                <?= htmlspecialchars(__('projects_grouping_exposure')) ?>
+                            </label>
+                            <label class="flex items-center gap-2 text-gray-400 text-sm"><?= htmlspecialchars(__('projects_grouping_exp_tol')) ?>
+                                <input type="text" name="exp_tol" maxlength="64" value="<?= htmlspecialchars((string)($grouping['exp_tol'] ?? '')) ?>"
+                                       placeholder="<?= htmlspecialchars(__('projects_inherit_default', ['value' => $tolExpRaw])) ?>"
+                                       class="w-28 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100">
+                            </label>
+                        </div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" name="split_temp" value="1" <?= !empty($grouping['split_temp']) ? 'checked' : '' ?> class="rounded bg-gray-600 border-gray-500">
+                                <?= htmlspecialchars(__('projects_grouping_temp')) ?>
+                            </label>
+                            <label class="flex items-center gap-2 text-gray-400 text-sm"><?= htmlspecialchars(__('projects_grouping_temp_tol')) ?>
+                                <input type="text" name="temp_tol" maxlength="64" value="<?= htmlspecialchars((string)($grouping['temp_tol'] ?? '')) ?>"
+                                       placeholder="<?= htmlspecialchars(__('projects_inherit_default', ['value' => (string)($projectTols['tol_temp'] ?? '2C')])) ?>"
+                                       class="w-28 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100">
+                            </label>
+                        </div>
                     </div>
-                    <div class="flex flex-wrap gap-x-5 gap-y-2 text-sm">
-                        <label class="flex items-center gap-2 text-gray-300"><?= htmlspecialchars(__('projects_grouping_exp_tol')) ?>
-                            <input type="text" name="exp_tol" maxlength="64" value="<?= htmlspecialchars((string)($grouping['exp_tol'] ?? '')) ?>"
-                                   placeholder="<?= htmlspecialchars(__('projects_inherit_default', ['value' => $tolExpRaw])) ?>"
-                                   class="w-28 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100">
-                        </label>
-                        <label class="flex items-center gap-2 text-gray-300"><?= htmlspecialchars(__('projects_grouping_temp_tol')) ?>
-                            <input type="text" name="temp_tol" maxlength="64" value="<?= htmlspecialchars((string)($grouping['temp_tol'] ?? '')) ?>"
-                                   placeholder="<?= htmlspecialchars(__('projects_inherit_default', ['value' => (string)($projectTols['tol_temp'] ?? '2C')])) ?>"
-                                   class="w-28 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100">
-                        </label>
-                    </div>
+                    <script>
+                    (function () {
+                        // Tiles only make sense with setup split OFF and panel
+                        // split ON: keep the checkbox in sync so the dependency
+                        // is visible.
+                        const rows = document.getElementById('groupingRows');
+                        if (!rows) return;
+                        const setupBox = rows.querySelector('input[name="split_setup"]');
+                        const panelBox = rows.querySelector('input[name="split_panel"]');
+                        const tileBox = rows.querySelector('input[name="merge_tiles"]');
+                        const tileLabel = document.getElementById('mergeTilesLabel');
+                        function sync() {
+                            const off = !tileBox
+                                || (setupBox && setupBox.checked)
+                                || (panelBox && !panelBox.checked);
+                            if (tileBox) tileBox.disabled = !!off;
+                            if (tileLabel) tileLabel.classList.toggle('opacity-50', !!off);
+                        }
+                        if (setupBox) setupBox.addEventListener('change', sync);
+                        if (panelBox) panelBox.addEventListener('change', sync);
+                        sync();
+                    })();
+                    </script>
                     <div class="flex justify-end gap-2 mt-1">
                         <button type="submit" name="reset_grouping" value="1"
                                 class="px-3 py-1 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors">
