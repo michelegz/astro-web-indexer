@@ -87,12 +87,16 @@ function renderCalRows(array $cals, string $level, int $node, array $moveCtx = [
         return;
     }
     $dup = $moveCtx['dup'] ?? [];
+    $flatCov = $moveCtx['flatCov'] ?? [];
     $tols = $moveCtx['tols'] ?? ['exp' => '1%', 'temp' => '2C'];
     $groups = groupCalibrations(
         $rows,
         (string)($tols['exp'] ?? '1%'),
         (string)($tols['temp'] ?? '2C'),
-        $moveCtx['filterAliases'] ?? []
+        $moveCtx['filterAliases'] ?? [],
+        $moveCtx['darkRoles'] ?? [],
+        $level,
+        $node
     );
     ?>
     <?php foreach ($groups as $g): ?>
@@ -107,7 +111,21 @@ function renderCalRows(array $cals, string $level, int $node, array $moveCtx = [
         <details class="cal-group flex-1 min-w-0 mb-1">
             <summary class="cursor-pointer px-3 py-1.5 hover:bg-gray-700/40 rounded text-sm font-medium">
                 <span class="cal-arrow">▶︎</span>
-                <span><?= htmlspecialchars(calGroupTitle($g)) ?></span>
+                <?php
+                $gWorst = null;
+                if ($g['kind'] === 'flat') {
+                    foreach ($g['rows'] as $gr) {
+                        if (!empty($gr['pending']) || empty($gr['enabled'])) {
+                            continue;
+                        }
+                        $gs = $flatCov[(int)$gr['file_id']] ?? null;
+                        if ($gs !== null) {
+                            $gWorst = $gWorst === null ? $gs : diagWorst($gWorst, $gs);
+                        }
+                    }
+                }
+                ?>
+                <?php if ($gWorst !== null): ?><span title="<?= htmlspecialchars(__('projects_flat_cov_title')) ?>"><?= diagDot($gWorst) ?></span> <?php endif; ?><span><?= htmlspecialchars(calGroupTitle($g)) ?></span>
             </summary>
             <ul class="flex flex-col gap-0.5 mb-1 px-3">
         <?php foreach ($g['rows'] as $c): ?>
@@ -120,6 +138,7 @@ function renderCalRows(array $cals, string $level, int $node, array $moveCtx = [
                     <input type="checkbox" name="link_keys[]" value="<?= htmlspecialchars(linkKey($c, $level, $node)) ?>" class="pfl-check rounded bg-gray-600 border-gray-500"<?= !empty($c['scope_sessions']) ? ' data-scope="' . htmlspecialchars(implode(',', $c['scope_sessions'])) . '"' : '' ?><?= isset($moveCtx['setup_id']) ? ' data-setup="' . (int)$moveCtx['setup_id'] . '"' : '' ?>>
                 <?php endif; ?>
                 <span class="text-gray-500">[<?= htmlspecialchars($c['imgtype']) ?>]</span>
+                <?php if ($g['kind'] === 'flat' && !$isPend && !$isOff && isset($flatCov[(int)$c['file_id']])): ?><span title="<?= htmlspecialchars(__('projects_flat_cov_title')) ?>"><?= diagDot($flatCov[(int)$c['file_id']]) ?></span><?php endif; ?>
                 <span><?= htmlspecialchars($c['name']) ?></span>
                 <?php if ($isPend): ?><span title="<?= __('projects_pending_hypo') ?>">⏳</span><?php endif; ?>
                 <?php if ($isOff): ?><span class="text-gray-500">(<?= __('projects_link_off') ?>)</span><?php endif; ?>

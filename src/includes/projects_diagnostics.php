@@ -570,6 +570,174 @@ function fmtExpShort($exptime): string
 }
 
 /**
+ * Dark vs dark-flat roles per calibration link ("fid:level:node" => 'darkflat';
+ * absence means dark). A dark serves flats when some flat in its chain matches
+ * it (matchDark != red: exposure within tol_exp plus binning/gain, temperature
+ * forgiven as yellow), and stays a DARK whenever it also serves a light
+ * (DARK wins ties, e.g. short planetary lights sharing flat exposures) or
+ * serves nothing at all (keeps today's red behavior). Chain = the node
+ * itself plus everything below it, so setup-level darks see session flats.
+ * Pending rows count as intent; scope is ignored here (it stays an
+ * applicability filter downstream).
+ */
+function indexDarkRoles(array $tree, array $tols): array
+{
+    $roles = [];
+    $hasExp = fn($r) => ($r['exptime'] ?? null) !== null && ($r['exptime'] ?? '') !== '';
+    $isFlat = fn($r) => strtoupper((string)($r['imgtype'] ?? '')) === 'FLAT';
+    $isLight = fn($r) => strtoupper((string)($r['imgtype'] ?? '')) === 'LIGHT';
+    $classify = function (array $darkRows, string $level, int $node, array $subLights, array $subFlats) use (&$roles, $tols, $hasExp): void {
+        foreach ($darkRows as $d) {
+            if (strtoupper((string)($d['imgtype'] ?? '')) !== 'DARK' || !$hasExp($d)) {
+                continue;
+            }
+            $servesFlats = false;
+            foreach ($subFlats as $f) {
+                if ($hasExp($f) && matchDark($f, $d, $tols) !== 'red') {
+                    $servesFlats = true;
+                    break;
+                }
+            }
+            if (!$servesFlats) {
+                continue;
+            }
+            $servesLights = false;
+            foreach ($subLights as $li) {
+                if ($hasExp($li) && matchDark($li, $d, $tols) !== 'red') {
+                    $servesLights = true;
+                    break;
+                }
+            }
+            if ($servesLights) {
+                continue;
+            }
+            $fid = (int)($d['file_id'] ?? $d['id'] ?? 0);
+            if ($fid > 0) {
+                $roles[$fid . ':' . $level . ':' . $node] = 'darkflat';
+            }
+        }
+    };
+    $filterRows = function (array $sessionNode) use ($isFlat, $isLight): array {
+        $lights = [];
+        $flats = [];
+        foreach ($sessionNode['filters'] ?? [] as $filter) {
+            foreach ($filter['lights'] ?? [] as $li) {
+                if ($isLight($li)) {
+                    $lights[] = $li;
+                }
+            }
+            foreach ($filter['calibrations'] ?? [] as $c) {
+                if ($isFlat($c)) {
+                    $flats[] = $c;
+                }
+            }
+        }
+        foreach ($sessionNode['calibrations'] ?? [] as $c) {
+            if ($isFlat($c)) {
+                $flats[] = $c;
+            }
+        }
+        return [$lights, $flats];
+    };
+    foreach ($tree['setups'] ?? [] as $setup) {
+        $setupLights = [];
+        $setupFlats = [];
+        foreach ($setup['calibrations'] ?? [] as $c) {
+            if ($isFlat($c)) {
+                $setupFlats[] = $c;
+            }
+        }
+        foreach ($setup['panels'] ?? [] as $panel) {
+            $panelLights = [];
+            $panelFlats = [];
+            foreach ($panel['calibrations'] ?? [] as $c) {
+                if ($isFlat($c)) {
+                    $panelFlats[] = $c;
+                }
+            }
+            foreach ($panel['sessions'] ?? [] as $session) {
+                [$sessLights, $sessFlats] = $filterRows($session);
+                $panelLights = array_merge($panelLights, $sessLights);
+                $panelFlats = array_merge($panelFlats, $sessFlats);
+                $classify(
+                    array_values(array_filter($session['calibrations'] ?? [], fn($c) => !$isFlat($c) && !$isLight($c))),
+                    'session',
+                    (int)$session['id'],
+                    $sessLights,
+                    $sessFlats
+                );
+                foreach ($session['filters'] ?? [] as $filter) {
+                    $classify(
+                        array_values(array_filter($filter['calibrations'] ?? [], fn($c) => !$isFlat($c) && !$isLight($c))),
+                        'filter',
+                        (int)$session['id'],
+                        array_values(array_filter($filter['lights'] ?? [], $isLight)),
+                        array_values(array_filter($filter['calibrations'] ?? [], $isFlat))
+                    );
+                }
+            }
+            $setupLights = array_merge($setupLights, $panelLights);
+            $setupFlats = array_merge($setupFlats, $panelFlats);
+            $classify(
+                array_values(array_filter($panel['calibrations'] ?? [], fn($c) => !$isFlat($c) && !$isLight($c))),
+                'panel',
+                (int)$panel['id'],
+                $panelLights,
+                $panelFlats
+            );
+        }
+        $classify(
+            array_values(array_filter($setup['calibrations'] ?? [], fn($c) => !$isFlat($c) && !$isLight($c))),
+            'setup',
+            (int)$setup['id'],
+            $setupLights,
+            $setupFlats
+        );
+    }
+    foreach ($tree['project_links'] ?? [] as $c) {
+        if (strtoupper((string)($c['imgtype'] ?? '')) !== 'DARK' || !$hasExp($c)) {
+            continue;
+        }
+        $allLights = [];
+        $allFlats = [];
+        foreach ($tree['setups'] ?? [] as $setup) {
+            foreach ($setup['panels'] ?? [] as $panel) {
+                foreach ($panel['sessions'] ?? [] as $session) {
+                    [$sl, $sf] = $filterRows($session);
+                    $allLights = array_merge($allLights, $sl);
+                    $allFlats = array_merge($allFlats, $sf);
+                }
+            }
+        }
+        $servesFlats = false;
+        foreach ($allFlats as $f) {
+            if ($hasExp($f) && matchDark($f, $c, $tols) !== 'red') {
+                $servesFlats = true;
+                break;
+            }
+        }
+        if (!$servesFlats) {
+            continue;
+        }
+        $servesLights = false;
+        foreach ($allLights as $li) {
+            if ($hasExp($li) && matchDark($li, $c, $tols) !== 'red') {
+                $servesLights = true;
+                break;
+            }
+        }
+        if ($servesLights) {
+            continue;
+        }
+        $fid = (int)($c['file_id'] ?? $c['id'] ?? 0);
+        if ($fid > 0) {
+            $roles[$fid . ':project:0'] = 'darkflat';
+        }
+    }
+    return $roles;
+}
+
+/**
  * Diagnostics for every LINKED light in the tree. Returns [file_id => [...]].
  * Pending (hypothetical) rows are ignored, both as lights and as candidates.
  * Candidate pool per light = calibrations linked at filter/session/panel/setup/project
@@ -578,6 +746,18 @@ function fmtExpShort($exptime): string
 function diagnoseProjectTree(array $tree, array $tols, array $filterAliases = []): array
 {
     $out = [];
+    // Darkflat rows never serve lights: partitioning first also fixes master
+    // shadowing (a master darkflat no longer hides matching sub darks).
+    $darkRoles = indexDarkRoles($tree, $tols);
+    $roleOf = function (array $c) use ($darkRoles): string {
+        $fid = (int)($c['file_id'] ?? $c['id'] ?? 0);
+        $level = (string)($c['level'] ?? '');
+        $node = (int)($c['node_id'] ?? 0);
+        if ($fid <= 0 || $level === '') {
+            return 'dark';
+        }
+        return $darkRoles[$fid . ':' . $level . ':' . $node] ?? 'dark';
+    };
     $projectCals = array_values(array_filter(
         $tree['project_links'] ?? [],
         fn($c) => in_array(strtoupper((string)$c['imgtype']), ['DARK', 'FLAT', 'BIAS'], true)
@@ -602,7 +782,7 @@ function diagnoseProjectTree(array $tree, array $tols, array $filterAliases = []
                         if (!empty($light['pending']) || empty($light['enabled'])) {
                             continue;
                         }
-                        $darks = array_values(array_filter($pool, fn($c) => strtoupper((string)$c['imgtype']) === 'DARK'));
+                        $darks = array_values(array_filter($pool, fn($c) => strtoupper((string)$c['imgtype']) === 'DARK' && $roleOf($c) !== 'darkflat'));
                         $flats = array_values(array_filter($pool, fn($c) => strtoupper((string)$c['imgtype']) === 'FLAT'));
                         $biases = array_values(array_filter($pool, fn($c) => strtoupper((string)$c['imgtype']) === 'BIAS'));
                         $out[(int)$light['file_id']] = [
@@ -610,6 +790,81 @@ function diagnoseProjectTree(array $tree, array $tols, array $filterAliases = []
                             'flat' => bestCalibStatus($flats, fn($c) => matchFlat($light, $c, $filterAliases)),
                             'bias' => bestCalibStatus($biases, fn($c) => matchBias($light, $c)),
                         ];
+                    }
+                }
+            }
+        }
+    }
+    return $out;
+}
+
+/**
+ * Darkflat coverage for every ENABLED linked flat: [file_id => green|yellow|red].
+ * Each flat is checked against the darkflat rows along its own chain (masters
+ * shadow subs, same as lights). Flats above session level have no session
+ * context, so scope is ignored for them (lenient). No darkflat linked at
+ * all => red, mirroring the light convention (missing candidate, not broken
+ * data: uncovered flats still export, WBPP decides).
+ */
+function diagnoseFlatCoverage(array $tree, array $tols, array $darkRoles): array
+{
+    $out = [];
+    $roleOf = function (array $c) use ($darkRoles): string {
+        $fid = (int)($c['file_id'] ?? $c['id'] ?? 0);
+        $level = (string)($c['level'] ?? '');
+        $node = (int)($c['node_id'] ?? 0);
+        if ($fid <= 0 || $level === '') {
+            return 'dark';
+        }
+        return $darkRoles[$fid . ':' . $level . ':' . $node] ?? 'dark';
+    };
+    $isFlatEnabled = fn($c) => strtoupper((string)($c['imgtype'] ?? '')) === 'FLAT'
+        && empty($c['pending']) && !empty($c['enabled']);
+    $projectCals = array_values(array_filter(
+        $tree['project_links'] ?? [],
+        fn($c) => in_array(strtoupper((string)$c['imgtype']), ['DARK', 'FLAT', 'BIAS'], true)
+    ));
+    $checkFlat = function (array $flat, array $pool, ?int $sid) use (&$out, $tols, $roleOf): void {
+        $cands = array_values(array_filter(
+            $pool,
+            fn($c) => strtoupper((string)$c['imgtype']) === 'DARK'
+                && $roleOf($c) === 'darkflat'
+                && empty($c['pending']) && !empty($c['enabled'])
+                && ($sid === null || empty($c['scope_sessions']) || in_array($sid, $c['scope_sessions'], true))
+        ));
+        $out[(int)$flat['file_id']] = bestCalibStatus(
+            $cands,
+            fn($c) => matchDark($flat, $c, $tols)
+        );
+    };
+    foreach ($tree['setups'] ?? [] as $setup) {
+        $setupCals = array_merge($projectCals, $setup['calibrations'] ?? []);
+        foreach ($setupCals as $flat) {
+            if ($isFlatEnabled($flat)) {
+                $checkFlat($flat, $setupCals, null);
+            }
+        }
+        foreach ($setup['panels'] ?? [] as $panel) {
+            $panelCals = array_merge($setupCals, $panel['calibrations'] ?? []);
+            foreach ($panel['calibrations'] ?? [] as $flat) {
+                if ($isFlatEnabled($flat)) {
+                    $checkFlat($flat, $panelCals, null);
+                }
+            }
+            foreach ($panel['sessions'] ?? [] as $session) {
+                $sid = (int)$session['id'];
+                $sessionCals = array_merge($panelCals, $session['calibrations'] ?? []);
+                foreach ($session['calibrations'] ?? [] as $flat) {
+                    if ($isFlatEnabled($flat)) {
+                        $checkFlat($flat, $sessionCals, $sid);
+                    }
+                }
+                foreach ($session['filters'] ?? [] as $filter) {
+                    $pool = array_merge($sessionCals, $filter['calibrations'] ?? []);
+                    foreach ($filter['calibrations'] ?? [] as $flat) {
+                        if ($isFlatEnabled($flat)) {
+                            $checkFlat($flat, $pool, $sid);
+                        }
                     }
                 }
             }
@@ -709,7 +964,7 @@ function indexDuplicateLinks(array $tree): array
  * 'rows' => [...]]] for direct rendering; single-group nodes render without
  * a header. Pure display: matching and diagnostics are unaffected.
  */
-function groupCalibrations(array $cals, string $tolExp, string $tolTemp, array $filterAliases = []): array
+function groupCalibrations(array $cals, string $tolExp, string $tolTemp, array $filterAliases = [], array $darkRoles = [], ?string $level = null, ?int $node = null): array
 {
     $flats = $darks = $bias = $other = [];
     foreach ($cals as $c) {
@@ -744,17 +999,38 @@ function groupCalibrations(array $cals, string $tolExp, string $tolTemp, array $
         }
     }
     if (!empty($darks)) {
-        foreach (clusterExposures($darks, $tolExp, 0.01) as $eg) {
-            foreach (bucketCalibTemps($eg['lights'], $tolTemp) as $tb) {
-                $medExp = projectMedian(array_column($tb['rows'], 'exptime'));
-                $medTemp = projectMedian(array_column($tb['rows'], 'ccd_temp'));
-                $groups[] = [
-                    'kind' => 'dark',
-                    'label' => darkCalGroupLabel($medExp, $medTemp),
-                    'rep_exp' => $medExp,
-                    'rep_temp' => $medTemp,
-                    'rows' => $tb['rows'],
-                ];
+        // Dark vs dark-flat: same exposure clustering, separate groups so
+        // short calibration darks never hide among light darks (and vice
+        // versa). Without level/node context every dark stays a dark.
+        $darkSubs = [];
+        $darkFlatSubs = [];
+        foreach ($darks as $d) {
+            $fid = (int)($d['file_id'] ?? $d['id'] ?? 0);
+            $role = ($level !== null && $node !== null && $fid > 0)
+                ? ($darkRoles[$fid . ':' . $level . ':' . $node] ?? 'dark')
+                : 'dark';
+            if ($role === 'darkflat') {
+                $darkFlatSubs[] = $d;
+            } else {
+                $darkSubs[] = $d;
+            }
+        }
+        foreach (['dark' => $darkSubs, 'darkflat' => $darkFlatSubs] as $kind => $rows) {
+            if (empty($rows)) {
+                continue;
+            }
+            foreach (clusterExposures($rows, $tolExp, 0.01) as $eg) {
+                foreach (bucketCalibTemps($eg['lights'], $tolTemp) as $tb) {
+                    $medExp = projectMedian(array_column($tb['rows'], 'exptime'));
+                    $medTemp = projectMedian(array_column($tb['rows'], 'ccd_temp'));
+                    $groups[] = [
+                        'kind' => $kind,
+                        'label' => darkCalGroupLabel($medExp, $medTemp),
+                        'rep_exp' => $medExp,
+                        'rep_temp' => $medTemp,
+                        'rows' => $tb['rows'],
+                    ];
+                }
             }
         }
     }

@@ -6,9 +6,13 @@
 //
 // Layout (mirror tree + WBPP path keywords, see tmp/project-zip-export-plan.md):
 //   SETUP_S1/DARK/EXPS_300/TEMPC_m10/[DARKSET_N1N3/]dark.fits
+//   SETUP_S1/DARKFLAT/EXPS_5/[DARKFLATSET_N1N3/]darkflat.fits
 //   SETUP_S1/BIAS/bias.fits
 //   SETUP_S1/PANEL_P1[_TILE_T1]/SESSION_N1[_DARKSET_N1N3]/LIGHT/FILTER_Ha/EXPS_300/TEMPC_m10/light.fits
 //   SETUP_S1/PANEL_P1/SESSION_N1/FLAT/FILTER_Ha/flat.fits
+//
+// DARKFLAT mirrors DARK (short exposure darks serving flats, classified by
+// indexDarkRoles); scoped darkflats get DARKFLATSET_ sets like DARKSET_.
 //
 // TILE_Tn qualifies the panel folder only when cross-setup tile merging is
 // enabled (merge_tiles with split_setup OFF): PANEL_P1_TILE_T1 under S1 and
@@ -66,7 +70,7 @@ function validateExportTokens(array $entries): void
         if (!preg_match('#^[A-Za-z0-9_/.]+$#', $dir)) {
             throw new InvalidArgumentException('export_bad_token: ' . $p);
         }
-        foreach (['SESSION_', 'DARKSET_', 'FLATSET_', 'PANEL_', 'SETUP_', 'TILE_'] as $kw) {
+        foreach (['SESSION_', 'DARKSET_', 'DARKFLATSET_', 'FLATSET_', 'PANEL_', 'SETUP_', 'TILE_'] as $kw) {
             if (substr_count($dir, $kw) > 1) {
                 throw new InvalidArgumentException('export_dup_keyword: ' . $kw . ' in ' . $p);
             }
@@ -129,6 +133,9 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
         }
     }
 
+    // Dark vs dark-flat roles drive both the DARK/DARKFLAT folder split and
+    // the DARKFLATSET_ scope sets below.
+    $darkRoles = indexDarkRoles($projectTree, $tols);
     // Session registry for set tokens and legends.
     $sessions = [];
     foreach ($projectTree['setups'] ?? [] as $setup) {
@@ -209,10 +216,15 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
             }
         }
     };
-    $walkCals($projectTree, function (array $rows) use (&$collectScopes): void {
+    $walkCals($projectTree, function (array $rows, string $level, int $node) use (&$collectScopes, $darkRoles): void {
         foreach ($rows as $r) {
             $t = strtoupper((string)($r['imgtype'] ?? ''));
-            if (in_array($t, ['DARK', 'FLAT', 'BIAS'], true)) {
+            if ($t === 'DARK') {
+                // Darkflats form their own scope sets (DARKFLATSET_).
+                $fid = (int)($r['file_id'] ?? 0);
+                $t = ($darkRoles[$fid . ':' . $level . ':' . $node] ?? 'dark') === 'darkflat' ? 'DARKFLAT' : 'DARK';
+            }
+            if (in_array($t, ['DARK', 'DARKFLAT', 'FLAT', 'BIAS'], true)) {
                 $collectScopes([$r], $t);
             }
         }
@@ -220,7 +232,7 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
     // Merge overlapping scope sets per type into named sets (union-find over
     // shared sessions would over-merge; keep distinct sets, dedupe identical).
     $sets = [];
-    foreach (['DARK', 'FLAT', 'BIAS'] as $type) {
+    foreach (['DARK', 'DARKFLAT', 'FLAT', 'BIAS'] as $type) {
         $seen = [];
         foreach ($setSessions[$type] ?? [] as $list) {
             sort($list);
@@ -286,24 +298,25 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
     };
 
     // Calibrations attached to one tree node (setup/panel/session/filter/project).
-    $emitNodeCals = function (string $dir, array $cals) use (&$emitCalGroup, &$skip, $tolExp, $tolTemp, &$sets, $filterAliases): void {
+    $emitNodeCals = function (string $dir, array $cals, string $level, int $node) use (&$emitCalGroup, &$skip, $tolExp, $tolTemp, &$sets, $filterAliases, $darkRoles): void {
         $live = array_values(array_filter($cals, fn($c) => empty($c['pending']) && !empty($c['enabled'])));
         if (empty($live)) {
             return;
         }
-        foreach (groupCalibrations($live, $tolExp, $tolTemp, $filterAliases) as $g) {
+        foreach (groupCalibrations($live, $tolExp, $tolTemp, $filterAliases, $darkRoles, $level, $node) as $g) {
             $kind = $g['kind'];
             if ($kind === 'flat') {
                 $flabel = exportSanitize((string)($g['label'] ?? ''));
                 $leaf = 'FLAT/FILTER_' . ($flabel !== '' ? $flabel : 'NOFILTER');
-            } elseif ($kind === 'dark') {
+            } elseif ($kind === 'dark' || $kind === 'darkflat') {
                 // Exposure + temperature command as a pair: same directory.
+                // Darkflats mirror the dark layout under their own keyword.
                 $parts = [repExpToken($g['rep_exp'] ?? null)];
                 $ttok = repTempToken($g['rep_temp'] ?? null);
                 if ($ttok !== null) {
                     $parts[] = $ttok;
                 }
-                $leaf = 'DARK/' . implode('_', $parts);
+                $leaf = ($kind === 'darkflat' ? 'DARKFLAT/' : 'DARK/') . implode('_', $parts);
             } elseif ($kind === 'bias') {
             } elseif ($kind === 'bias') {
                 $leaf = 'BIAS';
@@ -349,7 +362,7 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
 
     foreach ($projectTree['setups'] ?? [] as $setup) {
         $setupDir = 'SETUP_S' . (int)($setup['setup_no'] ?? $setup['id']);
-        $emitNodeCals($setupDir, $setup['calibrations'] ?? []);
+        $emitNodeCals($setupDir, $setup['calibrations'] ?? [], 'setup', (int)$setup['id']);
         foreach ($setup['panels'] ?? [] as $panel) {
             // Tile qualifier lives on the panel folder (tile = sky tile shared
             // across setups): PANEL_P1_TILE_T1 under S1 and PANEL_P2_TILE_T1
@@ -357,7 +370,7 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
             // token pattern as SESSION_N1_DARKSET_N1N3. Only with merge_tiles.
             $panelDir = $setupDir . '/PANEL_P' . (int)($panel['panel_no'] ?? $panel['id'])
                 . (isset($panelTileNo[(int)$panel['id']]) ? '_TILE_T' . $panelTileNo[(int)$panel['id']] : '');
-            $emitNodeCals($panelDir, $panel['calibrations'] ?? []);
+            $emitNodeCals($panelDir, $panel['calibrations'] ?? [], 'panel', (int)$panel['id']);
             foreach ($panel['sessions'] ?? [] as $session) {
                 $sno = isset($session['session_no']) ? (int)$session['session_no'] : null;
                 $sessDir = $panelDir . '/SESSION_'
@@ -389,7 +402,7 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
                         $addFile($sessDir . '/' . $leaf, $li, 'light', null);
                     }
                     // Filter-level calibrations live next to their lights.
-                    $emitNodeCals($sessDir, $filter['calibrations'] ?? []);
+                    $emitNodeCals($sessDir, $filter['calibrations'] ?? [], 'filter', (int)$session['id']);
                 }
                 // Session-level calibrations: out-of-scope rows are ineffective.
                 $sessCals = [];
@@ -404,7 +417,7 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
                     }
                     $sessCals[] = $c;
                 }
-                $emitNodeCals($sessDir, $sessCals);
+                $emitNodeCals($sessDir, $sessCals, 'session', (int)$session['id']);
             }
         }
     }
@@ -417,7 +430,7 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
         }
     ));
     if (!empty($projCals)) {
-        $emitNodeCals('SHARED', $projCals);
+        $emitNodeCals('SHARED', $projCals, 'project', 0);
     }
 
     validateExportTokens($st['entries']);

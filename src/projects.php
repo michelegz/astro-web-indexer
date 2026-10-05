@@ -271,10 +271,15 @@ if ($projectTree !== null && !empty($intGroups)) {
 }
 // Duplicate-link warnings (same file linked at several levels): ⧉×n markers.
 $dupLinks = $projectTree !== null ? indexDuplicateLinks($projectTree) : [];
+// Darkflat roles + flat coverage for the main tree (pending modal builds its
+// own from $pendingTree inside the partial).
+$darkRolesMain = $projectTree !== null ? indexDarkRoles($projectTree, $projectTols) : [];
 // Shared render context for calibration rows: duplicates + grouping tolerances.
 $calCtxBase = [
     'dup' => $dupLinks,
     'filterAliases' => $filterAliases,
+    'darkRoles' => $darkRolesMain,
+    'flatCov' => $projectTree !== null ? diagnoseFlatCoverage($projectTree, $projectTols, $darkRolesMain) : [],
     'tols' => [
         'exp' => (string)($projectTols['tol_exp'] ?? '1%'),
         'temp' => (string)($projectTols['tol_temp'] ?? '2C'),
@@ -833,6 +838,8 @@ if ($projectBlocked) {
             <div class="text-xs text-gray-400 mt-4 flex flex-wrap items-center gap-x-4 gap-y-1">
                 <span class="font-semibold"><?= __('projects_legend') ?>:</span>
                 <span class="inline-flex gap-1 items-center"><?= diagBox('green', 'B', __('projects_cal_bias')) ?><?= diagBox('green', 'D', __('projects_cal_dark')) ?><?= diagBox('green', 'F', __('projects_cal_flat')) ?> <span><?= htmlspecialchars(__('projects_legend_calib')) ?></span></span>
+                <span class="inline-flex gap-1 items-center"><span class="font-mono">[DARKFLAT]</span> <span><?= htmlspecialchars(__('projects_legend_darkflat')) ?></span></span>
+                <span class="inline-flex gap-1 items-center"><span>●</span> <span><?= htmlspecialchars(__('projects_legend_flatcov')) ?></span></span>
             </div>
             </details>
             <div id="renameModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60">
