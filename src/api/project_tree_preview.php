@@ -80,7 +80,7 @@ try {
         $ids = $prep['ids'];
         $customSkipped = $prep['customSkipped'];
         $before = treePreviewSnapshot($conn, $projectId, $ids);
-        $result = projectAddFiles($conn, $projectId, $ids);
+        $result = projectAddFiles($conn, $projectId, $ids, $req['groupFpOverrides'] ?? []);
         $after = treePreviewSnapshot($conn, $projectId, $ids);
         $hypoLinks = array_fill_keys(array_keys(array_diff_key($after, $before)), true);
 

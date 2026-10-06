@@ -1703,14 +1703,20 @@ function getProjectSetups(PDO $conn, int $projectId): array
 /**
  * Dry-run match for one file: no writes. $project null = brand-new project
  * (everything flagged new). Returns plan array for preview and add paths.
+ * $forcedSetupId pins the setup (batch group merge): validated against the
+ * project, then panel/session matching runs under it like a table override.
  */
-function projectMatchPlan(PDO $conn, ?array $project, array $row, array $tols, int $fid): array
+function projectMatchPlan(PDO $conn, ?array $project, array $row, array $tols, int $fid, ?int $forcedSetupId = null): array
 {
     $pid = $project !== null ? (int)$project['id'] : 0;
     $fp = projectBuildFingerprint($row);
     $setupId = null;
     $setupNew = true;
-    if ($project !== null) {
+    if ($forcedSetupId !== null && $forcedSetupId > 0
+        && ($project === null || projectOwnsNode($conn, $pid, 'setup', $forcedSetupId))) {
+        $setupId = $forcedSetupId;
+        $setupNew = false;
+    } elseif ($project !== null) {
         $ov = $conn->prepare(
             "SELECT ps.id FROM setup_overrides so JOIN project_setups ps ON ps.id = so.setup_id "
             . "WHERE so.file_id = :fid AND ps.project_id = :pid"
@@ -1984,7 +1990,11 @@ function orderAddIds(PDO $conn, array $fileIds): array
  * the transactional tree preview: {ids, project_id, overrides, new_project}.
  * Overrides: {fileId: setupId | "new:Custom name"}. Returns
  * ['project_id' => int, 'ids' => int[], 'overrides' => [fid => sid],
- *  'customSetups' => [fid => name], 'new_project' => ?['name','notes']].
+ *  'customSetups' => [fid => name], 'groupFpOverrides' => [fid => fingerprint],
+ *  'new_project' => ?['name','notes']].
+ * A "groupfp:<fingerprint>" value merges the file into another batch group's
+ * setup (created on demand in the same request, one-shot: never persisted to
+ * setup_overrides).
  * Throws InvalidArgumentException on invalid input (endpoints map it to 400).
  */
 function parseProjectAddRequest(array $data): array
@@ -2001,13 +2011,20 @@ function parseProjectAddRequest(array $data): array
     $ids = array_slice($ids, 0, 2000);
     $overrides = [];
     $customSetups = [];
+    $groupFpOverrides = [];
     if (isset($data['overrides']) && is_array($data['overrides'])) {
         foreach ($data['overrides'] as $fid => $sid) {
             if (!is_numeric($fid) || (int)$fid <= 0) {
                 continue;
             }
             $fid = (int)$fid;
-            if (is_string($sid) && str_starts_with($sid, 'new:')) {
+            if (is_string($sid) && str_starts_with($sid, 'groupfp:')) {
+                $fp = substr(trim(substr($sid, 8)), 0, 512);
+                if ($fp === '') {
+                    continue;
+                }
+                $groupFpOverrides[$fid] = $fp;
+            } elseif (is_string($sid) && str_starts_with($sid, 'new:')) {
                 $name = substr(str_replace('|', ' ', trim(substr($sid, 4))), 0, 64);
                 if ($name === '') {
                     continue;
@@ -2034,6 +2051,7 @@ function parseProjectAddRequest(array $data): array
         'ids' => $ids,
         'overrides' => $overrides,
         'customSetups' => $customSetups,
+        'groupFpOverrides' => $groupFpOverrides,
         'new_project' => $newProject,
     ];
 }
@@ -2187,7 +2205,7 @@ function projectAddPrepare(PDO $conn, int $projectId, array $ids, array $overrid
     return ['project_id' => $projectId, 'ids' => array_values($ids), 'customSkipped' => $customSkipped];
 }
 
-function projectAddFiles(PDO $conn, int $projectId, array $fileIds): array
+function projectAddFiles(PDO $conn, int $projectId, array $fileIds, array $groupFpOverrides = []): array
 {
     $added = 0;
     $skipped = [];
@@ -2203,6 +2221,69 @@ function projectAddFiles(PDO $conn, int $projectId, array $fileIds): array
     foreach (getToleranceDefs() as $key => $def) {
         $tols[$key] = resolve_tol($conn, $projectId, $key);
     }
+    // Batch group merge ("groupfp:<fingerprint>" overrides, one-shot, never
+    // persisted): fingerprint carried by every batch file + display label per
+    // fingerprint (first carrier wins). A merge target counts only when some
+    // batch file actually carries it; otherwise it is ignored and the file
+    // follows normal matching (same as a foreign-setup override).
+    $batchFp = [];
+    $batchLabelByFp = [];
+    if (!empty($groupFpOverrides)) {
+        try {
+            $allIds = array_values(array_unique(array_map('intval', $fileIds)));
+            $allIds = array_values(array_filter($allIds, fn($v) => $v > 0));
+            if (!empty($allIds)) {
+                $in = implode(',', array_fill(0, count($allIds), '?'));
+                $st = $conn->prepare(
+                    "SELECT id, instrume, telescop, cameraid, xbinning, ybinning, gain, `offset`, xpixsz "
+                    . "FROM files WHERE id IN ($in)"
+                );
+                $st->execute($allIds);
+                foreach ($st->fetchAll() as $r) {
+                    $fp = projectBuildFingerprint($r);
+                    $batchFp[(int)$r['id']] = $fp;
+                    if (!isset($batchLabelByFp[$fp])) {
+                        $batchLabelByFp[$fp] = projectSetupLabel($r);
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            $batchFp = [];
+            $batchLabelByFp = [];
+        }
+    }
+    // fp => target fp for carriers (chains resolve transitively below).
+    $fpMergeTo = [];
+    foreach ($groupFpOverrides as $gfid => $t) {
+        $gfid = (int)$gfid;
+        if (isset($batchFp[$gfid]) && is_string($t) && $t !== '') {
+            $fpMergeTo[$batchFp[$gfid]] = $t;
+        }
+    }
+    // Effective merge target for a fingerprint, or null for normal matching:
+    // unknown targets and cycles fall back to the file's own fingerprint.
+    $resolveMerge = function (string $fp) use ($fpMergeTo, $batchLabelByFp): ?string {
+        if (!isset($fpMergeTo[$fp])) {
+            return null;
+        }
+        $seen = [$fp => true];
+        $cur = $fpMergeTo[$fp];
+        while (isset($fpMergeTo[$cur])) {
+            if (!isset($batchLabelByFp[$cur])) {
+                return null;
+            }
+            $cur = $fpMergeTo[$cur];
+            if (isset($seen[$cur])) {
+                return null;
+            }
+            $seen[$cur] = true;
+        }
+        if (!isset($batchLabelByFp[$cur]) || $cur === $fp) {
+            return null;
+        }
+        return $cur;
+    };
+    $fpSetupMap = []; // effective target fp => setupId (created or found in-request)
     $createdPanel = false;
     $createdSetup = false;
     // Nestable: the transactional tree preview runs this whole function
@@ -2234,7 +2315,29 @@ function projectAddFiles(PDO $conn, int $projectId, array $fileIds): array
             $conn->beginTransaction();
         }
         try {
-            $plan = projectMatchPlan($conn, $project, $row, $tols, $fid);
+            // Batch group merge: pin this file to its effective target setup.
+            // The setup is found or created once per fingerprint inside this
+            // same per-file transaction, so failed files leave nothing behind
+            // and later same-fp files match it normally.
+            $forcedSid = null;
+            if (!empty($groupFpOverrides) && isset($batchFp[$fid])) {
+                $effTarget = $resolveMerge($batchFp[$fid]);
+                if ($effTarget !== null) {
+                    if (!isset($fpSetupMap[$effTarget])) {
+                        $foundTarget = projectFindSetup($conn, $projectId, $effTarget);
+                        if ($foundTarget !== null) {
+                            $fpSetupMap[$effTarget] = $foundTarget;
+                        } else {
+                            $fpSetupMap[$effTarget] = projectCreateSetup(
+                                $conn, $projectId, $effTarget, $batchLabelByFp[$effTarget] ?? null
+                            );
+                            $createdSetup = true;
+                        }
+                    }
+                    $forcedSid = $fpSetupMap[$effTarget];
+                }
+            }
+            $plan = projectMatchPlan($conn, $project, $row, $tols, $fid, $forcedSid);
             $isFlatRow = strtoupper((string)$row['imgtype']) === 'FLAT';
             // Create missing setup/panel (session/filter buckets are always created).
             // Flats never create panels: no coordinates, no panel.

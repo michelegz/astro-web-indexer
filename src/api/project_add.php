@@ -43,7 +43,7 @@ try {
     $projectId = $prep['project_id'];
     $ids = $prep['ids'];
     $customSkipped = $prep['customSkipped'];
-    $result = projectAddFiles($conn, $projectId, $ids);
+    $result = projectAddFiles($conn, $projectId, $ids, $req['groupFpOverrides'] ?? []);
     $skipped = [];
     foreach ($result['skipped'] as $s) {
         $skipped[] = ['name' => $s['name'], 'message' => __(projectAddReasonKey($s['reason']))];

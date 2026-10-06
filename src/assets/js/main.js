@@ -414,15 +414,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const setupById = {};
             (data.setups || []).forEach(s => { setupById[s.id] = s; });
             const setupDisplay = (s) => (s.no !== null && s.no !== undefined ? 'S' + s.no + ': ' : '') + s.label;
+            const escAttr = (s) => escHtml(s).split('"').join('&quot;');
+            const groupTitle = (g) => {
+                const m = setupById[g.setup_id];
+                return g.setup_new
+                    ? (t.project_add_setup_new || 'New setup') + ' — ' + (g.setup_label || g.fp.slice(0, 48))
+                    : (m ? setupDisplay(m) : (g.setup_label || g.fp.slice(0, 48)));
+            };
             let html = '';
             data.groups.forEach((g, gi) => {
                 const matched = setupById[g.setup_id];
-                const setupTitle = g.setup_new
-                    ? escHtml(t.project_add_setup_new || 'New setup') + ' — ' + escHtml(g.setup_label || g.fp.slice(0, 48))
-                    : escHtml(matched ? setupDisplay(matched) : (g.setup_label || g.fp.slice(0, 48)));
+                const setupTitle = escHtml(groupTitle(g));
                 const setupFp = !g.setup_new && matched && matched.fingerprint
                     ? `<div class="text-xs font-mono text-gray-500 mt-0.5">${escHtml(String(matched.fingerprint).split('|').join(' | '))}</div>` : '';
-                html += `<div class="border border-gray-700 rounded p-3"><div class="font-medium mb-1">${setupTitle} <span class="text-xs text-gray-400">(${g.files.length})</span>${setupFp}</div>`;
+                html += `<div class="border border-gray-700 rounded p-3"><div class="font-medium mb-1">⧉${gi + 1} ${setupTitle} <span class="text-xs text-gray-400">(${g.files.length})</span>${setupFp}</div>`;
             // Override: only *other* setups are offered (the matched one would be a no-op duplicate),
             // plus creating a brand-new custom setup (e.g. two identical rigs to keep separate).
             // Always shown: even with no other setups, a custom one can be created.
@@ -432,8 +437,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 others.forEach(s => {
                     html += `<option value="${s.id}">${escHtml(setupDisplay(s))}</option>`;
                 });
+                // Merge into another batch group: one-shot, resolved server-side
+                // by fingerprint (never persisted to setup_overrides).
+                data.groups.forEach((g2, gj) => {
+                    if (gj === gi) return;
+                    html += `<option value="groupfp:${escAttr(g2.fp)}">⤵ ${gj + 1} ${escHtml(groupTitle(g2))}</option>`;
+                });
                 html += `<option value="new">${escHtml(t.project_add_new_setup || '＋ New custom setup…')}</option>`;
-                html += `</select></label><input type="text" data-groupname="${gi}" maxlength="64" placeholder="${escHtml(t.project_add_new_setup_name || 'Custom setup name')}" class="custom-setup-name hidden mt-1 mb-2 w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100 text-xs">`;
+                html += `</select> <span class="merge-hint text-sky-300/80" data-mergehint="${gi}"></span></label><input type="text" data-groupname="${gi}" maxlength="64" placeholder="${escHtml(t.project_add_new_setup_name || 'Custom setup name')}" class="custom-setup-name hidden mt-1 mb-2 w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100 text-xs">`;
             }
             html += '<ul class="text-xs text-gray-300 flex flex-col gap-1">';
             g.files.forEach(f => {
@@ -472,6 +483,7 @@ document.addEventListener('DOMContentLoaded', () => {
             previewSkipped.textContent = (data.skipped || []).map(s => `${s.name}`).join(', ');
             previewSkipped.style.display = (data.skipped || []).length ? '' : 'none';
         }
+        refreshMergeHints();
         showProjectStep(2);
     }
     if (addToProjectBtn) {
@@ -533,6 +545,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
         });
     }
+    function refreshMergeHints() {
+        if (!projectPreview || !previewGroups) return;
+        const t = window.i18n || {};
+        const setupById = {};
+        (projectPreview.setups || []).forEach(s => { setupById[s.id] = s; });
+        const titleOf = (g) => {
+            const m = setupById[g.setup_id];
+            return g.setup_new
+                ? (t.project_add_setup_new || 'New setup') + ' — ' + (g.setup_label || g.fp.slice(0, 48))
+                : (m ? ((m.no !== null && m.no !== undefined ? 'S' + m.no + ': ' : '') + m.label) : (g.setup_label || g.fp.slice(0, 48)));
+        };
+        previewGroups.querySelectorAll('.override-select').forEach(sel => {
+            const hint = previewGroups.querySelector(`[data-mergehint="${sel.dataset.group}"]`);
+            if (!hint) return;
+            let text = '';
+            if (sel.value.startsWith('groupfp:')) {
+                const fp = sel.value.slice(8);
+                const tj = (projectPreview.groups || []).findIndex(g => g.fp === fp);
+                if (tj >= 0) text = '→ ⧉' + (tj + 1) + ' ' + titleOf(projectPreview.groups[tj]);
+            }
+            hint.textContent = text;
+        });
+    }
     if (previewGroups) {
         previewGroups.addEventListener('change', (e) => {
             if (!e.target.classList.contains('override-select')) return;
@@ -542,6 +577,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 nameInput.classList.toggle('hidden', e.target.value !== 'new');
                 if (e.target.value === 'new') nameInput.focus();
             }
+            refreshMergeHints();
         });
     }
     function collectProjectOverrides() {
@@ -560,6 +596,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 (g.files || []).forEach(f => { overrides[f.id] = 'new:' + name; });
+            } else if (sel.value.startsWith('groupfp:')) {
+                (g.files || []).forEach(f => { overrides[f.id] = sel.value; });
             } else {
                 const sid = parseInt(sel.value, 10);
                 if (sid > 0) {
