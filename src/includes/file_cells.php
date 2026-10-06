@@ -29,7 +29,8 @@ function fileColIsNumeric(string $sortKey): bool
         'xbinning', 'ybinning', 'egain', 'gain', 'offset', 'xpixsz', 'ypixsz',
         'set_temp', 'ccd_temp', 'usblimit', 'focallen', 'focratio', 'focpos',
         'focussz', 'foctemp', 'ra', 'dec', 'centalt', 'centaz', 'airmass',
-        'objctrot', 'siteelev', 'sitelat', 'sitelong', 'equinox',
+        'objctrot', 'rotator_angle', 'siteelev', 'sitelat', 'sitelong', 'equinox',
+        'cloudcvr', 'dewpoint', 'humidity', 'pressure', 'ambtemp',
         'width', 'resolution', 'fov_w', 'file_size', 'mtime', 'moon_phase',
     ];
     return in_array($sortKey, $numeric, true);
@@ -309,6 +310,8 @@ function renderFileTableCells(array $f, string $scope, string $nameSuffix = ''):
                     <?php if ($show('focpos')): ?><td class="p-3 text-sm text-gray-300"<?= $attr('focpos') ?>><?= htmlspecialchars($f['focpos'] ?? '') ?></td><?php endif; ?>
                     <?php if ($show('focussz')): ?><td class="p-3 text-sm text-gray-300"<?= $attr('focussz') ?>><?= htmlspecialchars($f['focussz'] ?? '') ?></td><?php endif; ?>
                     <?php if ($show('foctemp')): ?><td class="p-3 text-sm text-gray-300"<?= $attr('foctemp') ?>><?= htmlspecialchars($f['foctemp'] ?? '') ?></td><?php endif; ?>
+                    <?php if ($show('rotator_name')): ?><td class="p-3 text-gray-200"<?= $attr('rotator_name') ?>><?= htmlspecialchars($f['rotator_name'] ?? '') ?></td><?php endif; ?>
+                    <?php if ($show('readoutm')): ?><td class="p-3 text-gray-200"<?= $attr('readoutm') ?>><?= htmlspecialchars($f['readoutm'] ?? '') ?></td><?php endif; ?>
 
                     <!-- Pointing & Position Data -->
                     <?php if ($show('ra')): ?><td class="p-3 text-sm text-gray-300"<?= $attr('ra') ?>><?= htmlspecialchars($f['ra'] ?? '') ?></td><?php endif; ?>
@@ -318,11 +321,19 @@ function renderFileTableCells(array $f, string $scope, string $nameSuffix = ''):
                     <?php if ($show('airmass')): ?><td class="p-3 text-sm text-gray-300"<?= $attr('airmass') ?>><?= htmlspecialchars($f['airmass'] ?? '') ?></td><?php endif; ?>
                     <?php if ($show('pierside')): ?><td class="p-3 text-gray-200"<?= $attr('pierside') ?>><?= htmlspecialchars($f['pierside'] ?? '') ?></td><?php endif; ?>
                     <?php if ($show('objctrot')): ?><td class="p-3 text-sm text-gray-300"<?= $attr('objctrot') ?>><?= htmlspecialchars($f['objctrot'] ?? '') ?></td><?php endif; ?>
+                    <?php if ($show('rotator_angle')): ?><td class="p-3 text-sm text-gray-300"<?= $attr('rotator_angle') ?>><?= isset($f['rotator_angle']) && $f['rotator_angle'] !== '' && $f['rotator_angle'] !== null ? htmlspecialchars((string)$f['rotator_angle']) . '°' : '' ?></td><?php endif; ?>
 
                     <!-- Observatory Site Data -->
                     <?php if ($show('siteelev')): ?><td class="p-3 text-sm text-gray-300"<?= $attr('siteelev') ?>><?= htmlspecialchars($f['siteelev'] ?? '') ?></td><?php endif; ?>
                     <?php if ($show('sitelat')): ?><td class="p-3 text-sm text-gray-300"<?= $attr('sitelat') ?>><?= htmlspecialchars($f['sitelat'] ?? '') ?></td><?php endif; ?>
                     <?php if ($show('sitelong')): ?><td class="p-3 text-sm text-gray-300"<?= $attr('sitelong') ?>><?= htmlspecialchars($f['sitelong'] ?? '') ?></td><?php endif; ?>
+
+                    <!-- Meteo Data -->
+                    <?php if ($show('cloudcvr')): ?><td class="p-3 text-sm text-gray-300"<?= $attr('cloudcvr') ?>><?= isset($f['cloudcvr']) && $f['cloudcvr'] !== '' && $f['cloudcvr'] !== null ? htmlspecialchars((string)$f['cloudcvr']) . ' %' : '' ?></td><?php endif; ?>
+                    <?php if ($show('dewpoint')): ?><td class="p-3 text-sm text-gray-300"<?= $attr('dewpoint') ?>><?= isset($f['dewpoint']) && $f['dewpoint'] !== '' && $f['dewpoint'] !== null ? htmlspecialchars((string)$f['dewpoint']) . ' °C' : '' ?></td><?php endif; ?>
+                    <?php if ($show('humidity')): ?><td class="p-3 text-sm text-gray-300"<?= $attr('humidity') ?>><?= isset($f['humidity']) && $f['humidity'] !== '' && $f['humidity'] !== null ? htmlspecialchars((string)$f['humidity']) . ' %' : '' ?></td><?php endif; ?>
+                    <?php if ($show('pressure')): ?><td class="p-3 text-sm text-gray-300"<?= $attr('pressure') ?>><?= isset($f['pressure']) && $f['pressure'] !== '' && $f['pressure'] !== null ? htmlspecialchars((string)$f['pressure']) . ' hPa' : '' ?></td><?php endif; ?>
+                    <?php if ($show('ambtemp')): ?><td class="p-3 text-sm text-gray-300"<?= $attr('ambtemp') ?>><?= isset($f['ambtemp']) && $f['ambtemp'] !== '' && $f['ambtemp'] !== null ? htmlspecialchars((string)$f['ambtemp']) . ' °C' : '' ?></td><?php endif; ?>
 
                     <!-- File Metadata -->
                     <?php if ($show('swcreate')): ?><td class="p-3 text-gray-200"<?= $attr('swcreate') ?>><?= htmlspecialchars($f['swcreate'] ?? '') ?></td><?php endif; ?>

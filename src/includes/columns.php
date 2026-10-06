@@ -65,17 +65,23 @@ function getColumnGroups(): array
             'telescop' => ['telescop', false], 'focallen' => ['focallen', false],
             'focratio' => ['focratio', false], 'focname' => ['focname', false],
             'focpos' => ['focpos', false], 'focussz' => ['focussz', false],
-            'foctemp' => ['foctemp', false],
+            'foctemp' => ['foctemp', false], 'rotator_name' => ['rotator_name', false],
+            'readoutm' => ['readoutm', false],
         ]],
         'pointing' => ['label' => 'colgroup_pointing', 'columns' => [
             'ra' => ['ra', false], 'dec' => ['dec', false],
             'centalt' => ['centalt', false], 'centaz' => ['centaz', false],
             'airmass' => ['airmass', false], 'pierside' => ['pierside', false],
-            'objctrot' => ['objctrot', false],
+            'objctrot' => ['objctrot', false], 'rotator_angle' => ['rotator_angle', false],
         ]],
         'site' => ['label' => 'colgroup_site', 'columns' => [
             'siteelev' => ['siteelev', false], 'sitelat' => ['sitelat', false],
             'sitelong' => ['sitelong', false],
+        ]],
+        'meteo' => ['label' => 'colgroup_meteo', 'columns' => [
+            'cloudcvr' => ['cloudcvr', false], 'dewpoint' => ['dewpoint', false],
+            'humidity' => ['humidity', false], 'pressure' => ['pressure', false],
+            'ambtemp' => ['ambtemp', false],
         ]],
         'filemeta' => ['label' => 'colgroup_filemeta', 'columns' => [
             'swcreate' => ['swcreate', false], 'roworder' => ['roworder', false],

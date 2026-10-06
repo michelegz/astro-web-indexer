@@ -186,11 +186,14 @@ const PROJECT_SUGGEST_TOL_KEYS = ['tol_pos_arcmin', 'tol_pos_fovfrac', 'tol_rot'
  * File header columns the suggester matches on, in a fixed order. Raw values
  * only: no parsing is shared with Python, so the two implementations cannot
  * drift on RA/DEC or fingerprint formatting. Order is part of the contract.
+ * Appended at the end, never reordered: rotator_angle/readoutm feed matching
+ * (meteo columns stay out of the hash on purpose: display-only).
  */
 const PROJECT_SUGGEST_MATCH_FIELDS = [
     'imgtype', 'filter', 'instrume', 'telescop', 'cameraid', 'xbinning',
     'ybinning', 'gain', 'offset', 'xpixsz', 'ra', 'dec', 'objctra',
     'objctdec', 'object', 'fov_w', 'fov_h', 'objctrot', 'date_obs',
+    'rotator_angle', 'readoutm',
 ];
 
 /**

@@ -67,10 +67,14 @@ SUGGEST_TOL_KEYS = ('tol_pos_arcmin', 'tol_pos_fovfrac', 'tol_rot', 'tol_fov')
 
 # Header columns the matcher consumes, raw values only. Order is part of the
 # contract with projects_functions.php::getProjectSuggestMatchInputs().
+# Appended at the end, never reordered: old hashes stay comparable.
+# rotator_angle/readoutm feed matching (flat rotation signal, readout mode);
+# meteo columns are display-only and stay out of the hash on purpose.
 SUGGEST_MATCH_FIELDS = (
     'imgtype', 'filter', 'instrume', 'telescop', 'cameraid', 'xbinning',
     'ybinning', 'gain', 'offset', 'xpixsz', 'ra', 'dec', 'objctra',
     'objctdec', 'object', 'fov_w', 'fov_h', 'objctrot', 'date_obs',
+    'rotator_angle', 'readoutm',
 )
 
 
@@ -641,7 +645,7 @@ def suggest_file(dcur, project, globals_, meta, file_id):
 
 FILE_COLUMNS = ("id, path, imgtype, `filter`, exptime, date_obs, instrume, telescop, "
                 "cameraid, xbinning, ybinning, gain, `offset`, xpixsz, ccd_temp, ra, `dec`, "
-                "objctra, objctdec, `object`, fov_w, fov_h, objctrot")
+                "objctra, objctdec, `object`, fov_w, fov_h, objctrot, rotator_angle, readoutm")
 
 
 def suggest_projects_for_files(conn, metas):
