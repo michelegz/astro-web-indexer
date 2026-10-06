@@ -7,9 +7,7 @@ ob_end_clean();
 
 // Only accept POST requests
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method Not Allowed']);
-    exit;
+    awiJson(['error' => 'Method Not Allowed'], 405);
 }
 
 $data = json_decode(file_get_contents('php://input'), true);
@@ -17,9 +15,7 @@ $data = json_decode(file_get_contents('php://input'), true);
 try {
     $req = parseProjectAddRequest(is_array($data) ? $data : []);
 } catch (InvalidArgumentException $e) {
-    http_response_code(400);
-    echo json_encode(['error' => $e->getMessage()]);
-    exit;
+    awiJson(['error' => $e->getMessage()], 400);
 }
 $projectId = $req['project_id'];
 $ids = $req['ids'];
@@ -28,16 +24,13 @@ $customSetups = $req['customSetups'];
 $newProject = $req['new_project'];
 
 if (empty($ids)) {
-    echo json_encode(['success' => false, 'message' => 'No valid IDs provided.']);
-    exit;
+    awiJson(['success' => false, 'message' => 'No valid IDs provided.']);
 }
 
 try {
     $conn = connectDB();
     if ($projectId > 0 && getProject($conn, $projectId) !== null && !canAccessProject($conn, $projectId)) {
-        http_response_code(403);
-        echo json_encode(['error' => __('projects_no_access')]);
-        exit;
+        awiJson(['error' => __('projects_no_access')], 403);
     }
     // projectAddPrepare writes (project, custom setups, setup_overrides) outside
     // any transaction, so wrap it together with the add: a failure between the
@@ -51,7 +44,7 @@ try {
     if (!empty($prep['frozen'])) {
         $conn->rollBack();
         $project = getProject($conn, $projectId);
-        echo json_encode([
+        awiJson([
             'success' => true,
             'project_id' => $projectId,
             'added' => 0,
@@ -59,7 +52,6 @@ try {
                 'message' => __(projectAddReasonKey('frozen'))]],
             'message' => __('projects_add_added', ['count' => 0]),
         ]);
-        exit;
     }
 
     $result = projectAddFiles($conn, $projectId, $ids, $req['groupFpOverrides'] ?? []);
@@ -76,7 +68,7 @@ try {
             'message' => __('projects_add_reason_custom_exists', ['no' => $s['no'] ?? '?']),
         ];
     }
-    echo json_encode([
+    awiJson([
         'success' => true,
         'project_id' => $projectId,
         'added' => $result['added'],
@@ -87,7 +79,6 @@ try {
     if (isset($conn) && $conn instanceof PDO && $conn->inTransaction()) {
         $conn->rollBack();
     }
-    http_response_code(500);
     error_log($e->getMessage());
-    echo json_encode(['error' => 'Database query failed.']);
+    awiJson(['error' => 'Database query failed.'], 500);
 }

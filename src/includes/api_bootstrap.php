@@ -34,6 +34,7 @@ require_once '/var/www/html/vendor/autoload.php';
 
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db_functions.php';
+require_once __DIR__ . '/http_json.php';
 require_once __DIR__ . '/projects_functions.php';
 require_once __DIR__ . '/projects_diagnostics.php';
 

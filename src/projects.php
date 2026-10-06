@@ -936,6 +936,7 @@ if ($projectBlocked) {
                 </div>
                 <div id="zipPreviewBody" class="text-sm text-gray-300"></div>
                 <form id="zipDownloadForm" method="POST" action="api/export_project_zip.php" class="hidden">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                     <input type="hidden" name="project_id" value="<?= (int)$detail['id'] ?>">
                 </form>
                 <div class="flex justify-end gap-2 mt-4">

@@ -7,9 +7,7 @@ ob_end_clean();
 
 // Only accept POST requests
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method Not Allowed']);
-    exit;
+    awiJson(['error' => 'Method Not Allowed'], 405);
 }
 
 // Dry-run only: analyses the selection against the project structure,
@@ -17,17 +15,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $data = json_decode(file_get_contents('php://input'), true);
 
 if (!isset($data['ids']) || !is_array($data['ids'])) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Invalid input. Required: ids (array of int), project_id (int, 0 for new).']);
-    exit;
+    awiJson(['error' => 'Invalid input. Required: ids (array of int), project_id (int, 0 for new).'], 400);
 }
 
 $projectId = isset($data['project_id']) ? (int)$data['project_id'] : 0;
 $ids = array_values(array_unique(array_filter($data['ids'], 'is_int')));
 
 if (empty($ids)) {
-    echo json_encode(['success' => false, 'message' => 'No valid IDs provided.']);
-    exit;
+    awiJson(['success' => false, 'message' => 'No valid IDs provided.']);
 }
 
 $ids = array_slice($ids, 0, 2000);
@@ -35,9 +30,7 @@ $ids = array_slice($ids, 0, 2000);
 try {
     $conn = connectDB();
     if ($projectId > 0 && getProject($conn, $projectId) !== null && !canAccessProject($conn, $projectId)) {
-        http_response_code(403);
-        echo json_encode(['error' => __('projects_no_access')]);
-        exit;
+        awiJson(['error' => __('projects_no_access')], 403);
     }
     $preview = projectPreviewFiles($conn, $projectId > 0 ? $projectId : null, $ids);
     $setups = $projectId > 0 ? getProjectSetups($conn, $projectId) : [];
@@ -46,7 +39,7 @@ try {
         $proj = getProject($conn, $projectId);
         $frozen = $proj !== null && getProjectAssignMode($proj) === 'frozen';
     }
-    echo json_encode([
+    awiJson([
         'success' => true,
         'frozen' => $frozen,
         'groups' => $preview['groups'],
@@ -59,7 +52,6 @@ try {
         ], $setups),
     ]);
 } catch (Exception $e) {
-    http_response_code(500);
     error_log($e->getMessage());
-    echo json_encode(['error' => 'Database query failed.']);
+    awiJson(['error' => 'Database query failed.'], 500);
 }

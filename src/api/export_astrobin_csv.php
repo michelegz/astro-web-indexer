@@ -56,13 +56,30 @@ if (empty($ids)) {
 // 2. Fetch all data for the selected files
 try {
     $conn = connectDB();
-    $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    
+
+    // Directory permissions: this endpoint takes raw ids off the query string, so
+    // without the filter a user could request files under roots they cannot see and
+    // get their metadata back in the CSV — object name, date, exposure, filter,
+    // binning, gain, sensor temperature, f/ratio, FWHM. Same helper the file listing
+    // uses. Every placeholder is named because this filter adds named ones.
+    [$permSql, $permParams] = buildDirPermissionFilter('perm_dir');
+    $where = [];
+    $params = [];
+    foreach (array_values($ids) as $i => $id) {
+        $key = ':id' . $i;
+        $where[] = "id = {$key}";
+        $params[$key] = (int)$id;
+    }
+    if ($permSql !== null) {
+        $where[] = $permSql;
+        $params += $permParams;
+    }
+
     $stmt = $conn->prepare(
         "SELECT id, object, date_obs, exptime, filter, imgtype, xbinning, gain, ccd_temp, focratio, fwhm
-         FROM files WHERE id IN ($placeholders)"
+         FROM files WHERE " . implode(' AND ', $where)
     );
-    $stmt->execute($ids);
+    $stmt->execute($params);
     $files = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // Filter name -> AstroBin numeric ID map (matched case-insensitively).

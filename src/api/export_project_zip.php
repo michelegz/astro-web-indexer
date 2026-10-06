@@ -30,6 +30,16 @@ if ($projectId <= 0) {
     die('Invalid input. Required: project_id (int).');
 }
 
+// CSRF: this form posts urlencoded, which a cross-origin page can submit without a
+// preflight. Without the token any site could make a logged-in browser build a
+// multi-GB archive server side (the response itself stays unreadable, so this is
+// abuse of resources rather than data disclosure). Same pattern as projects.php.
+if (!isset($_SESSION['csrf_token'])
+    || !hash_equals($_SESSION['csrf_token'], (string)($_POST['csrf_token'] ?? ''))) {
+    http_response_code(403);
+    die('Invalid or missing CSRF token.');
+}
+
 try {
     $conn = connectDB();
     $project = getProject($conn, $projectId);
@@ -59,7 +69,7 @@ foreach ($map['entries'] as $e) {
     $fullPath = realpath($fitsRoot . DIRECTORY_SEPARATOR . $relativePath);
     if ($fullPath
         && $realRoot !== false
-        && str_starts_with($fullPath, $realRoot)
+        && isPathWithinRoot($fullPath, $realRoot)
         && is_file($fullPath)
         && is_readable($fullPath)
         && canAccessPath($relativePath)) {
@@ -82,7 +92,9 @@ try {
     }
     $zip->addFile(
         fileName: 'MANIFEST.json',
-        data: json_encode($map['manifest'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+        // Never let a bad byte void the whole archive: awiJsonString substitutes
+        // invalid UTF-8 instead of returning false.
+        data: awiJsonString($map['manifest'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
     );
     $zip->finish();
 } catch (Exception $e) {

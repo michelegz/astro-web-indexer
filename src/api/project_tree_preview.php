@@ -14,9 +14,7 @@ ob_end_clean();
 // new_project). Returns rendered tree HTML with the new links marked green
 // (hypoMode: no checkboxes, hypo paths expanded).
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method Not Allowed']);
-    exit;
+    awiJson(['error' => 'Method Not Allowed'], 405);
 }
 
 $data = json_decode(file_get_contents('php://input'), true);
@@ -24,9 +22,7 @@ $data = json_decode(file_get_contents('php://input'), true);
 try {
     $req = parseProjectAddRequest(is_array($data) ? $data : []);
 } catch (InvalidArgumentException $e) {
-    http_response_code(400);
-    echo json_encode(['error' => $e->getMessage()]);
-    exit;
+    awiJson(['error' => $e->getMessage()], 400);
 }
 $projectId = $req['project_id'];
 $ids = $req['ids'];
@@ -35,8 +31,7 @@ $customSetups = $req['customSetups'];
 $newProject = $req['new_project'];
 
 if (empty($ids)) {
-    echo json_encode(['success' => false, 'message' => 'No valid IDs provided.']);
-    exit;
+    awiJson(['success' => false, 'message' => 'No valid IDs provided.']);
 }
 
 /**
@@ -71,9 +66,7 @@ function treePreviewSnapshot(PDO $conn, int $projectId, array $ids): array
 try {
     $conn = connectDB();
     if ($projectId > 0 && getProject($conn, $projectId) !== null && !canAccessProject($conn, $projectId)) {
-        http_response_code(403);
-        echo json_encode(['error' => __('projects_no_access')]);
-        exit;
+        awiJson(['error' => __('projects_no_access')], 403);
     }
     $conn->beginTransaction();
     try {
@@ -185,7 +178,7 @@ try {
             'message' => __('projects_add_reason_custom_exists', ['no' => $s['no'] ?? '?']),
         ];
     }
-    echo json_encode([
+    awiJson([
         'success' => true,
         'frozen' => $frozen,
         'project_id' => $projectId,
@@ -194,7 +187,6 @@ try {
         'html' => $html ?? '',
     ]);
 } catch (Exception $e) {
-    http_response_code(500);
     error_log($e->getMessage());
-    echo json_encode(['error' => 'Database query failed.']);
+    awiJson(['error' => 'Database query failed.'], 500);
 }

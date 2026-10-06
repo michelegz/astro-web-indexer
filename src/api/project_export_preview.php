@@ -7,26 +7,20 @@ ob_end_clean();
 
 // Only accept POST requests
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method Not Allowed']);
-    exit;
+    awiJson(['error' => 'Method Not Allowed'], 405);
 }
 
 // Dry-run only: same shared builder as the ZIP download, never writes.
 $data = json_decode(file_get_contents('php://input'), true);
 $projectId = isset($data['project_id']) ? (int)$data['project_id'] : 0;
 if ($projectId <= 0) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Invalid input. Required: project_id (int).']);
-    exit;
+    awiJson(['error' => 'Invalid input. Required: project_id (int).'], 400);
 }
 
 try {
     $conn = connectDB();
     if (getProject($conn, $projectId) === null || !canAccessProject($conn, $projectId)) {
-        http_response_code(403);
-        echo json_encode(['error' => __('projects_no_access')]);
-        exit;
+        awiJson(['error' => __('projects_no_access')], 403);
     }
     $map = buildProjectExportMap($conn, $projectId);
     // 'manifest' is deliberately absent: only export_project_zip.php writes it into
@@ -36,7 +30,7 @@ try {
     // so a count plus a bounded sample is what it actually needs.
     $skippedAll = $map['skipped'];
     $skippedShown = array_slice($skippedAll, 0, 200);
-    echo json_encode([
+    awiJson([
         'success' => true,
         'entries' => $map['entries'],
         'sets' => $map['sets'],
@@ -47,7 +41,6 @@ try {
         'total_size' => $map['total_size'],
     ]);
 } catch (Exception $e) {
-    http_response_code(500);
     error_log($e->getMessage());
-    echo json_encode(['error' => 'Database query failed.']);
+    awiJson(['error' => 'Database query failed.'], 500);
 }

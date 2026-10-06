@@ -31,16 +31,20 @@ $selectedRelativePaths = $_REQUEST['files'];
 $validFiles = [];
 
 // Validazione preliminare
+$realRoot = realpath($fitsRoot);
 foreach ($selectedRelativePaths as $relativePath) {
     // Rimuovi tutti i tentativi di directory traversal
     $relativePath = preg_replace('/\.\.(\/|\\\\)?/', '', $relativePath);
     $relativePath = ltrim($relativePath, '/\\');
-    
+
     $fullPath = realpath($fitsRoot . DIRECTORY_SEPARATOR . $relativePath);
     
-    // Verifica sicura del percorso
+    // Verifica sicura del percorso: il confine richiede il separatore, altrimenti
+    // una directory sorella il cui nome inizia con la radice passerebbe
+    // (/data/fits-archive dentro /data/fits).
     if ($fullPath && 
-        str_starts_with($fullPath, realpath($fitsRoot)) && 
+        $realRoot !== false &&
+        isPathWithinRoot($fullPath, $realRoot) && 
         is_file($fullPath) &&
         is_readable($fullPath) &&
         canAccessPath($relativePath)) {
