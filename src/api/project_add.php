@@ -57,7 +57,7 @@ try {
             'added' => 0,
             'skipped' => [['name' => (string)($project['name'] ?? ''),
                 'message' => __(projectAddReasonKey('frozen'))]],
-            'custom_skipped' => [],
+            'message' => __('projects_add_added', ['count' => 0]),
         ]);
         exit;
     }
