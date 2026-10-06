@@ -403,21 +403,68 @@ def find_or_create_session(dcur, panel_id, night):
     row = dcur.fetchone()
     if row:
         return row['id'], False
-    # Next consecutive session_no within the project (stable: never reused).
     dcur.execute(
-        "SELECT COALESCE(MAX(ss.session_no), 0) AS max_no FROM project_sessions ss "
-        "JOIN project_panels pp ON pp.id = ss.panel_id "
-        "JOIN project_setups ps ON ps.id = pp.setup_id "
-        "WHERE ps.project_id = (SELECT ps2.project_id FROM project_setups ps2 "
-        "JOIN project_panels pp2 ON pp2.setup_id = ps2.id WHERE pp2.id = %s)",
+        "SELECT ps.project_id FROM project_panels pp "
+        "JOIN project_setups ps ON ps.id = pp.setup_id WHERE pp.id = %s",
         (panel_id,),
     )
-    next_no = (dcur.fetchone()['max_no'] or 0) + 1
+    project_id = dcur.fetchone()['project_id']
+    # Mirrors projectFindOrCreateSession(): allocate past the current maximum, then
+    # renumber the project by night. The number cannot be picked correctly at insert
+    # time, because inserting a night older than the existing ones needs rows that
+    # are already stored to move, and MAX+1 gets it backwards (N3 for the oldest of
+    # three). Projects hold a handful of sessions, so renumbering is cheap and also
+    # repairs anything that drifted.
     dcur.execute(
-        "INSERT INTO project_sessions (panel_id, astro_night, session_no) VALUES (%s, %s, %s)",
-        (panel_id, night, next_no),
+        "SELECT COALESCE(MAX(ss.session_no), 0) AS n FROM project_sessions ss "
+        "JOIN project_panels pp ON pp.id = ss.panel_id "
+        "JOIN project_setups ps ON ps.id = pp.setup_id WHERE ps.project_id = %s",
+        (project_id,),
     )
-    return dcur.lastrowid, True
+    next_no = (dcur.fetchone()['n'] or 0) + 1
+    try:
+        dcur.execute(
+            "INSERT INTO project_sessions (panel_id, astro_night, session_no) "
+            "VALUES (%s, %s, %s)",
+            (panel_id, night, next_no),
+        )
+        new_id = dcur.lastrowid
+    except Exception as exc:
+        # The only unique key here is (panel_id, astro_night): a concurrent writer
+        # created this exact session, and its row is the right answer.
+        if getattr(exc, 'errno', None) != 1062:
+            raise
+        dcur.execute(
+            "SELECT id FROM project_sessions WHERE panel_id = %s AND astro_night = %s",
+            (panel_id, night),
+        )
+        row = dcur.fetchone()
+        if row:
+            return row['id'], False
+        raise
+    renumber_sessions_by_night(dcur, project_id)
+    return new_id, True
+
+
+def renumber_sessions_by_night(dcur, project_id):
+    """session_no dense and increasing with astro-night, per project.
+
+    The project tree renders sessions in night order and shows session_no as the N
+    prefix, so the two have to agree. Ties on the same night are separated by id so
+    two panels of a project never share a number.
+    """
+    dcur.execute(
+        "UPDATE project_sessions ss "
+        "JOIN project_panels pp ON pp.id = ss.panel_id "
+        "JOIN project_setups ps ON ps.id = pp.setup_id "
+        "JOIN (SELECT ss2.id, ROW_NUMBER() OVER "
+        "(PARTITION BY ps2.project_id ORDER BY ss2.astro_night, ss2.id) AS rn "
+        "FROM project_sessions ss2 "
+        "JOIN project_panels pp2 ON pp2.id = ss2.panel_id "
+        "JOIN project_setups ps2 ON ps2.id = pp2.setup_id) t ON t.id = ss.id "
+        "SET ss.session_no = t.rn WHERE ps.project_id = %s",
+        (project_id,),
+    )
 
 
 def already_processed(dcur, project_id, file_id, project=None, globals_=None):

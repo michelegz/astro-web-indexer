@@ -1540,19 +1540,59 @@ function projectFindSetup(PDO $conn, int $projectId, string $fingerprint): ?int
     return $fsRow !== false ? (int)$fsRow['id'] : null;
 }
 
+/**
+ * True when $e is a duplicate-key error raised by $indexName.
+ *
+ * The numbering allocators read MAX()+1 and can lose the race against a
+ * concurrent writer (the manual add path and the indexer watcher run side by
+ * side), so on that specific collision the number is recomputed and retried.
+ *
+ * The check is deliberately narrow: project_setups also carries a unique key on
+ * (project_id, fingerprint), and a duplicate fingerprint is an expected outcome
+ * that the caller resolves by re-reading the existing setup. Retrying that one
+ * would spin without ever succeeding, so only the numbering key is retried and
+ * anything else is rethrown untouched.
+ */
+function projectRetryOnDuplicate(PDOException $e, string $indexName): bool
+{
+    $driverCode = (int)($e->errorInfo[1] ?? 0);
+    if ($driverCode !== 1062 && $e->getCode() !== '23000') {
+        return false;
+    }
+    // The driver message names the key: "Duplicate entry '3-3' for key
+    // 'uq_project_setups_no'". Without a usable message it is safer to propagate
+    // than to swallow an unrelated conflict.
+    $message = (string)($e->errorInfo[2] ?? $e->getMessage());
+    return $message !== '' && str_contains($message, $indexName);
+}
+
 function projectCreateSetup(PDO $conn, int $projectId, string $fingerprint, ?string $label): int
 {
-    // Next consecutive number within the project (stable: never reused).
-    $maxNo = $conn->prepare(
-        "SELECT COALESCE(MAX(setup_no), 0) FROM project_setups WHERE project_id = :pid"
-    );
-    $maxNo->execute([':pid' => $projectId]);
-    $nextNo = (int)$maxNo->fetchColumn() + 1;
+    // Next consecutive number within the project. Numbers are reused once the
+    // highest-numbered sibling is pruned, so an old export ZIP can show S3 for a
+    // different setup than the one it names.
     $ins = $conn->prepare(
         "INSERT INTO project_setups (project_id, fingerprint, label, setup_no) VALUES (:pid, :fp, :label, :no)"
     );
-    $ins->execute([':pid' => $projectId, ':fp' => $fingerprint, ':label' => $label, ':no' => $nextNo]);
-    return (int)$conn->lastInsertId();
+    // The manual add path and the indexer watcher write concurrently by design, so
+    // MAX()+1 can be read by both before either inserts. The unique key turns that
+    // into a retryable error instead of two rows sharing an S number.
+    for ($attempt = 0; $attempt < 5; $attempt++) {
+        $maxNo = $conn->prepare(
+            "SELECT COALESCE(MAX(setup_no), 0) FROM project_setups WHERE project_id = :pid"
+        );
+        $maxNo->execute([':pid' => $projectId]);
+        $nextNo = (int)$maxNo->fetchColumn() + 1;
+        try {
+            $ins->execute([':pid' => $projectId, ':fp' => $fingerprint, ':label' => $label, ':no' => $nextNo]);
+            return (int)$conn->lastInsertId();
+        } catch (PDOException $e) {
+            if (!projectRetryOnDuplicate($e, 'uq_project_setups_no')) {
+                throw $e;
+            }
+        }
+    }
+    throw new PDOException("Could not allocate a free setup_no for project {$projectId}");
 }
 
 /**
@@ -1632,23 +1672,33 @@ function projectCreatePanel(PDO $conn, int $setupId, array $row, string $bucket,
 {
     $rotVal = ($row['objctrot'] !== null && $row['objctrot'] !== '') ? fmod((float)$row['objctrot'], 360.0) : null;
     $objLabel = $bucket !== 'UNKNOWN' ? trim((string)($row['object'] ?? '')) : $bucket;
-    // Next consecutive number within the project (stable: never reused).
-    $maxNo = $conn->prepare(
-        "SELECT COALESCE(MAX(pp.panel_no), 0) FROM project_panels pp "
-        . "JOIN project_setups ps ON ps.id = pp.setup_id "
-        . "WHERE ps.project_id = (SELECT project_id FROM project_setups WHERE id = :sid)"
-    );
-    $maxNo->execute([':sid' => $setupId]);
-    $nextNo = (int)$maxNo->fetchColumn() + 1;
     $ins = $conn->prepare(
         "INSERT INTO project_panels (setup_id, ra, `dec`, rot_mean, fov_w, fov_h, label_object, panel_no) "
         . "VALUES (:sid, :ra, :dec, :rot, :fovw, :fovh, :label, :no)"
     );
-    $ins->execute([
-        ':sid' => $setupId, ':ra' => $ra, ':dec' => $dec, ':rot' => $rotVal,
-        ':fovw' => $row['fov_w'], ':fovh' => $row['fov_h'], ':label' => $objLabel, ':no' => $nextNo,
-    ]);
-    return (int)$conn->lastInsertId();
+    // Next consecutive number within the project; retry on a lost race (see
+    // projectCreateSetup for why the web container and the watcher collide here).
+    for ($attempt = 0; $attempt < 5; $attempt++) {
+        $maxNo = $conn->prepare(
+            "SELECT COALESCE(MAX(pp.panel_no), 0) FROM project_panels pp "
+            . "JOIN project_setups ps ON ps.id = pp.setup_id "
+            . "WHERE ps.project_id = (SELECT project_id FROM project_setups WHERE id = :sid)"
+        );
+        $maxNo->execute([':sid' => $setupId]);
+        $nextNo = (int)$maxNo->fetchColumn() + 1;
+        try {
+            $ins->execute([
+                ':sid' => $setupId, ':ra' => $ra, ':dec' => $dec, ':rot' => $rotVal,
+                ':fovw' => $row['fov_w'], ':fovh' => $row['fov_h'], ':label' => $objLabel, ':no' => $nextNo,
+            ]);
+            return (int)$conn->lastInsertId();
+        } catch (PDOException $e) {
+            if (!projectRetryOnDuplicate($e, 'uq_project_panels_no')) {
+                throw $e;
+            }
+        }
+    }
+    throw new PDOException("Could not allocate a free panel_no for setup {$setupId}");
 }
 
 function projectFindOrCreateSession(PDO $conn, int $panelId, string $night): int
@@ -1659,19 +1709,68 @@ function projectFindOrCreateSession(PDO $conn, int $panelId, string $night): int
     if ($sessRow !== false) {
         return (int)$sessRow['id'];
     }
-    // Next consecutive number within the project (stable: never reused).
+    $projectId = projectIdOfPanel($conn, $panelId);
     $maxNo = $conn->prepare(
         "SELECT COALESCE(MAX(ss.session_no), 0) FROM project_sessions ss "
         . "JOIN project_panels pp ON pp.id = ss.panel_id "
-        . "JOIN project_setups ps ON ps.id = pp.setup_id "
-        . "WHERE ps.project_id = (SELECT ps2.project_id FROM project_setups ps2 "
-        . "JOIN project_panels pp2 ON pp2.setup_id = ps2.id WHERE pp2.id = :panel)"
+        . "JOIN project_setups ps ON ps.id = pp.setup_id WHERE ps.project_id = :pid"
     );
-    $maxNo->execute([':panel' => $panelId]);
-    $nextNo = (int)$maxNo->fetchColumn() + 1;
     $ins = $conn->prepare("INSERT INTO project_sessions (panel_id, astro_night, session_no) VALUES (:panel, :night, :no)");
-    $ins->execute([':panel' => $panelId, ':night' => $night, ':no' => $nextNo]);
-    return (int)$conn->lastInsertId();
+    $maxNo->execute([':pid' => $projectId]);
+    $nextNo = (int)$maxNo->fetchColumn() + 1;
+    try {
+        $ins->execute([':panel' => $panelId, ':night' => $night, ':no' => $nextNo]);
+        // Read the id before the renumbering statement runs: lastInsertId()
+        // tracks the last INSERT and is no longer meaningful afterwards.
+        $newId = (int)$conn->lastInsertId();
+    } catch (PDOException $e) {
+        // The only unique key here is (panel_id, astro_night): a concurrent writer
+        // created this exact session, and its row is the right answer.
+        $sess->execute([':panel' => $panelId, ':night' => $night]);
+        $again = $sess->fetch();
+        if ($again !== false) {
+            return (int)$again['id'];
+        }
+        throw $e;
+    }
+    projectRenumberSessionsByNight($conn, $projectId);
+    return $newId;
+}
+
+function projectIdOfPanel(PDO $conn, int $panelId): int
+{
+    $q = $conn->prepare("SELECT ps.project_id FROM project_panels pp "
+        . "JOIN project_setups ps ON ps.id = pp.setup_id WHERE pp.id = :pid");
+    $q->execute([':pid' => $panelId]);
+    return (int)$q->fetchColumn();
+}
+
+/**
+ * Renumber every session of a project so session_no increases with the astro-night.
+ *
+ * The project tree renders sessions in night order and shows session_no as the N
+ * prefix, so the two have to agree. A number cannot be picked correctly at insert
+ * time: inserting a night older than existing ones would need to renumber rows
+ * that are already there, and a MAX+1 counter gets it exactly backwards (N3 for the
+ * oldest night of three). Since a project holds a handful of sessions, renumbering
+ * the whole project after each insert is cheap and also repairs anything that
+ * drifted.
+ *
+ * The tie-break on id keeps two panels of the same night on distinct numbers.
+ */
+function projectRenumberSessionsByNight(PDO $conn, int $projectId): void
+{
+    $conn->prepare(
+        "UPDATE project_sessions ss "
+        . "JOIN project_panels pp ON pp.id = ss.panel_id "
+        . "JOIN project_setups ps ON ps.id = pp.setup_id "
+        . "JOIN (SELECT ss2.id, ROW_NUMBER() OVER "
+        . "(PARTITION BY ps2.project_id ORDER BY ss2.astro_night, ss2.id) AS rn "
+        . "FROM project_sessions ss2 "
+        . "JOIN project_panels pp2 ON pp2.id = ss2.panel_id "
+        . "JOIN project_setups ps2 ON ps2.id = pp2.setup_id) t ON t.id = ss.id "
+        . "SET ss.session_no = t.rn WHERE ps.project_id = :pid"
+    )->execute([':pid' => $projectId]);
 }
 
 /**
