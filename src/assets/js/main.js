@@ -137,7 +137,17 @@ document.addEventListener('DOMContentLoaded', () => {
         return document.querySelectorAll('.file-checkbox');
     }
     function getSelectedFiles() {
-        return Array.from(getFileCheckboxes()).filter(cb => cb.checked);
+        // List and thumbnail views render the same files twice (the hidden
+        // view stays in the DOM): dedupe by file id so every downstream flow
+        // (download, export, add-to-project) sees each file once.
+        const seen = new Set();
+        return Array.from(getFileCheckboxes()).filter(cb => {
+            if (!cb.checked) return false;
+            const id = cb.dataset.id;
+            if (seen.has(id)) return false;
+            seen.add(id);
+            return true;
+        });
     }
     function updateButtonStates() {
         const hasSelection = getSelectedFiles().length > 0;
@@ -317,6 +327,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let projectModalIds = null; // explicit id list override (SFF modal); null = main table selection
     const projectStep1 = document.getElementById('projectStep1');
     const projectStep2 = document.getElementById('projectStep2');
+    const projectStep3 = document.getElementById('projectStep3');
+    const projectModalReviewTree = document.getElementById('projectModalReviewTree');
+    const projectModalBack2 = document.getElementById('projectModalBack2');
+    const projectTreePreview = document.getElementById('projectTreePreview');
+    const projectTreeSkipped = document.getElementById('projectTreeSkipped');
     const projectModalAnalyze = document.getElementById('projectModalAnalyze');
     const projectModalBack = document.getElementById('projectModalBack');
     const newProjectFields = document.getElementById('newProjectFields');
@@ -334,6 +349,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!projectStep1 || !projectStep2) return;
         projectStep1.classList.toggle('hidden', n !== 1);
         projectStep2.classList.toggle('hidden', n !== 2);
+        if (projectStep3) projectStep3.classList.toggle('hidden', n !== 3);
     }
     function setProjectMsg(text, ok) {
         if (!projectAddMsg) return;
@@ -528,31 +544,79 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+    function collectProjectOverrides() {
+        const overrides = {};
+        let missingName = false;
+        document.querySelectorAll('.override-select').forEach(sel => {
+            const gi = parseInt(sel.dataset.group, 10);
+            const g = projectPreview.groups[gi];
+            if (!g) return;
+            if (sel.value === 'new') {
+                const nameInput = document.querySelector(`.custom-setup-name[data-groupname="${gi}"]`);
+                const name = (nameInput?.value || '').trim();
+                if (!name) {
+                    missingName = true;
+                    if (nameInput) nameInput.focus();
+                    return;
+                }
+                (g.files || []).forEach(f => { overrides[f.id] = 'new:' + name; });
+            } else {
+                const sid = parseInt(sel.value, 10);
+                if (sid > 0) {
+                    (g.files || []).forEach(f => { overrides[f.id] = sid; });
+                }
+            }
+        });
+        return { overrides, missingName };
+    }
+    function projectTreePayload() {
+        const { overrides, missingName } = collectProjectOverrides();
+        if (missingName) return null;
+        const payload = { project_id: projectPreview.projectId, ids: projectPreview.ids, overrides };
+        if (projectPreview.projectId === 0 && projectPreview.newProject) {
+            payload.new_project = projectPreview.newProject;
+        }
+        return payload;
+    }
+    if (projectModalReviewTree) {
+        projectModalReviewTree.addEventListener('click', () => {
+            if (!projectPreview) return;
+            const payload = projectTreePayload();
+            if (!payload) return;
+            projectModalReviewTree.disabled = true;
+            fetch('/api/project_tree_preview.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+                    if (data.frozen) throw new Error((window.i18n || {}).project_add_frozen || 'Project is frozen.');
+                    if (projectTreePreview) projectTreePreview.innerHTML = data.html || '';
+                    if (projectTreeSkipped) {
+                        const skipped = (data.skipped || []).map(s => `${s.name} (${s.message})`).join(', ');
+                        projectTreeSkipped.textContent = skipped;
+                        projectTreeSkipped.style.display = skipped ? '' : 'none';
+                    }
+                    showProjectStep(3);
+                })
+                .catch(err => {
+                    if (projectTreePreview) projectTreePreview.innerHTML = `<p class="text-red-400">Error: ${escHtml(err.message)}</p>`;
+                    showProjectStep(3);
+                })
+                .finally(() => {
+                    projectModalReviewTree.disabled = false;
+                });
+        });
+    }
+    if (projectModalBack2) {
+        projectModalBack2.addEventListener('click', () => showProjectStep(2));
+    }
     if (projectModalConfirm) {
         projectModalConfirm.addEventListener('click', () => {
             if (!projectPreview) return;
-            const overrides = {};
-            let missingName = false;
-            document.querySelectorAll('.override-select').forEach(sel => {
-                const gi = parseInt(sel.dataset.group, 10);
-                const g = projectPreview.groups[gi];
-                if (!g) return;
-                if (sel.value === 'new') {
-                    const nameInput = document.querySelector(`.custom-setup-name[data-groupname="${gi}"]`);
-                    const name = (nameInput?.value || '').trim();
-                    if (!name) {
-                        missingName = true;
-                        if (nameInput) nameInput.focus();
-                        return;
-                    }
-                    (g.files || []).forEach(f => { overrides[f.id] = 'new:' + name; });
-                } else {
-                    const sid = parseInt(sel.value, 10);
-                    if (sid > 0) {
-                        (g.files || []).forEach(f => { overrides[f.id] = sid; });
-                    }
-                }
-            });
+            const { overrides, missingName } = collectProjectOverrides();
             if (missingName) return;
             const payload = { project_id: projectPreview.projectId, ids: projectPreview.ids, overrides };
             if (projectPreview.projectId === 0 && projectPreview.newProject) {

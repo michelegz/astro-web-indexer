@@ -54,6 +54,16 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
             <div id="projectPreviewSkipped" class="mb-4 text-sm text-gray-400"></div>
             <div class="flex justify-end gap-2">
                 <button type="button" id="projectModalBack" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg"><?php echo __('projects_add_back') ?></button>
+                <button type="button" id="projectModalReviewTree" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg"><?php echo __('projects_add_review_tree') ?></button>
+            </div>
+        </div>
+
+        <div id="projectStep3" class="hidden">
+            <p class="text-sm text-gray-400 mb-3"><?php echo __('projects_add_tree_title') ?></p>
+            <div id="projectTreePreview" class="flex flex-col gap-2 mb-4 max-h-[50vh] overflow-y-auto"></div>
+            <div id="projectTreeSkipped" class="mb-4 text-sm text-gray-400"></div>
+            <div class="flex justify-end gap-2">
+                <button type="button" id="projectModalBack2" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg"><?php echo __('projects_add_back') ?></button>
                 <button type="button" id="projectModalConfirm" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg"><?php echo __('projects_add_confirm') ?></button>
             </div>
         </div>

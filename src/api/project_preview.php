@@ -23,7 +23,7 @@ if (!isset($data['ids']) || !is_array($data['ids'])) {
 }
 
 $projectId = isset($data['project_id']) ? (int)$data['project_id'] : 0;
-$ids = array_values(array_filter($data['ids'], 'is_int'));
+$ids = array_values(array_unique(array_filter($data['ids'], 'is_int')));
 
 if (empty($ids)) {
     echo json_encode(['success' => false, 'message' => 'No valid IDs provided.']);
