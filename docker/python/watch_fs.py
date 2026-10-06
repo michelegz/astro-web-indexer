@@ -62,7 +62,9 @@ class FitsHandler(FileSystemEventHandler):
         self.thumb_size = thumb_size
         self.pending_reindex = False
         self.last_reindex = 0
-        self.cooldown = 10  # Reduced cooldown
+        self.cooldown = 10  # Seconds after a successful reindex
+        self.cooldown_max = 300  # Ceiling for the backoff after repeated failures
+        self.reindex_failures = 0
         self.reindex_reason = "startup"
         self.rescan_interval = float(rescan_interval)
         self.last_scan = 0.0
@@ -187,10 +189,24 @@ class FitsHandler(FileSystemEventHandler):
                 cmd.append("--debug")
             subprocess.run(cmd, check=True)
             logging.info("Reindexing completed successfully")
+            # Stamp the attempt either way. On failure pending_reindex stays True,
+            # so without this the next second re-launches the whole archive walk
+            # and DB scan: reindex.py exits non-zero exactly when the DB is down,
+            # which is when hammering it is worst.
             self.last_reindex = current_time
             self.pending_reindex = False
-        except subprocess.CalledProcessError as e:
-            logging.error(f"Error during reindexing: {e}")
+            self.reindex_failures = 0
+            self.cooldown = 10
+        except (subprocess.CalledProcessError, OSError, subprocess.TimeoutExpired) as e:
+            self.last_reindex = current_time
+            self.reindex_failures += 1
+            # Exponential backoff, capped: a persistent failure costs one attempt
+            # per window instead of one per second.
+            self.cooldown = min(self.cooldown_max, self.cooldown * 2)
+            logging.error(
+                f"Reindex failed ({self.reindex_failures} in a row, "
+                f"next attempt in {self.cooldown}s): {e}"
+            )
 
 
 def process_suggest_queue(db_params):
@@ -339,7 +355,13 @@ def main():
     try:
         while True:
             event_handler.check_and_reindex()
-            process_suggest_queue(db_params)
+            # Per-iteration guard: a failure in the queue poll or in the watcher
+            # must not take the whole monitor down. Previously only KeyboardInterrupt
+            # was handled, so a transient error ended the process silently.
+            try:
+                process_suggest_queue(db_params)
+            except Exception as e:
+                logging.error(f"Suggest queue error: {e}")
             time.sleep(1)
     except KeyboardInterrupt:
         observer.stop()

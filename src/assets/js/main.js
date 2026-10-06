@@ -360,6 +360,13 @@ document.addEventListener('DOMContentLoaded', () => {
         projectStep2.classList.toggle('hidden', n !== 2);
         if (projectStep3) projectStep3.classList.toggle('hidden', n !== 3);
         if (projectStep4) projectStep4.classList.toggle('hidden', n !== 4);
+        // Stale feedback does not survive a step change: setProjectMsg is only
+        // ever called from a catch handler, never right after a transition, so
+        // clearing here cannot swallow a fresh message.
+        if (projectAddMsg) {
+            projectAddMsg.textContent = '';
+            projectAddMsg.classList.add('hidden');
+        }
     }
     function setProjectMsg(text, ok) {
         if (!projectAddMsg) return;

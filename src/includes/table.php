@@ -23,6 +23,12 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
     <div class="bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[85vh] overflow-y-auto">
         <h3 class="text-lg font-semibold mb-4"><?php echo __('projects_add_title') ?></h3>
 
+        <!-- Outside the step containers on purpose: the confirm step is where
+             failures surface (main.js setProjectMsg), and inside #projectStep1 the
+             box was hidden by showProjectStep, so an error produced no visible
+             feedback at all. -->
+        <div id="projectAddMsg" class="hidden mb-4 p-3 rounded text-sm"></div>
+
         <div id="projectStep1">
             <label class="block text-sm text-gray-400 mb-3"><?php echo __('projects_select_project') ?>
                 <select id="projectSelect" class="mt-1 w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100">
@@ -40,7 +46,6 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                           placeholder="<?php echo __('projects_add_new_notes') ?>"
                           class="px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100"></textarea>
             </div>
-            <div id="projectAddMsg" class="hidden mb-4 p-3 rounded text-sm"></div>
             <div class="flex justify-end gap-2">
                 <button type="button" id="projectModalCancel" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg"><?php echo __('projects_add_cancel') ?></button>
                 <button type="button" id="projectModalAnalyze" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg"><?php echo __('projects_add_analyze') ?></button>

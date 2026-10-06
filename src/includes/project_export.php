@@ -33,6 +33,58 @@ function exportSanitize(string $s): string
 }
 
 /**
+ * Make an original file basename safe to extract, without flattening it.
+ *
+ * Directory components go through exportSanitize(), but basenames are the user's
+ * own file names and are kept readable on purpose. They still have to survive an
+ * unzip on Windows, which is where this export is consumed (the WBPP workflow):
+ *
+ *  - ": * ? " < > |" and control characters are rejected by the Windows
+ *    filesystem, and a name containing them fails or gets rewritten on extract;
+ *  - a trailing dot or space is silently dropped by Windows, which turns
+ *    "light.fits " and "light.fits" into the same entry;
+ *  - CON, PRN, AUX, NUL, COM1-9 and LPT1-9 are reserved device names, unusable
+ *    whatever the extension.
+ *
+ * Spaces, dashes, parentheses and so on are legal and stay: mangling them would
+ * make the archive harder to recognise than it needs to be.
+ */
+function exportSafeBasename(string $name, int $fid = 0): string
+{
+    $name = str_replace(['/', '\\'], '_', $name);
+    // Drop control characters and everything Windows reserves.
+    $name = preg_replace('/[\x00-\x1F<>:"|?*]+/', '_', $name) ?? '';
+    $name = trim($name);
+
+    $dot = strrpos($name, '.');
+    if ($dot === false) {
+        $stem = $name;
+        $ext = '';
+    } else {
+        $stem = substr($name, 0, $dot);
+        $ext = substr($name, $dot + 1);
+    }
+    // Windows drops trailing dots and spaces on either side of the dot.
+    $stem = rtrim($stem, " .");
+    $ext = trim($ext, " .");
+    // Keep the extension alphanumeric; anything else would re-introduce a
+    // separator or a control character through the dot path.
+    if ($ext !== '' && preg_match('/^[A-Za-z0-9]+$/', $ext) !== 1) {
+        $ext = '';
+    }
+
+    $stem = trim($stem, " .");
+    if ($stem === '') {
+        $stem = 'file' . ($fid > 0 ? '_' . $fid : '');
+    }
+    // Reserved device names, case-insensitively, with or without extension.
+    if (preg_match('/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i', $stem) === 1) {
+        $stem = '_' . $stem;
+    }
+    return $ext === '' ? $stem : $stem . '.' . $ext;
+}
+
+/**
  * Compact night: 2024-05-01 -> 20240501 (dashes are WBPP stop characters).
  */
 function exportNight(string $night): string
@@ -166,13 +218,21 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
         if ($fid <= 0) {
             return;
         }
-        $base = (string)($f['name'] ?? "file_$fid.fits");
+        $base = exportSafeBasename((string)($f['name'] ?? ''), $fid);
+        if ($base === '') {
+            $base = "file_$fid.fits";
+        }
         // Name collisions are resolved per target folder (used is keyed by
         // dir + "\0" + name), so the same file emitted into two folders keeps
         // its plain name in both and both paths stay distinct.
+        //
+        // The key is case-folded: extracting on a case-insensitive filesystem
+        // makes "Light.fits" and "light.fits" the same entry, and without this
+        // the second one would silently overwrite the first in the light or
+        // calibration set.
         $name = $base;
         $i = 1;
-        while (isset($st['used'][$dir . "\0" . $name])) {
+        while (isset($st['used'][mb_strtolower($dir . "\0" . $name)])) {
             $dot = strrpos($base, '.');
             $name = $dot === false ? $base . '_' . $i : substr($base, 0, $dot) . '_' . $i . substr($base, $dot);
             $i++;
@@ -191,7 +251,7 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
             }
             $st['dups'][$fid]['paths'][] = $zipPath;
         }
-        $st['used'][$dir . "\0" . $name] = true;
+        $st['used'][mb_strtolower($dir . "\0" . $name)] = true;
         $st['seen'][$fid] = $zipPath;
         $st['size'] += max(0, (int)($f['file_size'] ?? 0));
         $st['entries'][] = [
