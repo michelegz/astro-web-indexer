@@ -30,9 +30,10 @@ function diagBox(string $status, string $letter, string $title): string
 
 /**
  * B/D badges for one flat from its bias+dark coverage verdicts.
- * One green side is enough to calibrate a flat: the other side turns grey
- * (not needed). Both green stay green; otherwise the real verdicts show
- * (yellow/red), and two missing sides are both red.
+ * One side offering coverage (green, or yellow against a missing side) is
+ * enough to calibrate a flat: the other side turns grey (not needed). Both
+ * green stay green; yellow+yellow both show (partial on both sides); two
+ * missing sides are both red.
  */
 function flatCovBadges(?array $cov, string $biasTitle, string $darkTitle, string $naTitle): string
 {
@@ -44,11 +45,11 @@ function flatCovBadges(?array $cov, string $biasTitle, string $darkTitle, string
     if ($b === 'green' && $d === 'green') {
         return diagBox('green', 'B', $biasTitle) . diagBox('green', 'D', $darkTitle);
     }
-    if ($b === 'green') {
-        return diagBox('green', 'B', $biasTitle) . diagBox('grey', 'D', $naTitle);
+    if ($b === 'green' || ($b === 'yellow' && $d === 'red')) {
+        return diagBox($b, 'B', $biasTitle) . diagBox('grey', 'D', $naTitle);
     }
-    if ($d === 'green') {
-        return diagBox('grey', 'B', $naTitle) . diagBox('green', 'D', $darkTitle);
+    if ($d === 'green' || ($d === 'yellow' && $b === 'red')) {
+        return diagBox('grey', 'B', $naTitle) . diagBox($d, 'D', $darkTitle);
     }
     return diagBox($b, 'B', $biasTitle) . diagBox($d, 'D', $darkTitle);
 }

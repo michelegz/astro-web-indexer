@@ -71,8 +71,13 @@ function sameBinning(array $a, array $b): ?bool
 
 function sameGain(array $a, array $b): ?bool
 {
+    if ($a['gain'] === null && $b['gain'] === null) {
+        // Nothing contradicts: pools are chain-scoped to one setup, which
+        // already partitions by gain whenever it is known (fingerprint).
+        return true;
+    }
     if ($a['gain'] === null || $b['gain'] === null) {
-        return null;
+        return null; // asymmetric: genuinely suspicious, stays yellow
     }
     return abs((float)$a['gain'] - (float)$b['gain']) < 1e-9;
 }
