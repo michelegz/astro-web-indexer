@@ -446,27 +446,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 html += `<option value="new">${escHtml(t.project_add_new_setup || '＋ New custom setup…')}</option>`;
                 html += `</select> <span class="merge-hint text-sky-300/80" data-mergehint="${gi}"></span></label><input type="text" data-groupname="${gi}" maxlength="64" placeholder="${escHtml(t.project_add_new_setup_name || 'Custom setup name')}" class="custom-setup-name hidden mt-1 mb-2 w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100 text-xs">`;
             }
-            html += '<ul class="text-xs text-gray-300 flex flex-col gap-1">';
+            // File list without placement details (step 3 shows where they
+            // land): collapsible, header summarizes counts per subframe type.
+            const typeCounts = {};
+            (g.files || []).forEach(f => {
+                const k = ((f.imgtype || '?')[0] || '?').toUpperCase();
+                typeCounts[k] = (typeCounts[k] || 0) + 1;
+            });
+            const typeSummary = Object.keys(typeCounts).sort()
+                .map(k => `${k}:${typeCounts[k]}`).join(' ');
+            html += `<details class="mt-1"><summary class="cursor-pointer text-xs text-gray-400">${escHtml(typeSummary)}</summary>`;
+            html += '<ul class="text-xs text-gray-300 flex flex-col gap-1 mt-1">';
             g.files.forEach(f => {
-                let panel;
-                if (f.panel_new) {
-                    const where = (f.panel_ra !== null && f.panel_ra !== undefined)
-                        ? `${Number(f.panel_ra).toFixed(3)}/${Number(f.panel_dec).toFixed(3)}` : escHtml(f.bucket || '');
-                    panel = `→ ${escHtml(t.project_add_panel_new || 'New panel')} (${where})`;
-                } else if (f.panel_id === null || f.panel_id === undefined) {
-                    // FLATs skip panel matching (night session or setup, see
-                    // dest below): no panel part to show.
-                    panel = '';
-                } else {
-                    panel = `→ ${escHtml((data.panels || {})[f.panel_id] || ('P' + f.panel_id))} (${Number(f.sep_arcmin).toFixed(1)}′ ≤ ${Number(f.tol_pos_arcmin).toFixed(1)}′)`;
-                }
-                // Calibration destination level (lights always go under their filter).
-                let dest = '';
-                if (f.level && f.level !== 'filter') {
-                    dest = f.level === 'session' && f.night
-                        ? `→ ${escHtml(t.projects_session || 'session')} ${escHtml(f.night)}`
-                        : `→ ${escHtml(t.projects_setup || 'setup')}`;
-                }
                 // Already linked elsewhere: still added, but flagged (⧉×n).
                 let dup = '';
                 if (f.dup && f.dup.length) {
@@ -474,9 +465,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     dup = ` <span title="${tip}">⧉×${f.dup.length}</span>`;
                 }
                 const meta = [f.filter || '', f.night || ''].filter(Boolean).join(' · ');
-                html += `<li><span class="font-medium">${escHtml(f.name)}</span> <span class="text-gray-500">${escHtml(meta)}</span> <span class="text-gray-400">${panel}</span>${dest ? ` <span class="text-sky-300/80">${dest}</span>` : ''}${dup}</li>`;
+                html += `<li><span class="font-medium">${escHtml(f.name)}</span> <span class="text-gray-500">${escHtml(meta)}</span>${dup}</li>`;
             });
-            html += '</ul></div>';
+            html += '</ul></details></div>';
         });
         if (previewGroups) previewGroups.innerHTML = html;
         if (previewSkipped) {
