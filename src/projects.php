@@ -1037,11 +1037,17 @@ if ($projectBlocked) {
                                     `<div>🧩 <span class="font-mono">${esc(name)}</span> → ${esc((t.panels || []).join(', '))}</div>`).join('')
                                 + `</div>`;
                         }
+                        // The endpoint caps the list and sends skipped_total: show the bounded sample
+                        // plus the real count, so a project with thousands of skipped
+                        // subframes does not ship a huge HTML blob into the modal.
                         const skipped = data.skipped || [];
-                        if (skipped.length) {
+                        const skippedTotal = data.skipped_total ?? skipped.length;
+                        if (skippedTotal > 0) {
                             html += `<details class="mt-3"><summary class="cursor-pointer text-xs text-gray-400">`
-                                + `${esc(window.i18n?.projects_export_skipped || 'Skipped')} (${skipped.length})</summary><ul class="text-xs text-gray-500">`
+                                + `${esc(window.i18n?.projects_export_skipped || 'Skipped')} (${skippedTotal})</summary><ul class="text-xs text-gray-500">`
                                 + skipped.map(s => `<li>${esc(s.name)} — ${esc(s.reason)}</li>`).join('')
+                                + (skippedTotal > skipped.length
+                                    ? `<li class="italic">… +${skippedTotal - skipped.length}</li>` : '')
                                 + `</ul></details>`;
                         }
                         // Files requested by more than one folder are copied

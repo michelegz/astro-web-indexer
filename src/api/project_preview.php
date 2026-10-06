@@ -2,7 +2,7 @@
 header('Content-Type: application/json');
 
 ob_start();
-require_once '../includes/init.php';
+require_once '../includes/api_bootstrap.php';
 ob_end_clean();
 
 // Only accept POST requests

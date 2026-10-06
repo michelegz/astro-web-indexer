@@ -2,7 +2,7 @@
 header('Content-Type: application/json');
 
 ob_start();
-require_once '../includes/init.php';
+require_once '../includes/api_bootstrap.php';
 ob_end_clean();
 
 // Only accept POST requests
@@ -29,15 +29,22 @@ try {
         exit;
     }
     $map = buildProjectExportMap($conn, $projectId);
+    // 'manifest' is deliberately absent: only export_project_zip.php writes it into
+    // the archive, and it repeats sets/tiles/skipped/duplicated_files plus a folder
+    // map, which roughly doubles a response nobody reads (memory_limit is 512M).
+    // 'skipped' is capped for the same reason: the UI renders a collapsible list,
+    // so a count plus a bounded sample is what it actually needs.
+    $skippedAll = $map['skipped'];
+    $skippedShown = array_slice($skippedAll, 0, 200);
     echo json_encode([
         'success' => true,
         'entries' => $map['entries'],
         'sets' => $map['sets'],
         'tiles' => $map['tiles'] ?? [],
-        'skipped' => $map['skipped'],
+        'skipped' => $skippedShown,
+        'skipped_total' => count($skippedAll),
         'duplicated_files' => $map['duplicated_files'],
         'total_size' => $map['total_size'],
-        'manifest' => $map['manifest'],
     ]);
 } catch (Exception $e) {
     http_response_code(500);

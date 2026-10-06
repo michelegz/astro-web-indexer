@@ -4,10 +4,8 @@
 @set_time_limit(0);
 
 ob_start();
-require_once '../includes/init.php';
+require_once '../includes/api_bootstrap.php';
 ob_end_clean();
-
-require_once __DIR__ . '/../vendor/autoload.php';
 
 use ZipStream\ZipStream;
 use ZipStream\CompressionMethod;

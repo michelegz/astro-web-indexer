@@ -259,14 +259,23 @@ function getProjectTree(PDO $conn, int $projectId, bool $includePending = false)
         $sessionRows = $sessions->fetchAll();
     }
 
-    // All links of this project with file metadata, one query.
-    // f.* carries every column the shared file table can render
-    // (preview, path/object, star & frame metrics, SFF/duplicates data).
-    // project_files has no `id` column, so f.* is unambiguous; file_id
-    // aliases f.id for callers using the link-oriented key.
-    $links = $conn->prepare(
+// All links of this project with file metadata, one query.
+// f.* carries every column the shared file table can render
+// (preview, path/object, star & frame metrics, SFF/duplicates data).
+// project_files has no `id` column, so f.* is unambiguous; file_id
+// aliases f.id for callers using the link-oriented key.
+//
+// Exception: the two MEDIUMBLOB thumbnails are replaced by their byte length.
+// Nothing that consumes a tree row reads them: file_cells.php only tests
+// truthiness to decide whether to render the <img>, and image.php serves the
+// bytes from its own query. Selecting the blobs put ~30 KB per linked file into
+// memory for a boolean, which on a large project is hundreds of MB against a
+// 512M limit. OCTET_LENGTH preserves empty() exactly: NULL and a zero-length
+// blob both give a falsy value.
+$links = $conn->prepare(
         "SELECT pf.level, pf.node_id, pf.filter_name, pf.role, pf.is_light, pf.enabled, "
-        . "f.*, f.id AS file_id "
+        . "f.*, f.id AS file_id, OCTET_LENGTH(f.thumb) AS thumb, "
+        . "OCTET_LENGTH(f.thumb_crop) AS thumb_crop "
         . "FROM project_files pf JOIN files f ON f.id = pf.file_id "
         . "WHERE (pf.level = 'project' AND pf.node_id = :pid) "
         . "OR (pf.level = 'setup' AND pf.node_id IN (SELECT id FROM project_setups WHERE project_id = :pid2)) "

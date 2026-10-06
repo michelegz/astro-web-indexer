@@ -2,7 +2,9 @@
 header('Content-Type: application/json');
 
 ob_start();
-require_once '../includes/init.php';
+// Renders the tree partial, so it also needs the column/table rendering stack.
+$GLOBALS['AWI_API_NEEDS_TREE_RENDER'] = true;
+require_once '../includes/api_bootstrap.php';
 ob_end_clean();
 
 // Hypothetical project tree for the add-to-project modal (step 3).
