@@ -909,7 +909,7 @@ if ($projectBlocked) {
                 <span class="inline-flex gap-1 items-center"><?= diagBox('green', 'B', __('projects_cal_bias')) ?><?= diagBox('green', 'D', __('projects_cal_dark')) ?><?= diagBox('green', 'F', __('projects_cal_flat')) ?> <span><?= htmlspecialchars(__('projects_legend_calib')) ?></span></span>
                 <span class="inline-flex gap-1 items-center"><?= rotBadge('ok', __('projects_cal_rot_ok'), __('projects_cal_rot_warn')) ?><?= rotBadge('warn', __('projects_cal_rot_ok'), __('projects_cal_rot_warn')) ?> <span><?= htmlspecialchars(__('projects_legend_rot')) ?></span></span>
                 <span class="inline-flex gap-1 items-center"><span class="font-mono">[DARKFLAT]</span> <span><?= htmlspecialchars(__('projects_legend_darkflat')) ?></span></span>
-                <span class="inline-flex gap-1 items-center"><span>●</span> <span><?= htmlspecialchars(__('projects_legend_flatcov')) ?></span></span>
+                <span class="inline-flex gap-1 items-center"><?= diagBox('green', 'B', __('projects_cal_bias')) ?><?= diagBox('grey', 'D', __('projects_cal_not_needed')) ?> <span><?= htmlspecialchars(__('projects_legend_flatcov')) ?></span></span>
             </div>
             </details>
             <div id="renameModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60">

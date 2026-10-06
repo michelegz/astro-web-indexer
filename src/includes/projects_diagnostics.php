@@ -853,43 +853,45 @@ function diagnoseProjectTree(array $tree, array $tols, array $filterAliases = []
 }
 
 /**
- * Darkflat coverage for every ENABLED linked flat: [file_id => green|yellow|red].
- * Each flat is checked against the darkflat rows along its own chain (masters
- * shadow subs, same as lights). Flats above session level have no session
- * context, so scope is ignored for them (lenient). No darkflat linked at
- * all => red, mirroring the light convention (missing candidate, not broken
- * data: uncovered flats still export, WBPP decides).
+ * Bias + dark coverage for every ENABLED linked flat:
+ * [file_id => ['bias' => green|yellow|red, 'dark' => green|yellow|red]].
+ * Darks and darkflats are equivalent here (same pool, matched by exposure
+ * like lights do); bias is matched by binning/gain. Each flat is checked
+ * against the rows along its own chain (masters shadow subs, same as
+ * lights); above session level there is no session context, so scope is
+ * ignored for them (lenient). No candidate at all => red, mirroring the
+ * light convention (missing candidate, not broken data: uncovered flats
+ * still export, WBPP decides).
  */
 function diagnoseFlatCoverage(array $tree, array $tols, array $darkRoles): array
 {
     $out = [];
-    $roleOf = function (array $c) use ($darkRoles): string {
-        $fid = (int)($c['file_id'] ?? $c['id'] ?? 0);
-        $level = (string)($c['level'] ?? '');
-        $node = (int)($c['node_id'] ?? 0);
-        if ($fid <= 0 || $level === '') {
-            return 'dark';
-        }
-        return $darkRoles[$fid . ':' . $level . ':' . $node] ?? 'dark';
-    };
     $isFlatEnabled = fn($c) => strtoupper((string)($c['imgtype'] ?? '')) === 'FLAT'
         && empty($c['pending']) && !empty($c['enabled']);
     $projectCals = array_values(array_filter(
         $tree['project_links'] ?? [],
         fn($c) => in_array(strtoupper((string)$c['imgtype']), ['DARK', 'FLAT', 'BIAS'], true)
     ));
-    $checkFlat = function (array $flat, array $pool, ?int $sid) use (&$out, $tols, $roleOf): void {
-        $cands = array_values(array_filter(
+    $inScope = function (array $c, ?int $sid): bool {
+        if (empty($c['pending']) && !empty($c['enabled'])
+            && ($sid === null || empty($c['scope_sessions']) || in_array($sid, $c['scope_sessions'], true))) {
+            return true;
+        }
+        return false;
+    };
+    $checkFlat = function (array $flat, array $pool, ?int $sid) use (&$out, $tols, $inScope): void {
+        $darks = array_values(array_filter(
             $pool,
-            fn($c) => strtoupper((string)$c['imgtype']) === 'DARK'
-                && $roleOf($c) === 'darkflat'
-                && empty($c['pending']) && !empty($c['enabled'])
-                && ($sid === null || empty($c['scope_sessions']) || in_array($sid, $c['scope_sessions'], true))
+            fn($c) => strtoupper((string)$c['imgtype']) === 'DARK' && $inScope($c, $sid)
         ));
-        $out[(int)$flat['file_id']] = bestCalibStatus(
-            $cands,
-            fn($c) => matchDark($flat, $c, $tols)
-        );
+        $biases = array_values(array_filter(
+            $pool,
+            fn($c) => strtoupper((string)$c['imgtype']) === 'BIAS' && $inScope($c, $sid)
+        ));
+        $out[(int)$flat['file_id']] = [
+            'bias' => bestCalibStatus($biases, fn($c) => matchBias($flat, $c)),
+            'dark' => bestCalibStatus($darks, fn($c) => matchDark($flat, $c, $tols)),
+        ];
     };
     foreach ($tree['setups'] ?? [] as $setup) {
         $setupCals = array_merge($projectCals, $setup['calibrations'] ?? []);

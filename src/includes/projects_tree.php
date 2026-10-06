@@ -18,13 +18,39 @@ function linkKey(array $li, string $level, int $node): string
 }
 
 /**
- * Calibration status box: letter (B/D/F) on green/yellow/red background.
+ * Calibration status box: letter (B/D/F) on green/yellow/red background,
+ * grey when the calibration is not needed (covered by the other type).
  */
 function diagBox(string $status, string $letter, string $title): string
 {
-    $bg = $status === 'green' ? 'bg-green-700' : ($status === 'yellow' ? 'bg-yellow-700' : 'bg-red-700');
+    $bg = $status === 'green' ? 'bg-green-700' : ($status === 'yellow' ? 'bg-yellow-700' : ($status === 'grey' ? 'bg-gray-600' : 'bg-red-700'));
     return '<span title="' . htmlspecialchars($title) . '" class="inline-block w-5 text-center text-xs font-bold text-white rounded ' . $bg . '">'
         . htmlspecialchars($letter) . '</span>';
+}
+
+/**
+ * B/D badges for one flat from its bias+dark coverage verdicts.
+ * One green side is enough to calibrate a flat: the other side turns grey
+ * (not needed). Both green stay green; otherwise the real verdicts show
+ * (yellow/red), and two missing sides are both red.
+ */
+function flatCovBadges(?array $cov, string $biasTitle, string $darkTitle, string $naTitle): string
+{
+    if ($cov === null) {
+        return '';
+    }
+    $b = $cov['bias'] ?? 'red';
+    $d = $cov['dark'] ?? 'red';
+    if ($b === 'green' && $d === 'green') {
+        return diagBox('green', 'B', $biasTitle) . diagBox('green', 'D', $darkTitle);
+    }
+    if ($b === 'green') {
+        return diagBox('green', 'B', $biasTitle) . diagBox('grey', 'D', $naTitle);
+    }
+    if ($d === 'green') {
+        return diagBox('grey', 'B', $naTitle) . diagBox('green', 'D', $darkTitle);
+    }
+    return diagBox($b, 'B', $biasTitle) . diagBox($d, 'D', $darkTitle);
 }
 
 /**
@@ -155,20 +181,21 @@ function renderCalRows(array $cals, string $level, int $node, array $moveCtx = [
             <summary class="cursor-pointer px-3 py-1.5 hover:bg-gray-700/40 rounded text-sm font-medium">
                 <span class="cal-arrow">▶︎</span>
                 <?php
-                $gWorst = null;
+                $gWorstB = $gWorstD = null;
                 if ($g['kind'] === 'flat') {
                     foreach ($g['rows'] as $gr) {
                         if (!empty($gr['pending']) || empty($gr['enabled'])) {
                             continue;
                         }
                         $gs = $flatCov[(int)$gr['file_id']] ?? null;
-                        if ($gs !== null) {
-                            $gWorst = $gWorst === null ? $gs : diagWorst($gWorst, $gs);
+                        if (is_array($gs)) {
+                            $gWorstB = $gWorstB === null ? ($gs['bias'] ?? 'red') : diagWorst($gWorstB, $gs['bias'] ?? 'red');
+                            $gWorstD = $gWorstD === null ? ($gs['dark'] ?? 'red') : diagWorst($gWorstD, $gs['dark'] ?? 'red');
                         }
                     }
                 }
                 ?>
-                <?php if ($gWorst !== null): ?><span title="<?= htmlspecialchars(__('projects_flat_cov_title')) ?>"><?= diagDot($gWorst) ?></span> <?php endif; ?><span><?= htmlspecialchars(calGroupTitle($g)) ?></span>
+                <?php if ($gWorstB !== null): ?><?= flatCovBadges(['bias' => $gWorstB, 'dark' => $gWorstD], __('projects_cal_bias'), __('projects_cal_dark'), __('projects_cal_not_needed')) ?> <?php endif; ?><span><?= htmlspecialchars(calGroupTitle($g)) ?></span>
             </summary>
             <ul class="flex flex-col gap-0.5 mb-1 px-3">
         <?php foreach ($g['rows'] as $c): ?>
@@ -181,7 +208,7 @@ function renderCalRows(array $cals, string $level, int $node, array $moveCtx = [
                     <input type="checkbox" name="link_keys[]" value="<?= htmlspecialchars(linkKey($c, $level, $node)) ?>" class="pfl-check rounded bg-gray-600 border-gray-500"<?= !empty($c['scope_sessions']) ? ' data-scope="' . htmlspecialchars(implode(',', $c['scope_sessions'])) . '"' : '' ?><?= isset($moveCtx['setup_id']) ? ' data-setup="' . (int)$moveCtx['setup_id'] . '"' : '' ?>>
                 <?php endif; ?>
                 <span class="text-gray-500">[<?= htmlspecialchars($c['imgtype']) ?>]</span>
-                <?php if ($g['kind'] === 'flat' && !$isPend && !$isOff && isset($flatCov[(int)$c['file_id']])): ?><span title="<?= htmlspecialchars(__('projects_flat_cov_title')) ?>"><?= diagDot($flatCov[(int)$c['file_id']]) ?></span><?php endif; ?>
+                <?php if ($g['kind'] === 'flat' && !$isPend && !$isOff && isset($flatCov[(int)$c['file_id']]) && is_array($flatCov[(int)$c['file_id']])): ?><?= flatCovBadges($flatCov[(int)$c['file_id']], __('projects_cal_bias'), __('projects_cal_dark'), __('projects_cal_not_needed')) ?><?php endif; ?>
                 <span><?= htmlspecialchars($c['name']) ?></span>
                 <?php if ($isPend): ?><span title="<?= __('projects_pending_hypo') ?>">⏳</span><?php endif; ?>
                 <?php if ($isOff): ?><span class="text-gray-500">(<?= __('projects_link_off') ?>)</span><?php endif; ?>
