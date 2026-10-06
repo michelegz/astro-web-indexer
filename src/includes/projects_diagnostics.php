@@ -1149,9 +1149,13 @@ function bucketCalibTemps(array $rows, string $tolTempRaw): array
 
 function darkCalGroupLabel($medExp, $medTemp = null): string
 {
-    // Header shows exposure only; temperature lives in the rows (ccd_temp
-    // column), the export folders (TEMPC_ keyword) and matching tolerances.
-    return fmtExpShort($medExp);
+    // Header shows the exposure/temperature pair like light groups
+    // (e.g. "[DARK] 300 s, 0 °C (5)"); temperature lives on only when known.
+    $label = fmtExpShort($medExp);
+    if ($medTemp !== null && $medTemp !== '') {
+        $label .= ', ' . repTempDisplay($medTemp);
+    }
+    return $label;
 }
 
 /**
