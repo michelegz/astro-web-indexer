@@ -2085,6 +2085,20 @@ function projectAddReasonKey(string $reason): string
  */
 function projectAddPrepare(PDO $conn, int $projectId, array $ids, array $overrides, array $customSetups, ?array $newProject): array
 {
+    // Frozen means locked. Checked here as well as in projectAddFiles(): this
+    // function writes (project, custom setups, setup_overrides) and runs first,
+    // so without the guard a frozen project would still be mutated by a request
+    // that projectAddFiles() then reports as "added 0".
+    if ($newProject === null) {
+        $project = getProject($conn, $projectId);
+        if ($project === null) {
+            return ['project_id' => $projectId, 'ids' => [], 'customSkipped' => []];
+        }
+        if (getProjectAssignMode($project) === 'frozen') {
+            return ['project_id' => $projectId, 'ids' => [], 'customSkipped' => [],
+                'frozen' => true];
+        }
+    }
     if ($newProject !== null) {
         $projectId = createProject($conn, $newProject['name'], $newProject['notes']);
     }

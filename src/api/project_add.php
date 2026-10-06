@@ -39,11 +39,33 @@ try {
         echo json_encode(['error' => __('projects_no_access')]);
         exit;
     }
+    // projectAddPrepare writes (project, custom setups, setup_overrides) outside
+    // any transaction, so wrap it together with the add: a failure between the
+    // two must not leave a committed empty project behind.
+    $conn->beginTransaction();
     $prep = projectAddPrepare($conn, $projectId, $ids, $overrides, $customSetups, $newProject);
     $projectId = $prep['project_id'];
     $ids = $prep['ids'];
     $customSkipped = $prep['customSkipped'];
+
+    if (!empty($prep['frozen'])) {
+        $conn->rollBack();
+        $project = getProject($conn, $projectId);
+        echo json_encode([
+            'success' => true,
+            'project_id' => $projectId,
+            'added' => 0,
+            'skipped' => [['name' => (string)($project['name'] ?? ''),
+                'message' => __(projectAddReasonKey('frozen'))]],
+            'custom_skipped' => [],
+        ]);
+        exit;
+    }
+
     $result = projectAddFiles($conn, $projectId, $ids, $req['groupFpOverrides'] ?? []);
+    if ($conn->inTransaction()) {
+        $conn->commit();
+    }
     $skipped = [];
     foreach ($result['skipped'] as $s) {
         $skipped[] = ['name' => $s['name'], 'message' => __(projectAddReasonKey($s['reason']))];
@@ -61,7 +83,10 @@ try {
         'skipped' => $skipped,
         'message' => __('projects_add_added', ['count' => $result['added']]),
     ]);
-} catch (Exception $e) {
+} catch (Throwable $e) {
+    if (isset($conn) && $conn instanceof PDO && $conn->inTransaction()) {
+        $conn->rollBack();
+    }
     http_response_code(500);
     error_log($e->getMessage());
     echo json_encode(['error' => 'Database query failed.']);
