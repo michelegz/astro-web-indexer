@@ -43,7 +43,7 @@ try {
         'duplicated_files' => $map['duplicated_files'],
         'total_size' => $map['total_size'],
     ]);
-} catch (Exception $e) {
+} catch (Throwable $e) {
     error_log($e->getMessage());
     awiJson(['error' => 'Database query failed.'], 500);
 }

@@ -386,6 +386,12 @@ function enqueueSuggestRequest(PDO $conn, int $projectId, string $reason): bool
         return false;
     }
     try {
+        // Fast path, to avoid raising an exception on the common coalesced case: this
+        // is called once per created panel and setup. It is not the guarantee, only
+        // the optimisation. Two writers can both pass it — a panel_created enqueued by
+        // the web container after its commit, while another user presses
+        // request_suggest — so the invariant is enforced by uq_suggest_pending instead,
+        // which rejects the second insert.
         $exists->execute([':pid' => $projectId]);
         if ($exists->fetch() !== false) {
             return true;
@@ -394,7 +400,15 @@ function enqueueSuggestRequest(PDO $conn, int $projectId, string $reason): bool
             "INSERT INTO suggest_requests (project_id, reason, status) VALUES (:pid, :reason, 'pending')"
         )->execute([':pid' => $projectId, ':reason' => $reason]);
         return true;
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
+        // 1062 on uq_suggest_pending means another request for the same project won
+        // the race between the check above and this insert. Coalescing is the point
+        // of the queue, so a lost race is a success, not an error.
+        if (($e->getCode() === '23000') || str_contains($e->getMessage(), '1062')) {
+            return true;
+        }
+        error_log('enqueueSuggestRequest failed for project ' . $projectId . ': '
+            . $e->getMessage());
         return false;
     }
 }
@@ -2890,6 +2904,13 @@ function canonFilterName(array $aliasMap, ?string $name): string
  * (case-insensitive) is a no-op delete. Canonicals that are themselves
  * aliases are rejected (no chains, single-hop resolution only). Matching is
  * always case-insensitive regardless of DB collation.
+ *
+ * Two passes: every pair is validated against an in-memory view of the alias map
+ * before anything is written, and the writes then go out in one transaction. The
+ * loop-reject used to throw from the middle of the writing, so a loop discovered on
+ * the fourth pair left the first three committed and the caller reported a rollback
+ * that never happened. The in-memory view is mutated during pass one exactly as the
+ * DB would have been, so same-request chains are still caught.
  */
 function saveProjectFilterAliases(PDO $conn, int $projectId, array $pairs): void
 {
@@ -2904,12 +2925,10 @@ function saveProjectFilterAliases(PDO $conn, int $projectId, array $pairs): void
         }
         return $out;
     };
-    $del = $conn->prepare(
-        "DELETE FROM project_filter_aliases WHERE project_id = :pid AND LOWER(alias) = LOWER(:alias)"
-    );
-    $ins = $conn->prepare(
-        "INSERT INTO project_filter_aliases (project_id, alias, canonical) VALUES (:pid, :alias, :canon)"
-    );
+
+    // Pass one: decide what to delete and what to insert, or refuse the lot.
+    $deletes = [];
+    $inserts = [];
     foreach ($pairs as $rawAlias => $rawCanon) {
         $alias = substr(trim((string)$rawAlias), 0, 50);
         $canon = substr(trim((string)$rawCanon), 0, 50);
@@ -2917,9 +2936,9 @@ function saveProjectFilterAliases(PDO $conn, int $projectId, array $pairs): void
             continue;
         }
         $aliasLower = mb_strtolower($alias);
+        $deletes[] = $alias;
         // Refresh existing view as we go (same-request chains stay rejected).
         if ($canon === '' || $aliasLower === mb_strtolower($canon)) {
-            $del->execute([':pid' => $projectId, ':alias' => $alias]);
             unset($existing[$aliasLower]);
             continue;
         }
@@ -2927,8 +2946,39 @@ function saveProjectFilterAliases(PDO $conn, int $projectId, array $pairs): void
         if (isset($existing[$canonLower]) || isset($canonValues()[$aliasLower])) {
             throw new InvalidArgumentException(__('projects_filter_aliases_error_loop', ['name' => $canon]));
         }
-        $del->execute([':pid' => $projectId, ':alias' => $alias]);
-        $ins->execute([':pid' => $projectId, ':alias' => $alias, ':canon' => $canon]);
+        $inserts[] = ['alias' => $alias, 'canon' => $canon];
         $existing[$aliasLower] = $canon;
+    }
+    if ($deletes === [] && $inserts === []) {
+        return;
+    }
+
+    // Pass two: apply. In one transaction, so a reader never sees an alias removed
+    // and not yet re-inserted, and so the whole set lands or none of it does.
+    $owns = $conn->inTransaction();
+    if (!$owns) {
+        $conn->beginTransaction();
+    }
+    try {
+        $del = $conn->prepare(
+            "DELETE FROM project_filter_aliases WHERE project_id = :pid AND LOWER(alias) = LOWER(:alias)"
+        );
+        $ins = $conn->prepare(
+            "INSERT INTO project_filter_aliases (project_id, alias, canonical) VALUES (:pid, :alias, :canon)"
+        );
+        foreach ($deletes as $alias) {
+            $del->execute([':pid' => $projectId, ':alias' => $alias]);
+        }
+        foreach ($inserts as $pair) {
+            $ins->execute([':pid' => $projectId, ':alias' => $pair['alias'], ':canon' => $pair['canon']]);
+        }
+        if (!$owns) {
+            $conn->commit();
+        }
+    } catch (Throwable $e) {
+        if (!$owns && $conn->inTransaction()) {
+            $conn->rollBack();
+        }
+        throw $e;
     }
 }

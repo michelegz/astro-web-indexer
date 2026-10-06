@@ -169,11 +169,26 @@ try {
         $projectTree = $tree;
         $hypoMode = true;
         $hypoLinksMap = $hypoLinks;
+        // The partial prints the tree directly, so its output has to be captured. The
+        // buffer is closed in finally and the rollback lives there too: a plain catch
+        // left the buffer open, so on failure the partial HTML went out ahead of the
+        // JSON error and the client could not parse either. catch (Throwable), not
+        // Exception, because in PHP 8 TypeError and ParseError are Errors and were
+        // not caught at all — that left an unrolled-back transaction and no JSON.
+        $bufferLevel = ob_get_level();
         ob_start();
-        include __DIR__ . '/../includes/projects_tree.php';
-        $html = (string)ob_get_clean();
-        $conn->rollBack();
-    } catch (Exception $e) {
+        try {
+            include __DIR__ . '/../includes/projects_tree.php';
+            $html = (string)ob_get_clean();
+        } finally {
+            while (ob_get_level() > $bufferLevel) {
+                ob_end_clean();
+            }
+            if ($conn->inTransaction()) {
+                $conn->rollBack();
+            }
+        }
+    } catch (Throwable $e) {
         if ($conn->inTransaction()) {
             $conn->rollBack();
         }
@@ -197,7 +212,7 @@ try {
         'skipped' => $skipped,
         'html' => $html ?? '',
     ]);
-} catch (Exception $e) {
+} catch (Throwable $e) {
     error_log($e->getMessage());
     awiJson(['error' => 'Database query failed.'], 500);
 }

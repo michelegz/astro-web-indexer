@@ -59,7 +59,7 @@ try {
             'fingerprint' => (string)$s['fingerprint'],
         ], $setups),
     ]);
-} catch (Exception $e) {
+} catch (Throwable $e) {
     error_log($e->getMessage());
     awiJson(['error' => 'Database query failed.'], 500);
 }
