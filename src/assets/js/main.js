@@ -328,6 +328,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const projectStep1 = document.getElementById('projectStep1');
     const projectStep2 = document.getElementById('projectStep2');
     const projectStep3 = document.getElementById('projectStep3');
+    const projectStep4 = document.getElementById('projectStep4');
+    const projectDoneMsg = document.getElementById('projectDoneMsg');
+    const projectGotoBtn = document.getElementById('projectGotoBtn');
+    const projectModalClose = document.getElementById('projectModalClose');
     const projectModalReviewTree = document.getElementById('projectModalReviewTree');
     const projectModalBack2 = document.getElementById('projectModalBack2');
     const projectTreePreview = document.getElementById('projectTreePreview');
@@ -350,6 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
         projectStep1.classList.toggle('hidden', n !== 1);
         projectStep2.classList.toggle('hidden', n !== 2);
         if (projectStep3) projectStep3.classList.toggle('hidden', n !== 3);
+        if (projectStep4) projectStep4.classList.toggle('hidden', n !== 4);
     }
     function setProjectMsg(text, ok) {
         if (!projectAddMsg) return;
@@ -485,6 +490,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (projectModalCancel) {
         projectModalCancel.addEventListener('click', closeProjectModal);
+    }
+    if (projectModalClose) {
+        projectModalClose.addEventListener('click', closeProjectModal);
     }
     if (projectModal) {
         projectModal.addEventListener('click', (e) => {
@@ -668,8 +676,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         opt.textContent = projectPreview.newProject?.name || ('#' + data.project_id);
                         projectSelect.appendChild(opt);
                     }
-                    showProjectStep(1);
-                    setProjectMsg(msg, true);
+                    if (projectDoneMsg) projectDoneMsg.textContent = msg;
+                    if (projectGotoBtn && data.project_id) projectGotoBtn.href = '/projects.php?id=' + data.project_id;
+                    showProjectStep(4);
                     projectPreview = null;
                 })
                 .catch(err => setProjectMsg(err.message, false))

@@ -36,6 +36,7 @@ try {
         'tiles' => $map['tiles'] ?? [],
         'skipped' => $map['skipped'],
         'duplicated_files' => $map['duplicated_files'],
+        'total_size' => $map['total_size'],
         'manifest' => $map['manifest'],
     ]);
 } catch (Exception $e) {

@@ -154,6 +154,11 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
         // 'seen' maps fid => most recent zip_path emitted (for dedup lookup),
         // 'dups' is the report keyed the same way (see $addFile).
         'seen' => [], 'dups' => [], 'used' => [],
+        // Uncompressed payload size: every emitted copy counts (the archive
+        // uses STORE), sourced from the DB file_size so the builder stays
+        // disk-free. Files missing or unreadable on disk are filtered at zip
+        // time, so the preview total is an upper bound, not a promise.
+        'size' => 0,
     ];
 
     $addFile = function (string $dir, array $f, string $kind, $scope) use (&$st): void {
@@ -188,6 +193,7 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
         }
         $st['used'][$dir . "\0" . $name] = true;
         $st['seen'][$fid] = $zipPath;
+        $st['size'] += max(0, (int)($f['file_size'] ?? 0));
         $st['entries'][] = [
             'zip_path' => $zipPath,
             'fid' => $fid,
@@ -471,6 +477,7 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
         'tiles' => $tileLegend,
         'skipped' => $st['skipped'],
         'duplicated_files' => $duplicatedFiles,
+        'total_size' => $st['size'],
         'manifest' => [
             'project' => (string)($project['name'] ?? ''),
             'exported_at' => date('c'),
@@ -479,6 +486,7 @@ function buildProjectExportMap(PDO $conn, int $projectId): array
             'folders' => $folders,
             'skipped' => $st['skipped'],
             'duplicated_files' => $duplicatedFiles,
+            'total_size' => $st['size'],
         ],
     ];
 }

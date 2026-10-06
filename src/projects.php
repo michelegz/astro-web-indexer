@@ -1010,7 +1010,17 @@ if ($projectBlocked) {
                             throw new Error((data && data.error) || 'Request failed');
                         }
                         const t = renderTree(data.entries || []);
-                        let html = `<p class="text-gray-200 mb-2">${t.total} file</p>${t.html}`;
+                        const fmtSize = (bytes) => {
+                            let n = Math.max(0, Number(bytes) || 0);
+                            const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+                            let u = 0;
+                            while (n >= 1024 && u < units.length - 1) {
+                                n /= 1024;
+                                u++;
+                            }
+                            return (u === 0 ? n : n.toFixed(n >= 100 ? 0 : 1)) + ' ' + units[u];
+                        };
+                        let html = `<p class="text-gray-200 mb-2">${t.total} file · ${fmtSize(data.total_size)} ${esc(window.i18n?.projects_export_uncompressed || 'uncompressed')}</p>${t.html}`;
                         if (data.sets && Object.keys(data.sets).length) {
                             html += `<div class="mt-3 text-xs text-gray-400">`
                                 + Object.entries(data.sets).map(([name, s]) =>
@@ -1891,7 +1901,8 @@ if ($projectBlocked) {
             projects_scope_no_cal: <?= json_encode(__('projects_scope_no_cal')) ?>,
             projects_scope_single_setup: <?= json_encode(__('projects_scope_single_setup')) ?>,
             projects_export_skipped: <?= json_encode(__('projects_export_skipped')) ?>,
-            projects_export_duplicated: <?= json_encode(__('projects_export_duplicated')) ?>
+            projects_export_duplicated: <?= json_encode(__('projects_export_duplicated')) ?>,
+            projects_export_uncompressed: <?= json_encode(__('projects_export_uncompressed')) ?>
         });
     </script>
     <script src="assets/js/sff.js?v=<?= @filemtime(__DIR__ . '/assets/js/sff.js') ?: 0 ?>"></script>
