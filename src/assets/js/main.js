@@ -425,6 +425,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const where = (f.panel_ra !== null && f.panel_ra !== undefined)
                         ? `${Number(f.panel_ra).toFixed(3)}/${Number(f.panel_dec).toFixed(3)}` : escHtml(f.bucket || '');
                     panel = `→ ${escHtml(t.project_add_panel_new || 'New panel')} (${where})`;
+                } else if (f.panel_id === null || f.panel_id === undefined) {
+                    // FLATs skip panel matching (night session or setup, see
+                    // dest below): no panel part to show.
+                    panel = '';
                 } else {
                     panel = `→ ${escHtml((data.panels || {})[f.panel_id] || ('P' + f.panel_id))} (${Number(f.sep_arcmin).toFixed(1)}′ ≤ ${Number(f.tol_pos_arcmin).toFixed(1)}′)`;
                 }

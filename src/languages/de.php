@@ -313,6 +313,9 @@ return [
     'projects_cal_bias' => 'Bias',
     'projects_cal_dark' => 'Dark',
     'projects_cal_flat' => 'Flat',
+    'projects_cal_rot_ok' => 'Flat-Rotation gegen ihr Panel geprüft',
+    'projects_cal_rot_warn' => 'Flat-Rotation nicht geprüft (Metadaten fehlen oder außerhalb der Toleranz)',
+    'projects_legend_rot' => 'Flat-Rotationsprüfung',
     'projects_legend_darkflat' => 'Kurze Darks für Flats (nach Belichtung, wie WBPP)',
     'projects_legend_flatcov' => 'Dark-Flat-Abdeckung jedes Flats',
     'projects_flat_cov_title' => 'Dark-Flat-Abdeckung dieses Flats',
@@ -398,6 +401,10 @@ return [
     'projects_resuggest_hint' => 'Entfernt die Verwerfungen und schlägt beim nächsten Reindex alles erneut vor.',
     'projects_resuggested' => '{count} Verwerfungen entfernt: sie werden beim nächsten Reindex erneut vorgeschlagen.',
     'projects_resuggested_none' => 'Nichts zum erneuten Vorschlagen.',
+    'projects_suggest_refresh' => 'Vorschläge aktualisieren',
+    'projects_suggest_refresh_hint' => 'Archiv für dieses Projekt erneut prüfen (asynchron, im Hintergrund).',
+    'projects_suggest_queued' => 'Neuberechnung eingereiht: der Indexer übernimmt sie in Kürze.',
+    'projects_suggest_queue_failed' => 'Neuberechnung konnte nicht eingereiht werden.',
     'projects_no_pending' => 'Nichts zu prüfen. Neue Dateien erscheinen hier im Vorschlagsmodus.',
 
     // Zum Projekt hinzufügen

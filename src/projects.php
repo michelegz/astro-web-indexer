@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = $_POST['action'] ?? '';
         try {
             // Project-scoped actions require an accessible project first.
-            $needsProject = ['update', 'save_mode', 'delete', 'accept_suggestions', 'dismiss_suggestions', 'resuggest_dismissed', 'save_tolerances', 'save_grouping', 'save_filter_aliases', 'remove_links', 'disable_links', 'enable_links', 'promote_links', 'demote_links', 'set_scope', 'save_thresholds', 'rename_setup'];
+            $needsProject = ['update', 'save_mode', 'delete', 'accept_suggestions', 'dismiss_suggestions', 'resuggest_dismissed', 'request_suggest', 'save_tolerances', 'save_grouping', 'save_filter_aliases', 'remove_links', 'disable_links', 'enable_links', 'promote_links', 'demote_links', 'set_scope', 'save_thresholds', 'rename_setup'];
             if (in_array($action, $needsProject, true)) {
                 $gid = (int)($_POST['project_id'] ?? 0);
                 $gproj = $gid > 0 ? getProject($conn, $gid) : null;
@@ -106,6 +106,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ? __('projects_resuggested', ['count' => $done])
                     : __('projects_resuggested_none');
                 $messageType = 'success';
+            } elseif ($action === 'request_suggest') {
+                $id = (int)($_POST['project_id'] ?? 0);
+                $target = $id > 0 ? getProject($conn, $id) : null;
+                if ($target === null) {
+                    throw new InvalidArgumentException(__('projects_error_name'));
+                }
+                if (getProjectAssignMode($target) === 'frozen') {
+                    throw new InvalidArgumentException(__('projects_add_frozen'));
+                }
+                $queued = enqueueSuggestRequest($conn, $id, 'manual');
+                $message = $queued ? __('projects_suggest_queued') : __('projects_suggest_queue_failed');
+                $messageType = $queued ? 'success' : 'error';
             } elseif ($action === 'remove_links' || $action === 'disable_links' || $action === 'enable_links') {
                 $id = (int)($_POST['project_id'] ?? 0);
                 $keys = array_values((array)($_POST['link_keys'] ?? []));
@@ -168,6 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($id <= 0 || getProject($conn, $id) === null) {
                     throw new InvalidArgumentException(__('projects_error_name'));
                 }
+                $hashBefore = getProjectSuggestConfigHash($conn, $id);
                 if (isset($_POST['reset_globals'])) {
                     saveProjectTolerances($conn, $id, []);
                 } else {
@@ -175,6 +188,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $message = __('projects_updated');
                 $messageType = 'success';
+                // Only tolerances feeding the suggester re-open the matching
+                // context (tol_exp/tol_temp drive diagnostics only): queue a
+                // backfill pass when they really moved.
+                if (getProjectSuggestConfigHash($conn, $id) !== $hashBefore) {
+                    if (enqueueSuggestRequest($conn, $id, 'tolerances_changed')) {
+                        $message .= ' ' . __('projects_suggest_queued');
+                    }
+                }
             } elseif ($action === 'save_grouping') {
                 $id = (int)($_POST['project_id'] ?? 0);
                 if ($id <= 0 || getProject($conn, $id) === null) {
@@ -262,6 +283,7 @@ $detailOverrides = $detail !== null ? getProjectTolerances($detail['tolerances']
 $detailMode = $detail !== null ? getProjectAssignMode($detail) : 'suggest';
 $detailPending = $detail !== null ? getPendingCount($conn, (int)$detail['id']) : 0;
 $detailDismissed = $detail !== null ? getDismissedCount($conn, (int)$detail['id']) : 0;
+$suggestStatus = $detail !== null ? getSuggestRequestStatus($conn, (int)$detail['id']) : null;
 $assignModes = getAssignModes();
 $pendingTree = $detail !== null ? getProjectTree($conn, (int)$detail['id'], true) : null;
 $projectTree = $pendingTree !== null ? stripPendingTree($pendingTree) : null;
@@ -593,6 +615,20 @@ if ($projectBlocked) {
                     <button type="button" id="sugModalClose" class="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
                 </div>
                 <p class="text-sm text-gray-400 mb-4"><?= __('projects_review_intro') ?></p>
+                <?php if ($detailMode !== 'frozen'): ?>
+                <form method="POST" class="mb-4 flex items-center flex-wrap gap-2">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                    <input type="hidden" name="project_id" value="<?= (int)$detail['id'] ?>">
+                    <button type="submit" name="action" value="request_suggest"
+                            class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm transition-colors">
+                        <?= __('projects_suggest_refresh') ?>
+                    </button>
+                    <span class="text-xs text-gray-500"><?= __('projects_suggest_refresh_hint') ?></span>
+                    <?php if ($suggestStatus !== null): ?>
+                    <span class="text-xs text-gray-500">· <?= htmlspecialchars(suggestStatusLine($suggestStatus)) ?></span>
+                    <?php endif; ?>
+                </form>
+                <?php endif; ?>
                 <?php if ($detailDismissed > 0): ?>
                 <form method="POST" class="mb-4">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
@@ -871,6 +907,7 @@ if ($projectBlocked) {
             <div class="text-xs text-gray-400 mt-4 flex flex-wrap items-center gap-x-4 gap-y-1">
                 <span class="font-semibold"><?= __('projects_legend') ?>:</span>
                 <span class="inline-flex gap-1 items-center"><?= diagBox('green', 'B', __('projects_cal_bias')) ?><?= diagBox('green', 'D', __('projects_cal_dark')) ?><?= diagBox('green', 'F', __('projects_cal_flat')) ?> <span><?= htmlspecialchars(__('projects_legend_calib')) ?></span></span>
+                <span class="inline-flex gap-1 items-center"><?= rotBadge('ok', __('projects_cal_rot_ok'), __('projects_cal_rot_warn')) ?><?= rotBadge('warn', __('projects_cal_rot_ok'), __('projects_cal_rot_warn')) ?> <span><?= htmlspecialchars(__('projects_legend_rot')) ?></span></span>
                 <span class="inline-flex gap-1 items-center"><span class="font-mono">[DARKFLAT]</span> <span><?= htmlspecialchars(__('projects_legend_darkflat')) ?></span></span>
                 <span class="inline-flex gap-1 items-center"><span>●</span> <span><?= htmlspecialchars(__('projects_legend_flatcov')) ?></span></span>
             </div>

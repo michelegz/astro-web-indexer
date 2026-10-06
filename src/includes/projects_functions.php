@@ -340,6 +340,112 @@ function resuggestDismissed(PDO $conn, int $projectId): int
 }
 
 /**
+ * Valid reasons for a re-suggest request (PHP enqueue side; the Python
+ * worker treats them as opaque labels).
+ */
+function getSuggestRequestReasons(): array
+{
+    return ['panel_created', 'setup_created', 'tolerances_changed', 'manual'];
+}
+
+/**
+ * Enqueue an async re-suggest pass for one project. The web container never
+ * runs the Python indexer itself: the Python watcher polls this table and
+ * runs suggest_projects_backfill(project_id).
+ *
+ * Coalesced: at most one pending row per project (five triggers in a minute
+ * need a single pass). Skipped in frozen/manual modes, where automation
+ * never runs anyway. Returns true when a row was created or one was already
+ * pending; false when skipped or on invalid input.
+ */
+function enqueueSuggestRequest(PDO $conn, int $projectId, string $reason): bool
+{
+    if ($projectId <= 0 || !in_array($reason, getSuggestRequestReasons(), true)) {
+        return false;
+    }
+    try {
+        $project = getProject($conn, $projectId);
+    } catch (Exception $e) {
+        return false;
+    }
+    if ($project === null) {
+        return false;
+    }
+    if (in_array(getProjectAssignMode($project), ['frozen', 'manual'], true)) {
+        return false;
+    }
+    try {
+        $exists = $conn->prepare(
+            "SELECT 1 FROM suggest_requests WHERE project_id = :pid AND status = 'pending' LIMIT 1"
+        );
+    } catch (Exception $e) {
+        // Table missing (migrations not applied yet): skip silently.
+        return false;
+    }
+    try {
+        $exists->execute([':pid' => $projectId]);
+        if ($exists->fetch() !== false) {
+            return true;
+        }
+        $conn->prepare(
+            "INSERT INTO suggest_requests (project_id, reason, status) VALUES (:pid, :reason, 'pending')"
+        )->execute([':pid' => $projectId, ':reason' => $reason]);
+        return true;
+    } catch (Exception $e) {
+        return false;
+    }
+}
+
+/**
+ * Latest re-suggest request of a project for the wizard status line.
+ * Returns null when the table is missing or the project never queued one.
+ */
+function getSuggestRequestStatus(PDO $conn, int $projectId): ?array
+{
+    try {
+        $stmt = $conn->prepare(
+            "SELECT status, reason, result, created_at, started_at, finished_at "
+            . "FROM suggest_requests WHERE project_id = :pid ORDER BY id DESC LIMIT 1"
+        );
+        $stmt->execute([':pid' => $projectId]);
+        $row = $stmt->fetch();
+        return $row === false ? null : $row;
+    } catch (Exception $e) {
+        return null;
+    }
+}
+
+/**
+ * Plain-text status line for the latest re-suggest request (callers escape
+ * for HTML). Shows state plus the worker counts when available.
+ */
+function suggestStatusLine(array $status): string
+{
+    $state = (string)($status['status'] ?? '');
+    $reason = (string)($status['reason'] ?? '');
+    $label = $state !== '' ? $state : '?';
+    if ($reason !== '') {
+        $label .= ' · ' . $reason;
+    }
+    $result = (string)($status['result'] ?? '');
+    if ($result !== '') {
+        $decoded = json_decode($result, true);
+        if (is_array($decoded)) {
+            $parts = [];
+            foreach (['suggested', 'linked', 'skipped'] as $k) {
+                if (isset($decoded[$k])) {
+                    $parts[] = $k . ' ' . (int)$decoded[$k];
+                }
+            }
+            if ($parts !== []) {
+                $label .= ' (' . implode(', ', $parts) . ')';
+            }
+        }
+    }
+    return $label;
+}
+
+/**
  * Prune helpers: each deletes its node only when fully empty and returns the
  * parent id on success (null otherwise), so dismissSuggestion() can walk the
  * chain bottom-up (session -> panel -> setup). Projects are never pruned.
@@ -1565,6 +1671,25 @@ function projectFindOrCreateSession(PDO $conn, int $panelId, string $night): int
     return (int)$conn->lastInsertId();
 }
 
+/**
+ * First session id of an astro-night anywhere in a setup (panel-agnostic).
+ * Null when absent. Read-only: never creates rows (flats must not sprout
+ * panels or orphan sessions). Mirrors find_setup_session() in
+ * docker/python/indexer_lib/projects.py.
+ */
+function projectFindSetupSession(PDO $conn, int $setupId, string $night): ?int
+{
+    $st = $conn->prepare(
+        "SELECT ss.id FROM project_sessions ss "
+        . "JOIN project_panels pp ON pp.id = ss.panel_id "
+        . "WHERE pp.setup_id = :sid AND ss.astro_night = :night "
+        . "ORDER BY pp.panel_no ASC, pp.id ASC, ss.id ASC LIMIT 1"
+    );
+    $st->execute([':sid' => $setupId, ':night' => $night]);
+    $r = $st->fetch();
+    return $r === false ? null : (int)$r['id'];
+}
+
 function getProjectSetups(PDO $conn, int $projectId): array
 {
     $stmt = $conn->prepare("SELECT id, fingerprint, label, setup_no FROM project_setups WHERE project_id = :pid ORDER BY id ASC");
@@ -1602,7 +1727,20 @@ function projectMatchPlan(PDO $conn, ?array $project, array $row, array $tols, i
     }
     $panel = ['id' => null, 'new' => true, 'sep' => 0.0, 'rot_d' => 0.0, 'rot_unknown' => true,
         'ra' => null, 'dec' => null, 'bucket' => '', 'tol_pos' => 0.0, 'tol_rot' => 0.0];
-    if ($setupId !== null) {
+    $night = projectAstroNight((string)$row['date_obs']);
+    $isLight = strtoupper((string)$row['imgtype']) === 'LIGHT';
+    $isFlat = strtoupper((string)$row['imgtype']) === 'FLAT';
+    $filt = trim((string)($row['filter'] ?? ''));
+    // Flats skip panel matching entirely (no RA/DEC/FoV/OBJECT check): they
+    // belong to the night, not the target. The panel slot stays empty and is
+    // never created (see projectAddFiles); the UI must not offer "New panel".
+    $flatSessionId = null;
+    if ($isFlat) {
+        $panel['new'] = false;
+        if ($setupId !== null && $night !== null) {
+            $flatSessionId = projectFindSetupSession($conn, $setupId, $night);
+        }
+    } elseif ($setupId !== null) {
         $panel = projectFindPanel($conn, $setupId, $row, $tols);
     } else {
         [$ra, $dec] = projectPositionOf($row);
@@ -1611,18 +1749,16 @@ function projectMatchPlan(PDO $conn, ?array $project, array $row, array $tols, i
         $panel['dec'] = $dec;
         $panel['bucket'] = $bucket !== '' ? $bucket : 'UNKNOWN';
     }
-    $night = projectAstroNight((string)$row['date_obs']);
-    $isLight = strtoupper((string)$row['imgtype']) === 'LIGHT';
-    $isFlat = strtoupper((string)$row['imgtype']) === 'FLAT';
-    $filt = trim((string)($row['filter'] ?? ''));
     return [
         'setup_id' => $setupId, 'setup_new' => $setupNew,
         'setup_fp' => $fp, 'setup_label' => projectSetupLabel($row),
         'panel' => $panel,
         'night' => $night,
-        // Lights under filter level; flats in their own night session (setup
-        // fallback when dateless); darks/bias always at setup level.
-        'level' => $isLight ? 'filter' : (($isFlat && $night !== null) ? 'session' : 'setup'),
+        'flat_session_id' => $flatSessionId,
+        // Lights under filter level; flats in the night's setup-wide session
+        // (setup fallback when dateless or with no session that night);
+        // darks/bias always at setup level.
+        'level' => $isLight ? 'filter' : (($isFlat && $flatSessionId !== null) ? 'session' : 'setup'),
         'filter_name' => $filt !== '' ? $filt : null,
         'is_light' => $isLight,
     ];
@@ -1820,6 +1956,8 @@ function projectAddFiles(PDO $conn, int $projectId, array $fileIds): array
     foreach (getToleranceDefs() as $key => $def) {
         $tols[$key] = resolve_tol($conn, $projectId, $key);
     }
+    $createdPanel = false;
+    $createdSetup = false;
     foreach ($fileIds as $fid) {
         $fid = (int)$fid;
         if ($fid <= 0) {
@@ -1837,39 +1975,59 @@ function projectAddFiles(PDO $conn, int $projectId, array $fileIds): array
         $conn->beginTransaction();
         try {
             $plan = projectMatchPlan($conn, $project, $row, $tols, $fid);
+            $isFlatRow = strtoupper((string)$row['imgtype']) === 'FLAT';
             // Create missing setup/panel (session/filter buckets are always created).
+            // Flats never create panels: no coordinates, no panel.
             if ($plan['setup_id'] === null) {
                 $setupId = projectCreateSetup($conn, $projectId, $plan['setup_fp'], $plan['setup_label']);
+                $createdSetup = true;
             } else {
                 $setupId = $plan['setup_id'];
             }
 
-            // Panel: matched by the plan, else create.
-            if ($plan['panel']['id'] === null) {
+            // Panel: matched by the plan, else create (never for flats).
+            if ($plan['panel']['id'] === null && !$isFlatRow) {
                 $panelId = projectCreatePanel(
                     $conn, $setupId, $row,
                     $plan['panel']['bucket'], $plan['panel']['ra'], $plan['panel']['dec']
                 );
+                $createdPanel = true;
             } else {
                 $panelId = $plan['panel']['id'];
             }
 
             // Link level comes from the shared match plan (never diverges from
-            // preview): lights under filter level, flats in their night session
-            // (setup fallback when dateless), darks/bias at setup level.
-            // Sessions are plain time buckets, created on demand.
+            // preview): lights under filter level, flats in the night's
+            // setup-wide session (setup fallback when dateless or with no
+            // session that night), darks/bias at setup level.
+            // Sessions are plain time buckets, created on demand (never for flats).
             $isLight = strtoupper((string)$row['imgtype']) === 'LIGHT';
             $filt = trim((string)($row['filter'] ?? ''));
             if ($plan['level'] === 'filter') {
-                $sessionId = projectFindOrCreateSession($conn, $panelId, (string)$plan['night']);
+                $sessionId = projectFindOrCreateSession($conn, (int)$panelId, (string)$plan['night']);
                 $level = 'filter';
                 $node = $sessionId;
                 $filterName = $filt !== '' ? $filt : null;
             } elseif ($plan['level'] === 'session') {
-                $sessionId = projectFindOrCreateSession($conn, $panelId, (string)$plan['night']);
-                $level = 'session';
-                $node = $sessionId;
-                $filterName = $filt !== '' ? $filt : null;
+                if ($isFlatRow) {
+                    if (($plan['flat_session_id'] ?? null) !== null
+                        && projectOwnsNode($conn, $projectId, 'session', (int)$plan['flat_session_id'])) {
+                        $level = 'session';
+                        $node = (int)$plan['flat_session_id'];
+                        $filterName = $filt !== '' ? $filt : null;
+                    } else {
+                        // Planned session vanished (or belongs elsewhere):
+                        // fall back to setup rather than creating rows.
+                        $level = 'setup';
+                        $node = $setupId;
+                        $filterName = $filt !== '' ? $filt : null;
+                    }
+                } else {
+                    $sessionId = projectFindOrCreateSession($conn, (int)$panelId, (string)$plan['night']);
+                    $level = 'session';
+                    $node = $sessionId;
+                    $filterName = $filt !== '' ? $filt : null;
+                }
             } else {
                 $level = 'setup';
                 $node = $setupId;
@@ -1903,6 +2061,14 @@ function projectAddFiles(PDO $conn, int $projectId, array $fileIds): array
             }
             $skipped[] = ['name' => (string)($row['name'] ?? "#$fid"), 'reason' => 'error'];
         }
+    }
+    // A brand-new setup/panel changes the matching context: never-suggested
+    // archive files may match it now. Queue one async backfill pass for the
+    // project (coalesced, skipped in frozen/manual inside the helper).
+    if ($createdPanel) {
+        enqueueSuggestRequest($conn, $projectId, 'panel_created');
+    } elseif ($createdSetup) {
+        enqueueSuggestRequest($conn, $projectId, 'setup_created');
     }
     return ['added' => $added, 'skipped' => $skipped];
 }

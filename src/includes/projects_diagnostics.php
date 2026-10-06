@@ -139,6 +139,56 @@ function matchBias(array $light, array $bias): string
 }
 
 /**
+ * Rotation signal of one flat against its panel: 'ok' when both rotations
+ * are known and within tolerance, 'unknown' when a side is missing,
+ * 'mismatch' when both are known and apart. Wildcard semantics mirror
+ * projectRotDist()/rotation_distance(): a missing side never blocks.
+ */
+function flatRotSignal(array $flat, $panelRot, float $tolRot): string
+{
+    [$dist, $unknown] = projectRotDist($flat['objctrot'] ?? null, $panelRot);
+    if ($unknown) {
+        return 'unknown';
+    }
+    return $dist <= $tolRot ? 'ok' : 'mismatch';
+}
+
+/**
+ * Flat verdict plus the rotation signal of the flat that determined it.
+ * Candidate ordering mirrors bestCalibStatus exactly (masters shadow subs,
+ * first green wins, else first yellow), so the status matches what callers
+ * would get from bestCalibStatus. Rotation never changes the verdict: it is
+ * reported alongside as [status, rot], with rot null when no usable flat
+ * exists at all (badge hidden, like a missing verdict).
+ *
+ * @return array{0:string,1:?string}
+ */
+function flatStatusWithRot(array $light, array $flats, $panelRot, array $filterAliases, float $tolRot): array
+{
+    if (empty($flats)) {
+        return ['red', null];
+    }
+    $masters = array_values(array_filter($flats, fn($c) => ($c['role'] ?? 'sub') === 'master'));
+    $pool = $masters !== [] ? $masters : $flats;
+    $best = 'red';
+    $bestRow = null;
+    foreach ($pool as $cand) {
+        $status = matchFlat($light, $cand, $filterAliases);
+        if ($status === 'green') {
+            return ['green', flatRotSignal($cand, $panelRot, $tolRot)];
+        }
+        if ($status === 'yellow' && $bestRow === null) {
+            $best = 'yellow';
+            $bestRow = $cand;
+        }
+    }
+    if ($bestRow === null) {
+        return ['red', null];
+    }
+    return [$best, flatRotSignal($bestRow, $panelRot, $tolRot)];
+}
+
+/**
  * Best status among candidates of one calibration type.
  * Master shadows subs: if any master exists, only masters are considered.
  */
@@ -762,10 +812,12 @@ function diagnoseProjectTree(array $tree, array $tols, array $filterAliases = []
         $tree['project_links'] ?? [],
         fn($c) => in_array(strtoupper((string)$c['imgtype']), ['DARK', 'FLAT', 'BIAS'], true)
     ));
+    $tolRot = projectNumPrefix((string)($tols['tol_rot'] ?? '3deg'), 3.0);
     foreach ($tree['setups'] as $setup) {
         $setupCals = array_merge($projectCals, $setup['calibrations']);
         foreach ($setup['panels'] as $panel) {
             $panelCals = array_merge($setupCals, $panel['calibrations']);
+            $panelRot = $panel['rot_mean'] ?? null;
             foreach ($panel['sessions'] as $session) {
                 $sid = (int)$session['id'];
                 $sessionCals = array_merge($panelCals, $session['calibrations']);
@@ -785,9 +837,11 @@ function diagnoseProjectTree(array $tree, array $tols, array $filterAliases = []
                         $darks = array_values(array_filter($pool, fn($c) => strtoupper((string)$c['imgtype']) === 'DARK' && $roleOf($c) !== 'darkflat'));
                         $flats = array_values(array_filter($pool, fn($c) => strtoupper((string)$c['imgtype']) === 'FLAT'));
                         $biases = array_values(array_filter($pool, fn($c) => strtoupper((string)$c['imgtype']) === 'BIAS'));
+                        [$flatStatus, $flatRot] = flatStatusWithRot($light, $flats, $panelRot, $filterAliases, $tolRot);
                         $out[(int)$light['file_id']] = [
                             'dark' => bestCalibStatus($darks, fn($c) => matchDark($light, $c, $tols)),
-                            'flat' => bestCalibStatus($flats, fn($c) => matchFlat($light, $c, $filterAliases)),
+                            'flat' => $flatStatus,
+                            'flat_rot' => $flatRot,
                             'bias' => bestCalibStatus($biases, fn($c) => matchBias($light, $c)),
                         ];
                     }

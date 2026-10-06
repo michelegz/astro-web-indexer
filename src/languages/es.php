@@ -314,6 +314,9 @@ return [
     'projects_cal_bias' => 'Bias',
     'projects_cal_dark' => 'Dark',
     'projects_cal_flat' => 'Flat',
+    'projects_cal_rot_ok' => 'Rotación del flat verificada respecto a su panel',
+    'projects_cal_rot_warn' => 'Rotación del flat no verificada (metadatos ausentes o fuera de tolerancia)',
+    'projects_legend_rot' => 'Verificación de rotación del flat',
     'projects_legend_darkflat' => 'Darks cortos para flats (por exposición, como WBPP)',
     'projects_legend_flatcov' => 'Cobertura de cada flat con dark-flats',
     'projects_flat_cov_title' => 'Cobertura dark-flat de este flat',
@@ -399,6 +402,10 @@ return [
     'projects_resuggest_hint' => 'Borra los descartes y vuelve a proponer todo en la próxima reindexación.',
     'projects_resuggested' => '{count} descartes borrados: se propondrán de nuevo en la próxima reindexación.',
     'projects_resuggested_none' => 'Nada que reproponer.',
+    'projects_suggest_refresh' => 'Actualizar sugerencias',
+    'projects_suggest_refresh_hint' => 'Vuelve a analizar el archivo para este proyecto (asíncrono, en segundo plano).',
+    'projects_suggest_queued' => 'Recálculo en cola: el indexador lo tomará en breve.',
+    'projects_suggest_queue_failed' => 'No se pudo poner en cola el recálculo.',
     'projects_no_pending' => 'Nada que revisar. Los nuevos archivos aparecerán aquí en modo sugerencia.',
 
     // Añadir al proyecto

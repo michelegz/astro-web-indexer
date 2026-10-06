@@ -314,6 +314,9 @@ return [
     'projects_cal_bias' => 'Bias',
     'projects_cal_dark' => 'Dark',
     'projects_cal_flat' => 'Flat',
+    'projects_cal_rot_ok' => 'Flat rotation verified against its panel',
+    'projects_cal_rot_warn' => 'Flat rotation not verified (missing metadata or beyond tolerance)',
+    'projects_legend_rot' => 'Flat rotation check',
     'projects_legend_darkflat' => 'Short darks for flats (by exposure, like WBPP)',
     'projects_legend_flatcov' => 'Dark-flat coverage per flat',
     'projects_flat_cov_title' => 'Dark-flat coverage of this flat',
@@ -399,6 +402,10 @@ return [
     'projects_resuggest_hint' => 'Clears the discards and reproposes everything on the next reindex.',
     'projects_resuggested' => '{count} discards cleared: they will be reproposed on the next reindex.',
     'projects_resuggested_none' => 'Nothing to fish again.',
+    'projects_suggest_refresh' => 'Refresh suggestions',
+    'projects_suggest_refresh_hint' => 'Re-scans the archive for this project (async, runs in background).',
+    'projects_suggest_queued' => 'Re-suggest queued: the indexer will pick it up shortly.',
+    'projects_suggest_queue_failed' => 'Could not queue the re-suggest.',
     'projects_no_pending' => 'Nothing to review. New indexed files will appear here in suggest mode.',
 
     // Add to project

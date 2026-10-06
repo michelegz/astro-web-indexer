@@ -27,6 +27,49 @@ function diagBox(string $status, string $letter, string $title): string
         . htmlspecialchars($letter) . '</span>';
 }
 
+/**
+ * Flat rotation badge: green check when a serving flat's rotation was
+ * verified against its panel, yellow otherwise (missing metadata or beyond
+ * tolerance). Rotation never blocks the flat itself (see flatRotSignal), so
+ * there is no red state. Empty string when no usable flat exists at all.
+ */
+function rotBadge(?string $state, string $okTitle, string $warnTitle): string
+{
+    if ($state === null) {
+        return '';
+    }
+    $ok = $state === 'ok';
+    $bg = $ok ? 'bg-green-700' : 'bg-yellow-700';
+    return '<span title="' . htmlspecialchars($ok ? $okTitle : $warnTitle) . '" class="inline-block min-w-5 px-0.5 text-center text-xs font-bold text-white rounded ' . $bg . '">'
+        . ($ok ? 'R✓' : 'R?') . '</span>';
+}
+
+/**
+ * Aggregate rotation badge state across lights: 'ok' only when every light
+ * served by a usable flat verified its rotation, 'warn' when at least one
+ * did not, null when no light has a usable flat (badge hidden).
+ */
+function worstRotState(array $lights, array $diagByFile): ?string
+{
+    $state = null;
+    foreach ($lights as $li) {
+        $d = $diagByFile[(int)$li['file_id']] ?? null;
+        if ($d === null || ($d['flat'] ?? 'red') === 'red') {
+            continue;
+        }
+        $sig = $d['flat_rot'] ?? null;
+        if ($sig === null) {
+            continue;
+        }
+        if ($state === null) {
+            $state = $sig === 'ok' ? 'ok' : 'warn';
+        } elseif ($sig !== 'ok') {
+            $state = 'warn';
+        }
+    }
+    return $state;
+}
+
 function tallyFileRows(array $rows, array &$s): void
 {
     foreach ($rows as $r) {
@@ -206,11 +249,12 @@ if (empty($projectTree['setups'])): ?>
                                             $offLights = array_values(array_filter($filter['lights'], fn($li) => empty($li['pending']) && empty($li['enabled'])));
                                             $worstB = $worstD = $worstF = null;
                                             foreach ($realLights as $li) {
-                                                $d = $projectDiag[(int)$li['file_id']] ?? ['dark' => 'red', 'flat' => 'red', 'bias' => 'red'];
+                                                $d = $projectDiag[(int)$li['file_id']] ?? ['dark' => 'red', 'flat' => 'red', 'flat_rot' => null, 'bias' => 'red'];
                                                 $worstB = $worstB === null ? $d['bias'] : diagWorst($worstB, $d['bias']);
                                                 $worstD = $worstD === null ? $d['dark'] : diagWorst($worstD, $d['dark']);
                                                 $worstF = $worstF === null ? $d['flat'] : diagWorst($worstF, $d['flat']);
                                             }
+                                            $worstR = worstRotState($realLights, $projectDiag);
                                                                     $realExp = 0.0;
                                                                     foreach ($realLights as $li) {
                                                                         $realExp += (float)($li['exptime'] ?? 0);
@@ -222,7 +266,7 @@ if (empty($projectTree['setups'])): ?>
                                                                             <input type="checkbox" class="pgroup-check mt-1 rounded bg-gray-600 border-gray-500" title="<?= __('projects_select_group') ?>">
                                                                             <div class="flex-1 min-w-0">
                                                 <div class="text-sm font-medium mb-1">
-                                                    <?php if ($worstB === null): ?><?= empty($pendLights) ? '' : '⏳' ?><?php else: ?><?= diagBox($worstB, 'B', __('projects_cal_bias')) ?><?= diagBox($worstD, 'D', __('projects_cal_dark')) ?><?= diagBox($worstF, 'F', __('projects_cal_flat')) ?><?php endif; ?> <?= __('projects_filter') ?> <?= htmlspecialchars($filter['name'] !== '' ? $filter['name'] : '—') ?>
+                                                    <?php if ($worstB === null): ?><?= empty($pendLights) ? '' : '⏳' ?><?php else: ?><?= diagBox($worstB, 'B', __('projects_cal_bias')) ?><?= diagBox($worstD, 'D', __('projects_cal_dark')) ?><?= diagBox($worstF, 'F', __('projects_cal_flat')) ?><?= rotBadge($worstR, __('projects_cal_rot_ok'), __('projects_cal_rot_warn')) ?><?php endif; ?> <?= __('projects_filter') ?> <?= htmlspecialchars($filter['name'] !== '' ? $filter['name'] : '—') ?>
                                                                                      <span class="ml-2 text-xs font-normal text-gray-400">
                                                                                          <?= htmlspecialchars(__('projects_lights_count', ['count' => count($realLights)])) ?> · <?= htmlspecialchars(fmtExp($realExp)) ?><?php if (!empty($pendLights)): ?> · <?= htmlspecialchars('+' . count($pendLights) . ' ⏳') ?><?php endif; ?><?php if (!empty($offLights)): ?> · <?= htmlspecialchars('+' . count($offLights) . ' ' . __('projects_link_off')) ?><?php endif; ?>
                                                                                      </span>
@@ -233,11 +277,12 @@ if (empty($projectTree['setups'])): ?>
                                                                                     $egReal = array_values(array_filter($eg['lights'], fn($li) => empty($li['pending']) && !empty($li['enabled'])));
                                                                                     $egWorstB = $egWorstD = $egWorstF = null;
                                                                                     foreach ($egReal as $li) {
-                                                                                        $d = $projectDiag[(int)$li['file_id']] ?? ['dark' => 'red', 'flat' => 'red', 'bias' => 'red'];
+                                                                                        $d = $projectDiag[(int)$li['file_id']] ?? ['dark' => 'red', 'flat' => 'red', 'flat_rot' => null, 'bias' => 'red'];
                                                                                         $egWorstB = $egWorstB === null ? $d['bias'] : diagWorst($egWorstB, $d['bias']);
                                                                                         $egWorstD = $egWorstD === null ? $d['dark'] : diagWorst($egWorstD, $d['dark']);
                                                                                         $egWorstF = $egWorstF === null ? $d['flat'] : diagWorst($egWorstF, $d['flat']);
                                                                                     }
+                                                                                    $egWorstR = worstRotState($egReal, $projectDiag);
                                                                                     $egExp = 0.0;
                                                                                     foreach ($egReal as $li) {
                                                                                         $egExp += (float)($li['exptime'] ?? 0);
@@ -248,7 +293,7 @@ if (empty($projectTree['setups'])): ?>
                                                                                             <input type="checkbox" class="pgroup-check mt-1 rounded bg-gray-600 border-gray-500" title="<?= __('projects_select_group') ?>">
                                                                                             <div class="flex-1 min-w-0">
                                                                                                  <div class="text-xs font-medium text-gray-300 mb-1">
-                                                                                                     <?php if ($egWorstB !== null): ?><?= diagBox($egWorstB, 'B', __('projects_cal_bias')) ?><?= diagBox($egWorstD, 'D', __('projects_cal_dark')) ?><?= diagBox($egWorstF, 'F', __('projects_cal_flat')) ?> <?php endif; ?><?= __('projects_exposure') ?> <?= htmlspecialchars(fmtExpShort($eg['exptime'])) ?><?php $egTempMed = projectMedian(array_column($egReal, 'ccd_temp')); ?><?php if ($egTempMed !== null): ?> · <?= htmlspecialchars(repTempDisplay($egTempMed)) ?><?php endif; ?>
+                                                                                                                                                                                                           <?php if ($egWorstB !== null): ?><?= diagBox($egWorstB, 'B', __('projects_cal_bias')) ?><?= diagBox($egWorstD, 'D', __('projects_cal_dark')) ?><?= diagBox($egWorstF, 'F', __('projects_cal_flat')) ?><?= rotBadge($egWorstR, __('projects_cal_rot_ok'), __('projects_cal_rot_warn')) ?> <?php endif; ?><?= __('projects_exposure') ?> <?= htmlspecialchars(fmtExpShort($eg['exptime'])) ?><?php $egTempMed = projectMedian(array_column($egReal, 'ccd_temp')); ?><?php if ($egTempMed !== null): ?> · <?= htmlspecialchars(repTempDisplay($egTempMed)) ?><?php endif; ?>
                                                                                                      <span class="ml-2 font-normal text-gray-500"><?= count($egReal) ?> · <?= htmlspecialchars(fmtExp($egExp)) ?></span>
                                                                                                  </div>
                                                                                 <div class="overflow-x-auto">
@@ -258,7 +303,7 @@ if (empty($projectTree['setups'])): ?>
                                                                                                  <?php $isPend = !empty($li['pending']); ?>
                                                                                                  <?php $isOff = !$isPend && empty($li['enabled']); ?>
                                                                                                  <?php $isAuto = !$isPend && !$isOff && !empty($li['auto_off']); ?>
-                                                                                                 <?php $d = ($isPend || $isOff) ? null : ($projectDiag[(int)$li['file_id']] ?? ['dark' => 'red', 'flat' => 'red', 'bias' => 'red']); ?>
+                                                                                                 <?php $d = ($isPend || $isOff) ? null : ($projectDiag[(int)$li['file_id']] ?? ['dark' => 'red', 'flat' => 'red', 'flat_rot' => null, 'bias' => 'red']); ?>
                                                                                                  <tr class="border-b border-gray-700/40<?= ($isPend || $isOff) ? ' opacity-60' : '' ?>">
                                                                                                      <td class="py-1 px-2<?= $isAuto ? ' text-red-400 font-medium' : '' ?>">
                                                                                                          <?php if (!$isPend): ?>

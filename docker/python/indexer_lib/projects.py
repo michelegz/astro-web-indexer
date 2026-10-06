@@ -505,6 +505,25 @@ def _insert_link(dcur, file_id, level, node_id, filter_name, role, is_light):
     )
 
 
+def find_setup_session(dcur, setup_id, night):
+    """First session id of an astro-night anywhere in the setup.
+
+    Panel-agnostic on purpose: flats belong to the night, not the target
+    (they are rarely shot pointing at the subject). Deterministic: lowest
+    panel_no, then lowest session id. None when absent — never creates rows:
+    flats must not sprout panels or orphan sessions.
+    """
+    dcur.execute(
+        "SELECT ss.id FROM project_sessions ss "
+        "JOIN project_panels pp ON pp.id = ss.panel_id "
+        "WHERE pp.setup_id = %s AND ss.astro_night = %s "
+        "ORDER BY pp.panel_no ASC, pp.id ASC, ss.id ASC LIMIT 1",
+        (setup_id, night),
+    )
+    row = dcur.fetchone()
+    return row['id'] if row else None
+
+
 def suggest_file(dcur, project, globals_, meta, file_id):
     """Propose (or auto-link) one file into one project. Returns 'suggested'|'linked'|'skipped'."""
     mode = project['mode']
@@ -532,6 +551,34 @@ def suggest_file(dcur, project, globals_, meta, file_id):
         setup_note = f"known setup {setup_label(meta) or fingerprint[:32]}"
 
     ra, dec, pos_source = position_of(meta)
+    night = astro_night(meta.get('date_obs'))
+    filt = (meta.get('filter') or '').strip() or None
+
+    if imgtype == 'FLAT':
+        # Flats skip panel matching entirely: no RA/DEC/FoV/OBJECT check, and
+        # never create panels or sessions. Night session anywhere in the
+        # setup (first by panel_no), else setup level with the filter kept.
+        if night is not None:
+            flat_session = find_setup_session(dcur, setup_id, night)
+            if flat_session is not None:
+                level, node_id = 'session', flat_session
+            else:
+                level, node_id = 'setup', setup_id
+        else:
+            level, node_id = 'setup', setup_id
+        config_hash = _suggest_config_hash(project, globals_)
+        reason = (f"{setup_note}; night {night if night is not None else '?'} "
+                  f"(flat session-agnostic); rule FLAT→{level}"
+                  + (f" filter {filt}" if filt else "")
+                  + f"; cfg:{config_hash[:8]}")
+        if mode == 'auto':
+            _insert_link(dcur, file_id, level, node_id, filt, 'sub', False)
+            logger.info(f"Auto-linked {meta.get('path')} into project '{project['name']}': {reason}")
+            return 'linked'
+        ok = _insert_suggestion(dcur, project['id'], file_id, level, node_id, filt, 'sub',
+                                reason, config_hash, _suggest_match_inputs(dcur, file_id))
+        return 'suggested' if ok else 'skipped'
+
     tol_pos_deg = max(_num_prefix(tol(project, globals_, 'tol_pos_arcmin'), 5.0) / 60.0, 1e-6)
     fov_w, fov_h = meta.get('fov_w'), meta.get('fov_h')
     try:
@@ -555,26 +602,21 @@ def suggest_file(dcur, project, globals_, meta, file_id):
         return 'skipped'
     panel_id, sep, rot_d, rot_unknown = found
 
-    night = astro_night(meta.get('date_obs'))
+    # FLATs returned early above; night/filt were computed up front.
     is_light = imgtype == 'LIGHT'
     if night is None and is_light:
-        # Lights strictly need their night session; dateless calibrations
+        # Lights strictly need their night session; dateless darks/bias
         # fall back to setup level (see below).
         return 'skipped'
     session_id = None
     if night is not None:
         session_id, _ = find_or_create_session(dcur, panel_id, night)
 
-    filt = (meta.get('filter') or '').strip() or None
     if is_light:
         level, node_id, filter_name, role = 'filter', session_id, filt, 'sub'
-    elif imgtype == 'FLAT' and night is not None:
-        # Flats live in their own night session (instrument match is by setup,
-        # filter match for lights is checked by diagnostics, not by level).
-        level, node_id, filter_name, role = 'session', session_id, filt, 'sub'
     else:
-        # Darks/bias (and dateless flats) live at setup level (instrument-dependent).
-        level, node_id, filter_name, role = 'setup', setup_id, filt if imgtype == 'FLAT' else None, 'sub'
+        # Darks/bias live at setup level (instrument-dependent).
+        level, node_id, filter_name, role = 'setup', setup_id, None, 'sub'
 
     pos_note = (f"coords {ra:.4f}/{dec:+.4f} ({pos_source})" if ra is not None
                 else f"no coords, OBJECT bucket '{object_bucket}'")

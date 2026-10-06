@@ -3,6 +3,7 @@ import time
 import sys
 import os
 import argparse
+import json
 import logging
 import subprocess
 import platform
@@ -192,6 +193,99 @@ class FitsHandler(FileSystemEventHandler):
             logging.error(f"Error during reindexing: {e}")
 
 
+def process_suggest_queue(db_params):
+    """Claim one pending re-suggest request and run its per-project backfill.
+
+    The web container only enqueues rows (see enqueueSuggestRequest in PHP):
+    this watcher owns execution. Runs are per-project and idempotent, so a
+    crash simply leaves the row for the stale-running reset below.
+    Returns True when a request was processed.
+    """
+    try:
+        import mysql.connector
+    except ImportError as e:
+        logging.error(f"Suggest queue skipped (mysql driver missing): {e}")
+        return False
+    try:
+        from indexer_lib.projects import suggest_projects_backfill
+    except ImportError as e:
+        logging.error(f"Suggest queue skipped (indexer_lib missing): {e}")
+        return False
+    try:
+        conn = mysql.connector.connect(
+            host=db_params["host"], user=db_params["user"],
+            password=db_params["password"], database=db_params["database"],
+        )
+    except Exception as e:
+        logging.warning(f"Suggest queue skipped (db unreachable): {e}")
+        return False
+    try:
+        cur = conn.cursor(dictionary=True)
+        # Rows stuck in running (worker crash) go back to pending after 30 min.
+        try:
+            cur.execute(
+                "UPDATE suggest_requests SET status = 'pending', started_at = NULL "
+                "WHERE status = 'running' AND started_at < (NOW() - INTERVAL 30 MINUTE)"
+            )
+        except Exception:
+            pass
+        cur.execute(
+            "SELECT id, project_id FROM suggest_requests "
+            "WHERE status = 'pending' ORDER BY id ASC LIMIT 1"
+        )
+        row = cur.fetchone()
+        if row is None:
+            return False
+        req_id, project_id = row['id'], row['project_id']
+        cur.execute(
+            "UPDATE suggest_requests SET status = 'running', started_at = NOW() "
+            "WHERE id = %s AND status = 'pending'",
+            (req_id,),
+        )
+        conn.commit()
+        if cur.rowcount != 1:
+            return False
+        logging.info(f"Suggest backfill starting (request {req_id}, project {project_id})")
+        try:
+            counts = suggest_projects_backfill(conn, project_id)
+        except Exception as e:
+            logging.error(f"Suggest backfill failed (request {req_id}): {e}")
+            try:
+                cur.execute(
+                    "UPDATE suggest_requests SET status = 'error', finished_at = NOW(), "
+                    "result = %s WHERE id = %s",
+                    (json.dumps({'error': str(e)[:500]}), req_id),
+                )
+                conn.commit()
+            except Exception:
+                pass
+            return True
+        try:
+            cur.execute(
+                "UPDATE suggest_requests SET status = 'done', finished_at = NOW(), "
+                "result = %s WHERE id = %s",
+                (json.dumps(counts), req_id),
+            )
+            conn.commit()
+        except Exception as e:
+            logging.error(f"Suggest queue result write failed (request {req_id}): {e}")
+        logging.info(f"Suggest backfill done (request {req_id}, project {project_id}): {counts}")
+        return True
+    except Exception as e:
+        # Missing table (migrations not applied yet) is normal on fresh
+        # installs: stay quiet instead of spamming the log every second.
+        if 'suggest_requests' in str(e) and ('1146' in str(e) or "doesn't exist" in str(e)):
+            logging.debug("Suggest queue table missing, skipping.")
+        else:
+            logging.warning(f"Suggest queue check failed: {e}")
+        return False
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 def main():
     parser = argparse.ArgumentParser(description="Monitor a directory for files and trigger reindex.")
     parser.add_argument("fits_dir", help="Directory to monitor")
@@ -245,6 +339,7 @@ def main():
     try:
         while True:
             event_handler.check_and_reindex()
+            process_suggest_queue(db_params)
             time.sleep(1)
     except KeyboardInterrupt:
         observer.stop()

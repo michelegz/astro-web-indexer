@@ -314,6 +314,9 @@ return [
     'projects_cal_bias' => 'Bias',
     'projects_cal_dark' => 'Dark',
     'projects_cal_flat' => 'Flat',
+    'projects_cal_rot_ok' => 'Rotazione flat verificata rispetto al suo panel',
+    'projects_cal_rot_warn' => 'Rotazione flat non verificata (metadati mancanti o oltre tolleranza)',
+    'projects_legend_rot' => 'Verifica rotazione flat',
     'projects_legend_darkflat' => 'Dark brevi per i flat (per esposizione, come WBPP)',
     'projects_legend_flatcov' => 'Copertura di ogni flat da dark-flat',
     'projects_flat_cov_title' => 'Copertura dark-flat di questo flat',
@@ -399,6 +402,10 @@ return [
     'projects_resuggest_hint' => 'Rimuove gli scarti e ripropone tutto al prossimo reindex.',
     'projects_resuggested' => '{count} scarti rimossi: verranno riproposti al prossimo reindex.',
     'projects_resuggested_none' => 'Nessuno scarto da ripescare.',
+    'projects_suggest_refresh' => 'Aggiorna suggerimenti',
+    'projects_suggest_refresh_hint' => 'Riscansiona l’archivio per questo progetto (asincrono, in background).',
+    'projects_suggest_queued' => 'Ricalcolo accodato: l’indexer lo prenderà in carico a breve.',
+    'projects_suggest_queue_failed' => 'Impossibile accodare il ricalcolo.',
     'projects_no_pending' => 'Nulla da revisionare. I nuovi file appariranno qui in modalità suggerimento.',
 
     // Aggiunta a progetto

@@ -314,6 +314,9 @@ return [
     'projects_cal_bias' => 'Bias',
     'projects_cal_dark' => 'Dark',
     'projects_cal_flat' => 'Flat',
+    'projects_cal_rot_ok' => 'Rotation du flat vérifiée par rapport à son panneau',
+    'projects_cal_rot_warn' => 'Rotation du flat non vérifiée (métadonnées manquantes ou hors tolérance)',
+    'projects_legend_rot' => 'Vérification rotation du flat',
     'projects_legend_darkflat' => 'Darks courts pour les flats (par exposition, comme WBPP)',
     'projects_legend_flatcov' => 'Couverture de chaque flat en dark-flats',
     'projects_flat_cov_title' => 'Couverture dark-flat de ce flat',
@@ -399,6 +402,10 @@ return [
     'projects_resuggest_hint' => 'Efface les rejets et repropose tout au prochain réindexage.',
     'projects_resuggested' => '{count} rejets effacés : ils seront reproposés au prochain réindexage.',
     'projects_resuggested_none' => 'Aucun rejet à relancer.',
+    'projects_suggest_refresh' => 'Actualiser les suggestions',
+    'projects_suggest_refresh_hint' => 'Réanalyse l’archive pour ce projet (asynchrone, en arrière-plan).',
+    'projects_suggest_queued' => 'Recalcul mis en file : l’indexeur le prendra en charge sous peu.',
+    'projects_suggest_queue_failed' => 'Impossible de mettre le recalcul en file.',
     'projects_no_pending' => 'Rien à réviser. Les nouveaux fichiers apparaîtront ici en mode suggestion.',
 
     // Ajout au projet
