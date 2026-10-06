@@ -298,6 +298,7 @@ return [
     'projects_pending_hypo' => 'Suggerimento in attesa — mostrato come se fosse accettato',
     'projects_select_all' => 'Seleziona tutti',
     'projects_no_access' => 'Questo progetto contiene file fuori dalle tue directory consentite. Contatta il tuo amministratore.',
+    'projects_not_found' => 'Progetto non trovato.',
     'projects_remove_selected' => 'Rimuovi',
     'projects_disable_selected' => 'Disabilita',
     'projects_enable_selected' => 'Abilita',

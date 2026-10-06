@@ -24,10 +24,12 @@ declare(strict_types=1);
  *                                     column-visibility globals. Only
  *                                     project_tree_preview.php renders HTML; the
  *                                     others must not pay for it.
- *
- * requireAuth() is kept rather than requireAuthApi() on purpose: switching to the
- * JSON 401 changes the response an expired session produces, and that is a
- * behaviour change of its own (tracked separately).
+ *   $AWI_API_AUTH_REDIRECT   = true   keeps the HTML redirect to /login.php instead
+ *                                     of the JSON 401. Only for endpoints whose
+ *                                     response is a file the browser downloads:
+ *                                     a 401 there would arrive as a corrupt
+ *                                     download, while the login page is
+ *                                     recoverable. The JSON endpoints get the 401.
  */
 
 require_once '/var/www/html/vendor/autoload.php';
@@ -51,10 +53,20 @@ if ($treeRender) {
     require_once __DIR__ . '/template_functions.php';
     require_once __DIR__ . '/columns.php';
     require_once __DIR__ . '/file_cells.php';
-    require_once __DIR__ . '/igroup_files_table.php';
+    // NOT igroup_files_table.php: that is a rendering partial, not a library. It
+    // emits markup straight away and expects $grp/$gi from the caller, which is why
+    // projects.php includes it inside its per-group loop. Requiring it here ran the
+    // markup with those undefined, and the warnings ended up in the JSON body.
 }
 
-requireAuth();
+// An expired session between two steps of the wizard used to arrive as a 302 to
+// the login page: fetch() follows it and r.json() then died on HTML, so the user
+// saw "Unexpected token < in JSON" instead of being told to log in again.
+if (!empty($GLOBALS['AWI_API_AUTH_REDIRECT'])) {
+    requireAuth();
+} else {
+    requireAuthApi();
+}
 
 if ($treeRender) {
     // Column visibility, same derivation as init.php:50-72. The tree partials and

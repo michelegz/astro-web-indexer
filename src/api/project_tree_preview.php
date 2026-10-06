@@ -31,7 +31,9 @@ $customSetups = $req['customSetups'];
 $newProject = $req['new_project'];
 
 if (empty($ids)) {
-    awiJson(['success' => false, 'message' => 'No valid IDs provided.']);
+    // 'error' e non solo 'success':false: main.js solleva solo su data.error, quindi
+    // un success:false portava a un albero vuoto senza spiegare il motivo.
+    awiJson(['success' => false, 'error' => 'No valid IDs provided.'], 400);
 }
 
 /**
@@ -65,8 +67,17 @@ function treePreviewSnapshot(PDO $conn, int $projectId, array $ids): array
 
 try {
     $conn = connectDB();
-    if ($projectId > 0 && getProject($conn, $projectId) !== null && !canAccessProject($conn, $projectId)) {
-        awiJson(['error' => __('projects_no_access')], 403);
+    if ($projectId > 0) {
+        // Trovato e accessibile sono due domande diverse: il gate precedente faceva
+        // short-circuit su getProject() === null, quindi un id inesistente entrava
+        // nella transazione e mostrava un albero vuoto come se fosse un progetto
+        // nuovo, e la preview prometteva un add che l'add avrebbe rifiutato.
+        if (getProject($conn, $projectId) === null) {
+            awiJson(['error' => __('projects_not_found')], 404);
+        }
+        if (!canAccessProject($conn, $projectId)) {
+            awiJson(['error' => __('projects_no_access')], 403);
+        }
     }
     $conn->beginTransaction();
     try {

@@ -22,23 +22,31 @@ $projectId = isset($data['project_id']) ? (int)$data['project_id'] : 0;
 $ids = array_values(array_unique(array_filter($data['ids'], 'is_int')));
 
 if (empty($ids)) {
-    awiJson(['success' => false, 'message' => 'No valid IDs provided.']);
+    // 'error' e non solo 'success':false: main.js solleva solo su data.error, quindi
+    // un success:false finiva con una preview vuota e nessun messaggio.
+    awiJson(['success' => false, 'error' => 'No valid IDs provided.'], 400);
 }
 
 $ids = array_slice($ids, 0, 2000);
 
 try {
     $conn = connectDB();
-    if ($projectId > 0 && getProject($conn, $projectId) !== null && !canAccessProject($conn, $projectId)) {
-        awiJson(['error' => __('projects_no_access')], 403);
+    $frozen = false;
+    if ($projectId > 0) {
+        // Il gate precedente faceva short-circuit su getProject() === null: un id
+        // inesistente passava e la preview analizzava contro un progetto che non
+        // esiste, restituendo gruppi vuoti come se fosse un progetto nuovo.
+        $proj = getProject($conn, $projectId);
+        if ($proj === null) {
+            awiJson(['error' => __('projects_not_found')], 404);
+        }
+        if (!canAccessProject($conn, $projectId)) {
+            awiJson(['error' => __('projects_no_access')], 403);
+        }
+        $frozen = getProjectAssignMode($proj) === 'frozen';
     }
     $preview = projectPreviewFiles($conn, $projectId > 0 ? $projectId : null, $ids);
     $setups = $projectId > 0 ? getProjectSetups($conn, $projectId) : [];
-    $frozen = false;
-    if ($projectId > 0) {
-        $proj = getProject($conn, $projectId);
-        $frozen = $proj !== null && getProjectAssignMode($proj) === 'frozen';
-    }
     awiJson([
         'success' => true,
         'frozen' => $frozen,

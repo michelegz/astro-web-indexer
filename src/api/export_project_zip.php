@@ -4,6 +4,9 @@
 @set_time_limit(0);
 
 ob_start();
+// The response here is a file the browser downloads, not JSON the page reads: keep
+// the login redirect, a 401 would be saved as a broken .zip.
+$GLOBALS['AWI_API_AUTH_REDIRECT'] = true;
 require_once '../includes/api_bootstrap.php';
 ob_end_clean();
 
@@ -43,7 +46,10 @@ if (!isset($_SESSION['csrf_token'])
 try {
     $conn = connectDB();
     $project = getProject($conn, $projectId);
-    if ($project === null || !canAccessProject($conn, $projectId)) {
+    if ($project === null) {
+        awiJson(['error' => __('projects_not_found')], 404);
+    }
+    if (!canAccessProject($conn, $projectId)) {
         http_response_code(403);
         die(__('projects_no_access'));
     }

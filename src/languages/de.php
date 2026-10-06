@@ -297,6 +297,7 @@ return [
     'projects_pending_hypo' => 'Offener Vorschlag — angezeigt wie angenommen',
     'projects_select_all' => 'Alle auswählen',
     'projects_no_access' => 'Dieses Projekt enthält Dateien außerhalb deiner erlaubten Verzeichnisse. Wende dich an deinen Administrator.',
+    'projects_not_found' => 'Projekt nicht gefunden.',
     'projects_remove_selected' => 'Entfernen',
     'projects_disable_selected' => 'Deaktivieren',
     'projects_enable_selected' => 'Aktivieren',

@@ -24,13 +24,27 @@ $customSetups = $req['customSetups'];
 $newProject = $req['new_project'];
 
 if (empty($ids)) {
-    awiJson(['success' => false, 'message' => 'No valid IDs provided.']);
+    // 'error' e non solo 'success':false. main.js fa fetch().then(r => r.json()) e
+    // solleva solo su data.error, quindi un success:false finiva con una preview
+    // vuota e nessun messaggio. 'success' resta per compatibilita'.
+    awiJson(['success' => false, 'error' => 'No valid IDs provided.'], 400);
 }
 
 try {
     $conn = connectDB();
-    if ($projectId > 0 && getProject($conn, $projectId) !== null && !canAccessProject($conn, $projectId)) {
-        awiJson(['error' => __('projects_no_access')], 403);
+    if ($projectId > 0) {
+        // Trovato e accessibile sono due domande diverse: prima il gate faceva
+        // short-circuit su getProject() === null, quindi un id inesistente
+        // proseguiva, projectAddFiles rispondeva reason no_project con added 0 e
+        // HTTP 200, e il JS offriva un link "vai al progetto" verso un progetto
+        // che non esiste.
+        $proj = getProject($conn, $projectId);
+        if ($proj === null) {
+            awiJson(['error' => __('projects_not_found')], 404);
+        }
+        if (!canAccessProject($conn, $projectId)) {
+            awiJson(['error' => __('projects_no_access')], 403);
+        }
     }
     // projectAddPrepare writes (project, custom setups, setup_overrides) outside
     // any transaction, so wrap it together with the add: a failure between the

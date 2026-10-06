@@ -186,6 +186,11 @@ function requireAuthApi(): void
     if (!isAuthEnabled()) return;
 
     if (!isLoggedIn()) {
+        // awiJson when available so the failure path cannot itself emit an empty
+        // body; auth.php is loaded by pages that do not pull in the JSON helper.
+        if (function_exists('awiJson')) {
+            awiJson(['error' => 'Authentication required.'], 401);
+        }
         http_response_code(401);
         header('Content-Type: application/json');
         echo json_encode(['error' => 'Authentication required.']);

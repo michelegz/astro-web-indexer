@@ -19,7 +19,10 @@ if ($projectId <= 0) {
 
 try {
     $conn = connectDB();
-    if (getProject($conn, $projectId) === null || !canAccessProject($conn, $projectId)) {
+    if (getProject($conn, $projectId) === null) {
+        awiJson(['error' => __('projects_not_found')], 404);
+    }
+    if (!canAccessProject($conn, $projectId)) {
         awiJson(['error' => __('projects_no_access')], 403);
     }
     $map = buildProjectExportMap($conn, $projectId);
