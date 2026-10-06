@@ -583,6 +583,34 @@ def suggest_file(dcur, project, globals_, meta, file_id):
                                 reason, config_hash, _suggest_match_inputs(dcur, file_id))
         return 'suggested' if ok else 'skipped'
 
+    is_light = imgtype == 'LIGHT'
+
+    if not is_light:
+        # Darks/bias are instrument-dependent: they link at setup level, so they
+        # need neither a panel nor a session. Running them through find_panel was
+        # both dead work (panel_id is unused on this path) and a gate: a dark from
+        # a calibration library carries no RA/DEC, so find_panel almost never
+        # matched and the file was silently skipped. The session call created an
+        # orphan row that nothing links and nothing prunes, which also consumed a
+        # session_no out of chronological order.
+        level, node_id, filter_name, role = 'setup', setup_id, None, 'sub'
+        config_hash = _suggest_config_hash(project, globals_)
+        reason = (f"{setup_note}; rule {imgtype}→{level}"
+                  + (f" filter {filt}" if filt else "")
+                  + f"; cfg:{config_hash[:8]}")
+        if mode == 'auto':
+            _insert_link(dcur, file_id, level, node_id, filter_name, role, False)
+            logger.info(f"Auto-linked {meta.get('path')} into project '{project['name']}': {reason}")
+            return 'linked'
+        ok = _insert_suggestion(dcur, project['id'], file_id, level, node_id, filter_name, role,
+                                reason, config_hash, _suggest_match_inputs(dcur, file_id))
+        return 'suggested' if ok else 'skipped'
+
+    # From here on only lights: they need their night session and an existing panel.
+    if night is None:
+        # Lights strictly need their night session.
+        return 'skipped'
+
     tol_pos_deg = max(_num_prefix(tol(project, globals_, 'tol_pos_arcmin'), 5.0) / 60.0, 1e-6)
     fov_w, fov_h = meta.get('fov_w'), meta.get('fov_h')
     try:
@@ -606,21 +634,9 @@ def suggest_file(dcur, project, globals_, meta, file_id):
         return 'skipped'
     panel_id, sep, rot_d, rot_unknown = found
 
-    # FLATs returned early above; night/filt were computed up front.
-    is_light = imgtype == 'LIGHT'
-    if night is None and is_light:
-        # Lights strictly need their night session; dateless darks/bias
-        # fall back to setup level (see below).
-        return 'skipped'
-    session_id = None
-    if night is not None:
-        session_id, _ = find_or_create_session(dcur, panel_id, night)
+    session_id, _ = find_or_create_session(dcur, panel_id, night)
 
-    if is_light:
-        level, node_id, filter_name, role = 'filter', session_id, filt, 'sub'
-    else:
-        # Darks/bias live at setup level (instrument-dependent).
-        level, node_id, filter_name, role = 'setup', setup_id, None, 'sub'
+    level, node_id, filter_name, role = 'filter', session_id, filt, 'sub'
 
     pos_note = (f"coords {ra:.4f}/{dec:+.4f} ({pos_source})" if ra is not None
                 else f"no coords, OBJECT bucket '{object_bucket}'")
@@ -629,12 +645,12 @@ def suggest_file(dcur, project, globals_, meta, file_id):
     # Short hash of the matching config, so the UI can tell which tolerances a
     # suggestion (or an old dismissal) was computed with.
     reason = (f"{setup_note}; panel {sep * 60:.1f}′ away, {rot_note}; "
-              f"night {night if night is not None else '?'}; {pos_note}; rule {imgtype}→{level}"
+              f"night {night}; {pos_note}; rule {imgtype}→{level}"
               + (f" filter {filt}" if filt else "")
               + f"; cfg:{config_hash[:8]}")
 
     if mode == 'auto':
-        _insert_link(dcur, file_id, level, node_id, filter_name, role, is_light)
+        _insert_link(dcur, file_id, level, node_id, filter_name, role, True)
         logger.info(f"Auto-linked {meta.get('path')} into project '{project['name']}': {reason}")
         return 'linked'
 
