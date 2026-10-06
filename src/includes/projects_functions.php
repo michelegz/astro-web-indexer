@@ -1187,16 +1187,14 @@ function canAccessProject(PDO $conn, int $projectId): bool
             return false;
         }
     }
-    $sugg = $conn->prepare(
-        "SELECT DISTINCT f.path FROM project_suggestions s JOIN files f ON f.id = s.file_id "
-        . "WHERE s.project_id = :pid AND s.status IN ('pending','accepted') AND f.deleted_at IS NULL"
-    );
-    $sugg->execute([':pid' => $projectId]);
-    foreach ($sugg->fetchAll(PDO::FETCH_COLUMN) as $path) {
-        if (!canAccessPath((string)$path)) {
-            return false;
-        }
-    }
+    // Pending suggestions deliberately do NOT veto the project. The indexer runs
+    // unscoped (it has no user context), so it can legitimately hold a proposal
+    // on a file outside this user's directories; hiding the whole project for a
+    // suggestion the user cannot even see makes their own files' project vanish
+    // with no message. Out-of-scope suggestions are filtered out of the review
+    // queue instead (getProjectTree), and acceptSuggestion() already refuses to
+    // link them. Links above are still a veto: a project that genuinely contains
+    // files the user may not read is not theirs to open.
     return true;
 }
 
@@ -1613,6 +1611,19 @@ function renameProjectSetup(PDO $conn, int $projectId, int $setupId, ?string $la
     return true;
 }
 
+/**
+ * OBJECT bucket key: uppercased, trimmed, inner whitespace collapsed, 'UNKNOWN'
+ * when empty. Mirrors normalize_object() in docker/python/indexer_lib/projects.py,
+ * and is applied on both the write and the read side of project_panels.
+ * label_object, so a panel created from a differently cased or spaced header
+ * still matches the next file.
+ */
+function projectNormalizeObject($raw): string
+{
+    $text = strtoupper(trim((string)preg_replace('/\s+/', ' ', (string)($raw ?? ''))));
+    return $text !== '' ? $text : 'UNKNOWN';
+}
+
 function projectFindPanel(PDO $conn, int $setupId, array $row, array $tols): array
 {
     [$ra, $dec] = projectPositionOf($row);
@@ -1624,10 +1635,7 @@ function projectFindPanel(PDO $conn, int $setupId, array $row, array $tols): arr
     }
     $tolRot = projectNumPrefix($tols['tol_rot'], 3.0);
     $tolFov = projectNumPrefix($tols['tol_fov'], 10.0) / 100.0;
-    $bucket = strtoupper(trim((string)preg_replace('/\s+/', ' ', (string)($row['object'] ?? ''))));
-    if ($bucket === '') {
-        $bucket = 'UNKNOWN';
-    }
+    $bucket = projectNormalizeObject($row['object'] ?? null);
     $panels = $conn->prepare(
         "SELECT id, ra, `dec`, rot_mean, fov_w, fov_h, label_object FROM project_panels WHERE setup_id = :sid"
     );
@@ -1656,7 +1664,7 @@ function projectFindPanel(PDO $conn, int $setupId, array $row, array $tols): arr
                 'rot_unknown' => $unknown, 'ra' => $ra, 'dec' => $dec, 'bucket' => $bucket,
                 'tol_pos' => $tolPos, 'tol_rot' => $tolRot];
         }
-        if ($p['ra'] === null && (string)($p['label_object'] ?? '') === $bucket) {
+        if ($p['ra'] === null && projectNormalizeObject($p['label_object'] ?? null) === $bucket) {
             return ['id' => (int)$p['id'], 'new' => false, 'sep' => 0.0, 'rot_d' => 0.0,
                 'rot_unknown' => true, 'ra' => null, 'dec' => null, 'bucket' => $bucket,
                 'tol_pos' => $tolPos, 'tol_rot' => $tolRot];
@@ -1671,7 +1679,11 @@ function projectFindPanel(PDO $conn, int $setupId, array $row, array $tols): arr
 function projectCreatePanel(PDO $conn, int $setupId, array $row, string $bucket, $ra, $dec): int
 {
     $rotVal = ($row['objctrot'] !== null && $row['objctrot'] !== '') ? fmod((float)$row['objctrot'], 360.0) : null;
-    $objLabel = $bucket !== 'UNKNOWN' ? trim((string)($row['object'] ?? '')) : $bucket;
+    // Store the normalized bucket, not the raw header: the panel is found again
+    // by comparing label_object with the bucket of the next file's OBJECT, so a
+    // raw 'ngc 7000' could never match a 'NGC 7000'. projectFindPanel also
+    // normalizes what it reads, so panels written before this rule still match.
+    $objLabel = $bucket;
     $ins = $conn->prepare(
         "INSERT INTO project_panels (setup_id, ra, `dec`, rot_mean, fov_w, fov_h, label_object, panel_no) "
         . "VALUES (:sid, :ra, :dec, :rot, :fovw, :fovh, :label, :no)"

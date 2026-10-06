@@ -390,7 +390,10 @@ def find_panel(dcur, setup_id, ra, dec, rot, fov_w, fov_h,
             return p['id'], sep, dist, unknown
     else:
         for p in panels:
-            if p['ra'] is None and (p['label_object'] or '') == object_bucket:
+            # Normalize both sides: panels created before this rule stored the raw
+            # OBJECT string, so 'ngc 7000' could never match a bucket of
+            # 'NGC 7000' and the panel was silently never found.
+            if p['ra'] is None and normalize_object(p['label_object']) == object_bucket:
                 return p['id'], 0.0, 0.0, True
     return None, 0.0, 0.0, rot is None
 

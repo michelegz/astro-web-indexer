@@ -291,6 +291,12 @@ function getProjectTree(PDO $conn, int $projectId, bool $includePending = false)
         );
         $pend->execute([':pid' => $projectId]);
         foreach ($pend->fetchAll() as $prow) {
+            // Skip proposals the caller may not see: the indexer is unscoped, so
+            // a pending row can point at a file outside this user's directories.
+            // Showing it would leak both the file name and its metadata.
+            if (!canAccessPath((string)$prow['path'])) {
+                continue;
+            }
             $prow['pending'] = true;
             $prow['enabled'] = 1;
             // Rows pointing at deleted nodes are ignored by construction:
