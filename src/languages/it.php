@@ -276,6 +276,7 @@ return [
     'projects_save' => 'Salva',
     'projects_cancel' => 'Annulla',
     'projects_tolerances' => 'Tolleranze',
+    'projects_tolerances_invalid' => 'Tolleranza non valida {value}: deve iniziare con un numero non negativo, in {expected}.',
     'projects_tolerances_intro' => 'Override per-progetto per matching di setup/pannelli e controlli calibrazioni. Lascia vuoto per ereditare il valore di default.',
     'projects_filter_aliases' => 'Alias filtri',
     'projects_filter_aliases_intro' => 'Nomi diversi per lo stesso filtro fisico (es. H-alpha → Ha) vengono uniti ovunque: albero, gruppi di integrazione, matching calibrazioni e cartelle ZIP. Vuoto = il nome vale da sé. Vale solo per questo progetto.',

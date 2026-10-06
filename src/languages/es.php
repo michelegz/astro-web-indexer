@@ -276,6 +276,7 @@ return [
     'projects_save' => 'Guardar',
     'projects_cancel' => 'Cancelar',
     'projects_tolerances' => 'Tolerancias',
+    'projects_tolerances_invalid' => 'Tolerancia no valida {value}: debe empezar por un numero no negativo, en {expected}.',
     'projects_tolerances_intro' => 'Ajustes por proyecto para emparejar setups/paneles y comprobar calibraciones. Vacío = hereda el valor por defecto.',
     'projects_filter_aliases' => 'Alias de filtros',
     'projects_filter_aliases_intro' => 'Nombres distintos para el mismo filtro físico (p. ej. H-alpha → Ha) se fusionan en todo: árbol, grupos de integración, coincidencia de calibraciones y carpetas ZIP. Vacío = el nombre vale por sí mismo. Solo este proyecto.',

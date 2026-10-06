@@ -23,6 +23,7 @@ import hashlib
 import json
 import logging
 import math
+import re
 from datetime import timedelta
 
 logger = logging.getLogger('reindex.projects')
@@ -205,7 +206,12 @@ def parse_ra_to_deg(objctra):
     except (TypeError, ValueError):
         pass
     try:
-        text = str(objctra).strip().replace('h', ':').replace('m', ':').replace('s', '')
+        # lower() before the marker replacements, so 'H'/'M'/'S' are recognised too.
+        # Without it "12H34M56S" raised ValueError and the file fell back to the OBJECT
+        # bucket, while the PHP twin projectParseRa() lowercases first and gets real
+        # coordinates: panels matched on the web were then not recognised by the
+        # watcher, and vice versa. The two must parse identically.
+        text = str(objctra).strip().lower().replace('h', ':').replace('m', ':').replace('s', '')
         parts = [float(p) for p in text.split(':')]
         while len(parts) < 3:
             parts.append(0.0)
@@ -224,7 +230,9 @@ def parse_dec_to_deg(objctdec):
     except (TypeError, ValueError):
         pass
     try:
-        text = str(objctdec).strip().replace('d', ':').replace('m', ':').replace('s', '')
+        # lower() for the same reason as parse_ra_to_deg(): projectParseDec() lowercases
+        # before replacing the markers, and the two must not disagree on "12:34:56D".
+        text = str(objctdec).strip().lower().replace('d', ':').replace('m', ':').replace('s', '')
         sign = -1.0 if text.startswith('-') else 1.0
         text = text.lstrip('+-')
         parts = [float(p) for p in text.split(':')]
@@ -286,17 +294,23 @@ def astro_night(date_obs):
 
 
 def _num_prefix(text, default):
-    """Leading float of strings like '10%', '2C', '3deg', '0.2'. Default on failure."""
-    try:
-        num = ''
-        for ch in str(text).strip():
-            if ch.isdigit() or ch in '.-':
-                num += ch
-            else:
-                break
-        return float(num) if num not in ('', '-', '.', '-.') else default
-    except (TypeError, ValueError):
-        return default
+    """Leading float of strings like '10%', '2C', '3deg', '0.2'. Default on failure.
+
+    Mirrors the PHP projectNumPrefix() regex on purpose, so the web UI and the
+    watcher cannot read the same tolerance differently. The old loop here also
+    accepted '-' and a leading '.', which PHP does not: a stored '-5' became -5.0
+    here and fell back to the default there, and on this side a negative tolerance
+    is degenerate — `dist > tol_rot` is then always true, so no panel is ever
+    matched. A tolerance is a magnitude and cannot be negative, so refusing the
+    sign here is the shared behaviour, not a loosened tolerance.
+    """
+    m = re.match(r'^[\s]*([0-9]+(?:\.[0-9]+)?)', str(text) if text is not None else '')
+    if m:
+        try:
+            return float(m.group(1))
+        except (TypeError, ValueError):
+            return default
+    return default
 
 
 def get_projects(dcur):
@@ -322,7 +336,22 @@ def get_globals(dcur):
     try:
         dcur.execute("SELECT setting_key, setting_value FROM global_settings")
         out = {r['setting_key']: r['setting_value'] for r in dcur.fetchall()}
-    except Exception:
+    except Exception as err:
+        # Only a missing table may degrade to the defaults: that is a database where
+        # the projects migrations have not run yet, and there is nothing to read.
+        #
+        # Any other failure used to become an empty dict with no log, and that was
+        # not harmless. globals_ feeds _suggest_config_hash(), so a transient error
+        # (lost connection, permissions, broken dependency) changed the hash and
+        # every dismissed suggestion whose stored hash no longer matched was deleted
+        # at the stale check below. Failing loudly is the safe direction: the watcher
+        # retries, and the admin's global tolerances keep being honoured.
+        if getattr(err, 'errno', None) != 1146:  # ER_NO_SUCH_TABLE
+            logger.error(
+                "global_settings unreadable, not falling back to default tolerances "
+                "(this would change the suggest config hash and drop dismissals): %s", err)
+            raise
+        logger.debug("global_settings not present, using default tolerances: %s", err)
         out = {}
     for key, default in DEFAULT_TOLS.items():
         out.setdefault(key, default)

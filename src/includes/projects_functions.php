@@ -1316,6 +1316,18 @@ function getGlobalTolerances(PDO $conn): array
 /**
  * Store per-project overrides: only non-empty values are kept,
  * empty means "inherit global" and is not stored.
+ *
+ * A tolerance is a magnitude, so a negative value is refused rather than stored. The
+ * form fields are free text and used to accept anything up to 64 chars: a stored '-5'
+ * then read as -5.0 in the Python suggester, where `dist > tol_rot` is always true and
+ * no panel is ever matched, while projectNumPrefix() here fell back to the default.
+ * The two halves of the feature silently disagreed about the same setting. Rejecting it
+ * at the boundary is what keeps them agreeing; clamping would hide the mistake.
+ *
+ * The value keeps its unit: the defaults are '1%', '2C', '3deg', '10%', so this checks
+ * that the string *starts* with a non-negative number rather than being one. That is
+ * the same notion both readers use, so what is accepted here is exactly what they will
+ * later parse, and what is refused is what they would silently misread.
  */
 function saveProjectTolerances(PDO $conn, int $id, array $overrides): void
 {
@@ -1323,9 +1335,16 @@ function saveProjectTolerances(PDO $conn, int $id, array $overrides): void
     $clean = [];
     foreach ($defs as $key => $def) {
         $val = trim((string)($overrides[$key] ?? ''));
-        if ($val !== '') {
-            $clean[$key] = substr($val, 0, 64);
+        if ($val === '') {
+            continue;
         }
+        if (!preg_match('/^\d+(\.\d+)?/', $val)) {
+            throw new InvalidArgumentException(__('projects_tolerances_invalid', [
+                'value' => $val,
+                'expected' => (string)($def['hint'] ?? ''),
+            ]));
+        }
+        $clean[$key] = substr($val, 0, 64);
     }
     $stmt = $conn->prepare("UPDATE projects SET tolerances = :tolerances WHERE id = :id");
     $stmt->execute([
@@ -1475,7 +1494,13 @@ function projectHaversine(float $ra1, float $dec1, float $ra2, float $dec2): flo
 
 function projectRotDist($r1, $r2): array
 {
-    if ($r1 === null || $r1 === '' || $r2 === null || $r2 === '') {
+    // Unknown stays unknown. A non-numeric value used to reach (float)$r1, which
+    // silently yields 0.0, so a file whose rotation metadata is junk ("N/A", a
+    // timestamp) looked aligned with a panel at 0 degrees, was not rejected by the
+    // tolerance and got an "ok" badge instead of "unknown". is_numeric() also covers
+    // null and the empty string, which the old explicit checks handled. The Python
+    // twin rotation_distance() already reports unknown for these.
+    if (!is_numeric($r1) || !is_numeric($r2)) {
         return [0.0, true];
     }
     $d = fmod(abs((float)$r1 - (float)$r2), 360.0);

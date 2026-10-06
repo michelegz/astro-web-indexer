@@ -275,6 +275,7 @@ return [
     'projects_save' => 'Speichern',
     'projects_cancel' => 'Abbrechen',
     'projects_tolerances' => 'Toleranzen',
+    'projects_tolerances_invalid' => 'Ungueltige Toleranz {value}: muss mit einer nicht negativen Zahl beginnen, in {expected}.',
     'projects_tolerances_intro' => 'Pro-Projekt-Overrides für Setup-/Panel-Zuordnung und Kalibrierprüfungen. Leer = Standardwert wird übernommen.',
     'projects_filter_aliases' => 'Filter-Aliase',
     'projects_filter_aliases_intro' => 'Unterschiedliche Namen für denselben physischen Filter (z. B. H-alpha → Ha) werden überall vereint: Baum, Integrationsgruppen, Kalibrierabgleich und ZIP-Ordner. Leer = Name gilt für sich. Nur dieses Projekt.',

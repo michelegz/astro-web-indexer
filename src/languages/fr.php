@@ -276,6 +276,7 @@ return [
     'projects_save' => 'Enregistrer',
     'projects_cancel' => 'Annuler',
     'projects_tolerances' => 'Tolérances',
+    'projects_tolerances_invalid' => 'Tolerance invalide {value} : elle doit commencer par un nombre non negatif, en {expected}.',
     'projects_tolerances_intro' => 'Surcharges par projet pour l’appariement setup/panneau et les contrôles de calibration. Vide = valeur par défaut héritée.',
     'projects_filter_aliases' => 'Alias de filtres',
     'projects_filter_aliases_intro' => 'Des noms différents pour le même filtre physique (ex. H-alpha → Ha) sont fusionnés partout : arbre, groupes d’intégration, appariement des calibrations et dossiers ZIP. Vide = le nom vaut pour lui-même. Ce projet uniquement.',

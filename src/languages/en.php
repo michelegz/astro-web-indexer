@@ -276,6 +276,7 @@ return [
     'projects_save' => 'Save',
     'projects_cancel' => 'Cancel',
     'projects_tolerances' => 'Tolerances',
+    'projects_tolerances_invalid' => 'Invalid tolerance {value}: it must start with a non-negative number, in {expected}.',
     'projects_tolerances_intro' => 'Per-project overrides for setup/panel matching and calibration checks. Leave empty to inherit the default value.',
     'projects_filter_aliases' => 'Filter aliases',
     'projects_filter_aliases_intro' => 'Different names for the same physical filter (e.g. H-alpha → Ha) are merged everywhere: tree, integration groups, calibration matching and ZIP folders. Empty = the name stands for itself. This project only.',

@@ -66,6 +66,8 @@ $realRoot = realpath($fitsRoot);
 
 // Same safe-path validation as download.php.
 $validFiles = [];
+$validEntries = [];
+$missing = [];
 foreach ($map['entries'] as $e) {
     $relativePath = preg_replace('/\.\.(\/|\\\\)?/', '', (string)($e['src'] ?? ''));
     $relativePath = ltrim($relativePath, '/\\');
@@ -80,7 +82,74 @@ foreach ($map['entries'] as $e) {
         && is_readable($fullPath)
         && canAccessPath($relativePath)) {
         $validFiles[] = ['zip_path' => (string)$e['zip_path'], 'full' => $fullPath];
+        $validEntries[] = $e;
+        continue;
     }
+    // The builder is deliberately disk-free, so the preview counts files from the DB
+    // and cannot know whether they are there. Record the gap instead of losing it:
+    // without this the archive carried no trace of a file the preview had promised.
+    $missing[] = [
+        'zip_path' => (string)$e['zip_path'],
+        'src' => (string)($e['src'] ?? ''),
+        'reason' => (string)($e['src'] ?? '') === '' ? 'no_path' : 'not_readable',
+    ];
+}
+
+// MANIFEST.json describes the archive, so it is rebuilt from the entries that are
+// actually in it. Reusing $map['manifest'] meant it listed folders, calibration sets
+// and sizes for files the disk check above had just rejected: the inventory
+// contradicted the contents, and a set whose files were all missing produced no
+// directory at all, since ZipStream only writes files.
+$folders = [];
+$archiveSize = 0;
+foreach ($validFiles as $i => $vf) {
+    $e = $validEntries[$i];
+    $archiveSize += (int)filesize($vf['full']);
+    $d = dirname((string)$e['zip_path']);
+    $folders[$d]['files'][] = basename((string)$e['zip_path']);
+    $folders[$d]['kinds'][$e['kind']] = true;
+    if (!empty($e['scope'])) {
+        $folders[$d]['scope'] = array_values(array_unique(array_merge(
+            $folders[$d]['scope'] ?? [],
+            (array)$e['scope']
+        )));
+    }
+}
+ksort($folders);
+
+// A calibration set is in the archive only if at least one of its files is. The set
+// name is a path segment of the entry, so this is a segment test, not a prefix one.
+$survivingSets = [];
+foreach ($map['sets'] as $name => $set) {
+    $needle = '/' . $name . '/';
+    foreach ($validEntries as $e) {
+        if (str_contains('/' . $e['zip_path'] . '/', $needle)) {
+            $survivingSets[$name] = $set;
+            break;
+        }
+    }
+}
+
+// Duplicate copies: keep the paths that really landed.
+$survivingPaths = array_column($validFiles, 'zip_path');
+$duplicatedFiles = [];
+foreach ($map['duplicated_files'] as $dup) {
+    $paths = array_values(array_intersect((array)($dup['paths'] ?? []), $survivingPaths));
+    if ($paths !== []) {
+        $duplicatedFiles[] = ['name' => $dup['name'] ?? '', 'fid' => $dup['fid'] ?? null, 'paths' => $paths];
+    }
+}
+
+$manifest = $map['manifest'];
+$manifest['sets'] = $survivingSets;
+$manifest['folders'] = $folders;
+$manifest['duplicated_files'] = $duplicatedFiles;
+// Size of what is actually here, not the DB estimate the preview shows.
+$manifest['total_size'] = $archiveSize;
+$manifest['files'] = count($validFiles);
+if ($missing !== []) {
+    // Explicit rather than silent: the preview total stays an upper bound by design.
+    $manifest['missing'] = $missing;
 }
 
 $safeName = preg_replace('/[^A-Za-z0-9_]+/', '_', (string)($project['name'] ?? 'project'));
@@ -100,7 +169,7 @@ try {
         fileName: 'MANIFEST.json',
         // Never let a bad byte void the whole archive: awiJsonString substitutes
         // invalid UTF-8 instead of returning false.
-        data: awiJsonString($map['manifest'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+        data: awiJsonString($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
     );
     $zip->finish();
 } catch (Exception $e) {
