@@ -2620,7 +2620,11 @@ function groupThresholdKey(int $setupId, int $panelId, ?string $filter, $exptime
  */
 function getProjectThresholds(PDO $conn, int $projectId): array
 {
-    $stmt = $conn->prepare("SELECT * FROM project_group_thresholds WHERE project_id = :pid");
+    // Ordering is irrelevant while the invariant holds (one row per group), but it is
+    // stated rather than left to the engine: keys are assigned, not merged, so with a
+    // duplicate present the row that wins would be whichever one storage returned
+    // last. DESC makes that the most recent write.
+    $stmt = $conn->prepare("SELECT * FROM project_group_thresholds WHERE project_id = :pid ORDER BY id DESC");
     $stmt->execute([':pid' => $projectId]);
     $out = [];
     foreach ($stmt->fetchAll() as $row) {
@@ -2641,8 +2645,21 @@ function getProjectThresholds(PDO $conn, int $projectId): array
 }
 
 /**
- * Upsert a group's thresholds; all-null removes the row (no active rules).
+ * Store a group's thresholds; all-null removes the row (no active rules).
  * Values: [metric => float|string|null]; localizes to columns.
+ *
+ * DELETE + INSERT, not INSERT ... ON DUPLICATE KEY UPDATE. The unique key is
+ * (project_id, setup_id, panel_id, filter_name, exptime) and the last two columns
+ * are nullable: in MySQL/MariaDB a UNIQUE constraint does not consider two NULLs
+ * equal, so any NULL in the tuple lets a second row through and the upsert never
+ * fires. Saving a group with no filter anchor or no exposure anchor therefore
+ * appended a row instead of updating, on every save. The read above keys by group
+ * and assigns rather than merges, so the duplicates then decided non-deterministically
+ * which thresholds applied.
+ *
+ * The DELETE matches NULLs explicitly, since `filter_name = NULL` is never true.
+ * The DB key is now genuinely enforced (see FixGroupThresholdsUniqueKey), so this
+ * path does not depend on an upsert firing.
  */
 function saveGroupThresholds(PDO $conn, int $projectId, int $setupId, int $panelId, ?string $filter, $exptime, array $values): void
 {
@@ -2664,7 +2681,12 @@ function saveGroupThresholds(PDO $conn, int $projectId, int $setupId, int $panel
             $anyAction = true;
         }
     }
-    if (!$anyAction) {
+
+    $owns = $conn->inTransaction();
+    if (!$owns) {
+        $conn->beginTransaction();
+    }
+    try {
         $del = $conn->prepare(
             "DELETE FROM project_group_thresholds WHERE project_id = :pid AND setup_id = :sid "
             . "AND panel_id = :panel AND ((filter_name = :filter) OR (filter_name IS NULL AND :filter2 IS NULL)) "
@@ -2674,23 +2696,29 @@ function saveGroupThresholds(PDO $conn, int $projectId, int $setupId, int $panel
             ':pid' => $projectId, ':sid' => $setupId, ':panel' => $panelId,
             ':filter' => $filter, ':filter2' => $filter, ':exp' => $exp, ':exp2' => $exp,
         ]);
-        return;
+        if ($anyAction) {
+            $ins = $conn->prepare(
+                "INSERT INTO project_group_thresholds "
+                . "(project_id, setup_id, panel_id, filter_name, exptime, hfr_max, fwhm_max, hfrsd_max, ecc_max, stars_min, snr_min, psf_min) "
+                . "VALUES (:pid, :sid, :panel, :filter, :exp, :hfr, :fwhm, :hfrsd, :ecc, :stars, :snr, :psf)"
+            );
+            $ins->execute([
+                ':pid' => $projectId, ':sid' => $setupId, ':panel' => $panelId,
+                ':filter' => $filter, ':exp' => $exp,
+                ':hfr' => $cols['hfr_max'], ':fwhm' => $cols['fwhm_max'], ':hfrsd' => $cols['hfrsd_max'],
+                ':ecc' => $cols['ecc_max'], ':stars' => $cols['stars_min'], ':snr' => $cols['snr_min'],
+                ':psf' => $cols['psf_min'],
+            ]);
+        }
+        if (!$owns) {
+            $conn->commit();
+        }
+    } catch (Throwable $e) {
+        if (!$owns && $conn->inTransaction()) {
+            $conn->rollBack();
+        }
+        throw $e;
     }
-    $ins = $conn->prepare(
-        "INSERT INTO project_group_thresholds "
-        . "(project_id, setup_id, panel_id, filter_name, exptime, hfr_max, fwhm_max, hfrsd_max, ecc_max, stars_min, snr_min, psf_min) "
-        . "VALUES (:pid, :sid, :panel, :filter, :exp, :hfr, :fwhm, :hfrsd, :ecc, :stars, :snr, :psf) "
-        . "ON DUPLICATE KEY UPDATE hfr_max = VALUES(hfr_max), fwhm_max = VALUES(fwhm_max), "
-        . "hfrsd_max = VALUES(hfrsd_max), ecc_max = VALUES(ecc_max), stars_min = VALUES(stars_min), "
-        . "snr_min = VALUES(snr_min), psf_min = VALUES(psf_min)"
-    );
-    $ins->execute([
-        ':pid' => $projectId, ':sid' => $setupId, ':panel' => $panelId,
-        ':filter' => $filter, ':exp' => $exp,
-        ':hfr' => $cols['hfr_max'], ':fwhm' => $cols['fwhm_max'], ':hfrsd' => $cols['hfrsd_max'],
-        ':ecc' => $cols['ecc_max'], ':stars' => $cols['stars_min'], ':snr' => $cols['snr_min'],
-        ':psf' => $cols['psf_min'],
-    ]);
 }
 
 /**
