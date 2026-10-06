@@ -349,6 +349,11 @@ document.addEventListener('DOMContentLoaded', () => {
         d.textContent = s ?? '';
         return d.innerHTML;
     }
+    // escHtml escapes & < > only: textContent -> innerHTML leaves quotes intact,
+    // so it must never be interpolated into an attribute value.
+    function escAttr(s) {
+        return escHtml(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
     function showProjectStep(n) {
         if (!projectStep1 || !projectStep2) return;
         projectStep1.classList.toggle('hidden', n !== 1);
@@ -419,7 +424,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const setupById = {};
             (data.setups || []).forEach(s => { setupById[s.id] = s; });
             const setupDisplay = (s) => (s.no !== null && s.no !== undefined ? 'S' + s.no + ': ' : '') + s.label;
-            const escAttr = (s) => escHtml(s).split('"').join('&quot;');
             const groupTitle = (g) => {
                 const m = setupById[g.setup_id];
                 return g.setup_new
@@ -449,7 +453,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     html += `<option value="groupfp:${escAttr(g2.fp)}">⤵ ${gj + 1} ${escHtml(groupTitle(g2))}</option>`;
                 });
                 html += `<option value="new">${escHtml(t.project_add_new_setup || '＋ New custom setup…')}</option>`;
-                html += `</select> <span class="merge-hint text-sky-300/80" data-mergehint="${gi}"></span></label><input type="text" data-groupname="${gi}" maxlength="64" placeholder="${escHtml(t.project_add_new_setup_name || 'Custom setup name')}" class="custom-setup-name hidden mt-1 mb-2 w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100 text-xs">`;
+                html += `</select> <span class="merge-hint text-sky-300/80" data-mergehint="${gi}"></span></label><input type="text" data-groupname="${gi}" maxlength="64" placeholder="${escAttr(t.project_add_new_setup_name || 'Custom setup name')}" class="custom-setup-name hidden mt-1 mb-2 w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100 text-xs">`;
             }
             // File list without placement details (step 3 shows where they
             // land): collapsible, header summarizes counts per subframe type.
@@ -466,7 +470,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Already linked elsewhere: still added, but flagged (⧉×n).
                 let dup = '';
                 if (f.dup && f.dup.length) {
-                    const tip = escHtml((t.projects_dup_levels || 'Linked in') + ': ' + f.dup.join(', '));
+                    // f.dup carries raw FITS header text (FILTER/OBJECT), so this is an
+                    // attribute sink: a quote there would close title= and inject a handler.
+                    const tip = escAttr((t.projects_dup_levels || 'Linked in') + ': ' + f.dup.join(', '));
                     dup = ` <span title="${tip}">⧉×${f.dup.length}</span>`;
                 }
                 const meta = [f.filter || '', f.night || ''].filter(Boolean).join(' · ');

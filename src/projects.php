@@ -699,10 +699,12 @@ if ($projectBlocked) {
                             class="px-3 py-1 text-sm bg-sky-600 hover:bg-sky-700 text-white rounded transition-colors">
                         <?= __('export_astrobin_csv') ?>
                     </button>
+                    <?php if (canDownload()): ?>
                     <button type="button" id="projectZipBtn" data-project-id="<?= (int)$detail['id'] ?>"
                             class="px-3 py-1 text-sm bg-teal-600 hover:bg-teal-700 text-white rounded transition-colors">
                         <?= __('projects_export_zip') ?>
                     </button>
+                    <?php endif; ?>
                     <?php endif; ?>
                     <button type="submit" name="action" value="enable_links"
                             class="px-3 py-1 text-sm bg-green-700 hover:bg-green-600 text-white rounded transition-colors disabled:opacity-50">
@@ -955,6 +957,8 @@ if ($projectBlocked) {
             const body = document.getElementById('zipPreviewBody');
             const dlBtn = document.getElementById('zipDownloadBtn');
             const dlForm = document.getElementById('zipDownloadForm');
+            // openBtn is absent when the user lacks can_download (see the server-side
+            // render guard), so this also disables the whole ZIP preview.
             if (!modal || !openBtn || !body) return;
             const esc = (s) => String(s ?? '').replace(/[&<>'"]/g,
                 c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
@@ -1283,7 +1287,7 @@ if ($projectBlocked) {
                                         'psf_signal' => __('psf_signal'),
                                     ];
                                     ?>
-                                    <?php foreach (['hfr', 'fwhm', 'hfr_sd', 'eccentricity', 'star_count', 'snr_weight', 'psf_signal'] as $mi => $mk): ?>
+                                    <?php foreach (['hfr', 'fwhm', 'hfr_sd', 'eccentricity', 'star_count', 'snr_weight', 'psf_signal'] as $mk): ?>
                                     <?php $mkHasData = count(array_filter($grp['lights'], fn($mli) => isset($mli[$mk]) && $mli[$mk] !== '' && $mli[$mk] !== null)) > 0; ?>
                                     <?php if (!$mkHasData) continue; ?>
                                     <div>
@@ -1294,7 +1298,7 @@ if ($projectBlocked) {
                                                 <button type="button" class="ig-sort text-gray-400 hover:text-white text-xs px-1" data-group="<?= (int)$gi ?>" data-metric="<?= $mk ?>" data-dir="desc" title="<?= __('projects_sort_desc') ?>">▼</button>
                                             </span>
                                         </div>
-                                        <div style="height: 190px"><canvas id="ig-chart-<?= (int)$gi ?>-<?= (int)$mi ?>"></canvas></div>
+                                        <div style="height: 190px"><canvas id="ig-chart-<?= (int)$gi ?>-<?= htmlspecialchars($mk) ?>"></canvas></div>
                                     </div>
                                     <?php endforeach; ?>
                                 </div>
@@ -1446,10 +1450,13 @@ if ($projectBlocked) {
                 if (!rows.length) return;
                 const gridColor = 'rgba(255,255,255,0.08)';
                 const tickColor = '#9ca3af';
-                IGROUP_SERIES.forEach((s, mi) => {
-                    const canvas = document.getElementById('ig-chart-' + gi + '-' + mi);
+                IGROUP_SERIES.forEach(s => {
+                    // Keyed by metric key, never by position: the PHP emitter iterates
+                    // a different order, so an index-based id silently swapped fwhm and
+                    // hfr_sd.
+                    const cid = 'ig-chart-' + gi + '-' + s.key;
+                    const canvas = document.getElementById(cid);
                     if (!canvas) return;
-                    const cid = 'ig-chart-' + gi + '-' + mi;
                     if (igCharts[cid]) { igCharts[cid].destroy(); delete igCharts[cid]; }
                     const data = rows.map(r => r.vals[s.key]);
                     if (!data.some(v => v !== null)) return;

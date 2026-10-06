@@ -12,6 +12,14 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use ZipStream\ZipStream;
 use ZipStream\CompressionMethod;
 
+// Streaming the original FITS bytes: same permission as download.php, which
+// refuses them to users without can_download. Directory-level project access
+// (checked below) is a different permission and does not imply this one.
+if (!canDownload()) {
+    http_response_code(403);
+    die(__('download_not_allowed'));
+}
+
 // Only accept POST requests (form submit from the export modal).
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);

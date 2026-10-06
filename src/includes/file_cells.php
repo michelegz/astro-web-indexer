@@ -80,6 +80,14 @@ function fileCellAttrs(string $sortKey, array $f, string $scope): string
 function renderFileTableHeaders(string $scope): void
 {
     if ($scope === 'project') {
+        // Same group gate as the main scope below. The star set collapses to empty
+        // when STAR_METRICS_ENABLED=false, and renderFileTableCells() already
+        // gates its cells on it, so without this the headers emitted one <th> per
+        // star metric with no matching <td> and shifted every later column.
+        global $visibleProjectStarKeys, $visibleProjectFrameKeys, $visibleProjectAdvKeys;
+        $pStar = $visibleProjectStarKeys ?? [];
+        $pFrame = $visibleProjectFrameKeys ?? [];
+        $pAdv = $visibleProjectAdvKeys ?? [];
         $headers = getBaseColumns();
         foreach ($headers as $sortKey => [$labelKey, $isCalculated]) {
             if (!showColFor($sortKey, 'project')) {
@@ -89,6 +97,15 @@ function renderFileTableHeaders(string $scope): void
         }
         foreach (getColumnGroups() as $groupKey => $group) {
             if ($groupKey === 'base') {
+                continue;
+            }
+            if ($groupKey === 'star' && empty($pStar)) {
+                continue;
+            }
+            if ($groupKey === 'frame' && empty($pFrame)) {
+                continue;
+            }
+            if ($groupKey !== 'star' && $groupKey !== 'frame' && empty($pAdv)) {
                 continue;
             }
             foreach ($group['columns'] as $sortKey => [$labelKey, $isCalculated]) {
