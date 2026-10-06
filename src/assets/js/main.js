@@ -356,6 +356,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         showProjectStep(1);
         projectPreview = null;
+        syncNewProjectFields();
         projectModal.classList.remove('hidden');
         projectModal.classList.add('flex');
     }
@@ -471,12 +472,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target === projectModal) closeProjectModal();
         });
     }
+    function syncNewProjectFields() {
+        if (!projectSelect || !newProjectFields) return;
+        // With zero existing projects the select is already on "new": sync
+        // on open too, not only on change (otherwise the name fields stay
+        // hidden and creation looks broken).
+        const isNew = parseInt(projectSelect.value, 10) === 0;
+        newProjectFields.classList.toggle('hidden', !isNew);
+        newProjectFields.classList.toggle('flex', isNew);
+    }
     if (projectSelect && newProjectFields) {
-        projectSelect.addEventListener('change', () => {
-            const isNew = parseInt(projectSelect.value, 10) === 0;
-            newProjectFields.classList.toggle('hidden', !isNew);
-            newProjectFields.classList.toggle('flex', isNew);
-        });
+        projectSelect.addEventListener('change', syncNewProjectFields);
     }
     if (projectModalBack) {
         projectModalBack.addEventListener('click', () => showProjectStep(1));
