@@ -164,9 +164,15 @@ foreach ($filters as $filter) {
 
 // --- Execute Query ---
 try {
-    // Select all columns needed for the new results table layout
-    $sql = "SELECT id, name, path, date_obs, exptime, ccd_temp, xbinning, ybinning, width, height, cameraid, thumb 
-            FROM files 
+    // Select all columns needed for the new results table layout.
+    // thumb is selected as a flag, not as the blob: the results table references
+    // /image.php instead of inlining it, so the bytes never cross the wire here. This
+    // is the same change as in getProjectTree() for the project tree, but the remedy
+    // differs because there the blob was unused, while here it was base64'd into a
+    // data: URI — 8.3 MB of thumbnails became 11.4 MB of base64 and a 12.2 MB response.
+    $sql = "SELECT id, name, path, date_obs, exptime, ccd_temp, xbinning, ybinning, width, height, cameraid,
+                   (thumb IS NOT NULL AND LENGTH(thumb) > 0) AS has_thumb
+            FROM files
             WHERE " . implode(' AND ', $sqlWhere) . " ORDER BY date_obs DESC";
 
     $stmt = $conn->prepare($sql);

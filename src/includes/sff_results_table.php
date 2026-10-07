@@ -35,9 +35,18 @@ function render_sff_results_table(array $files): void
                         <input type="checkbox" class="sff-file-checkbox" value="<?= htmlspecialchars($file['path']) ?>" data-id="<?= (int)($file['id'] ?? 0) ?>">
                     </td>
                     <td class="p-2">
-                        <?php if ($file['thumb']): ?>
-                            <img src="data:image/png;base64,<?= base64_encode($file['thumb']) ?>" 
-                                 alt="Preview" 
+                        <?php // The thumbnail is referenced, not inlined. It used to be
+                        // base64'd into a data: URI, which meant every matching row shipped
+                        // its bitmap: 8.3 MB of blobs became 11.4 MB of base64 and then a
+                        // 12.2 MB JSON response, for 236 rows of which the text is a few
+                        // tens of KB. /image.php serves the same bytes, checks
+                        // canAccessPath() on the way, and the browser only fetches the
+                        // ones it renders. Same pattern as file_cells.php.
+                        // 'has_thumb' is the flag the query selects instead of the blob. ?>
+                        <?php if (!empty($file['has_thumb'])): ?>
+                            <img src="/image.php?id=<?= (int)($file['id'] ?? 0) ?>&type=thumb"
+                                 alt="Preview"
+                                 loading="lazy"
                                  class="thumb max-w-[100px] h-auto rounded shadow-md object-cover">
                         <?php else: ?>
                             <span class="text-gray-500 text-xs">N/A</span>
