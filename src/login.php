@@ -29,8 +29,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $conn = connectDB();
         if (attemptLogin($conn, $username, $password)) {
             $redirect = $_GET['redirect'] ?? '/';
-            // Prevent open redirect
-            if (!str_starts_with($redirect, '/') || str_starts_with($redirect, '//')) {
+            // Prevent open redirect. A browser normalises backslashes to slashes inside a
+            // Location value, so '/\evil.example' leaves as '//evil.example' while passing
+            // a plain str_starts_with('//') test. Compare against the normalised form, and
+            // keep only a same-site absolute path.
+            $normalized = str_replace('\\', '/', (string)$redirect);
+            if (!str_starts_with($normalized, '/') || str_starts_with($normalized, '//')) {
                 $redirect = '/';
             }
             session_write_close();
