@@ -6,6 +6,12 @@ header('Content-Type: application/json');
 // Bootstrap the application
 require_once __DIR__ . '/../includes/api_bootstrap.php';
 require_once __DIR__ . '/../includes/sff_results_table.php';
+// The filter catalogue, the same one the modal builds its controls from. This endpoint
+// validates the incoming filter ids against it, and it cannot ask sff_get_filters.php for
+// it: that endpoint echoes HTML on load. The list used to be referenced here as an
+// undefined $allFilters, so every search carrying at least one filter — which is what
+// the modal always sends — died in array_keys() before reaching the database.
+require_once __DIR__ . '/../includes/sff_filters.php';
 
 // --- Read Input ---
 $json_data = file_get_contents('php://input');
@@ -89,7 +95,8 @@ foreach ($filters as $filter) {
     // column names happen to contain no backtick. That is an incidental property of a
     // guard written for a different reason: it skipped filters the reference file had
     // no value for. Whitelist it explicitly, and say what was wrong.
-    if (!is_string($id) || !isset($allFilters[$id])) {
+    $allFilters = sff_all_filters();
+if (!is_string($id) || !isset($allFilters[$id])) {
         http_response_code(400);
         header('Content-Type: application/json');
         echo json_encode([
