@@ -698,7 +698,10 @@ def suggest_file(dcur, project, globals_, meta, file_id):
             tol_pos_deg = max(tol_pos_deg,
                               _num_prefix(tol(project, globals_, 'tol_pos_fovfrac'), 0.2) * fov_min)
     except (TypeError, ValueError):
-        fov_min = None
+        # Missing or non-numeric FoV: keep tol_pos_deg as it is. The bare `except` is
+        # the behaviour that matters; there is nothing to report afterwards, since
+        # tol_pos_deg has already been settled above.
+        pass
     tol_rot = _num_prefix(tol(project, globals_, 'tol_rot'), 3.0)
     tol_fov = _num_prefix(tol(project, globals_, 'tol_fov'), 10.0) / 100.0
 

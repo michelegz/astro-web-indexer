@@ -80,55 +80,6 @@ function getPendingSuggestions(PDO $conn, int $projectId, int $limit = 500): arr
 }
 
 /**
- * Human-readable target label for a suggestion/link node.
- */
-function getSuggestionNodeLabel(PDO $conn, string $level, int $nodeId, ?string $filterName): string
-{
-    if ($level === 'project') {
-        $stmt = $conn->prepare("SELECT name FROM projects WHERE id = :id");
-        $stmt->execute([':id' => $nodeId]);
-        $row = $stmt->fetch();
-        return $row ? (string)$row['name'] : "#$nodeId";
-    }
-    if ($level === 'setup') {
-        $stmt = $conn->prepare("SELECT label, fingerprint FROM project_setups WHERE id = :id");
-        $stmt->execute([':id' => $nodeId]);
-        $row = $stmt->fetch();
-        if (!$row) {
-            return "#$nodeId";
-        }
-        return $row['label'] !== null && $row['label'] !== ''
-            ? (string)$row['label']
-            : substr((string)$row['fingerprint'], 0, 48);
-    }
-    if ($level === 'panel') {
-        $stmt = $conn->prepare("SELECT panel_no, ra, `dec`, rot_mean, label_object FROM project_panels WHERE id = :id");
-        $stmt->execute([':id' => $nodeId]);
-        $row = $stmt->fetch();
-        if (!$row) {
-            return "#$nodeId";
-        }
-        $coords = ($row['ra'] !== null && $row['dec'] !== null)
-            ? number_format((float)$row['ra'], 3) . ' / ' . number_format((float)$row['dec'], 3)
-            : '?';
-        $label = 'P' . (int)($row['panel_no'] ?? $nodeId) . " ($coords)";
-        if ($row['label_object'] !== null && $row['label_object'] !== '') {
-            $label .= ' ' . $row['label_object'];
-        }
-        return $label;
-    }
-    // session / filter levels share the session row (filter adds filter_name).
-    $stmt = $conn->prepare("SELECT astro_night FROM project_sessions WHERE id = :id");
-    $stmt->execute([':id' => $nodeId]);
-    $row = $stmt->fetch();
-    $label = $row ? (string)$row['astro_night'] : "#$nodeId";
-    if ($level === 'filter' && $filterName !== null && $filterName !== '') {
-        $label .= ' · ' . $filterName;
-    }
-    return $label;
-}
-
-/**
  * Accept a suggestion: create the project_files link, mark accepted.
  * Returns true if a pending row was actually accepted.
  */
@@ -2283,7 +2234,10 @@ function projectAddPrepare(PDO $conn, int $projectId, array $ids, array $overrid
             }
             $lname = mb_strtolower($name);
             if (isset($existingCustoms[$lname])) {
-                $customSkipped[] = ['fid' => $fid, 'name' => null, 'no' => $existingCustoms[$lname]['no']];
+                // 'name' => null reached the UI as the literal text "null": the add
+                // response is rendered as `${s.name} (${s.message})`. Same fallback the
+                // other skips use, so an unnamed file shows as #<id> like everywhere else.
+                $customSkipped[] = ['fid' => $fid, 'name' => '#' . $fid, 'no' => $existingCustoms[$lname]['no']];
                 $blockedFids[$fid] = true;
                 continue;
             }

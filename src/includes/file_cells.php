@@ -239,13 +239,13 @@ function renderFileTableCells(array $f, string $scope, string $nameSuffix = ''):
                         ?>
                         <?php if ($scope === 'project'): ?>
                         <span class="<?= $badgeColor ?> text-xs font-semibold px-2.5 py-0.5 rounded-full"
-                              title="<?= sprintf(__('duplicates_tooltip'), $visibleCount, $totalCount) ?>">
+                              title="<?= htmlspecialchars(sprintf(__('duplicates_tooltip'), $visibleCount, $totalCount)) ?>">
                             <?= $visibleCount ?> / <?= $totalCount ?>
                         </span>
                         <?php else: ?>
                         <span class="duplicate-badge cursor-pointer <?= $badgeColor ?> text-xs font-semibold px-2.5 py-0.5 rounded-full"
                               data-hash="<?= htmlspecialchars($f['file_hash']) ?>"
-                              title="<?= sprintf(__('duplicates_tooltip'), $visibleCount, $totalCount) ?>">
+                              title="<?= htmlspecialchars(sprintf(__('duplicates_tooltip'), $visibleCount, $totalCount)) ?>">
                             <?= $visibleCount ?> / <?= $totalCount ?>
                         </span>
                         <?php endif; ?>
