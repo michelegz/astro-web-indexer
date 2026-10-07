@@ -9,10 +9,33 @@ def soft_delete_missing_files(conn, cur, db_files, disk_files):
     db_paths = {p for p, f in db_files.items() if f['deleted_at'] is None}
     disk_paths = set(disk_files.keys())
     missing_paths = db_paths - disk_paths
-    
+
     if not missing_paths:
         logger.info("Soft delete complete. No missing files to mark.")
         return 0
+
+    # An empty disk scan against a non-empty archive means the scan found nothing, not
+    # that every file was deleted. reindex.py only guards `not os.path.isdir(fits_root)`,
+    # and os.walk on an existing but empty directory yields nothing without raising: that
+    # is what a volume that Docker created but did not mount looks like, and treating it
+    # as "the whole archive is gone" soft-deletes every live row and then rewrites every
+    # duplicate count. Refuse, and let a deliberate purge go through purge_deleted_files.
+    if not disk_paths and db_paths:
+        logger.error(
+            "Soft delete ABORTED: the disk scan found 0 files while the database holds "
+            f"{len(db_paths)} live ones. Refusing to mark the whole archive deleted. "
+            "Check that fits_root is mounted and is the expected directory; "
+            "--skip-cleanup does the same."
+        )
+        return 0
+
+    # Not a hard block: a genuine mass deletion is legitimate (archive reorganised), but
+    # it should be visible in the log rather than look like routine housekeeping.
+    if len(missing_paths) >= 0.9 * len(db_paths):
+        logger.warning(
+            f"{len(missing_paths)} of {len(db_paths)} live files are absent from the disk "
+            "scan. Proceeding, but verify the scan covered the archive."
+        )
 
     batch_size = 500
     missing_paths_list = list(missing_paths)
