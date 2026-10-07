@@ -14,7 +14,6 @@ include __DIR__ . '/includes/projects_panel.php';
                 include __DIR__ . '/includes/filters.php';
                 include __DIR__ . '/includes/statistics.php';
                 include __DIR__ . '/includes/metrics_chart.php';
-                include __DIR__ . '/includes/pagination.php';
                 include __DIR__ . '/includes/table.php';
                 include __DIR__ . '/includes/pagination.php';
                 ?>

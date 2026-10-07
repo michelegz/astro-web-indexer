@@ -3,7 +3,28 @@
 $viewMode = $_COOKIE['viewMode'] ?? 'list';
 $thumbSize = $_COOKIE['thumbSize'] ?? '3';
 ?>
-<div class="mb-4 flex flex-wrap justify-end gap-2">
+<div class="mb-4 flex flex-wrap items-center justify-end gap-2">
+    <div class="flex items-center gap-4 mr-auto">
+        <div class="flex items-center bg-gray-700 rounded-lg">
+            <button type="button" id="list-view-btn" class="flex items-center justify-center p-2 rounded-l-lg <?php echo $viewMode === 'list' ? 'bg-blue-600' : ''; ?> hover:bg-blue-700 transition-colors" title="<?php echo __('list_view') ?>">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+            </button>
+            <button type="button" id="thumbnail-view-btn" class="flex items-center justify-center p-2 rounded-r-lg <?php echo $viewMode === 'thumbnail' ? 'bg-blue-600' : ''; ?> hover:bg-blue-700 transition-colors" title="<?php echo __('thumbnail_view') ?>">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                </svg>
+            </button>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <label for="thumbnail-size-slider" class="text-sm font-medium text-gray-300"><?php echo __('thumbnail_size') ?></label>
+            <span class="text-sm text-gray-400">S</span>
+            <input type="range" id="thumbnail-size-slider" min="1" max="5" value="<?php echo htmlspecialchars($thumbSize); ?>" class="w-24 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+            <span class="text-sm text-gray-400">L</span>
+        </div>
+    </div>
     <button id="exportAstroBinBtn" class="bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50" disabled>
         <?php echo __('export_astrobin_csv') ?>
     </button>
@@ -15,7 +36,12 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
     <button id="addToProjectBtn" class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50" disabled>
         <?php echo __('projects_add_btn') ?>
     </button>
+    <button type="button" id="columns-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded transition duration-200">
+        <?php echo __('columns') ?>
+    </button>
 </div>
+
+<?php include __DIR__ . '/pagination.php'; ?>
 
 <!-- Add to project modal (2 steps: destination -> preview -> confirm) -->
 <?php $projectList = isset($conn) ? getProjects($conn) : []; ?>
