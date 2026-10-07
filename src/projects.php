@@ -242,10 +242,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message = __('projects_updated');
                 $messageType = 'success';
             }
-        } catch (Exception $e) {
-            $message = $e->getMessage();
-            $messageType = 'error';
-        }
+} catch (Throwable $e) {
+    // Throwable, not Exception: in PHP 8 a TypeError is not an Exception, and it used
+    // to escape as a fatal with no message at all (see the tree preview).
+    //
+    // The message is shown, but only when it was written for a person. A PDOException
+    // carries the query and the driver text, so those are logged and the user gets a
+    // generic line instead of the SQL that failed.
+    $messageType = 'error';
+    if ($e instanceof InvalidArgumentException) {
+        $message = $e->getMessage();
+    } else {
+        error_log('projects action failed: ' . get_class($e) . ': ' . $e->getMessage());
+        $message = __('projects_error_generic');
+    }
+}
         // Canvas Relaunch: successful actions triggered from the home
         // projects panel carry a `return` path -> go back home (PRG).
         $returnTo = (string)($_POST['return'] ?? '');
@@ -1297,6 +1308,19 @@ if ($projectBlocked) {
                                     <?php foreach (['hfr', 'fwhm', 'hfr_sd', 'eccentricity', 'star_count', 'snr_weight', 'psf_signal'] as $mk): ?>
                                     <?php $mkHasData = count(array_filter($grp['lights'], fn($mli) => isset($mli[$mk]) && $mli[$mk] !== '' && $mli[$mk] !== null)) > 0; ?>
                                     <?php if (!$mkHasData) continue; ?>
+                                    <?php // The bar chart reads its values out of the table cells. A hidden column
+                                    // means no cell for it, so every value came back null and the chart was
+                                    // skipped with nothing on screen: an empty box that looked broken. Say
+                                    // why instead, and still offer the column back. ?>
+                                    <?php if (in_array($mk, $hiddenColsProjects, true)): ?>
+                                    <div>
+                                        <div class="flex items-center mb-1">
+                                            <span class="text-xs font-bold" style="color: #e5e7eb;"><?= htmlspecialchars($igSeriesLabels[$mk] ?? $mk) ?></span>
+                                        </div>
+                                        <div class="text-xs text-gray-500 py-3"><?= __('projects_chart_column_hidden') ?></div>
+                                    </div>
+                                    <?php continue; ?>
+                                    <?php endif; ?>
                                     <div>
                                         <div class="flex items-center justify-between mb-1">
                                             <span class="text-xs font-bold" style="color: #e5e7eb;"><?= htmlspecialchars($igSeriesLabels[$mk] ?? $mk) ?></span>

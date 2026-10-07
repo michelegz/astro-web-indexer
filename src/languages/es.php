@@ -248,7 +248,7 @@ return [
     'filter_mapping_no_filters' => 'No se encontraron filtros en los archivos indexados.',
     'filter_mapping_invalid_id' => 'ID inválido para el filtro {name}: se requiere un entero positivo.',
     'filter_mapping_id_placeholder' => 'p. ej. 4373',
-    'filter_mapping_unmapped' => '{count} filtros sin asignación AstroBin: ',
+    'filter_mapping_unmapped' => '{count} filtros sin asignación AstroBin:',
     'filter_mapping_manage' => 'Gestionar asignaciones de filtros',
 
     // Estadísticas por filtro
@@ -277,6 +277,9 @@ return [
     'projects_cancel' => 'Cancelar',
     'projects_tolerances' => 'Tolerancias',
     'projects_tolerances_invalid' => 'Tolerancia no valida {value}: debe empezar por un numero no negativo, en {expected}.',
+    'projects_chart_column_hidden' => 'Grafico oculto: su columna esta desactivada. Vuelve a activar la columna para verlo.',
+    'projects_error_generic' => 'No se pudo guardar el cambio.',
+    'projects_truncated' => 'No se analizaron {count} archivo(s) mas: la seleccion esta limitada a 2000.',
     'projects_tolerances_intro' => 'Ajustes por proyecto para emparejar setups/paneles y comprobar calibraciones. Vacío = hereda el valor por defecto.',
     'projects_filter_aliases' => 'Alias de filtros',
     'projects_filter_aliases_intro' => 'Nombres distintos para el mismo filtro físico (p. ej. H-alpha → Ha) se fusionan en todo: árbol, grupos de integración, coincidencia de calibraciones y carpetas ZIP. Vacío = el nombre vale por sí mismo. Solo este proyecto.',

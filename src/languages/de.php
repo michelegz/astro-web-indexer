@@ -247,7 +247,7 @@ return [
     'filter_mapping_no_filters' => 'Keine Filter in den indizierten Dateien gefunden.',
     'filter_mapping_invalid_id' => 'Ungültige ID für Filter {name}: positive Ganzzahl erforderlich.',
     'filter_mapping_id_placeholder' => 'z.B. 4373',
-    'filter_mapping_unmapped' => '{count} Filter ohne AstroBin-Zuordnung: ',
+    'filter_mapping_unmapped' => '{count} Filter ohne AstroBin-Zuordnung:',
     'filter_mapping_manage' => 'Filterzuordnungen verwalten',
 
     // Filterstatistik
@@ -276,6 +276,9 @@ return [
     'projects_cancel' => 'Abbrechen',
     'projects_tolerances' => 'Toleranzen',
     'projects_tolerances_invalid' => 'Ungueltige Toleranz {value}: muss mit einer nicht negativen Zahl beginnen, in {expected}.',
+    'projects_chart_column_hidden' => 'Diagramm ausgeblendet: die Spalte ist aus. Schalte die Spalte ein, um es zu sehen.',
+    'projects_error_generic' => 'Die Aenderung konnte nicht gespeichert werden.',
+    'projects_truncated' => '{count} weitere Datei wurden nicht analysiert: die Auswahl ist auf 2000 begrenzt.',
     'projects_tolerances_intro' => 'Pro-Projekt-Overrides für Setup-/Panel-Zuordnung und Kalibrierprüfungen. Leer = Standardwert wird übernommen.',
     'projects_filter_aliases' => 'Filter-Aliase',
     'projects_filter_aliases_intro' => 'Unterschiedliche Namen für denselben physischen Filter (z. B. H-alpha → Ha) werden überall vereint: Baum, Integrationsgruppen, Kalibrierabgleich und ZIP-Ordner. Leer = Name gilt für sich. Nur dieses Projekt.',

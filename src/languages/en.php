@@ -248,7 +248,7 @@ return [
     'filter_mapping_no_filters' => 'No filters found in indexed files.',
     'filter_mapping_invalid_id' => 'Invalid ID for filter {name}: a positive integer is required.',
     'filter_mapping_id_placeholder' => 'e.g. 4373',
-    'filter_mapping_unmapped' => '{count} filters without AstroBin mapping: ',
+    'filter_mapping_unmapped' => '{count} filters without AstroBin mapping:',
     'filter_mapping_manage' => 'Manage filter mappings',
 
     // Filter statistics
@@ -277,6 +277,9 @@ return [
     'projects_cancel' => 'Cancel',
     'projects_tolerances' => 'Tolerances',
     'projects_tolerances_invalid' => 'Invalid tolerance {value}: it must start with a non-negative number, in {expected}.',
+    'projects_chart_column_hidden' => 'Chart hidden: its column is off. Turn the column back on to see it.',
+    'projects_error_generic' => 'The change could not be saved.',
+    'projects_truncated' => '{count} more file(s) were not analysed: the selection is capped at 2000.',
     'projects_tolerances_intro' => 'Per-project overrides for setup/panel matching and calibration checks. Leave empty to inherit the default value.',
     'projects_filter_aliases' => 'Filter aliases',
     'projects_filter_aliases_intro' => 'Different names for the same physical filter (e.g. H-alpha → Ha) are merged everywhere: tree, integration groups, calibration matching and ZIP folders. Empty = the name stands for itself. This project only.',

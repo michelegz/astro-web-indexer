@@ -27,7 +27,12 @@ if (empty($ids)) {
     awiJson(['success' => false, 'error' => 'No valid IDs provided.'], 400);
 }
 
+// The cap is unchanged; what was missing is that the user could not tell it had
+// applied. A preview of the first 2000 looks exactly like a complete answer, so the
+// overflow is now counted and reported alongside the other skips.
+$selectedIds = $ids;
 $ids = array_slice($ids, 0, 2000);
+$truncated = count($selectedIds) - count($ids);
 
 try {
     $conn = connectDB();
@@ -47,11 +52,19 @@ try {
     }
     $preview = projectPreviewFiles($conn, $projectId > 0 ? $projectId : null, $ids);
     $setups = $projectId > 0 ? getProjectSetups($conn, $projectId) : [];
+    $skipped = (array)$preview['skipped'];
+    if ($truncated > 0) {
+        // Reported rather than hidden: the file names are what the user recognises.
+        $skipped[] = ['name' => '', 'message' => __('projects_truncated', [
+            'count' => $truncated,
+        ])];
+    }
     awiJson([
         'success' => true,
         'frozen' => $frozen,
+        'truncated' => $truncated,
         'groups' => $preview['groups'],
-        'skipped' => $preview['skipped'],
+        'skipped' => $skipped,
         'setups' => array_map(fn($s) => [
             'id' => (int)$s['id'],
             'no' => isset($s['setup_no']) ? (int)$s['setup_no'] : null,

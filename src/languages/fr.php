@@ -248,7 +248,7 @@ return [
     'filter_mapping_no_filters' => 'Aucun filtre trouvé dans les fichiers indexés.',
     'filter_mapping_invalid_id' => 'ID invalide pour le filtre {name} : un entier positif est requis.',
     'filter_mapping_id_placeholder' => 'ex. 4373',
-    'filter_mapping_unmapped' => '{count} filtres sans correspondance AstroBin : ',
+    'filter_mapping_unmapped' => '{count} filtres sans correspondance AstroBin :',
     'filter_mapping_manage' => 'Gérer les correspondances de filtres',
 
     // Statistiques par filtre
@@ -277,6 +277,9 @@ return [
     'projects_cancel' => 'Annuler',
     'projects_tolerances' => 'Tolérances',
     'projects_tolerances_invalid' => 'Tolerance invalide {value} : elle doit commencer par un nombre non negatif, en {expected}.',
+    'projects_chart_column_hidden' => 'Graphique masquee : sa colonne est desactivee. Reactivez la colonne pour l\'afficher.',
+    'projects_error_generic' => 'La modification n\'a pas pu etre enregistree.',
+    'projects_truncated' => '{count} fichier(s) supplementaires n\'ont pas ete analyses : la selection est limitee a 2000.',
     'projects_tolerances_intro' => 'Surcharges par projet pour l’appariement setup/panneau et les contrôles de calibration. Vide = valeur par défaut héritée.',
     'projects_filter_aliases' => 'Alias de filtres',
     'projects_filter_aliases_intro' => 'Des noms différents pour le même filtre physique (ex. H-alpha → Ha) sont fusionnés partout : arbre, groupes d’intégration, appariement des calibrations et dossiers ZIP. Vide = le nom vaut pour lui-même. Ce projet uniquement.',
