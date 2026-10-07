@@ -1326,14 +1326,15 @@ function resolve_tol(PDO $conn, ?int $projectId, string $key): string
 }
 
 /**
- * Manual match-or-create ("add to project"): PHP port of the Python matcher
- * (docker/python/indexer_lib/projects.py). Manual adds match an existing
- * panel by FoV/coords/rotation within tolerances, or create the missing
- * chain (setup/panel, then session/filter). Superseded pending suggestions
- * for the same file+project are removed (explicit user decision wins).
+ * Normalize a name-ish value for display in the tree: trimmed, upper-cased, inner
+ * whitespace collapsed, empty shown as '?'.
  *
- * Returns ['added' => int, 'skipped' => [['name' =>, 'reason' =>]]].
- * Reasons are short codes; the UI maps them to localized strings.
+ * Note: a docblock describing "manual match-or-create (add to project)" used to sit here
+ * and document this helper. That text belongs to projectAddFiles() further down, which
+ * had no docblock at all; this helper had been inserted between the comment and its
+ * function, so the comment silently documented the wrong thing. It has been moved, after
+ * checking each claim against the code: the return shape, the removal of superseded
+ * suggestions for the same file+project, and the setup/panel/session chain all hold.
  */
 function projectNormPart($value): string
 {
@@ -2323,6 +2324,20 @@ function projectAddPrepare(PDO $conn, int $projectId, array $ids, array $overrid
     return ['project_id' => $projectId, 'ids' => array_values($ids), 'customSkipped' => $customSkipped];
 }
 
+/**
+ * Manual match-or-create ("add to project"): PHP port of the Python matcher
+ * (docker/python/indexer_lib/projects.py). Manual adds match an existing
+ * panel by FoV/coords/rotation within tolerances, or create the missing
+ * chain (setup/panel, then session/filter). Superseded pending suggestions
+ * for the same file+project are removed (explicit user decision wins).
+ *
+ * Returns ['added' => int, 'skipped' => [['name' =>, 'reason' =>]]].
+ * Reasons are short codes; the UI maps them to localized strings.
+ *
+ * This docblock used to document projectNormPart(), two hundred lines up: the helper had
+ * been inserted between the comment and its function, so projectAddFiles() had no
+ * documentation at all and this helper was described as the matcher.
+ */
 function projectAddFiles(PDO $conn, int $projectId, array $fileIds, array $groupFpOverrides = []): array
 {
     $added = 0;
