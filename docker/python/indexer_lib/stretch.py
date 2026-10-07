@@ -91,10 +91,14 @@ def stf_autostretch_color(img, k_black=2.8, k_white=10.0, target_mid=0.25, clip_
     img: array 3D numpy (H, W, C) o 2D numpy (H, W).
     Returns: stretched image.
     """
-    if img.ndim == 3 and img.shape[2] == 3:
-        # Image is color, process each channel
+    if img.ndim == 3:
+        # Stretch every channel independently. The condition used to be shape[2] == 3,
+        # with everything else falling through to `return img, {}` below: a four-channel
+        # frame, which make_crop_preview explicitly accepts, came back unstretched, and the
+        # caller's (stretched * 255).astype(np.uint8) then wrapped raw sensor counts
+        # modulo 256, producing a full-range noise preview instead of an image.
         stretched_channels = []
-        for i in range(3):
+        for i in range(img.shape[2]):
             channel, _ = stf_autostretch(
                 img[:, :, i],
                 k_black=k_black,
@@ -103,15 +107,14 @@ def stf_autostretch_color(img, k_black=2.8, k_white=10.0, target_mid=0.25, clip_
                 clip_output=clip_output
             )
             stretched_channels.append(channel)
-        
-        # Stack channels back into a color image
+
         stretched_img = np.stack(stretched_channels, axis=-1)
         return stretched_img, {} # Return empty params dict for compatibility
-    
+
     elif img.ndim == 2:
         # Image is monochrome, use the original function
         return stf_autostretch(img, k_black, k_white, target_mid, clip_output)
-    
+
     else:
         # Unsupported image format, return as is
         return img, {}
