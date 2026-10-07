@@ -439,6 +439,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         popup.addEventListener('click', function(e) {
+            // Internal clicks must not reach the document-level closer below:
+            // renderPicker() destroys the clicked button (innerHTML rewrite),
+            // so popup.contains(e.target) would be false by the time the
+            // document handler runs and the popup would close on every click.
+            e.stopPropagation();
             var nav = e.target.closest('[data-nav]');
             if (nav) {
                 state.viewM += parseInt(nav.getAttribute('data-nav'), 10);
@@ -512,8 +517,11 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') pickers.forEach(function(p) { p.popup.classList.add('hidden'); });
     });
-    // Fixed-positioned popups don't follow the page: close them on scroll/resize.
-    window.addEventListener('scroll', function() {
+    // Fixed-positioned popups don't follow the page: close them on viewport
+    // scroll/resize. Ignore scrolls from inner elements (e.g. interacting
+    // with the time field inside an open popup must not close it).
+    window.addEventListener('scroll', function(e) {
+        if (e.target !== document) return;
         pickers.forEach(function(p) { p.popup.classList.add('hidden'); });
     }, true);
     window.addEventListener('resize', function() {
