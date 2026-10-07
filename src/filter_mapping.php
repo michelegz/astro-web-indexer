@@ -76,7 +76,7 @@ $filters = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <meta charset="UTF-8">
     <title><?= __('filter_mapping') ?> - <?= __('site_title') ?></title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="/assets/css/output.css" rel="stylesheet">
+    <link href="/assets/css/output.css?v=<?= @filemtime(__DIR__ . '/assets/css/output.css') ?: 0 ?>" rel="stylesheet">
 </head>
 <body class="flex flex-col min-h-screen bg-gray-900 text-gray-100 font-sans">
     <header class="bg-gray-700 shadow-md">

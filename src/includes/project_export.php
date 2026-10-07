@@ -1,0 +1,552 @@
+<?php
+// WBPP-style project ZIP export map builder.
+// Shared by the preview endpoint and the download endpoint so the preview
+// can never diverge from the archive. Pure mapping: no disk reads here
+// (missing files are filtered at zip time and reported as skipped).
+//
+// Layout (mirror tree + WBPP path keywords, see tmp/project-zip-export-plan.md):
+//   SETUP_S1/DARK/EXPS_300/TEMPC_m10/[DARKSET_N1N3/]dark.fits
+//   SETUP_S1/DARKFLAT/EXPS_5/[DARKFLATSET_N1N3/]darkflat.fits
+//   SETUP_S1/BIAS/bias.fits
+//   SETUP_S1/PANEL_P1[_TILE_T1]/SESSION_N1[_DARKSET_N1N3]/LIGHT/FILTER_Ha/EXPS_300/TEMPC_m10/light.fits
+//   SETUP_S1/PANEL_P1/SESSION_N1/FLAT/FILTER_Ha/flat.fits
+//
+// DARKFLAT mirrors DARK (short exposure darks serving flats, classified by
+// indexDarkRoles); scoped darkflats get DARKFLATSET_ sets like DARKSET_.
+//
+// TILE_Tn qualifies the panel folder only when cross-setup tile merging is
+// enabled (merge_tiles with split_setup OFF): PANEL_P1_TILE_T1 under S1 and
+// PANEL_P2_TILE_T1 under S2 share TILE_T1, so WBPP can group the same sky
+// tile through different optics. Panel level (not LIGHT) because the tile is
+// a panel identity; same combined-token pattern as SESSION_N1_DARKSET_N1N3.
+//
+// Session folders carry only the N id (nights live in the manifest); type
+// folders nest as TYPE/GROUP so FILTER_ works as a WBPP keyword everywhere.
+
+/**
+ * Filesystem- and WBPP-safe token: strict [A-Za-z0-9_].
+ */
+function exportSanitize(string $s): string
+{
+    $s = preg_replace('/[^A-Za-z0-9_]+/', '_', $s);
+    return trim((string)$s, '_');
+}
+
+/**
+ * Make an original file basename safe to extract, without flattening it.
+ *
+ * Directory components go through exportSanitize(), but basenames are the user's
+ * own file names and are kept readable on purpose. They still have to survive an
+ * unzip on Windows, which is where this export is consumed (the WBPP workflow):
+ *
+ *  - ": * ? " < > |" and control characters are rejected by the Windows
+ *    filesystem, and a name containing them fails or gets rewritten on extract;
+ *  - a trailing dot or space is silently dropped by Windows, which turns
+ *    "light.fits " and "light.fits" into the same entry;
+ *  - CON, PRN, AUX, NUL, COM1-9 and LPT1-9 are reserved device names, unusable
+ *    whatever the extension.
+ *
+ * Spaces, dashes, parentheses and so on are legal and stay: mangling them would
+ * make the archive harder to recognise than it needs to be.
+ */
+function exportSafeBasename(string $name, int $fid = 0): string
+{
+    $name = str_replace(['/', '\\'], '_', $name);
+    // Drop control characters and everything Windows reserves.
+    $name = preg_replace('/[\x00-\x1F<>:"|?*]+/', '_', $name) ?? '';
+    $name = trim($name);
+
+    $dot = strrpos($name, '.');
+    if ($dot === false) {
+        $stem = $name;
+        $ext = '';
+    } else {
+        $stem = substr($name, 0, $dot);
+        $ext = substr($name, $dot + 1);
+    }
+    // Windows drops trailing dots and spaces on either side of the dot.
+    $stem = rtrim($stem, " .");
+    $ext = trim($ext, " .");
+    // Keep the extension alphanumeric; anything else would re-introduce a
+    // separator or a control character through the dot path.
+    if ($ext !== '' && preg_match('/^[A-Za-z0-9]+$/', $ext) !== 1) {
+        $ext = '';
+    }
+
+    $stem = trim($stem, " .");
+    if ($stem === '') {
+        $stem = 'file' . ($fid > 0 ? '_' . $fid : '');
+    }
+    // Reserved device names, case-insensitively, with or without extension.
+    if (preg_match('/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i', $stem) === 1) {
+        $stem = '_' . $stem;
+    }
+    return $ext === '' ? $stem : $stem . '.' . $ext;
+}
+
+/**
+ * Compact night: 2024-05-01 -> 20240501 (dashes are WBPP stop characters).
+ */
+function exportNight(string $night): string
+{
+    return str_replace('-', '', trim($night));
+}
+
+/**
+ * Set token value from session numbers: [1,3] -> N1N3. Unambiguous because
+ * every component is N+digits. N (night) keeps session sets distinct from
+ * setup S numbers.
+ */
+function exportSetValue(array $nos): string
+{
+    $nos = array_values(array_unique(array_map('intval', $nos)));
+    sort($nos);
+    return 'N' . implode('N', $nos);
+}
+
+/**
+ * Fail closed on token hygiene of the EMITTED directories (original file
+ * basenames are preserved verbatim and never parsed as keywords): only
+ * [A-Za-z0-9_.] in dir components, and every grouping keyword at most once
+ * per path (same keyword twice has undefined WBPP matching semantics).
+ */
+function validateExportTokens(array $entries): void
+{
+    foreach ($entries as $e) {
+        $p = (string)($e['zip_path'] ?? '');
+        $dir = dirname($p);
+        $base = basename($p);
+        if ($base === '' || str_contains($base, '/') || str_contains($base, '\\')) {
+            throw new InvalidArgumentException('export_bad_token: ' . $p);
+        }
+        if (!preg_match('#^[A-Za-z0-9_/.]+$#', $dir)) {
+            throw new InvalidArgumentException('export_bad_token: ' . $p);
+        }
+        foreach (['SESSION_', 'DARKSET_', 'DARKFLATSET_', 'FLATSET_', 'PANEL_', 'SETUP_', 'TILE_'] as $kw) {
+            if (substr_count($dir, $kw) > 1) {
+                throw new InvalidArgumentException('export_dup_keyword: ' . $kw . ' in ' . $p);
+            }
+        }
+    }
+}
+
+/**
+ * Build the full export map for a project. Returns:
+ * ['entries' => [['zip_path','fid','kind','scope','master','link']...],
+ *  'sets' => ['DARKSET_S1S3' => ['type','sessions','nights']...],
+ *  'skipped' => [['name','reason']...], 'manifest' => [...]].
+ */
+function buildProjectExportMap(PDO $conn, int $projectId): array
+{
+    $project = getProject($conn, $projectId);
+    if ($project === null) {
+        throw new InvalidArgumentException(__('projects_error_name'));
+    }
+    $tree = getProjectTree($conn, $projectId, false);
+    $globals = getGlobalTolerances($conn);
+    $defs = getToleranceDefs();
+    $tols = [];
+    foreach ($defs as $tkey => $tdef) {
+        $tols[$tkey] = resolve_tol($conn, $projectId, $tkey);
+    }
+    $tolExpRaw = trim((string)($tols['tol_exp'] ?? '1%'));
+    if ($tolExpRaw === '') {
+        $tolExpRaw = '1%';
+    }
+    $grouping = getProjectGrouping($conn, $projectId);
+    $filterAliases = getProjectFilterAliases($conn, $projectId);
+    $projectTree = markTreeAutoOff(
+        $tree,
+        indexAutoOffLights(getIntegrationGroups(
+            $tree,
+            $tolExpRaw,
+            getProjectThresholds($conn, $projectId),
+            (string)($tols['tol_temp'] ?? '2C'),
+            $grouping,
+            $tols,
+            $filterAliases
+        ))
+    );
+    // Cross-setup tiles (mosaics): panel id => tile number, shared by lights
+    // of different setups so WBPP can group by TILE_. Active only with
+    // split_setup OFF + split_panel ON + merge_tiles ON; otherwise empty.
+    $tileMode = groupingTilesEffective($grouping);
+    $panelTileNo = [];
+    $tileLegend = [];
+    if ($tileMode) {
+        $clust = clusterCrossSetupPanels(flatTreePanels($projectTree), $tols);
+        foreach ($clust['tiles'] as $ti => $t) {
+            $panels = [];
+            foreach ($t['panels'] as $p) {
+                $panelTileNo[(int)$p['id']] = $ti + 1;
+                $panels[] = 'S' . (int)$p['setup_no'] . '/P' . (int)$p['panel_no'];
+            }
+            $tileLegend['TILE_T' . ($ti + 1)] = ['panels' => $panels, 'multi' => $t['multi']];
+        }
+    }
+
+    // Dark vs dark-flat roles drive both the DARK/DARKFLAT folder split and
+    // the DARKFLATSET_ scope sets below.
+    $darkRoles = indexDarkRoles($projectTree, $tols);
+    // Session registry for set tokens and legends.
+    $sessions = [];
+    foreach ($projectTree['setups'] ?? [] as $setup) {
+        foreach ($setup['panels'] ?? [] as $panel) {
+            foreach ($panel['sessions'] ?? [] as $session) {
+                $sessions[(int)$session['id']] = [
+                    'no' => isset($session['session_no']) ? (int)$session['session_no'] : null,
+                    'night' => (string)($session['astro_night'] ?? ''),
+                ];
+            }
+        }
+    }
+
+    $st = [
+        'entries' => [], 'sets' => [], 'skipped' => [],
+        // 'seen' maps fid => most recent zip_path emitted (for dedup lookup),
+        // 'dups' is the report keyed the same way (see $addFile).
+        'seen' => [], 'dups' => [], 'used' => [],
+        // Uncompressed payload size: every emitted copy counts (the archive
+        // uses STORE), sourced from the DB file_size so the builder stays
+        // disk-free. Files missing or unreadable on disk are filtered at zip
+        // time, so the preview total is an upper bound, not a promise.
+        'size' => 0,
+    ];
+
+    $addFile = function (string $dir, array $f, string $kind, $scope) use (&$st): void {
+        $fid = (int)($f['file_id'] ?? $f['id'] ?? 0);
+        if ($fid <= 0) {
+            return;
+        }
+        $base = exportSafeBasename((string)($f['name'] ?? ''), $fid);
+        if ($base === '') {
+            $base = "file_$fid.fits";
+        }
+        // Name collisions are resolved per target folder (used is keyed by
+        // dir + "\0" + name), so the same file emitted into two folders keeps
+        // its plain name in both and both paths stay distinct.
+        //
+        // The key is case-folded: extracting on a case-insensitive filesystem
+        // makes "Light.fits" and "light.fits" the same entry, and without this
+        // the second one would silently overwrite the first in the light or
+        // calibration set.
+        $name = $base;
+        $i = 1;
+        while (isset($st['used'][mb_strtolower($dir . "\0" . $name)])) {
+            $dot = strrpos($base, '.');
+            $name = $dot === false ? $base . '_' . $i : substr($base, 0, $dot) . '_' . $i . substr($base, $dot);
+            $i++;
+        }
+        $zipPath = $dir . '/' . $name;
+        // A file requested by more than one folder is emitted in every one of
+        // them: each setup needs its own calibration on disk. Report it
+        // instead of silently dropping one copy.
+        if (isset($st['seen'][$fid])) {
+            if (!isset($st['dups'][$fid])) {
+                $st['dups'][$fid] = [
+                    'name' => $base,
+                    'fid' => $fid,
+                    'paths' => [$st['seen'][$fid]],
+                ];
+            }
+            $st['dups'][$fid]['paths'][] = $zipPath;
+        }
+        $st['used'][mb_strtolower($dir . "\0" . $name)] = true;
+        $st['seen'][$fid] = $zipPath;
+        $st['size'] += max(0, (int)($f['file_size'] ?? 0));
+        $st['entries'][] = [
+            'zip_path' => $zipPath,
+            'fid' => $fid,
+            'src' => (string)($f['path'] ?? ''),
+            'kind' => $kind,
+            'scope' => $scope,
+            'master' => (($f['role'] ?? 'sub') === 'master'),
+        ];
+    };
+    $skip = function (array $f, string $reason) use (&$st): void {
+        $st['skipped'][] = ['name' => (string)($f['name'] ?? ("#" . (int)($f['file_id'] ?? 0))), 'reason' => $reason];
+    };
+
+    // First pass: collect scope sets per type from effectively exported rows.
+    // (Second walk below emits files; sets must be known upfront for the
+    // session folder tokens, so scope collection runs on raw rows first.)
+    $setSessions = [];
+    $collectScopes = function (array $rows, string $type) use (&$setSessions): void {
+        foreach ($rows as $r) {
+            if (!empty($r['pending']) || empty($r['enabled'])) {
+                continue;
+            }
+            $scope = $r['scope_sessions'] ?? [];
+            if (!empty($scope)) {
+                $setSessions[strtoupper($type)][] = array_values(array_unique(array_map('intval', $scope)));
+            }
+        }
+    };
+    $walkCals = function (array $tree, callable $fn) use (&$walkCals): void {
+        $fn($tree['project_links'] ?? [], 'project', 0);
+        foreach ($tree['setups'] ?? [] as $setup) {
+            $fn($setup['calibrations'] ?? [], 'setup', (int)$setup['id']);
+            foreach ($setup['panels'] ?? [] as $panel) {
+                $fn($panel['calibrations'] ?? [], 'panel', (int)$panel['id']);
+                foreach ($panel['sessions'] ?? [] as $session) {
+                    $fn($session['calibrations'] ?? [], 'session', (int)$session['id']);
+                    foreach ($session['filters'] ?? [] as $filter) {
+                        $fn($filter['calibrations'] ?? [], 'filter', (int)$session['id']);
+                    }
+                }
+            }
+        }
+    };
+    $walkCals($projectTree, function (array $rows, string $level, int $node) use (&$collectScopes, $darkRoles): void {
+        foreach ($rows as $r) {
+            $t = strtoupper((string)($r['imgtype'] ?? ''));
+            if ($t === 'DARK') {
+                // Darkflats form their own scope sets (DARKFLATSET_).
+                $fid = (int)($r['file_id'] ?? 0);
+                $t = ($darkRoles[$fid . ':' . $level . ':' . $node] ?? 'dark') === 'darkflat' ? 'DARKFLAT' : 'DARK';
+            }
+            if (in_array($t, ['DARK', 'DARKFLAT', 'FLAT', 'BIAS'], true)) {
+                $collectScopes([$r], $t);
+            }
+        }
+    });
+    // Merge overlapping scope sets per type into named sets (union-find over
+    // shared sessions would over-merge; keep distinct sets, dedupe identical).
+    $sets = [];
+    foreach (['DARK', 'DARKFLAT', 'FLAT', 'BIAS'] as $type) {
+        $seen = [];
+        foreach ($setSessions[$type] ?? [] as $list) {
+            sort($list);
+            $k = implode(',', $list);
+            if (isset($seen[$k])) {
+                continue;
+            }
+            $seen[$k] = true;
+            $nos = [];
+            foreach ($list as $sid) {
+                if (isset($sessions[$sid]) && $sessions[$sid]['no'] !== null) {
+                    $nos[] = (int)$sessions[$sid]['no'];
+                }
+            }
+            if (empty($nos)) {
+                continue;
+            }
+            $name = $type . 'SET_' . exportSetValue($nos);
+            $sets[$name] = [
+                'type' => $type,
+                'sessions' => $list,
+                'nights' => array_values(array_unique(array_map(
+                    fn($sid) => $sessions[$sid]['night'] ?? '',
+                    $list
+                ))),
+            ];
+        }
+    }
+    // Session id -> set tokens covering it, per type.
+    $sessionTokens = [];
+    foreach ($sets as $name => $s) {
+        foreach ($s['sessions'] as $sid) {
+            $sessionTokens[$sid][] = $name;
+        }
+    }
+    foreach ($sessionTokens as &$tl) {
+        sort($tl);
+    }
+    unset($tl);
+
+    $tolExp = (string)($tols['tol_exp'] ?? '1%');
+    $tolTemp = (string)($tols['tol_temp'] ?? '2C');
+
+    // Emit one calibration group folder (masters preferred over subs).
+    $emitCalGroup = function (string $dir, array $group) use (&$addFile, &$skip): void {
+        $masters = array_values(array_filter(
+            $group['rows'],
+            fn($r) => ($r['role'] ?? 'sub') === 'master'
+        ));
+        $keep = $masters !== [] ? $masters : $group['rows'];
+        $keepIds = [];
+        foreach ($keep as $r) {
+            $keepIds[(int)($r['file_id'] ?? 0)] = true;
+        }
+        foreach ($group['rows'] as $r) {
+            if (!isset($keepIds[(int)($r['file_id'] ?? 0)])) {
+                $skip($r, 'shadowed_by_master');
+            }
+        }
+        foreach ($keep as $r) {
+            $addFile($dir, $r, strtolower($group['kind']), $r['scope_nights'] ?? null);
+        }
+    };
+
+    // Calibrations attached to one tree node (setup/panel/session/filter/project).
+    $emitNodeCals = function (string $dir, array $cals, string $level, int $node) use (&$emitCalGroup, &$skip, $tolExp, $tolTemp, &$sets, $filterAliases, $darkRoles): void {
+        $live = array_values(array_filter($cals, fn($c) => empty($c['pending']) && !empty($c['enabled'])));
+        if (empty($live)) {
+            return;
+        }
+        foreach (groupCalibrations($live, $tolExp, $tolTemp, $filterAliases, $darkRoles, $level, $node) as $g) {
+            $kind = $g['kind'];
+            if ($kind === 'flat') {
+                $flabel = exportSanitize((string)($g['label'] ?? ''));
+                $leaf = 'FLAT/FILTER_' . ($flabel !== '' ? $flabel : 'NOFILTER');
+            } elseif ($kind === 'dark' || $kind === 'darkflat') {
+                // Exposure + temperature command as a pair: same directory.
+                // Darkflats mirror the dark layout under their own keyword.
+                $parts = [repExpToken($g['rep_exp'] ?? null)];
+                $ttok = repTempToken($g['rep_temp'] ?? null);
+                if ($ttok !== null) {
+                    $parts[] = $ttok;
+                }
+                $leaf = ($kind === 'darkflat' ? 'DARKFLAT/' : 'DARK/') . implode('_', $parts);
+            } elseif ($kind === 'bias') {
+                $leaf = 'BIAS';
+            } else {
+                $oleaf = exportSanitize(strtoupper((string)($g['label'] ?? 'CAL')));
+                $leaf = $oleaf !== '' ? $oleaf : 'CAL';
+            }
+            // Scoped rows go to per-set subfolders; unscoped stay in the group dir.
+            $scoped = [];
+            $plain = [];
+            foreach ($g['rows'] as $r) {
+                if (!empty($r['scope_sessions'])) {
+                    $scoped[] = $r;
+                } else {
+                    $plain[] = $r;
+                }
+            }
+            if (!empty($plain)) {
+                $emitCalGroup($dir . '/' . $leaf, ['kind' => $kind, 'rows' => $plain]);
+            }
+            $bySet = [];
+            foreach ($scoped as $r) {
+                $names = [];
+                foreach (array_keys($sets) as $sname) {
+                    if (str_starts_with($sname, strtoupper($kind) . 'SET_')
+                        && !array_diff($r['scope_sessions'], $sets[$sname]['sessions'])) {
+                        $names[] = $sname;
+                    }
+                }
+                $bySet[$names !== [] ? $names[0] : ''] [] = $r;
+            }
+            foreach ($bySet as $sname => $rows) {
+                if ($sname === '') {
+                    // Scope not matching any known set (stale sessions): keep
+                    // with the plain group rather than dropping the files.
+                    $emitCalGroup($dir . '/' . $leaf, ['kind' => $kind, 'rows' => $rows]);
+                } else {
+                    $emitCalGroup($dir . '/' . $leaf . '/' . $sname, ['kind' => $kind, 'rows' => $rows]);
+                }
+            }
+        }
+    };
+
+    foreach ($projectTree['setups'] ?? [] as $setup) {
+        $setupDir = 'SETUP_S' . (int)($setup['setup_no'] ?? $setup['id']);
+        $emitNodeCals($setupDir, $setup['calibrations'] ?? [], 'setup', (int)$setup['id']);
+        foreach ($setup['panels'] ?? [] as $panel) {
+            // Tile qualifier lives on the panel folder (tile = sky tile shared
+            // across setups): PANEL_P1_TILE_T1 under S1 and PANEL_P2_TILE_T1
+            // under S2 share TILE_T1, so WBPP can group by tile. Same combined-
+            // token pattern as SESSION_N1_DARKSET_N1N3. Only with merge_tiles.
+            $panelDir = $setupDir . '/PANEL_P' . (int)($panel['panel_no'] ?? $panel['id'])
+                . (isset($panelTileNo[(int)$panel['id']]) ? '_TILE_T' . $panelTileNo[(int)$panel['id']] : '');
+            $emitNodeCals($panelDir, $panel['calibrations'] ?? [], 'panel', (int)$panel['id']);
+            foreach ($panel['sessions'] ?? [] as $session) {
+                $sno = isset($session['session_no']) ? (int)$session['session_no'] : null;
+                $sessDir = $panelDir . '/SESSION_'
+                    . ($sno !== null ? 'N' . $sno : exportNight((string)($session['astro_night'] ?? '')));
+                foreach ($sessionTokens[(int)$session['id']] ?? [] as $tok) {
+                    $sessDir .= '_' . $tok;
+                }
+                foreach ($session['filters'] ?? [] as $filter) {
+                    $fname = trim((string)($filter['name'] ?? ''));
+                    // Effective lights only (red diagnostics stay in: WBPP decides).
+                    foreach ($filter['lights'] ?? [] as $li) {
+                        if (!empty($li['pending']) || empty($li['enabled'])) {
+                            continue;
+                        }
+                        if (!empty($li['auto_off'])) {
+                            $skip($li, 'auto_off');
+                            continue;
+                        }
+                        if (strtoupper((string)($li['imgtype'] ?? '')) !== 'LIGHT') {
+                            continue;
+                        }
+                        $leaf = 'LIGHT' . ($fname !== '' ? '/FILTER_' . exportSanitize($fname) : '');
+                        $lparts = [repExpToken($li['exptime'] ?? null)];
+                        $ltok = repTempToken($li['ccd_temp'] ?? null);
+                        if ($ltok !== null) {
+                            $lparts[] = $ltok;
+                        }
+                        $leaf .= '/' . implode('_', $lparts);
+                        $addFile($sessDir . '/' . $leaf, $li, 'light', null);
+                    }
+                    // Filter-level calibrations live next to their lights.
+                    $emitNodeCals($sessDir, $filter['calibrations'] ?? [], 'filter', (int)$session['id']);
+                }
+                // Session-level calibrations: out-of-scope rows are ineffective.
+                $sessCals = [];
+                foreach ($session['calibrations'] ?? [] as $c) {
+                    if (!empty($c['pending']) || empty($c['enabled'])) {
+                        continue;
+                    }
+                    $scope = $c['scope_sessions'] ?? [];
+                    if (!empty($scope) && !in_array((int)$session['id'], $scope, true)) {
+                        $skip($c, 'out_of_scope');
+                        continue;
+                    }
+                    $sessCals[] = $c;
+                }
+                $emitNodeCals($sessDir, $sessCals, 'session', (int)$session['id']);
+            }
+        }
+    }
+    // Project-level calibrations (rare): shared folder at ZIP root.
+    $projCals = array_values(array_filter(
+        $projectTree['project_links'] ?? [],
+        function ($c) {
+            return empty($c['pending']) && !empty($c['enabled'])
+                && in_array(strtoupper((string)($c['imgtype'] ?? '')), ['DARK', 'FLAT', 'BIAS'], true);
+        }
+    ));
+    if (!empty($projCals)) {
+        $emitNodeCals('SHARED', $projCals, 'project', 0);
+    }
+
+    validateExportTokens($st['entries']);
+
+    $folders = [];
+    foreach ($st['entries'] as $e) {
+        $d = dirname($e['zip_path']);
+        $folders[$d]['files'][] = basename($e['zip_path']);
+        $folders[$d]['kinds'][$e['kind']] = true;
+        if (!empty($e['scope'])) {
+            $folders[$d]['scope'] = array_values(array_unique(array_merge(
+                $folders[$d]['scope'] ?? [],
+                (array)$e['scope']
+            )));
+        }
+    }
+    ksort($folders);
+    // Map keyed by fid while walking (O(1) duplicate lookup), reported as a
+    // flat list: one record per file, holding every folder it was copied into.
+    $duplicatedFiles = array_values($st['dups']);
+    return [
+        'entries' => $st['entries'],
+        'sets' => $sets,
+        'tiles' => $tileLegend,
+        'skipped' => $st['skipped'],
+        'duplicated_files' => $duplicatedFiles,
+        'total_size' => $st['size'],
+        'manifest' => [
+            'project' => (string)($project['name'] ?? ''),
+            'exported_at' => date('c'),
+            'sets' => $sets,
+            'tiles' => $tileLegend,
+            'folders' => $folders,
+            'skipped' => $st['skipped'],
+            'duplicated_files' => $duplicatedFiles,
+            'total_size' => $st['size'],
+        ],
+    ];
+}

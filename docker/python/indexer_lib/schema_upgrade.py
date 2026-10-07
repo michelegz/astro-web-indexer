@@ -31,6 +31,8 @@ logger = logging.getLogger('reindex')
 # Only steps with version > old_version are applied to a given file.
 SCHEMA_VERSION_FIELDS = {
     2: ['gain'],  # v1 -> v2: GAIN FITS header (camera gain setting, ADU units)
+    5: ['rotator_angle', 'rotator_name', 'readoutm',  # frame context: rotator state, readout mode, meteo
+        'cloudcvr', 'dewpoint', 'humidity', 'pressure', 'ambtemp'],
 }
 
 
@@ -79,6 +81,26 @@ def schema_upgrade_worker(task, fits_root):
                 # v1 -> v2
                 if 'gain' in needed_fields:
                     result['gain'] = get_value(header, 'GAIN', None, float)
+                # v4 -> v5: frame context (rotator, readout mode, meteo)
+                if 'rotator_angle' in needed_fields:
+                    rotator = get_value(header, 'ROTATOR', None, float)
+                    if rotator is None:
+                        rotator = get_value(header, 'ROTATANG', None, float)
+                    result['rotator_angle'] = rotator
+                if 'rotator_name' in needed_fields:
+                    result['rotator_name'] = get_value(header, 'ROTNAME', None, str)
+                if 'readoutm' in needed_fields:
+                    result['readoutm'] = get_value(header, 'READOUTM', None, str)
+                if 'cloudcvr' in needed_fields:
+                    result['cloudcvr'] = get_value(header, 'CLOUDCVR', None, float)
+                if 'dewpoint' in needed_fields:
+                    result['dewpoint'] = get_value(header, 'DEWPOINT', None, float)
+                if 'humidity' in needed_fields:
+                    result['humidity'] = get_value(header, 'HUMIDITY', None, float)
+                if 'pressure' in needed_fields:
+                    result['pressure'] = get_value(header, 'PRESSURE', None, float)
+                if 'ambtemp' in needed_fields:
+                    result['ambtemp'] = get_value(header, 'AMBTEMP', None, float)
                 # v2 -> v3: add new fields here in the future
 
         return result

@@ -46,4 +46,8 @@ $baseQueryString = http_build_query($baseQueryParams);
         <?php endif; ?>
         </ol>
     </nav>
+    <button class="p-2 bg-gray-700 hover:bg-gray-600 rounded text-gray-100 flex items-center gap-2 flex-shrink-0 ml-auto" onclick="toggleProjectsPanel()">
+        <span>&#128193;</span>
+        <span><?php echo __('projects'); ?></span>
+    </button>
 </div>

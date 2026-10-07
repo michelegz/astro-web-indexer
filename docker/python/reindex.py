@@ -22,6 +22,7 @@ from indexer_lib.file_utils import calculate_hash, get_header_value, get_xisf_he
 from indexer_lib.db_utils import soft_delete_missing_files, purge_deleted_files, update_duplicate_counts
 from indexer_lib.ephemeris import get_moon_ephemeris
 from indexer_lib.schema_upgrade import SCHEMA_VERSION_FIELDS, schema_upgrade_worker
+from indexer_lib.projects import suggest_projects_for_files, suggest_projects_backfill, normalize_imgtype
 from datetime import datetime, timezone
 
 # Configure logging
@@ -63,6 +64,9 @@ parser.add_argument("--backfill-star-metrics", action="store_true",
 parser.add_argument("--recompute-star-metrics", action="store_true",
                     help="Recompute star metrics for ALL LIGHT frames (e.g. after a formula change), "
                          "not just the ones missing them")
+parser.add_argument("--suggest-projects", action="store_true",
+                    help="Propose project links for the whole archive (wizard queue in "
+                         "suggest mode, direct links in auto mode), then exit")
 args = parser.parse_args()
 
 if args.debug:
@@ -150,7 +154,7 @@ def process_file_worker(full_path, fits_root, thumb_size, star_metrics=True, wit
             exptime = get_value(header, 'EXPOSURE', 0, float)
         
         filt = get_value(header, 'FILTER', '', str)
-        imgtype = get_value(header, 'IMAGETYP', 'UNKNOWN', str).upper()
+        imgtype = normalize_imgtype(get_value(header, 'IMAGETYP', 'UNKNOWN', str))
         xbinning = get_value(header, 'XBINNING', None, int)
         ybinning = get_value(header, 'YBINNING', None, int)
         egain = get_value(header, 'EGAIN', None, float)
@@ -199,6 +203,18 @@ def process_file_worker(full_path, fits_root, thumb_size, star_metrics=True, wit
         if foc_temp is None:
             foc_temp = get_value(header, 'FOCUSTEM', None, float)
         objctrot = get_value(header, 'OBJCTROT', None, float)
+        # Mechanical rotator state (the planned OBJCTROT above is not the same
+        # thing). ROTATANG is the common alias (same FOCPOS/FOCUSPOS pattern).
+        rotator_angle = get_value(header, 'ROTATOR', None, float)
+        if rotator_angle is None:
+            rotator_angle = get_value(header, 'ROTATANG', None, float)
+        rotator_name = get_value(header, 'ROTNAME', None, str)
+        readoutm = get_value(header, 'READOUTM', None, str)
+        cloudcvr = get_value(header, 'CLOUDCVR', None, float)
+        dewpoint = get_value(header, 'DEWPOINT', None, float)
+        humidity = get_value(header, 'HUMIDITY', None, float)
+        pressure = get_value(header, 'PRESSURE', None, float)
+        ambtemp = get_value(header, 'AMBTEMP', None, float)
         roworder = get_value(header, 'ROWORDER', None, str)
         equinox = get_value(header, 'EQUINOX', None, float)
 
@@ -278,6 +294,8 @@ def process_file_worker(full_path, fits_root, thumb_size, star_metrics=True, wit
             'instrume': instrume, 'cameraid': camera_id, 'usblimit': usb_limit, 'fwheel': fwheel, 'telescop': telescop, 'focallen': focallen, 'focratio': focratio,
             'focname': foc_name, 'focpos': focpos, 'focussz': focus_sz, 'foctemp': foc_temp,
             'ra': ra, 'dec': dec, 'centalt': centalt, 'centaz': centaz, 'airmass': airmass, 'pierside': pierside, 'objctrot': objctrot,
+            'rotator_angle': rotator_angle, 'rotator_name': rotator_name, 'readoutm': readoutm,
+            'cloudcvr': cloudcvr, 'dewpoint': dewpoint, 'humidity': humidity, 'pressure': pressure, 'ambtemp': ambtemp,
             'siteelev': siteelev, 'sitelat': sitelat, 'sitelong': sitelong,
             'swcreate': swcreate, 'roworder': roworder, 'equinox': equinox,
             'thumb': thumb, 'thumb_crop': thumb_crop,
@@ -307,7 +325,12 @@ def main():
         conn = mysql.connector.connect(host=args.host, user=args.user, password=args.password, database=args.database)
         cur = conn.cursor()
 
-        current_schema_version = 4
+        current_schema_version = 5
+
+        if args.suggest_projects:
+            logger.info("Suggesting project links for the whole archive...")
+            suggest_projects_backfill(conn)
+            return
 
         logger.info("Loading existing file data from database...")
         cur.execute("SELECT path, file_hash, mtime, file_size, deleted_at, data_schema_version FROM files")
@@ -319,6 +342,10 @@ def main():
         skipped_count = 0
         error_count = 0
         disk_files = {}
+        # Worker result params for the project suggestion pass (freshly
+        # processed files only; unchanged files are covered on demand via
+        # --suggest-projects).
+        suggest_metas = []
         
         logger.info("Scanning filesystem and identifying files to process...")
         for root, dirs, files in os.walk(fits_root):
@@ -401,6 +428,8 @@ def main():
                     instrume, cameraid, usblimit, fwheel, telescop, focallen, focratio, 
                     focname, focpos, focussz, foctemp,
                     ra, `dec`, centalt, centaz, airmass, pierside, objctrot,
+                    rotator_angle, rotator_name, readoutm,
+                    cloudcvr, dewpoint, humidity, pressure, ambtemp,
                     siteelev, sitelat, sitelong,
                     swcreate, roworder, equinox,
                     thumb, thumb_crop, deleted_at, is_hidden, data_schema_version,
@@ -416,9 +445,11 @@ def main():
                     %(instrume)s, %(cameraid)s, %(usblimit)s, %(fwheel)s, %(telescop)s, %(focallen)s, %(focratio)s,
                     %(focname)s, %(focpos)s, %(focussz)s, %(foctemp)s,
                     %(ra)s, %(dec)s, %(centalt)s, %(centaz)s, %(airmass)s, %(pierside)s, %(objctrot)s,
+                    %(rotator_angle)s, %(rotator_name)s, %(readoutm)s,
+                    %(cloudcvr)s, %(dewpoint)s, %(humidity)s, %(pressure)s, %(ambtemp)s,
                     %(siteelev)s, %(sitelat)s, %(sitelong)s,
                     %(swcreate)s, %(roworder)s, %(equinox)s,
-                    %(thumb)s, %(thumb_crop)s, NULL, 0, 3,
+                    %(thumb)s, %(thumb_crop)s, NULL, 0, 5,
                     %(moon_phase)s, %(moon_angle)s,
                     %(hfr)s, %(fwhm)s, %(hfr_sd)s, %(eccentricity)s, %(star_count)s, %(snr_weight)s, %(psf_signal)s,
                     %(background_mean)s, %(min_pixel)s, %(max_pixel)s, %(mean_pixel)s, %(median_pixel)s,
@@ -432,6 +463,8 @@ def main():
                     instrume=VALUES(instrume), cameraid=VALUES(cameraid), usblimit=VALUES(usblimit), fwheel=VALUES(fwheel), telescop=VALUES(telescop), focallen=VALUES(focallen), focratio=VALUES(focratio),
                     focname=VALUES(focname), focpos=VALUES(focpos), focussz=VALUES(focussz), foctemp=VALUES(foctemp),
                     ra=VALUES(ra), `dec`=VALUES(`dec`), centalt=VALUES(centalt), centaz=VALUES(centaz), airmass=VALUES(airmass), pierside=VALUES(pierside), objctrot=VALUES(objctrot),
+                    rotator_angle=VALUES(rotator_angle), rotator_name=VALUES(rotator_name), readoutm=VALUES(readoutm),
+                    cloudcvr=VALUES(cloudcvr), dewpoint=VALUES(dewpoint), humidity=VALUES(humidity), pressure=VALUES(pressure), ambtemp=VALUES(ambtemp),
                     siteelev=VALUES(siteelev), sitelat=VALUES(sitelat), sitelong=VALUES(sitelong),
                     swcreate=VALUES(swcreate), roworder=VALUES(roworder), equinox=VALUES(equinox),
                     thumb=COALESCE(VALUES(thumb), thumb),
@@ -463,6 +496,7 @@ def main():
 
                         params = result['params']
                         rel_path = result['path']
+                        suggest_metas.append(params)
                         
                         logger.debug(f"Adding '{rel_path}' to batch (current size: {len(batch_params)+1}).")
                         batch_params.append(params)
@@ -497,6 +531,13 @@ def main():
                     processed_count += len(batch_params)
         
         conn.commit()
+
+        # Project suggestions for freshly processed files (suggest/manual
+        # modes queue wizard rows; auto mode links directly; frozen skipped).
+        try:
+            suggest_projects_for_files(conn, suggest_metas)
+        except Exception as e:
+            logger.error(f"Project suggestion pass failed (indexing is unaffected): {e}")
 
         schema_upgraded_count = 0
         if schema_upgrade_tasks:

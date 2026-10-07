@@ -20,6 +20,22 @@
             border: 2px solid #1f2937;
         }
 
+        /* Calibration group headers: native marker hidden (it always renders
+           first), replaced by an identical arrow placed after the checkbox. */
+        details.cal-group > summary {
+            list-style: none;
+        }
+        details.cal-group > summary::-webkit-details-marker {
+            display: none;
+        }
+        details.cal-group > summary .cal-arrow {
+            display: inline-block;
+            transition: transform 0.15s ease-in-out;
+        }
+        details.cal-group[open] > summary .cal-arrow {
+            transform: rotate(90deg);
+        }
+
         #preview-overlay {
             position: fixed;
         }

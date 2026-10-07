@@ -88,6 +88,9 @@ function buildOrderClause(string $sortBy, string $sortOrder): string
         // New sortable columns
         'date_avg', 'swcreate', 'objctra', 'objctdec', 'cameraid', 'usblimit',
         'fwheel', 'focname', 'focussz', 'foctemp', 'objctrot', 'roworder', 'equinox', 'moon_phase',
+        // Frame context (rotator, readout mode, meteo)
+        'rotator_angle', 'rotator_name', 'readoutm',
+        'cloudcvr', 'dewpoint', 'humidity', 'pressure', 'ambtemp',
         // Star/quality metrics (advanced)
         'hfr', 'fwhm', 'hfr_sd', 'eccentricity', 'star_count', 'snr_weight', 'psf_signal',
         // Frame statistics (advanced)

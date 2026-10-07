@@ -56,7 +56,7 @@ $csrfToken = $_SESSION['csrf_token'];
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
     <meta name="description" content="Private astrophotography file manager - login">
-    <link href="/assets/css/output.css" rel="stylesheet">
+    <link href="/assets/css/output.css?v=<?= @filemtime(__DIR__ . '/assets/css/output.css') ?: 0 ?>" rel="stylesheet">
 </head>
 <body class="flex items-center justify-center min-h-screen bg-gray-900 text-gray-100 font-sans">
     <div class="w-full max-w-sm p-8 bg-gray-800 rounded-lg shadow-lg">

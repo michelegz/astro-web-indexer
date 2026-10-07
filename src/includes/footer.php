@@ -39,6 +39,20 @@
         sff_configure_and_run: <?php echo json_encode(__('sff_configure_and_run')); ?>,
 
         // Duplicates Modal
-        error_fetching_duplicates: <?php echo json_encode(__('error_fetching_duplicates')); ?>
+        error_fetching_duplicates: <?php echo json_encode(__('error_fetching_duplicates')); ?>,
+
+        // Add to project Modal
+        project_add_mixed: <?php echo json_encode(__('projects_add_mixed')); ?>,
+        project_add_setup_new: <?php echo json_encode(__('projects_add_setup_new')); ?>,
+        project_add_panel_new: <?php echo json_encode(__('projects_add_panel_new')); ?>,
+        project_add_force_setup: <?php echo json_encode(__('projects_add_force_setup')); ?>,
+        project_add_use_matched: <?php echo json_encode(__('projects_add_use_matched')); ?>,
+        project_add_analyzing: <?php echo json_encode(__('projects_add_analyzing')); ?>,
+        project_add_new_setup: <?php echo json_encode(__('projects_add_new_setup')); ?>,
+        project_add_new_setup_name: <?php echo json_encode(__('projects_add_new_setup_name')); ?>,
+        project_add_frozen: <?php echo json_encode(__('projects_add_frozen')); ?>,
+        projects_session: <?php echo json_encode(__('projects_session')); ?>,
+        projects_setup: <?php echo json_encode(__('projects_setup')); ?>,
+        projects_dup_levels: <?php echo json_encode(__('projects_dup_levels')); ?>
     };
 </script>

@@ -12,6 +12,75 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
         <?php echo __('download_selected') ?>
     </button>
     <?php endif; ?>
+    <button id="addToProjectBtn" class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50" disabled>
+        <?php echo __('projects_add_btn') ?>
+    </button>
+</div>
+
+<!-- Add to project modal (2 steps: destination -> preview -> confirm) -->
+<?php $projectList = isset($conn) ? getProjects($conn) : []; ?>
+<div id="projectModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60">
+    <div class="bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[85vh] overflow-y-auto">
+        <h3 class="text-lg font-semibold mb-4"><?php echo __('projects_add_title') ?></h3>
+
+        <!-- Outside the step containers on purpose: the confirm step is where
+             failures surface (main.js setProjectMsg), and inside #projectStep1 the
+             box was hidden by showProjectStep, so an error produced no visible
+             feedback at all. -->
+        <div id="projectAddMsg" class="hidden mb-4 p-3 rounded text-sm"></div>
+
+        <div id="projectStep1">
+            <label class="block text-sm text-gray-400 mb-3"><?php echo __('projects_select_project') ?>
+                <select id="projectSelect" class="mt-1 w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100">
+                    <?php foreach ($projectList as $pl): ?>
+                        <option value="<?= (int)$pl['id'] ?>"><?= htmlspecialchars($pl['name']) ?></option>
+                    <?php endforeach; ?>
+                    <option value="0"><?php echo __('projects_add_new_option') ?></option>
+                </select>
+            </label>
+            <div id="newProjectFields" class="hidden flex-col gap-3 mb-3">
+                <input type="text" id="newProjectName" maxlength="255"
+                       placeholder="<?php echo __('projects_add_new_name') ?>"
+                       class="px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100">
+                <textarea id="newProjectNotes" rows="2"
+                          placeholder="<?php echo __('projects_add_new_notes') ?>"
+                          class="px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100"></textarea>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button type="button" id="projectModalCancel" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg"><?php echo __('projects_add_cancel') ?></button>
+                <button type="button" id="projectModalAnalyze" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg"><?php echo __('projects_add_analyze') ?></button>
+            </div>
+        </div>
+
+        <div id="projectStep2" class="hidden">
+            <div id="projectFrozenBanner" class="hidden mb-4 p-3 rounded text-sm bg-red-900/50 border border-red-700 text-red-300"></div>
+            <div id="projectPreviewMixed" class="hidden mb-4 p-3 rounded text-sm bg-yellow-900/50 border border-yellow-700 text-yellow-300"></div>
+            <div id="projectPreviewGroups" class="flex flex-col gap-4 mb-4"></div>
+            <div id="projectPreviewSkipped" class="mb-4 text-sm text-gray-400"></div>
+            <div class="flex justify-end gap-2">
+                <button type="button" id="projectModalBack" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg"><?php echo __('projects_add_back') ?></button>
+                <button type="button" id="projectModalReviewTree" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg"><?php echo __('projects_add_review_tree') ?></button>
+            </div>
+        </div>
+
+        <div id="projectStep3" class="hidden">
+            <p class="text-sm text-gray-400 mb-3"><?php echo __('projects_add_tree_title') ?></p>
+            <div id="projectTreePreview" class="flex flex-col gap-2 mb-4 max-h-[50vh] overflow-y-auto"></div>
+            <div id="projectTreeSkipped" class="mb-4 text-sm text-gray-400"></div>
+            <div class="flex justify-end gap-2">
+                <button type="button" id="projectModalBack2" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg"><?php echo __('projects_add_back') ?></button>
+                <button type="button" id="projectModalConfirm" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg"><?php echo __('projects_add_confirm') ?></button>
+            </div>
+        </div>
+
+        <div id="projectStep4" class="hidden">
+            <div id="projectDoneMsg" class="mb-4 p-3 rounded text-sm bg-green-900/50 border border-green-700 text-green-300"></div>
+            <div class="flex justify-end gap-2">
+                <button type="button" id="projectModalClose" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg"><?php echo __('projects_add_close') ?></button>
+                <a id="projectGotoBtn" href="#" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg"><?php echo __('projects_add_goto_project') ?></a>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- View container -->
@@ -24,221 +93,14 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
         <thead class="bg-gray-700 text-gray-200">
     <tr>
         <th class="p-3 whitespace-nowrap"><input type="checkbox" id="selectAll" class="form-checkbox h-4 w-4 text-blue-600 rounded"></th>
-        <?php
-        // Base headers (always visible) + toggleable groups from the registry.
-        // Hidden columns are skipped server-side (see showCol()).
-        $headers = getBaseColumns();
-
-        foreach ($headers as $sortKey => [$labelKey, $isCalculated]) {
-            if (!showCol($sortKey)) continue;
-            render_header_with_tooltip($sortKey, $labelKey, $sortBy, $sortOrder, $isCalculated);
-        }
-
-        foreach (getColumnGroups() as $groupKey => $group) {
-            if ($groupKey === 'base') continue; // rendered above, in body order
-            if ($groupKey === 'star' && empty($visibleStarKeys ?? [])) continue;
-            if ($groupKey === 'frame' && empty($visibleFrameKeys ?? [])) continue;
-            if ($groupKey !== 'star' && $groupKey !== 'frame' && empty($visibleAdvKeys ?? [])) continue;
-            foreach ($group['columns'] as $sortKey => [$labelKey, $isCalculated]) {
-                if (!showCol($sortKey)) continue;
-                render_header_with_tooltip($sortKey, $labelKey, $sortBy, $sortOrder, $isCalculated);
-            }
-        }
-        ?>
+        <?php renderFileTableHeaders('main'); ?>
     </tr>
 </thead>
                 <tbody>
             <?php foreach ($files as $f): ?>
                         <tr data-id="<?= $f['id'] ?>" class="selectable-item border-b border-gray-700 hover:bg-gray-700">
                 <td class="p-3"><input type="checkbox" class="file-checkbox h-4 w-4 text-blue-600 rounded" value="<?= htmlspecialchars($f['path'] ?? '') ?>" data-id="<?= $f['id'] ?>"></td>
-                <?php if (showCol('preview')): ?>
-                <td class="p-3">
-                    <div class="thumb-wrapper relative inline-block align-middle" tabindex="0">
-                        <?php if ($f['thumb']): ?>
-                            <!-- The original thumb, its size is controlled by the slider's CSS rules -->
-                            <img src="/image.php?id=<?= $f['id'] ?>&type=thumb" 
-                                 alt="Preview" 
-                                 class="thumb h-auto rounded shadow-md object-cover">
-                            
-                            <?php if ($f['thumb_crop']): ?>
-                            <!-- The crop viewport: an overlay positioned absolutely on top of the thumb -->
-                            <div class="thumb-crop-viewport absolute top-0 left-0 w-full h-full rounded overflow-hidden opacity-0 transition-opacity duration-200 pointer-events-none bg-gray-900">
-                                 <img src="/image.php?id=<?= $f['id'] ?>&type=crop" 
-                                      alt="Crop Preview" 
-                                      class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-none h-auto w-auto">
-                            </div>
-                            <?php endif; ?>
-                        <?php else: ?>
-                            <div class="w-[150px] h-[150px] flex items-center justify-center bg-gray-900 rounded">
-                                <span class="text-gray-500 text-sm">N/A</span>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </td>
-                <?php endif; ?>
-                <td class="p-3">
-                    <a href="/fits/<?= rawurlencode($f['path']) ?>" download class="text-blue-400 hover:text-blue-300">
-                        <?= htmlspecialchars($f['name'] ?? '') ?>
-                    </a>
-                </td>
-                <?php if (showCol('visible_duplicate_count')): ?>
-                                <td class="p-3 text-center">
-                    <?php if (($f['total_duplicate_count'] ?? 1) > 1): ?>
-                        <?php 
-                            $visibleCount = $f['visible_duplicate_count'];
-                            $totalCount = $f['total_duplicate_count'];
-                            $badgeColor = ($visibleCount > 1) ? 'bg-yellow-600 text-yellow-100' : 'bg-gray-600 text-gray-100';
-                        ?>
-                        <span class="duplicate-badge cursor-pointer <?= $badgeColor ?> text-xs font-semibold px-2.5 py-0.5 rounded-full"
-                              data-hash="<?= htmlspecialchars($f['file_hash']) ?>"
-                              title="<?= sprintf(__('duplicates_tooltip'), $visibleCount, $totalCount) ?>">
-                            <?= $visibleCount ?> / <?= $totalCount ?>
-                        </span>
-                    <?php endif; ?>
-                </td>
-                <?php endif; ?>
-                <?php if (showCol('path')): ?><td class="p-3 text-sm text-gray-400 break-all"><?= htmlspecialchars(dirname($f['path'] ?? '')) ?></td><?php endif; ?>
-                <?php if (showCol('object')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['object'] ?? '') ?></td><?php endif; ?>
-                <?php if (showCol('date_obs')): ?>
-                <td class="p-3 text-sm text-gray-300">
-                    <span class="utc-date" data-timestamp="<?= !empty($f['date_obs']) ? strtotime($f['date_obs']) : '' ?>">
-                        <?= htmlspecialchars($f['date_obs'] ?? '') ?>
-                    </span>
-                </td>
-                <?php endif; ?>
-                <?php if (showCol('moon_phase')): ?>
-                <td class="p-3 text-xl text-center">
-                    <?= getMoonPhaseMarkup($f['moon_angle'] ?? null, $f['moon_phase'] ?? null) ?>
-                </td>
-                <?php endif; ?>
-                <?php if (showCol('exptime')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['exptime'] ?? '') ?>s</td><?php endif; ?>
-                <?php if (showCol('filter')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['filter'] ?? '') ?></td><?php endif; ?>
-                
-                <?php if (showCol('imgtype')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['imgtype'] ?? '') ?></td><?php endif; ?>
-                                
-                                <?php if (showCol('smart_frame_finder')): ?>
-                                <td class="p-3 whitespace-nowrap">
-                    <?php if (strtoupper($f['imgtype'] ?? '') === 'LIGHT'): ?>
-                        <div class="flex items-center gap-2">
-                            <span class="sff-button cursor-pointer font-mono text-xs bg-sky-800 hover:bg-sky-700 px-2 py-1 rounded" title="<?php echo __('sff_find_similar_lights'); ?>" data-file-id="<?= $f['id'] ?>" data-search-type="lights">L</span>
-                            <span class="sff-button cursor-pointer font-mono text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded" title="<?php echo __('sff_find_bias'); ?>" data-file-id="<?= $f['id'] ?>" data-search-type="bias">B</span>
-                            <span class="sff-button cursor-pointer font-mono text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded" title="<?php echo __('sff_find_darks'); ?>" data-file-id="<?= $f['id'] ?>" data-search-type="darks">D</span>
-                            <span class="sff-button cursor-pointer font-mono text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded" title="<?php echo __('sff_find_flats'); ?>" data-file-id="<?= $f['id'] ?>" data-search-type="flats">F</span>
-                        </div>
-                    <?php endif; ?>
-                </td>
-                <?php endif; ?>
-                <?php if (!empty($visibleStarKeys ?? [])): ?>
-                    <?php if (showCol('hfr')): ?><td class="p-3 text-sm text-gray-300 text-right whitespace-nowrap"><?= isset($f['hfr']) && $f['hfr'] !== '' ? number_format((float)$f['hfr'], 2) . ' px' : '' ?></td><?php endif; ?>
-                    <?php if (showCol('fwhm')): ?><td class="p-3 text-sm text-gray-300 text-right whitespace-nowrap"><?= isset($f['fwhm']) && $f['fwhm'] !== '' ? number_format((float)$f['fwhm'], 2) . '"' : '' ?></td><?php endif; ?>
-                    <?php if (showCol('hfr_sd')): ?><td class="p-3 text-sm text-gray-300 text-right whitespace-nowrap"><?= isset($f['hfr_sd']) && $f['hfr_sd'] !== '' ? number_format((float)$f['hfr_sd'], 2) . ' px' : '' ?></td><?php endif; ?>
-                    <?php if (showCol('eccentricity')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['eccentricity']) && $f['eccentricity'] !== '' ? number_format((float)$f['eccentricity'], 3) : '' ?></td><?php endif; ?>
-                    <?php if (showCol('star_count')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['star_count']) && $f['star_count'] !== '' ? (int)$f['star_count'] : '' ?></td><?php endif; ?>
-                    <?php if (showCol('snr_weight')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['snr_weight']) && $f['snr_weight'] !== '' ? number_format((float)$f['snr_weight'], 3) : '' ?></td><?php endif; ?>
-                    <?php if (showCol('psf_signal')): ?><td class="p-3 text-sm text-gray-300 text-right" title="<?= isset($f['psf_signal']) ? htmlspecialchars((string)$f['psf_signal']) : '' ?>"><?= isset($f['psf_signal']) && $f['psf_signal'] !== '' ? sprintf('%.6g', (float)$f['psf_signal']) : '' ?></td><?php endif; ?>
-                <?php endif; ?>
-                <?php if (!empty($visibleFrameKeys ?? [])): ?>
-                    <?php if (showCol('background_mean')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['background_mean']) && $f['background_mean'] !== '' ? number_format((float)$f['background_mean'], 1) : '' ?></td><?php endif; ?>
-                    <?php if (showCol('min_pixel')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['min_pixel']) && $f['min_pixel'] !== '' ? (int)$f['min_pixel'] : '' ?></td><?php endif; ?>
-                    <?php if (showCol('max_pixel')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['max_pixel']) && $f['max_pixel'] !== '' ? (int)$f['max_pixel'] : '' ?></td><?php endif; ?>
-                    <?php if (showCol('mean_pixel')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['mean_pixel']) && $f['mean_pixel'] !== '' ? number_format((float)$f['mean_pixel'], 1) : '' ?></td><?php endif; ?>
-                    <?php if (showCol('median_pixel')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['median_pixel']) && $f['median_pixel'] !== '' ? number_format((float)$f['median_pixel'], 1) : '' ?></td><?php endif; ?>
-                    <?php if (showCol('bit_depth')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['bit_depth']) && $f['bit_depth'] !== '' ? (int)$f['bit_depth'] : '' ?></td><?php endif; ?>
-                    <?php if (showCol('image_channels')): ?><td class="p-3 text-sm text-gray-300 text-right"><?= isset($f['image_channels']) && $f['image_channels'] !== '' ? (int)$f['image_channels'] : '' ?></td><?php endif; ?>
-                    <?php if (showCol('image_color_type')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['image_color_type'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('bayer_pattern')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['bayer_pattern'] ?? '') ?></td><?php endif; ?>
-                <?php endif; ?>
-                                <?php if (!empty($visibleAdvKeys ?? [])): ?>
-                    <!-- Sensor Data -->
-                    <?php if (showCol('xbinning')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['xbinning'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('ybinning')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ybinning'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('egain')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['egain'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('gain')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['gain'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('offset')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['offset'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('xpixsz')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['xpixsz'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('ypixsz')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ypixsz'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('set_temp')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['set_temp'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('ccd_temp')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ccd_temp'] ?? '') ?></td><?php endif; ?>
-                    
-                    <!-- Equipment Data -->
-                    <?php if (showCol('instrume')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['instrume'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('cameraid')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['cameraid'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('usblimit')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['usblimit'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('fwheel')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['fwheel'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('telescop')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['telescop'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('focallen')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['focallen'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('focratio')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['focratio'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('focname')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['focname'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('focpos')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['focpos'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('focussz')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['focussz'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('foctemp')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['foctemp'] ?? '') ?></td><?php endif; ?>
-
-                    <!-- Pointing & Position Data -->
-                    <?php if (showCol('ra')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['ra'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('dec')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['dec'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('centalt')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['centalt'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('centaz')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['centaz'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('airmass')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['airmass'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('pierside')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['pierside'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('objctrot')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['objctrot'] ?? '') ?></td><?php endif; ?>
-
-                    <!-- Observatory Site Data -->
-                    <?php if (showCol('siteelev')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['siteelev'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('sitelat')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['sitelat'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('sitelong')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['sitelong'] ?? '') ?></td><?php endif; ?>
-
-                    <!-- File Metadata -->
-                    <?php if (showCol('swcreate')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['swcreate'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('roworder')): ?><td class="p-3 text-gray-200"><?= htmlspecialchars($f['roworder'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('equinox')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['equinox'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('date_avg')): ?><td class="p-3 text-sm text-gray-300"><span class="utc-date" data-timestamp="<?= !empty($f['date_avg']) ? strtotime($f['date_avg']) : '' ?>"><?= htmlspecialchars($f['date_avg'] ?? '') ?></span></td><?php endif; ?>
-                    <?php if (showCol('objctra')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['objctra'] ?? '') ?></td><?php endif; ?>
-                    <?php if (showCol('objctdec')): ?><td class="p-3 text-sm text-gray-300"><?= htmlspecialchars($f['objctdec'] ?? '') ?></td><?php endif; ?>
-
-                    <?php if (showCol('width')): ?>
-                    <td class="p-3 text-sm text-gray-300">
-                        <?php if (!empty($f['width']) && !empty($f['height'])): ?>
-                            <?= htmlspecialchars($f['width']) ?>x<?= htmlspecialchars($f['height']) ?>
-                        <?php endif; ?>
-                    </td>
-                    <?php endif; ?>
-                    <?php if (showCol('resolution')): ?>
-                    <td class="p-3 text-sm text-gray-300">
-                        <?php if (!empty($f['resolution'])): ?>
-                            <?= number_format($f['resolution'], 2) ?>"/px
-                        <?php endif; ?>
-                    </td>
-                    <?php endif; ?>
-                    <?php if (showCol('fov_w')): ?>
-                                        <td class="p-3 text-sm text-gray-300">
-                        <?php if (!empty($f['fov_w']) && !empty($f['fov_h'])): 
-                            $fov_w_deg = $f['fov_w'] / 60;
-                            $fov_h_deg = $f['fov_h'] / 60;
-                        ?>
-                            <span title="<?= number_format($f['fov_w'], 1) ?>' x <?= number_format($f['fov_h'], 1) ?>'">
-                                <?= number_format($fov_w_deg, 2) ?>° x <?= number_format($fov_h_deg, 2) ?>°
-                            </span>
-                        <?php endif; ?>
-                    </td>
-                    <?php endif; ?>
-                    <?php if (showCol('file_size')): ?>
-                    <td class="p-3 text-sm text-gray-300 text-right">
-                        <?php if (!empty($f['file_size'])): ?>
-                            <?= number_format($f['file_size'] / (1024 * 1024), 2) ?> MB
-                        <?php endif; ?>
-                    </td>
-                    <?php endif; ?>
-                    <?php if (showCol('mtime')): ?>
-                    <td class="p-3 text-sm text-gray-300">
-                        <span class="utc-date" data-timestamp="<?= !empty($f['mtime']) ? (int)$f['mtime'] : '' ?>">
-                            <?= !empty($f['mtime']) ? date('Y-m-d H:i:s', (int)$f['mtime']) : '' ?>
-                        </span>
-                    </td>
-                    <?php endif; ?>
-                    <?php if (showCol('file_hash')): ?>
-                    <td class="p-3 text-sm text-gray-300 font-mono text-xs"><?= htmlspecialchars($f['file_hash'] ?? '') ?></td>
-                    <?php endif; ?>
-                <?php endif; ?>
+                <?php renderFileTableCells($f, 'main'); ?>
             </tr>
             <?php endforeach; ?>
                         <?php if (empty($files)): ?>
@@ -350,155 +212,6 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
         </div>
     </div>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const modal = document.getElementById('duplicatesModal');
-    const closeModalBtn = document.getElementById('closeModalBtn');
-    const container = document.getElementById('duplicatesContainer');
-    const referenceFileElement = document.getElementById('modalReferenceFile');
-    const hideBtn = document.getElementById('hideSelectedBtn');
-    const showBtn = document.getElementById('showSelectedBtn');
-    
-    let currentHash = null;
-    let referencePath = null;
-    
-    document.querySelectorAll('.duplicate-badge').forEach(badge => {
-        badge.addEventListener('click', function() {
-            currentHash = this.dataset.hash;
-            referencePath = this.closest('tr').querySelector('a').href.split('/fits/')[1];
-            referencePath = decodeURIComponent(referencePath);
-            
-            if (!currentHash) return;
-
-            container.innerHTML = `<p class="text-center p-4">${'<?php echo __('loading...') ?>'}</p>`;
-            modal.classList.remove('hidden');
-
-            fetch(`/api/get_duplicates.php?hash=${currentHash}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) throw new Error(data.error);
-                    renderDuplicatesTable(data);
-                })
-                .catch(error => {
-                    container.innerHTML = `<p class="text-red-500 p-4">${'<?php echo __('error_fetching_duplicates') ?>'}: ${error.message}</p>`;
-                });
-        });
-    });
-
-    function renderDuplicatesTable(files) {
-        referenceFileElement.innerHTML = `<strong><?php echo __('reference_file') ?>:</strong> ${escapeHTML(referencePath)}`;
-
-        // Move reference file to the top
-        files.sort((a, b) => (a.path === referencePath) ? -1 : (b.path === referencePath) ? 1 : 0);
-        
-        let tableHtml = `
-            <table class="w-full text-left text-sm">
-                <thead class="bg-gray-700 text-gray-200">
-                    <tr>
-                        <th class="p-2"><input type="checkbox" id="selectAllDuplicates" /></th>
-                        <th class="p-2"><?php echo __('file_name') ?></th>
-                        <th class="p-2"><?php echo __('path') ?></th>
-                        <th class="p-2"><?php echo __('hash') ?></th>
-                        <th class="p-2"><?php echo __('modification_time') ?></th>
-                    </tr>
-                </thead>
-                <tbody>`;
-
-        files.forEach(file => {
-            const isReference = file.path === referencePath;
-            const isHidden = file.is_hidden == 1;
-            const mtime = new Date(file.mtime * 1000).toLocaleString();
-            
-            tableHtml += `
-                <tr data-id="${file.id}" class="${isReference ? 'bg-gray-600' : ''} ${isHidden ? 'opacity-50 line-through' : ''}">
-                    <td class="p-2">
-                        <input type="checkbox" class="duplicate-checkbox" data-id="${file.id}" data-is-hidden="${isHidden ? '1' : '0'}" ${isReference ? 'disabled' : ''}>
-                    </td>
-                    <td class="p-2"><a href="/fits/${encodeURIComponent(file.path)}" download class="text-blue-400 hover:text-blue-300">${escapeHTML(file.name)}</a></td>
-                    <td class="p-2">${escapeHTML(file.path)}</td>
-                    <td class="p-2 font-mono text-xs">${escapeHTML(file.file_hash)}</td>
-                    <td class="p-2">${mtime}</td>
-                </tr>`;
-        });
-        
-        tableHtml += '</tbody></table>';
-        container.innerHTML = tableHtml;
-        updateButtonStates();
-    }
-
-    function updateButtonStates() {
-        const checkedVisible = container.querySelectorAll('.duplicate-checkbox:checked[data-is-hidden="0"]').length;
-        const checkedHidden = container.querySelectorAll('.duplicate-checkbox:checked[data-is-hidden="1"]').length;
-        
-        hideBtn.disabled = checkedVisible === 0;
-        showBtn.disabled = checkedHidden === 0;
-    }
-    
-    container.addEventListener('change', function(event) {
-        if (event.target.matches('.duplicate-checkbox') || event.target.id === 'selectAllDuplicates') {
-            if (event.target.id === 'selectAllDuplicates') {
-                const isChecked = event.target.checked;
-                container.querySelectorAll('.duplicate-checkbox:not(:disabled)').forEach(cb => cb.checked = isChecked);
-            }
-            updateButtonStates();
-        }
-    });
-
-    hideBtn.addEventListener('click', () => handleVisibilityChange('hide'));
-    showBtn.addEventListener('click', () => handleVisibilityChange('show'));
-
-    function handleVisibilityChange(action) {
-        const selector = (action === 'hide') ? '.duplicate-checkbox:checked[data-is-hidden="0"]' : '.duplicate-checkbox:checked[data-is-hidden="1"]';
-        const ids = Array.from(container.querySelectorAll(selector)).map(cb => parseInt(cb.dataset.id));
-
-        if (ids.length === 0) return;
-
-        fetch('/api/update_visibility.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ids: ids, action: action, hash: currentHash })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) throw new Error(data.error);
-            if (data.success) {
-                // Refresh modal content
-                fetch(`/api/get_duplicates.php?hash=${currentHash}`)
-                    .then(res => res.json())
-                    .then(renderDuplicatesTable);
-                
-                // Update badge on the main page
-                const badge = document.querySelector(`.duplicate-badge[data-hash="${currentHash}"]`);
-                if (badge) {
-                    const newCount = data.new_visible_count;
-                    if (newCount > 1) {
-                        badge.textContent = newCount;
-                    } else {
-                        badge.remove(); // Or hide it: badge.style.display = 'none';
-                    }
-                }
-
-                // Remove/add rows from the main table if they are visible
-                ids.forEach(id => {
-                    const mainRowSelector = `.file-checkbox[value*="${id}"]`; // This might need a better selector
-                    // This part is complex because we don't have a direct link from file ID to main table row.
-                    // A full page reload is simpler and more reliable.
-                });
-                // For simplicity and reliability, we'll just reload the page to reflect changes.
-                window.location.reload();
-            }
-        })
-        .catch(error => {
-            alert(`Error: ${error.message}`);
-        });
-    }
-
-    closeModalBtn.addEventListener('click', () => modal.classList.add('hidden'));
-    modal.addEventListener('click', e => (e.target === modal) && modal.classList.add('hidden'));
-    function escapeHTML(str) { /* ... same as before ... */ }
-});
-</script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const modal = document.getElementById('duplicatesModal');
@@ -689,29 +402,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<!-- Modal for AstroBin CSV Export -->
-<div id="astrobinModal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-50">
-    <div class="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-6xl transform transition-all">
-        <div class="flex justify-between items-center border-b border-gray-700 pb-3">
-            <h3 class="text-xl font-semibold text-white"><?php echo __('export_astrobin_csv') ?></h3>
-            <button id="closeAstrobinModalBtn" class="text-gray-400 hover:text-white text-2xl">&times;</button>
-        </div>
-        
-        <div class="mt-4">
-            <p class="text-sm text-gray-300 mb-4">
-                <?php echo __('astrobin_modal_explanation'); ?>
-            </p>
-            <p class="text-sm mb-2">
-                <span id="astrobinMappingWarningText" data-tmpl="<?= htmlspecialchars(__('filter_mapping_unmapped')) ?>" class="hidden text-yellow-300 font-semibold"><span aria-hidden="true">⚠️ </span><span id="astrobinMappingWarningMsg"></span></span>
-            </p>
-            <textarea id="astrobinCsvText" readonly class="w-full h-64 bg-gray-900 text-gray-300 font-mono text-sm p-3 rounded-md border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"></textarea>
-        </div>
-
-        <div class="flex justify-end gap-2 pt-4 border-t border-gray-700 mt-4">
-            <?php if (!isAuthEnabled() || isAdmin()): ?>
-                <a href="/filter_mapping.php" target="_blank" rel="noopener" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"><?php echo __('filter_mapping_manage'); ?></a>
-            <?php endif; ?>
-            <button id="copyAstrobinCsvBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"><?php echo __('copy_to_clipboard') ?></button>
-        </div>
-    </div>
-</div>
+<?php include __DIR__ . '/astrobin_modal.php'; ?>

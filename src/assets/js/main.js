@@ -5,6 +5,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const tableBody = document.querySelector('table tbody'); 
     const downloadSelectedBtn = document.getElementById('downloadSelectedBtn');
     const exportAstroBinBtn = document.getElementById('exportAstroBinBtn');
+    const addToProjectBtn = document.getElementById('addToProjectBtn');
+    const projectModal = document.getElementById('projectModal');
+    const projectModalCancel = document.getElementById('projectModalCancel');
+    const projectModalConfirm = document.getElementById('projectModalConfirm');
+    const projectSelect = document.getElementById('projectSelect');
+    const projectAddMsg = document.getElementById('projectAddMsg');
     const filtersForm = document.getElementById('filters-form');
 
     // --- MULTI-ROW SELECTION LOGIC ---
@@ -16,12 +22,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const listViewBtn = document.getElementById('list-view-btn');
     const thumbnailViewBtn = document.getElementById('thumbnail-view-btn');
     const thumbnailSizeSlider = document.getElementById('thumbnail-size-slider');
-
-    // --- MODAL ASTROBIN ---
-    const astrobinModal = document.getElementById('astrobinModal');
-    const closeAstrobinModalBtn = document.getElementById('closeAstrobinModalBtn');
-    const astrobinCsvText = document.getElementById('astrobinCsvText');
-    const copyAstrobinCsvBtn = document.getElementById('copyAstrobinCsvBtn');
 
     // --- VIEW MODE & SIZE ---
     function loadViewPreferences() {
@@ -137,12 +137,23 @@ document.addEventListener('DOMContentLoaded', () => {
         return document.querySelectorAll('.file-checkbox');
     }
     function getSelectedFiles() {
-        return Array.from(getFileCheckboxes()).filter(cb => cb.checked);
+        // List and thumbnail views render the same files twice (the hidden
+        // view stays in the DOM): dedupe by file id so every downstream flow
+        // (download, export, add-to-project) sees each file once.
+        const seen = new Set();
+        return Array.from(getFileCheckboxes()).filter(cb => {
+            if (!cb.checked) return false;
+            const id = cb.dataset.id;
+            if (seen.has(id)) return false;
+            seen.add(id);
+            return true;
+        });
     }
     function updateButtonStates() {
         const hasSelection = getSelectedFiles().length > 0;
         if (downloadSelectedBtn) downloadSelectedBtn.disabled = !hasSelection;
         if (exportAstroBinBtn) exportAstroBinBtn.disabled = !hasSelection;
+        if (addToProjectBtn) addToProjectBtn.disabled = !hasSelection;
     }
 
     // --- MENU MOBILE ---
@@ -156,6 +167,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 contentArea?.classList.add('md:ml-60');
             } else {
                 contentArea?.classList.remove('md:ml-60');
+            }
+        }
+    };
+
+    // --- PROJECTS PANEL (right side, symmetric to the folders menu) ---
+    window.toggleProjectsPanel = () => {
+        const panel = document.getElementById('projects-panel');
+        const isHidden = panel?.classList.toggle('translate-x-full');
+
+        if (window.innerWidth >= 768) { // md breakpoint
+            if (!isHidden) {
+                contentArea?.classList.add('md:mr-60');
+            } else {
+                contentArea?.classList.remove('md:mr-60');
             }
         }
     };
@@ -297,91 +322,393 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- EXPORT ASTROBIN ---
-    if (exportAstroBinBtn) {
-        exportAstroBinBtn.addEventListener('click', () => {
-            const selectedIds = getSelectedFiles().map(cb => cb.dataset.id);
-            if (selectedIds.length === 0) return;
-
-            const idsQueryString = selectedIds.join(',');
-            const exportUrl = `/api/export_astrobin_csv.php?ids=${idsQueryString}`;
-
-            // Show loading indicator
-            const originalText = exportAstroBinBtn.innerHTML;
-            exportAstroBinBtn.innerHTML = window.i18n?.loading || 'Loading...';
-            exportAstroBinBtn.disabled = true;
-
-            fetch(exportUrl)
-                .then(response => {
-                    if (!response.ok) throw new Error('Network response was not ok.');
-                    return response.text();
+    // --- ADD TO PROJECT (2 steps: destination -> preview -> confirm) ---
+    let projectPreview = null; // {ids, projectId, newProject, groups, skipped, setups, panels}
+    let projectModalIds = null; // explicit id list override (SFF modal); null = main table selection
+    const projectStep1 = document.getElementById('projectStep1');
+    const projectStep2 = document.getElementById('projectStep2');
+    const projectStep3 = document.getElementById('projectStep3');
+    const projectStep4 = document.getElementById('projectStep4');
+    const projectDoneMsg = document.getElementById('projectDoneMsg');
+    const projectGotoBtn = document.getElementById('projectGotoBtn');
+    const projectModalClose = document.getElementById('projectModalClose');
+    const projectModalReviewTree = document.getElementById('projectModalReviewTree');
+    const projectModalBack2 = document.getElementById('projectModalBack2');
+    const projectTreePreview = document.getElementById('projectTreePreview');
+    const projectTreeSkipped = document.getElementById('projectTreeSkipped');
+    const projectModalAnalyze = document.getElementById('projectModalAnalyze');
+    const projectModalBack = document.getElementById('projectModalBack');
+    const newProjectFields = document.getElementById('newProjectFields');
+    const newProjectName = document.getElementById('newProjectName');
+    const newProjectNotes = document.getElementById('newProjectNotes');
+    const previewMixed = document.getElementById('projectPreviewMixed');
+    const previewGroups = document.getElementById('projectPreviewGroups');
+    const previewSkipped = document.getElementById('projectPreviewSkipped');
+    function escHtml(s) {
+        const d = document.createElement('div');
+        d.textContent = s ?? '';
+        return d.innerHTML;
+    }
+    // escHtml escapes & < > only: textContent -> innerHTML leaves quotes intact,
+    // so it must never be interpolated into an attribute value.
+    function escAttr(s) {
+        return escHtml(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function showProjectStep(n) {
+        if (!projectStep1 || !projectStep2) return;
+        projectStep1.classList.toggle('hidden', n !== 1);
+        projectStep2.classList.toggle('hidden', n !== 2);
+        if (projectStep3) projectStep3.classList.toggle('hidden', n !== 3);
+        if (projectStep4) projectStep4.classList.toggle('hidden', n !== 4);
+        // Stale feedback does not survive a step change: setProjectMsg is only
+        // ever called from a catch handler, never right after a transition, so
+        // clearing here cannot swallow a fresh message.
+        if (projectAddMsg) {
+            projectAddMsg.textContent = '';
+            projectAddMsg.classList.add('hidden');
+        }
+    }
+    function setProjectMsg(text, ok) {
+        if (!projectAddMsg) return;
+        projectAddMsg.textContent = text;
+        projectAddMsg.classList.remove('hidden');
+        projectAddMsg.className = ok
+            ? 'mb-4 p-3 rounded text-sm bg-green-900/50 border border-green-700 text-green-300'
+            : 'mb-4 p-3 rounded text-sm bg-red-900/50 border border-red-700 text-red-300';
+    }
+    function openProjectModal(ids = null) {
+        if (!projectModal) return;
+        // Optional explicit id list (e.g. from the SFF modal); otherwise the
+        // main table selection is used at analyze time.
+        projectModalIds = Array.isArray(ids)
+            ? ids.map(id => parseInt(id, 10)).filter(id => Number.isInteger(id) && id > 0)
+            : null;
+        if (projectAddMsg) {
+            projectAddMsg.classList.add('hidden');
+            projectAddMsg.textContent = '';
+        }
+        showProjectStep(1);
+        projectPreview = null;
+        syncNewProjectFields();
+        projectModal.classList.remove('hidden');
+        projectModal.classList.add('flex');
+    }
+    // Entry point for other UI surfaces (SFF modal) reusing this same flow.
+    window.awiOpenProjectModal = openProjectModal;
+    function closeProjectModal() {
+        if (!projectModal) return;
+        projectModal.classList.add('hidden');
+        projectModal.classList.remove('flex');
+    }
+    function selectedFileIds() {
+        return getSelectedFiles()
+            .map(cb => parseInt(cb.dataset.id, 10))
+            .filter(id => Number.isInteger(id) && id > 0);
+    }
+    function projectChoice() {
+        const pid = projectSelect ? parseInt(projectSelect.value, 10) : 0;
+        if (pid > 0) return { projectId: pid, newProject: null };
+        const name = newProjectName ? newProjectName.value.trim() : '';
+        return { projectId: 0, newProject: { name, notes: newProjectNotes ? newProjectNotes.value.trim() : '' } };
+    }
+    function renderPreview(data) {
+        const t = window.i18n || {};
+        const frozenBanner = document.getElementById('projectFrozenBanner');
+        if (data.frozen && frozenBanner) {
+            frozenBanner.textContent = t.project_add_frozen || 'Project is frozen.';
+            frozenBanner.classList.remove('hidden');
+            if (projectModalConfirm) projectModalConfirm.classList.add('hidden');
+        } else {
+            if (frozenBanner) frozenBanner.classList.add('hidden');
+            if (projectModalConfirm) projectModalConfirm.classList.remove('hidden');
+        }
+        if (data.groups.length > 1 && previewMixed) {
+            previewMixed.textContent = (t.project_add_mixed || 'Mixed selection: {count}').replace('{count}', data.groups.length);
+            previewMixed.classList.remove('hidden');
+        } else if (previewMixed) {
+            previewMixed.classList.add('hidden');
+        }
+            const setupById = {};
+            (data.setups || []).forEach(s => { setupById[s.id] = s; });
+            const setupDisplay = (s) => (s.no !== null && s.no !== undefined ? 'S' + s.no + ': ' : '') + s.label;
+            const groupTitle = (g) => {
+                const m = setupById[g.setup_id];
+                return g.setup_new
+                    ? (t.project_add_setup_new || 'New setup') + ' — ' + (g.setup_label || g.fp.slice(0, 48))
+                    : (m ? setupDisplay(m) : (g.setup_label || g.fp.slice(0, 48)));
+            };
+            let html = '';
+            data.groups.forEach((g, gi) => {
+                const matched = setupById[g.setup_id];
+                const setupTitle = escHtml(groupTitle(g));
+                const setupFp = !g.setup_new && matched && matched.fingerprint
+                    ? `<div class="text-xs font-mono text-gray-500 mt-0.5">${escHtml(String(matched.fingerprint).split('|').join(' | '))}</div>` : '';
+                html += `<div class="border border-gray-700 rounded p-3"><div class="font-medium mb-1">⧉${gi + 1} ${setupTitle} <span class="text-xs text-gray-400">(${g.files.length})</span>${setupFp}</div>`;
+            // Override: only *other* setups are offered (the matched one would be a no-op duplicate),
+            // plus creating a brand-new custom setup (e.g. two identical rigs to keep separate).
+            // Always shown: even with no other setups, a custom one can be created.
+            {
+                const others = (data.setups || []).filter(s => s.id !== g.setup_id);
+                html += `<label class="block text-xs text-gray-400 mb-1">${escHtml(t.project_add_force_setup || 'Force into setup:')} <select data-group="${gi}" class="override-select mt-1 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100 text-xs"><option value="0">${escHtml(t.project_add_use_matched || 'As matched')}</option>`;
+                others.forEach(s => {
+                    html += `<option value="${s.id}">${escHtml(setupDisplay(s))}</option>`;
+                });
+                // Merge into another batch group: one-shot, resolved server-side
+                // by fingerprint (never persisted to setup_overrides).
+                data.groups.forEach((g2, gj) => {
+                    if (gj === gi) return;
+                    html += `<option value="groupfp:${escAttr(g2.fp)}">⤵ ${gj + 1} ${escHtml(groupTitle(g2))}</option>`;
+                });
+                html += `<option value="new">${escHtml(t.project_add_new_setup || '＋ New custom setup…')}</option>`;
+                html += `</select> <span class="merge-hint text-sky-300/80" data-mergehint="${gi}"></span></label><input type="text" data-groupname="${gi}" maxlength="64" placeholder="${escAttr(t.project_add_new_setup_name || 'Custom setup name')}" class="custom-setup-name hidden mt-1 mb-2 w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-gray-100 text-xs">`;
+            }
+            // File list without placement details (step 3 shows where they
+            // land): collapsible, header summarizes counts per subframe type.
+            const typeCounts = {};
+            (g.files || []).forEach(f => {
+                const k = ((f.imgtype || '?')[0] || '?').toUpperCase();
+                typeCounts[k] = (typeCounts[k] || 0) + 1;
+            });
+            const typeSummary = Object.keys(typeCounts).sort()
+                .map(k => `${k}:${typeCounts[k]}`).join(' ');
+            html += `<details class="mt-1"><summary class="cursor-pointer text-xs text-gray-400">${escHtml(typeSummary)}</summary>`;
+            html += '<ul class="text-xs text-gray-300 flex flex-col gap-1 mt-1">';
+            g.files.forEach(f => {
+                // Already linked elsewhere: still added, but flagged (⧉×n).
+                let dup = '';
+                if (f.dup && f.dup.length) {
+                    // f.dup carries raw FITS header text (FILTER/OBJECT), so this is an
+                    // attribute sink: a quote there would close title= and inject a handler.
+                    const tip = escAttr((t.projects_dup_levels || 'Linked in') + ': ' + f.dup.join(', '));
+                    dup = ` <span title="${tip}">⧉×${f.dup.length}</span>`;
+                }
+                const meta = [f.filter || '', f.night || ''].filter(Boolean).join(' · ');
+                html += `<li><span class="font-medium">${escHtml(f.name)}</span> <span class="text-gray-500">${escHtml(meta)}</span>${dup}</li>`;
+            });
+            html += '</ul></details></div>';
+        });
+        if (previewGroups) previewGroups.innerHTML = html;
+        if (previewSkipped) {
+            previewSkipped.textContent = (data.skipped || []).map(s => `${s.name}`).join(', ');
+            previewSkipped.style.display = (data.skipped || []).length ? '' : 'none';
+        }
+        refreshMergeHints();
+        showProjectStep(2);
+    }
+    if (addToProjectBtn) {
+        addToProjectBtn.addEventListener('click', () => {
+            if (getSelectedFiles().length === 0) return;
+            openProjectModal();
+        });
+    }
+    if (projectModalCancel) {
+        projectModalCancel.addEventListener('click', closeProjectModal);
+    }
+    if (projectModalClose) {
+        projectModalClose.addEventListener('click', closeProjectModal);
+    }
+    if (projectModal) {
+        projectModal.addEventListener('click', (e) => {
+            if (e.target === projectModal) closeProjectModal();
+        });
+    }
+    function syncNewProjectFields() {
+        if (!projectSelect || !newProjectFields) return;
+        // With zero existing projects the select is already on "new": sync
+        // on open too, not only on change (otherwise the name fields stay
+        // hidden and creation looks broken).
+        const isNew = parseInt(projectSelect.value, 10) === 0;
+        newProjectFields.classList.toggle('hidden', !isNew);
+        newProjectFields.classList.toggle('flex', isNew);
+    }
+    if (projectSelect && newProjectFields) {
+        projectSelect.addEventListener('change', syncNewProjectFields);
+    }
+    if (projectModalBack) {
+        projectModalBack.addEventListener('click', () => showProjectStep(1));
+    }
+    if (projectModalAnalyze) {
+        projectModalAnalyze.addEventListener('click', () => {
+            const ids = projectModalIds ?? selectedFileIds();
+            if (ids.length === 0) return;
+            const choice = projectChoice();
+            if (choice.projectId === 0 && !choice.newProject.name) {
+                if (newProjectName) newProjectName.focus();
+                return;
+            }
+            projectModalAnalyze.disabled = true;
+            if (!projectModalAnalyze.dataset.label) projectModalAnalyze.dataset.label = projectModalAnalyze.textContent;
+            projectModalAnalyze.textContent = (window.i18n || {}).project_add_analyzing || 'Analyzing…';
+            fetch('/api/project_preview.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ project_id: choice.projectId, ids }),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+                    projectPreview = { ids, ...choice, groups: data.groups || [], skipped: data.skipped || [], setups: data.setups || [], panels: data.panels || {} };
+                    renderPreview(projectPreview);
                 })
-                .then(csvText => {
-                    if (astrobinCsvText) astrobinCsvText.value = csvText;
-                    if (astrobinModal) astrobinModal.classList.remove('hidden');
-                    // Warn about FITS filters with no AstroBin ID mapping
-                    const warnTextReset = document.getElementById('astrobinMappingWarningText');
-                    if (warnTextReset) warnTextReset.classList.add('hidden');
-                    fetch(`/api/get_unmapped_filters.php?ids=${idsQueryString}`)
-                        .then(response => response.json())
-                        .then(data => {
-                            const warnText = document.getElementById('astrobinMappingWarningText');
-                            const warnMsg = document.getElementById('astrobinMappingWarningMsg');
-                            if (!warnText || !warnMsg) return;
-                            const list = (data && data.unmapped) || [];
-                            if (list.length === 0) return;
-                            const tmpl = warnText.dataset.tmpl || '{count} unmapped filters';
-                            warnMsg.textContent = tmpl.replace('{count}', list.length) + ' (' + list.join(', ') + ')';
-                            warnText.classList.remove('hidden');
-                        })
-                        .catch(() => { /* non-blocking: CSV is already shown */ });
+                .catch(err => setProjectMsg(err.message, false))
+                .finally(() => {
+                    projectModalAnalyze.disabled = false;
+                    projectModalAnalyze.textContent = document.getElementById('projectModalAnalyze')?.dataset.label || 'Analyze';
+                });
+        });
+    }
+    function refreshMergeHints() {
+        if (!projectPreview || !previewGroups) return;
+        const t = window.i18n || {};
+        const setupById = {};
+        (projectPreview.setups || []).forEach(s => { setupById[s.id] = s; });
+        const titleOf = (g) => {
+            const m = setupById[g.setup_id];
+            return g.setup_new
+                ? (t.project_add_setup_new || 'New setup') + ' — ' + (g.setup_label || g.fp.slice(0, 48))
+                : (m ? ((m.no !== null && m.no !== undefined ? 'S' + m.no + ': ' : '') + m.label) : (g.setup_label || g.fp.slice(0, 48)));
+        };
+        previewGroups.querySelectorAll('.override-select').forEach(sel => {
+            const hint = previewGroups.querySelector(`[data-mergehint="${sel.dataset.group}"]`);
+            if (!hint) return;
+            let text = '';
+            if (sel.value.startsWith('groupfp:')) {
+                const fp = sel.value.slice(8);
+                const tj = (projectPreview.groups || []).findIndex(g => g.fp === fp);
+                if (tj >= 0) text = '→ ⧉' + (tj + 1) + ' ' + titleOf(projectPreview.groups[tj]);
+            }
+            hint.textContent = text;
+        });
+    }
+    if (previewGroups) {
+        previewGroups.addEventListener('change', (e) => {
+            if (!e.target.classList.contains('override-select')) return;
+            const gi = e.target.dataset.group;
+            const nameInput = previewGroups.querySelector(`.custom-setup-name[data-groupname="${gi}"]`);
+            if (nameInput) {
+                nameInput.classList.toggle('hidden', e.target.value !== 'new');
+                if (e.target.value === 'new') nameInput.focus();
+            }
+            refreshMergeHints();
+        });
+    }
+    function collectProjectOverrides() {
+        const overrides = {};
+        let missingName = false;
+        document.querySelectorAll('.override-select').forEach(sel => {
+            const gi = parseInt(sel.dataset.group, 10);
+            const g = projectPreview.groups[gi];
+            if (!g) return;
+            if (sel.value === 'new') {
+                const nameInput = document.querySelector(`.custom-setup-name[data-groupname="${gi}"]`);
+                const name = (nameInput?.value || '').trim();
+                if (!name) {
+                    missingName = true;
+                    if (nameInput) nameInput.focus();
+                    return;
+                }
+                (g.files || []).forEach(f => { overrides[f.id] = 'new:' + name; });
+            } else if (sel.value.startsWith('groupfp:')) {
+                (g.files || []).forEach(f => { overrides[f.id] = sel.value; });
+            } else {
+                const sid = parseInt(sel.value, 10);
+                if (sid > 0) {
+                    (g.files || []).forEach(f => { overrides[f.id] = sid; });
+                }
+            }
+        });
+        return { overrides, missingName };
+    }
+    function projectTreePayload() {
+        const { overrides, missingName } = collectProjectOverrides();
+        if (missingName) return null;
+        const payload = { project_id: projectPreview.projectId, ids: projectPreview.ids, overrides };
+        if (projectPreview.projectId === 0 && projectPreview.newProject) {
+            payload.new_project = projectPreview.newProject;
+        }
+        return payload;
+    }
+    if (projectModalReviewTree) {
+        projectModalReviewTree.addEventListener('click', () => {
+            if (!projectPreview) return;
+            const payload = projectTreePayload();
+            if (!payload) return;
+            projectModalReviewTree.disabled = true;
+            fetch('/api/project_tree_preview.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+                    if (data.frozen) throw new Error((window.i18n || {}).project_add_frozen || 'Project is frozen.');
+                    if (projectTreePreview) projectTreePreview.innerHTML = data.html || '';
+                    if (projectTreeSkipped) {
+                        const skipped = (data.skipped || []).map(s => `${s.name} (${s.message})`).join(', ');
+                        projectTreeSkipped.textContent = skipped;
+                        projectTreeSkipped.style.display = skipped ? '' : 'none';
+                    }
+                    showProjectStep(3);
                 })
-                .catch(error => {
-                    alert((window.i18n?.error_fetching_csv_data || 'Error fetching CSV data:') + ' ' + error.message);
+                .catch(err => {
+                    if (projectTreePreview) projectTreePreview.innerHTML = `<p class="text-red-400">Error: ${escHtml(err.message)}</p>`;
+                    showProjectStep(3);
                 })
                 .finally(() => {
-                    // Restore button state
-                    exportAstroBinBtn.innerHTML = originalText;
-                    exportAstroBinBtn.disabled = false;
+                    projectModalReviewTree.disabled = false;
+                });
+        });
+    }
+    if (projectModalBack2) {
+        projectModalBack2.addEventListener('click', () => showProjectStep(2));
+    }
+    if (projectModalConfirm) {
+        projectModalConfirm.addEventListener('click', () => {
+            if (!projectPreview) return;
+            const { overrides, missingName } = collectProjectOverrides();
+            if (missingName) return;
+            const payload = { project_id: projectPreview.projectId, ids: projectPreview.ids, overrides };
+            if (projectPreview.projectId === 0 && projectPreview.newProject) {
+                payload.new_project = projectPreview.newProject;
+            }
+            projectModalConfirm.disabled = true;
+            fetch('/api/project_add.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+                    const skipped = (data.skipped || []).map(s => `${s.name} (${s.message})`).join('\n');
+                    let msg = data.message + (skipped ? `\n\nSkipped:\n${skipped}` : '');
+                    if (data.project_id && projectSelect && !Array.from(projectSelect.options).some(o => parseInt(o.value, 10) === data.project_id)) {
+                        const opt = document.createElement('option');
+                        opt.value = data.project_id;
+                        opt.textContent = projectPreview.newProject?.name || ('#' + data.project_id);
+                        projectSelect.appendChild(opt);
+                    }
+                    if (projectDoneMsg) projectDoneMsg.textContent = msg;
+                    if (projectGotoBtn && data.project_id) projectGotoBtn.href = '/projects.php?id=' + data.project_id;
+                    showProjectStep(4);
+                    projectPreview = null;
+                })
+                .catch(err => setProjectMsg(err.message, false))
+                .finally(() => {
+                    projectModalConfirm.disabled = false;
                 });
         });
     }
 
-    // --- ASTROBIN MODAL ACTIONS ---
-    if (closeAstrobinModalBtn && astrobinModal) {
-        closeAstrobinModalBtn.addEventListener('click', () => astrobinModal.classList.add('hidden'));
-    }
-    if (astrobinModal) {
-        astrobinModal.addEventListener('click', (e) => {
-            if (e.target === astrobinModal) {
-                astrobinModal.classList.add('hidden');
+    // --- EXPORT ASTROBIN (shared logic in astrobin_export.js) ---
+    if (exportAstroBinBtn) {
+        exportAstroBinBtn.addEventListener('click', () => {
+            const selectedIds = getSelectedFiles().map(cb => cb.dataset.id);
+            if (selectedIds.length === 0) return;
+            if (typeof window.awiExportAstroBin === 'function') {
+                window.awiExportAstroBin(selectedIds, exportAstroBinBtn);
             }
-        });
-    }
-    if (copyAstrobinCsvBtn && astrobinCsvText) {
-        copyAstrobinCsvBtn.addEventListener('click', () => {
-            // Prima controlla se l'API della clipboard è disponibile
-            if (!navigator.clipboard) {
-                alert((window.i18n?.copy_to_clipboard_failed || 'Failed to copy to clipboard.') + '\n' + 'This feature is only available on secure (HTTPS) sites.');
-                astrobinCsvText.select(); // Seleziona il testo per la copia manuale
-                return; // Interrompi l'esecuzione
-            }
-
-            navigator.clipboard.writeText(astrobinCsvText.value).then(() => {
-                const originalText = copyAstrobinCsvBtn.innerHTML;
-                copyAstrobinCsvBtn.innerHTML = window.i18n?.copied || 'Copied!';
-                copyAstrobinCsvBtn.classList.add('bg-green-600');
-                copyAstrobinCsvBtn.classList.remove('bg-blue-600');
-                
-                setTimeout(() => {
-                    copyAstrobinCsvBtn.innerHTML = originalText;
-                    copyAstrobinCsvBtn.classList.remove('bg-green-600');
-                    copyAstrobinCsvBtn.classList.add('bg-blue-600');
-                }, 2000);
-            }).catch(err => {
-                alert((window.i18n?.copy_to_clipboard_failed || 'Failed to copy to clipboard.') + '\n' + (window.i18n?.astrobin_modal_explanation || 'Please copy the text manually from the text area.'));
-                astrobinCsvText.select(); // Seleziona il testo per la copia manuale
-            });
         });
     }
 

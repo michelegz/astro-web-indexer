@@ -3,6 +3,7 @@
 ob_start();
 require_once '../includes/config.php';
 require_once '../includes/db_functions.php';
+require_once '../includes/http_json.php';
 require_once '../includes/language_functions.php';
 require_once '../includes/language.php';
 session_start();
@@ -38,17 +39,10 @@ function get_astro_session_date(?string $date_obs_str): string {
 // --- Main script ---
 header('Content-Type: text/csv; charset=utf-8');
 
-// 1. Get file IDs from GET parameter
-$ids_str = $_GET['ids'] ?? '';
-if (empty($ids_str)) {
-    // Return an empty but valid CSV if no IDs are provided
-    echo "date,filter,number,duration,binning,gain,sensorCooling,fNumber,darks,flats,flatDarks,bias\n";
-    exit;
-}
-
-$ids = array_filter(explode(',', $ids_str), 'is_numeric');
-
+// 1. Get file IDs: GET query string or JSON body (see awiReadFileIds()).
+$ids = awiReadFileIds();
 if (empty($ids)) {
+    // Return an empty but valid CSV if no IDs are provided
     echo "date,filter,number,duration,binning,gain,sensorCooling,fNumber,darks,flats,flatDarks,bias\n";
     exit;
 }
@@ -56,13 +50,30 @@ if (empty($ids)) {
 // 2. Fetch all data for the selected files
 try {
     $conn = connectDB();
-    $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    
+
+    // Directory permissions: this endpoint takes raw ids off the query string, so
+    // without the filter a user could request files under roots they cannot see and
+    // get their metadata back in the CSV — object name, date, exposure, filter,
+    // binning, gain, sensor temperature, f/ratio, FWHM. Same helper the file listing
+    // uses. Every placeholder is named because this filter adds named ones.
+    [$permSql, $permParams] = buildDirPermissionFilter('perm_dir');
+    $where = [];
+    $params = [];
+    foreach (array_values($ids) as $i => $id) {
+        $key = ':id' . $i;
+        $where[] = "id = {$key}";
+        $params[$key] = (int)$id;
+    }
+    if ($permSql !== null) {
+        $where[] = $permSql;
+        $params += $permParams;
+    }
+
     $stmt = $conn->prepare(
         "SELECT id, object, date_obs, exptime, filter, imgtype, xbinning, gain, ccd_temp, focratio, fwhm
-         FROM files WHERE id IN ($placeholders)"
+         FROM files WHERE " . implode(' AND ', $where)
     );
-    $stmt->execute($ids);
+    $stmt->execute($params);
     $files = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // Filter name -> AstroBin numeric ID map (matched case-insensitively).

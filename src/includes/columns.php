@@ -65,17 +65,23 @@ function getColumnGroups(): array
             'telescop' => ['telescop', false], 'focallen' => ['focallen', false],
             'focratio' => ['focratio', false], 'focname' => ['focname', false],
             'focpos' => ['focpos', false], 'focussz' => ['focussz', false],
-            'foctemp' => ['foctemp', false],
+            'foctemp' => ['foctemp', false], 'rotator_name' => ['rotator_name', false],
+            'readoutm' => ['readoutm', false],
         ]],
         'pointing' => ['label' => 'colgroup_pointing', 'columns' => [
             'ra' => ['ra', false], 'dec' => ['dec', false],
             'centalt' => ['centalt', false], 'centaz' => ['centaz', false],
             'airmass' => ['airmass', false], 'pierside' => ['pierside', false],
-            'objctrot' => ['objctrot', false],
+            'objctrot' => ['objctrot', false], 'rotator_angle' => ['rotator_angle', false],
         ]],
         'site' => ['label' => 'colgroup_site', 'columns' => [
             'siteelev' => ['siteelev', false], 'sitelat' => ['sitelat', false],
             'sitelong' => ['sitelong', false],
+        ]],
+        'meteo' => ['label' => 'colgroup_meteo', 'columns' => [
+            'cloudcvr' => ['cloudcvr', false], 'dewpoint' => ['dewpoint', false],
+            'humidity' => ['humidity', false], 'pressure' => ['pressure', false],
+            'ambtemp' => ['ambtemp', false],
         ]],
         'filemeta' => ['label' => 'colgroup_filemeta', 'columns' => [
             'swcreate' => ['swcreate', false], 'roworder' => ['roworder', false],
@@ -108,6 +114,40 @@ function getToggleableKeys(): array
 }
 
 /**
+ * Default visible columns for the project integration-group tables
+ * (scope 'project'). 'name' is always visible and needs no entry.
+ * This mirrors the old fixed igroup table plus the preview thumbnail.
+ */
+function getProjectsDefaultVisible(): array
+{
+    return ['preview', 'date_obs', 'hfr', 'fwhm', 'hfr_sd', 'eccentricity',
+        'star_count', 'snr_weight', 'psf_signal', 'ccd_temp'];
+}
+
+/**
+ * Resolve hidden columns for an arbitrary cookie scope.
+ * When the cookie is absent, everything outside $defaultVisible is hidden.
+ * Unknown keys in the cookie are ignored (intersect with $toggleable).
+ */
+function resolveHiddenColumnsForCookie(array $toggleable, string $cookieName, ?array $defaultVisible = null): array
+{
+    if ($cookieName === 'hiddenCols' && isset($_GET['show_advanced'])) {
+        return [];
+    }
+    if (isset($_COOKIE[$cookieName])) {
+        $raw = trim((string)$_COOKIE[$cookieName]);
+        if ($raw === '') {
+            return [];
+        }
+        return array_values(array_intersect(explode(',', $raw), $toggleable));
+    }
+    if ($defaultVisible === null) {
+        $defaultVisible = array_diff(array_keys(getBaseColumns()), ['name']);
+    }
+    return array_values(array_diff($toggleable, $defaultVisible));
+}
+
+/**
  * Resolve hidden columns: legacy ?show_advanced=1 forces everything visible
  * (old bookmarks); otherwise the `hiddenCols` cookie (CSV of sortKeys);
  * when the cookie is absent, hide everything except the base columns
@@ -115,18 +155,26 @@ function getToggleableKeys(): array
  */
 function resolveHiddenColumns(array $toggleable): array
 {
-    if (isset($_GET['show_advanced'])) {
-        return [];
+    return resolveHiddenColumnsForCookie($toggleable, 'hiddenCols');
+}
+
+/**
+ * Scope-aware visibility check. Scope 'main' uses $hiddenCols (cookie
+ * `hiddenCols`), scope 'project' uses $hiddenColsProjects (independent
+ * cookie `hiddenColsProjects` for the integration-group tables).
+ * The file name column has no checkbox and is always visible.
+ */
+function showColFor(string $sortKey, string $scope = 'main'): bool
+{
+    if ($sortKey === 'name') {
+        return true;
     }
-    if (isset($_COOKIE['hiddenCols'])) {
-        $raw = trim((string)$_COOKIE['hiddenCols']);
-        if ($raw === '') {
-            return [];
-        }
-        return array_values(array_intersect(explode(',', $raw), $toggleable));
+    if ($scope === 'project') {
+        global $hiddenColsProjects;
+        return !in_array($sortKey, $hiddenColsProjects ?? [], true);
     }
-    $baseKeys = array_diff(array_keys(getBaseColumns()), ['name']);
-    return array_values(array_diff($toggleable, $baseKeys));
+    global $hiddenCols;
+    return !in_array($sortKey, $hiddenCols ?? [], true);
 }
 
 /**
@@ -135,9 +183,5 @@ function resolveHiddenColumns(array $toggleable): array
  */
 function showCol(string $sortKey): bool
 {
-    if ($sortKey === 'name') {
-        return true;
-    }
-    global $hiddenCols;
-    return !in_array($sortKey, $hiddenCols ?? [], true);
+    return showColFor($sortKey, 'main');
 }

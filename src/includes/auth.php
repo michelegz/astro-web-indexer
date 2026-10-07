@@ -94,6 +94,32 @@ function canAccessPath(string $relativePath): bool
 }
 
 /**
+ * True when $fullPath is $realRoot itself or lies inside it.
+ *
+ * The separator is required in the prefix test. A bare str_starts_with($fullPath,
+ * $realRoot) also accepts a sibling directory whose name merely starts with the
+ * root, so with FITS_ROOT=/data/fits a path in /data/fits-archive passes.
+ *
+ * Both separators are checked because realpath() returns the native one on Windows
+ * while a configured root may carry the other.
+ */
+function isPathWithinRoot(string $fullPath, string $realRoot): bool
+{
+    $root = rtrim($realRoot, '/\\');
+    if ($root === '') {
+        // Degenerate root such as "/" or "\": compare verbatim.
+        return $fullPath === $realRoot
+            || str_starts_with($fullPath, '/')
+            || str_starts_with($fullPath, '\\');
+    }
+    if ($fullPath === $root) {
+        return true;
+    }
+    return str_starts_with($fullPath, $root . '/')
+        || str_starts_with($fullPath, $root . '\\');
+}
+
+/**
  * Attempt to log in a user. Returns true on success.
  */
 function attemptLogin(PDO $conn, string $username, string $password): bool
@@ -160,6 +186,11 @@ function requireAuthApi(): void
     if (!isAuthEnabled()) return;
 
     if (!isLoggedIn()) {
+        // awiJson when available so the failure path cannot itself emit an empty
+        // body; auth.php is loaded by pages that do not pull in the JSON helper.
+        if (function_exists('awiJson')) {
+            awiJson(['error' => 'Authentication required.'], 401);
+        }
         http_response_code(401);
         header('Content-Type: application/json');
         echo json_encode(['error' => 'Authentication required.']);

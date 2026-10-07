@@ -3,11 +3,20 @@ import time
 import sys
 import os
 import argparse
+import json
 import logging
 import subprocess
 import platform
 from pathlib import Path
 from watchdog.observers import Observer
+
+# Long-lived connection for the suggestion queue, plus the clock of the last
+# stale-running reset. Module level because the queue poll is called from the main
+# loop every second and must not rebuild either one per call.
+_suggest_conn = None
+_last_stale_reset = 0.0
+# The reset only matters after a worker crash, so once a minute is plenty.
+_STALE_RESET_EVERY = 60.0
 try:
     from watchdog.observers.polling import PollingObserver
 except ImportError:
@@ -61,7 +70,9 @@ class FitsHandler(FileSystemEventHandler):
         self.thumb_size = thumb_size
         self.pending_reindex = False
         self.last_reindex = 0
-        self.cooldown = 10  # Reduced cooldown
+        self.cooldown = 10  # Seconds after a successful reindex
+        self.cooldown_max = 300  # Ceiling for the backoff after repeated failures
+        self.reindex_failures = 0
         self.reindex_reason = "startup"
         self.rescan_interval = float(rescan_interval)
         self.last_scan = 0.0
@@ -137,6 +148,18 @@ class FitsHandler(FileSystemEventHandler):
             self._log_and_schedule(event.src_path, "file deletion")
 
     def scan_and_detect(self):
+        """Periodic safety net for the events inotify missed.
+
+        inotify can drop events when its queue overflows, and the observer only sees
+        what it is told: a file created while the queue was full stays invisible
+        forever, because nothing else walks the tree. This is that walk, rate limited
+        by self.rescan_interval so the main loop can call it every iteration.
+
+        It was dead code with the rescan plumbing fully wired behind it: --rescan-
+        interval was parsed, stored and used only here, so an operator setting
+        RESCAN_INTERVAL was told by the help text that deletions are detected
+        periodically and nothing was checking.
+        """
         now = time.time()
         if now - self.last_scan < self.rescan_interval:
             return
@@ -186,10 +209,136 @@ class FitsHandler(FileSystemEventHandler):
                 cmd.append("--debug")
             subprocess.run(cmd, check=True)
             logging.info("Reindexing completed successfully")
+            # Stamp the attempt either way. On failure pending_reindex stays True,
+            # so without this the next second re-launches the whole archive walk
+            # and DB scan: reindex.py exits non-zero exactly when the DB is down,
+            # which is when hammering it is worst.
             self.last_reindex = current_time
             self.pending_reindex = False
-        except subprocess.CalledProcessError as e:
-            logging.error(f"Error during reindexing: {e}")
+            self.reindex_failures = 0
+            self.cooldown = 10
+        except (subprocess.CalledProcessError, OSError, subprocess.TimeoutExpired) as e:
+            self.last_reindex = current_time
+            self.reindex_failures += 1
+            # Exponential backoff, capped: a persistent failure costs one attempt
+            # per window instead of one per second.
+            self.cooldown = min(self.cooldown_max, self.cooldown * 2)
+            logging.error(
+                f"Reindex failed ({self.reindex_failures} in a row, "
+                f"next attempt in {self.cooldown}s): {e}"
+            )
+
+
+def process_suggest_queue(db_params):
+    """Claim one pending re-suggest request and run its per-project backfill.
+
+    The web container only enqueues rows (see enqueueSuggestRequest in PHP):
+    this watcher owns execution. Runs are per-project and idempotent, so a
+    crash simply leaves the row for the stale-running reset below.
+    Returns True when a request was processed.
+
+    The connection is cached across calls: this runs about once a second for the
+    lifetime of the process, and opening and closing a connection each time meant a
+    full handshake per second (~86 400 a day) against a table that is usually empty.
+    A cached connection that goes bad is dropped once and reopened on the next call.
+    """
+    # Both module-level names are rebound below, so without this they would be local
+    # to the function and the first read would raise UnboundLocalError.
+    global _suggest_conn, _last_stale_reset
+    try:
+        import mysql.connector
+    except ImportError as e:
+        logging.error(f"Suggest queue skipped (mysql driver missing): {e}")
+        return False
+    try:
+        from indexer_lib.projects import suggest_projects_backfill
+    except ImportError as e:
+        logging.error(f"Suggest queue skipped (indexer_lib missing): {e}")
+        return False
+    conn = _suggest_conn
+    if conn is not None:
+        try:
+            conn.ping(reconnect=True, attempts=1, delay=0)
+        except Exception:
+            conn = None
+            _suggest_conn = None
+    if conn is None:
+        try:
+            conn = mysql.connector.connect(
+                host=db_params["host"], user=db_params["user"],
+                password=db_params["password"], database=db_params["database"],
+            )
+        except Exception as e:
+            logging.warning(f"Suggest queue skipped (db unreachable): {e}")
+            return False
+        _suggest_conn = conn
+    try:
+        cur = conn.cursor(dictionary=True)
+        # Rows stuck in running (worker crash) go back to pending after 30 min. Only
+        # relevant to a crash, so this runs at most once a minute: as a write on
+        # every one-second iteration it was a pointless UPDATE against a quiescent
+        # table, and it woke the redo log for nothing.
+        now = time.time()
+        if now - _last_stale_reset >= _STALE_RESET_EVERY:
+            try:
+                cur.execute(
+                    "UPDATE suggest_requests SET status = 'pending', started_at = NULL "
+                    "WHERE status = 'running' AND started_at < (NOW() - INTERVAL 30 MINUTE)"
+                )
+                conn.commit()
+            except Exception:
+                pass
+            _last_stale_reset = now
+        cur.execute(
+            "SELECT id, project_id FROM suggest_requests "
+            "WHERE status = 'pending' ORDER BY id ASC LIMIT 1"
+        )
+        row = cur.fetchone()
+        if row is None:
+            return False
+        req_id, project_id = row['id'], row['project_id']
+        cur.execute(
+            "UPDATE suggest_requests SET status = 'running', started_at = NOW() "
+            "WHERE id = %s AND status = 'pending'",
+            (req_id,),
+        )
+        conn.commit()
+        if cur.rowcount != 1:
+            return False
+        logging.info(f"Suggest backfill starting (request {req_id}, project {project_id})")
+        try:
+            counts = suggest_projects_backfill(conn, project_id)
+        except Exception as e:
+            logging.error(f"Suggest backfill failed (request {req_id}): {e}")
+            try:
+                cur.execute(
+                    "UPDATE suggest_requests SET status = 'error', finished_at = NOW(), "
+                    "result = %s WHERE id = %s",
+                    (json.dumps({'error': str(e)[:500]}), req_id),
+                )
+                conn.commit()
+            except Exception:
+                pass
+            return True
+        try:
+            cur.execute(
+                "UPDATE suggest_requests SET status = 'done', finished_at = NOW(), "
+                "result = %s WHERE id = %s",
+                (json.dumps(counts), req_id),
+            )
+            conn.commit()
+        except Exception as e:
+            logging.error(f"Suggest queue result write failed (request {req_id}): {e}")
+        logging.info(f"Suggest backfill done (request {req_id}, project {project_id}): {counts}")
+        return True
+    except Exception as e:
+        # Missing table (migrations not applied yet) is normal on fresh
+        # installs: stay quiet instead of spamming the log every second.
+        if 'suggest_requests' in str(e) and ('1146' in str(e) or "doesn't exist" in str(e)):
+            logging.debug("Suggest queue table missing, skipping.")
+        else:
+            logging.warning(f"Suggest queue check failed: {e}")
+        return False
 
 
 def main():
@@ -245,6 +394,16 @@ def main():
     try:
         while True:
             event_handler.check_and_reindex()
+            # Catches what inotify dropped. Self-throttled by rescan_interval, so
+            # calling it every iteration costs at most one walk per interval.
+            event_handler.scan_and_detect()
+            # Per-iteration guard: a failure in the queue poll or in the watcher
+            # must not take the whole monitor down. Previously only KeyboardInterrupt
+            # was handled, so a transient error ended the process silently.
+            try:
+                process_suggest_queue(db_params)
+            except Exception as e:
+                logging.error(f"Suggest queue error: {e}")
             time.sleep(1)
     except KeyboardInterrupt:
         observer.stop()

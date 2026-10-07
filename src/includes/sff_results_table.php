@@ -32,7 +32,7 @@ function render_sff_results_table(array $files): void
             ?>
                 <tr class="border-b border-gray-700 hover:bg-gray-600 <?= $rowClass ?>">
                     <td class="p-2">
-                        <input type="checkbox" class="sff-file-checkbox" value="<?= htmlspecialchars($file['path']) ?>">
+                        <input type="checkbox" class="sff-file-checkbox" value="<?= htmlspecialchars($file['path']) ?>" data-id="<?= (int)($file['id'] ?? 0) ?>">
                     </td>
                     <td class="p-2">
                         <?php if ($file['thumb']): ?>

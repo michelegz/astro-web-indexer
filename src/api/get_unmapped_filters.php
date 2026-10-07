@@ -4,6 +4,7 @@
 ob_start();
 require_once '../includes/config.php';
 require_once '../includes/db_functions.php';
+require_once '../includes/http_json.php';
 require_once '../includes/language_functions.php';
 require_once '../includes/language.php';
 session_start();
@@ -13,7 +14,7 @@ requireAuthApi();
 
 header('Content-Type: application/json; charset=utf-8');
 
-$ids = array_filter(explode(',', $_GET['ids'] ?? ''), 'is_numeric');
+$ids = awiReadFileIds();
 if (empty($ids)) {
     echo json_encode(['unmapped' => []]);
     exit;
@@ -21,13 +22,29 @@ if (empty($ids)) {
 
 try {
     $conn = connectDB();
-    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    // Directory permissions, the same helper the file listing and the CSV export use.
+    // This endpoint took raw ids off the query string with no filter at all, so a user
+    // restricted to one root could ask which filter names are unmapped in a directory
+    // they cannot see. It is a smaller leak than the CSV itself, which no longer has
+    // any, but it is the same class.
+    [$permSql, $permParams] = buildDirPermissionFilter('perm_dir');
+    $where = [];
+    $params = [];
+    foreach (array_values($ids) as $i => $id) {
+        $key = ':id' . $i;
+        $where[] = "id = {$key}";
+        $params[$key] = $id;
+    }
+    if ($permSql !== null) {
+        $where[] = $permSql;
+        $params += $permParams;
+    }
 
     $stmt = $conn->prepare(
         "SELECT DISTINCT filter FROM files
-         WHERE id IN ($placeholders) AND filter IS NOT NULL AND TRIM(filter) != ''"
+         WHERE " . implode(' AND ', $where) . " AND filter IS NOT NULL AND TRIM(filter) != ''"
     );
-    $stmt->execute(array_values($ids));
+    $stmt->execute($params);
     $names = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
     $mapped = [];

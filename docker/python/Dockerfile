@@ -27,5 +27,9 @@ COPY docker/python/indexer_lib ./indexer_lib/
 # Set the PATH to use the virtual environment's python
 ENV PATH="/opt/venv/bin:$PATH"
 
+# Unbuffered stdout/stderr: without a TTY Python block-buffers its output and
+# `docker logs` stays empty until the buffer fills. Applies to image builds.
+ENV PYTHONUNBUFFERED=1
+
 # Startup command
 CMD ["sh", "-c", "python reindex.py /var/fits && python watch_fs.py /var/fits"]

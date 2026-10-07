@@ -2,6 +2,7 @@
 require_once __DIR__ . '/includes/init.php';
 include __DIR__ . '/includes/header.php';
 include __DIR__ . '/includes/sidebar.php';
+include __DIR__ . '/includes/projects_panel.php';
 ?>
 
     <div class="flex flex-col md:flex-row min-h-screen">
@@ -35,6 +36,7 @@ $jsVersion = max(
 );
 ?>
 <script src="assets/js/main.js?v=<?= $jsVersion ?>"></script>
+<script src="assets/js/astrobin_export.js?v=<?= @filemtime(__DIR__ . '/assets/js/astrobin_export.js') ?: $jsVersion ?>"></script>
 <script src="assets/js/sff.js?v=<?= $jsVersion ?>"></script> <!-- Include the new SFF script -->
 
 </body>
