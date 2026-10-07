@@ -55,7 +55,17 @@ function render_sff_results_table(array $files): void
                     <td class="p-2 text-blue-400 hover:text-blue-300">
                         <a href="/fits/<?= rawurlencode($file['path']) ?>" download><?= htmlspecialchars($file['name']) ?></a>
                     </td>
-                    <td class="p-2 text-gray-300 whitespace-nowrap"><?= htmlspecialchars(substr($file['date_obs'], 0, 10)) ?></td>
+                    <?php // date_obs is guarded rather than cast. reindex.py stores
+                    // NULL when the DATE-OBS header cannot be parsed (reindex.py, the
+                    // `Unparsable DATE-OBS` branch), and substr(NULL, 0, 10) is deprecated
+                    // in PHP 8.1+. The notice is printed inside the output buffer, so the
+                    // JSON stayed valid but the diagnostic itself reached the browser:
+                    // sff.js:152 assigns this HTML to innerHTML, so the user saw
+                    // "Deprecated: substr(): Passing null..." in the panel, together with
+                    // the server's absolute path and this line number. The cells below
+                    // already print 'N/A' for a missing value, so this one does too. ?>
+                    <td class="p-2 text-gray-300 whitespace-nowrap"><?= !empty($file['date_obs'])
+                        ? htmlspecialchars(substr($file['date_obs'], 0, 10)) : 'N/A' ?></td>
                     <td class="p-2 text-gray-300"><?= isset($file['exptime']) ? htmlspecialchars((string)$file['exptime']) . 's' : 'N/A' ?></td>
                     <td class="p-2 text-gray-300"><?= isset($file['ccd_temp']) ? htmlspecialchars((string)$file['ccd_temp']) . '°' : 'N/A' ?></td>
                     <td class="p-2 text-gray-300"><?= isset($file['xbinning'], $file['ybinning']) ? htmlspecialchars($file['xbinning'] . 'x' . $file['ybinning']) : 'N/A' ?></td>
