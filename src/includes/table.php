@@ -3,8 +3,8 @@
 $viewMode = $_COOKIE['viewMode'] ?? 'list';
 $thumbSize = $_COOKIE['thumbSize'] ?? '3';
 ?>
-<div class="mb-4 flex flex-wrap items-center justify-end gap-2">
-    <div class="flex items-center gap-4 mr-auto">
+<div class="mb-4 flex flex-wrap items-center gap-2">
+    <div class="flex items-center gap-4">
         <div class="flex items-center bg-gray-700 rounded-lg">
             <button type="button" id="list-view-btn" class="flex items-center justify-center p-2 rounded-l-lg <?php echo $viewMode === 'list' ? 'bg-blue-600' : ''; ?> hover:bg-blue-700 transition-colors" title="<?php echo __('list_view') ?>">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -25,6 +25,7 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
             <span class="text-sm text-gray-400">L</span>
         </div>
     </div>
+    <div class="flex flex-wrap items-center gap-2 ml-auto">
     <button id="exportAstroBinBtn" class="bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50" disabled>
         <?php echo __('export_astrobin_csv') ?>
     </button>
@@ -39,6 +40,7 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
     <button type="button" id="columns-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded transition duration-200">
         <?php echo __('columns') ?>
     </button>
+    </div>
 </div>
 
 <?php include __DIR__ . '/pagination.php'; ?>
