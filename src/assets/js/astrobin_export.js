@@ -13,8 +13,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const list = (ids || []).map(v => parseInt(v, 10)).filter(id => Number.isInteger(id) && id > 0);
         if (list.length === 0 || !astrobinModal || !astrobinCsvText) return;
 
-        const idsQueryString = list.join(',');
-        const exportUrl = `/api/export_astrobin_csv.php?ids=${idsQueryString}`;
+        // POST, not GET: the ids went on the query string, and a table or project
+        // selection runs into thousands of them. A few digits each means tens of
+        // kilobytes on the request line, over the 8 KB the server accepts, so the
+        // export failed with 414 before any application code ran. Both endpoints
+        // still accept the GET form, so a hand-written URL keeps working.
+        const postJson = url => fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: list }),
+        });
 
         // Show loading indicator on the triggering button, if any
         const originalText = btn ? btn.innerHTML : null;
@@ -23,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.disabled = true;
         }
 
-        fetch(exportUrl)
+        postJson('/api/export_astrobin_csv.php')
             .then(response => {
                 if (!response.ok) throw new Error('Network response was not ok.');
                 return response.text();
@@ -34,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Warn about FITS filters with no AstroBin ID mapping
                 const warnTextReset = document.getElementById('astrobinMappingWarningText');
                 if (warnTextReset) warnTextReset.classList.add('hidden');
-                fetch(`/api/get_unmapped_filters.php?ids=${idsQueryString}`)
+                postJson('/api/get_unmapped_filters.php')
                     .then(response => response.json())
                     .then(data => {
                         const warnText = document.getElementById('astrobinMappingWarningText');

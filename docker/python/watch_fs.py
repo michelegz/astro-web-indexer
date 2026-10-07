@@ -9,6 +9,14 @@ import subprocess
 import platform
 from pathlib import Path
 from watchdog.observers import Observer
+
+# Long-lived connection for the suggestion queue, plus the clock of the last
+# stale-running reset. Module level because the queue poll is called from the main
+# loop every second and must not rebuild either one per call.
+_suggest_conn = None
+_last_stale_reset = 0.0
+# The reset only matters after a worker crash, so once a minute is plenty.
+_STALE_RESET_EVERY = 60.0
 try:
     from watchdog.observers.polling import PollingObserver
 except ImportError:
@@ -140,6 +148,18 @@ class FitsHandler(FileSystemEventHandler):
             self._log_and_schedule(event.src_path, "file deletion")
 
     def scan_and_detect(self):
+        """Periodic safety net for the events inotify missed.
+
+        inotify can drop events when its queue overflows, and the observer only sees
+        what it is told: a file created while the queue was full stays invisible
+        forever, because nothing else walks the tree. This is that walk, rate limited
+        by self.rescan_interval so the main loop can call it every iteration.
+
+        It was dead code with the rescan plumbing fully wired behind it: --rescan-
+        interval was parsed, stored and used only here, so an operator setting
+        RESCAN_INTERVAL was told by the help text that deletions are detected
+        periodically and nothing was checking.
+        """
         now = time.time()
         if now - self.last_scan < self.rescan_interval:
             return
@@ -216,7 +236,15 @@ def process_suggest_queue(db_params):
     this watcher owns execution. Runs are per-project and idempotent, so a
     crash simply leaves the row for the stale-running reset below.
     Returns True when a request was processed.
+
+    The connection is cached across calls: this runs about once a second for the
+    lifetime of the process, and opening and closing a connection each time meant a
+    full handshake per second (~86 400 a day) against a table that is usually empty.
+    A cached connection that goes bad is dropped once and reopened on the next call.
     """
+    # Both module-level names are rebound below, so without this they would be local
+    # to the function and the first read would raise UnboundLocalError.
+    global _suggest_conn, _last_stale_reset
     try:
         import mysql.connector
     except ImportError as e:
@@ -227,24 +255,40 @@ def process_suggest_queue(db_params):
     except ImportError as e:
         logging.error(f"Suggest queue skipped (indexer_lib missing): {e}")
         return False
-    try:
-        conn = mysql.connector.connect(
-            host=db_params["host"], user=db_params["user"],
-            password=db_params["password"], database=db_params["database"],
-        )
-    except Exception as e:
-        logging.warning(f"Suggest queue skipped (db unreachable): {e}")
-        return False
+    conn = _suggest_conn
+    if conn is not None:
+        try:
+            conn.ping(reconnect=True, attempts=1, delay=0)
+        except Exception:
+            conn = None
+            _suggest_conn = None
+    if conn is None:
+        try:
+            conn = mysql.connector.connect(
+                host=db_params["host"], user=db_params["user"],
+                password=db_params["password"], database=db_params["database"],
+            )
+        except Exception as e:
+            logging.warning(f"Suggest queue skipped (db unreachable): {e}")
+            return False
+        _suggest_conn = conn
     try:
         cur = conn.cursor(dictionary=True)
-        # Rows stuck in running (worker crash) go back to pending after 30 min.
-        try:
-            cur.execute(
-                "UPDATE suggest_requests SET status = 'pending', started_at = NULL "
-                "WHERE status = 'running' AND started_at < (NOW() - INTERVAL 30 MINUTE)"
-            )
-        except Exception:
-            pass
+        # Rows stuck in running (worker crash) go back to pending after 30 min. Only
+        # relevant to a crash, so this runs at most once a minute: as a write on
+        # every one-second iteration it was a pointless UPDATE against a quiescent
+        # table, and it woke the redo log for nothing.
+        now = time.time()
+        if now - _last_stale_reset >= _STALE_RESET_EVERY:
+            try:
+                cur.execute(
+                    "UPDATE suggest_requests SET status = 'pending', started_at = NULL "
+                    "WHERE status = 'running' AND started_at < (NOW() - INTERVAL 30 MINUTE)"
+                )
+                conn.commit()
+            except Exception:
+                pass
+            _last_stale_reset = now
         cur.execute(
             "SELECT id, project_id FROM suggest_requests "
             "WHERE status = 'pending' ORDER BY id ASC LIMIT 1"
@@ -295,11 +339,6 @@ def process_suggest_queue(db_params):
         else:
             logging.warning(f"Suggest queue check failed: {e}")
         return False
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
 
 
 def main():
@@ -355,6 +394,9 @@ def main():
     try:
         while True:
             event_handler.check_and_reindex()
+            # Catches what inotify dropped. Self-throttled by rescan_interval, so
+            # calling it every iteration costs at most one walk per interval.
+            event_handler.scan_and_detect()
             # Per-iteration guard: a failure in the queue poll or in the watcher
             # must not take the whole monitor down. Previously only KeyboardInterrupt
             # was handled, so a transient error ended the process silently.
