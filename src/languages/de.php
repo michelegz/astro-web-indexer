@@ -149,6 +149,9 @@ return [
 
     // Sternmetrik-Verlauf
     'metrics_trend' => 'Metrik-Verlauf',
+    'trend_chart_type' => 'Diagrammtyp',
+    'trend_lines' => 'Linien',
+    'trend_bars' => 'Balken',
     'metrics_trend_summary' => '{count} Light-Frames',
     'metrics_median' => 'Median',
     'filter_by_folder' => 'Nach Ordner filtern',

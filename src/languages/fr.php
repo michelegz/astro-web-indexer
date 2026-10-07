@@ -150,6 +150,9 @@ return [
 
     // Évolution des métriques stellaires
     'metrics_trend' => 'Évolution des métriques',
+    'trend_chart_type' => 'Type de graphique',
+    'trend_lines' => 'Lignes',
+    'trend_bars' => 'Barres',
     'metrics_trend_summary' => '{count} images LIGHT',
     'metrics_median' => 'Médiane',
     'filter_by_folder' => 'Filtrer par Dossier',

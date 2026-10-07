@@ -37,11 +37,12 @@ if ($hasTrendData):
 ?>
 <script src="assets/js/vendor/chart.umd.min.js"></script>
 <div class="bg-gray-800 rounded-lg shadow-md mb-6 overflow-hidden">
+    <div class="w-full flex flex-wrap items-center justify-between gap-2 p-4">
     <button type="button"
             id="trend-toggle"
             aria-expanded="false"
             aria-controls="trend-body"
-            class="w-full flex flex-wrap items-center justify-between gap-2 p-4 hover:bg-gray-700/50 transition-colors text-left">
+            class="flex-1 flex flex-wrap items-center justify-between gap-2 hover:bg-gray-700/50 transition-colors text-left rounded">
         <span class="flex items-center gap-2 font-semibold text-gray-100">
             <span aria-hidden="true">📈</span>
             <span><?php echo __('metrics_trend'); ?></span>
@@ -51,6 +52,11 @@ if ($hasTrendData):
         </span>
         <svg id="trend-chevron" class="w-5 h-5 text-gray-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
     </button>
+    <div class="flex items-center bg-gray-700 rounded-lg" role="group" aria-label="<?php echo __('trend_chart_type'); ?>">
+        <button type="button" id="trend-type-line" class="px-2 py-1 text-sm rounded-l-lg hover:bg-blue-700 transition-colors" title="<?php echo __('trend_lines'); ?>">📈</button>
+        <button type="button" id="trend-type-bar" class="px-2 py-1 text-sm rounded-r-lg hover:bg-blue-700 transition-colors" title="<?php echo __('trend_bars'); ?>">📊</button>
+    </div>
+    </div>
 
     <div id="trend-body" class="hidden border-t border-gray-700 p-4 flex flex-col gap-6">
         <?php foreach ($trendConfig as $i => $cfg): ?>
@@ -66,8 +72,27 @@ document.addEventListener('DOMContentLoaded', function() {
     var toggle = document.getElementById('trend-toggle');
     var body = document.getElementById('trend-body');
     var chevron = document.getElementById('trend-chevron');
+    var lineBtn = document.getElementById('trend-type-line');
+    var barBtn = document.getElementById('trend-type-bar');
     if (!toggle || !body) return;
+    var pointCount = <?= (int)count($starTrend) ?>;
+    // Bars under ~150 files, lines above (bars become unreadable slivers).
+    var chartType = localStorage.getItem('awiTrendType') || (pointCount <= 150 ? 'bar' : 'line');
     var chartsBuilt = false;
+    var trendCharts = [];
+    function refreshTypeButtons() {
+        if (lineBtn) lineBtn.classList.toggle('bg-blue-600', chartType === 'line');
+        if (barBtn) barBtn.classList.toggle('bg-blue-600', chartType === 'bar');
+    }
+    function setChartType(t) {
+        chartType = (t === 'bar') ? 'bar' : 'line';
+        try { localStorage.setItem('awiTrendType', chartType); } catch (e) { /* private mode */ }
+        refreshTypeButtons();
+        if (!body.classList.contains('hidden')) buildTrendCharts();
+    }
+    if (lineBtn) lineBtn.addEventListener('click', function() { setChartType('line'); });
+    if (barBtn) barBtn.addEventListener('click', function() { setChartType('bar'); });
+    refreshTypeButtons();
     toggle.addEventListener('click', function() {
         var isHidden = body.classList.toggle('hidden');
         toggle.setAttribute('aria-expanded', isHidden ? 'false' : 'true');
@@ -99,6 +124,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             return;
         }
+        trendCharts.forEach(function(c) { try { c.destroy(); } catch (e) {} });
+        trendCharts = [];
         var payload = <?= json_encode($trendPayload, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
         var medianLabel = <?= json_encode(__('metrics_median'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
         var gridColor = 'rgba(255,255,255,0.08)';
@@ -113,7 +140,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 data: s.values,
                 borderColor: s.color,
                 backgroundColor: s.color,
-                borderWidth: 1.5,
+                borderWidth: chartType === 'bar' ? 0 : 1.5,
                 pointRadius: 0,
                 pointHoverRadius: 5,
                 tension: 0,
@@ -122,6 +149,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (med !== null) {
                 datasets.push({
                     label: medianLabel + ' (' + fmtMedian(med) + ')',
+                    type: 'line',
                     data: new Array(s.values.length).fill(med),
                     borderColor: '#9ca3af',
                     borderWidth: 1.5,
@@ -132,8 +160,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     spanGaps: true
                 });
             }
-            new Chart(canvas, {
-                type: 'line',
+            trendCharts.push(new Chart(canvas, {
+                type: chartType,
                 data: {
                     labels: payload.labels.map(function(_, idx) { return idx + 1; }),
                     datasets: datasets
@@ -168,7 +196,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
                 }
-            });
+            }));
         });
     }
 });

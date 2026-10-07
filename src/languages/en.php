@@ -198,6 +198,9 @@ return [
 
     // Star metrics trend
     'metrics_trend' => 'Metrics trend',
+    'trend_chart_type' => 'Chart type',
+    'trend_lines' => 'Lines',
+    'trend_bars' => 'Bars',
     'metrics_trend_summary' => '{count} light frames',
     'metrics_median' => 'Median',
     'filter_by_folder' => 'Filtra by Folder',

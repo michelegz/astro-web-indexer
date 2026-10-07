@@ -150,6 +150,9 @@ return [
 
     // Evolución de métricas estelares
     'metrics_trend' => 'Evolución de métricas',
+    'trend_chart_type' => 'Tipo de gráfico',
+    'trend_lines' => 'Líneas',
+    'trend_bars' => 'Barras',
     'metrics_trend_summary' => '{count} fotogramas LIGHT',
     'metrics_median' => 'Mediana',
     'filter_by_folder' => 'Filtrar por Carpeta',
