@@ -287,7 +287,12 @@ def process_suggest_queue(db_params):
                 )
                 conn.commit()
             except Exception:
-                pass
+                # A failed statement leaves the transaction open on a connection that
+                # outlives this call, so release it before carrying on.
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
             _last_stale_reset = now
         cur.execute(
             "SELECT id, project_id FROM suggest_requests "
@@ -295,6 +300,14 @@ def process_suggest_queue(db_params):
         )
         row = cur.fetchone()
         if row is None:
+            # Nothing to claim. This is the path that runs once a second, and it returns
+            # without committing: whatever transaction was left open on the cached
+            # connection (a failed backfill write, for instance) would stay open for the
+            # next call, one second later, holding its snapshot and any row locks.
+            try:
+                conn.rollback()
+            except Exception:
+                pass
             return False
         req_id, project_id = row['id'], row['project_id']
         cur.execute(
@@ -332,6 +345,12 @@ def process_suggest_queue(db_params):
         logging.info(f"Suggest backfill done (request {req_id}, project {project_id}): {counts}")
         return True
     except Exception as e:
+        # Same reasoning as the empty-queue return: the connection is cached, so it must
+        # not carry this call's failed transaction into the next one.
+        try:
+            conn.rollback()
+        except Exception:
+            pass
         # Missing table (migrations not applied yet) is normal on fresh
         # installs: stay quiet instead of spamming the log every second.
         if 'suggest_requests' in str(e) and ('1146' in str(e) or "doesn't exist" in str(e)):
