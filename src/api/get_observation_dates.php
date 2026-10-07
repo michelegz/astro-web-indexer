@@ -15,8 +15,10 @@ try {
     $imgtype = $_GET['imgtype'] ?? '';
     $exptimeMin = (isset($_GET['exptime_min']) && is_numeric($_GET['exptime_min'])) ? (string)$_GET['exptime_min'] : '';
     $exptimeMax = (isset($_GET['exptime_max']) && is_numeric($_GET['exptime_max'])) ? (string)$_GET['exptime_max'] : '';
+    $instrume = $_GET['instrume'] ?? '';
+    $telescop = $_GET['telescop'] ?? '';
 
-    $dates = getObservationDateCounts($conn, $dir, $object, $filter, $imgtype, $exptimeMin, $exptimeMax);
+    $dates = getObservationDateCounts($conn, $dir, $object, $filter, $imgtype, $exptimeMin, $exptimeMax, $instrume, $telescop);
 
     echo json_encode(['dates' => $dates]);
 } catch (Exception $e) {

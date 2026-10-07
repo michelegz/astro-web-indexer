@@ -56,9 +56,9 @@ function getFolders(PDO $conn, string $currentDir): array
     return $folders;
 }
 
-function countFiles(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin = '', string $exptimeMax = ''): int
+function countFiles(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin = '', string $exptimeMax = '', string $instrume = '', string $telescop = ''): int
 {
-    list($sql, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
+    list($sql, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax, $instrume, $telescop);
     
     $countSql = "SELECT COUNT(*) as cnt FROM files WHERE " . implode(' AND ', $sql);
 
@@ -109,11 +109,11 @@ function buildOrderClause(string $sortBy, string $sortOrder): string
     return $orderClause;
 }
 
-function getFiles(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin, string $exptimeMax, int $perPage, int $offset, string $sortBy, string $sortOrder): array
+function getFiles(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin, string $exptimeMax, int $perPage, int $offset, string $sortBy, string $sortOrder, string $instrume = '', string $telescop = ''): array
 {
     $orderClause = buildOrderClause($sortBy, $sortOrder);
 
-    list($sqlConditions, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
+    list($sqlConditions, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax, $instrume, $telescop);
 
     // When directory permissions are active, compute permission-aware duplicate counts
     // via correlated subqueries so the badge only reflects accessible files.
@@ -158,13 +158,13 @@ function getFiles(PDO $conn, string $dir, string $object, string $filter, string
  * Get distinct values for a column, applying already selected filters.
  * This makes filter dropdowns dynamic and interdependent.
  */
-function getDistinctValues(PDO $conn, string $column, string $dir, string $currentObject, string $currentFilter, string $currentImgtype): array
+function getDistinctValues(PDO $conn, string $column, string $dir, string $currentObject, string $currentFilter, string $currentImgtype, string $currentInstrume = '', string $currentTelescop = ''): array
 {
     $values = [];
     $dirPattern = $dir === '' ? '%' : $dir . '/%';
-    
+
     // Validazione della colonna per prevenire SQL injection
-    $allowedColumns = ['object', 'filter', 'imgtype'];
+    $allowedColumns = ['object', 'filter', 'imgtype', 'instrume', 'telescop'];
     if (!in_array($column, $allowedColumns)) {
         throw new InvalidArgumentException('Invalid column name');
     }
@@ -182,18 +182,22 @@ function getDistinctValues(PDO $conn, string $column, string $dir, string $curre
     if ($column !== 'object' && $currentObject !== '') $sql .= " AND object = :object";
     if ($column !== 'filter' && $currentFilter !== '') $sql .= " AND filter = :filter";
     if ($column !== 'imgtype' && $currentImgtype !== '') $sql .= " AND imgtype = :imgtype";
-    
+    if ($column !== 'instrume' && $currentInstrume !== '') $sql .= " AND instrume = :instrume";
+    if ($column !== 'telescop' && $currentTelescop !== '') $sql .= " AND telescop = :telescop";
+
     $sql .= " AND " . $column . " IS NOT NULL AND " . $column . " != '' ORDER BY " . $column;
-    
+
     $stmt = $conn->prepare($sql);
     $stmt->bindValue(':dir_pattern', $dirPattern, PDO::PARAM_STR);
     foreach ($permParams as $key => $value) {
         $stmt->bindValue($key, $value, PDO::PARAM_STR);
     }
-    
+
     if ($column !== 'object' && $currentObject !== '') $stmt->bindValue(':object', $currentObject, PDO::PARAM_STR);
     if ($column !== 'filter' && $currentFilter !== '') $stmt->bindValue(':filter', $currentFilter, PDO::PARAM_STR);
     if ($column !== 'imgtype' && $currentImgtype !== '') $stmt->bindValue(':imgtype', $currentImgtype, PDO::PARAM_STR);
+    if ($column !== 'instrume' && $currentInstrume !== '') $stmt->bindValue(':instrume', $currentInstrume, PDO::PARAM_STR);
+    if ($column !== 'telescop' && $currentTelescop !== '') $stmt->bindValue(':telescop', $currentTelescop, PDO::PARAM_STR);
 
     $stmt->execute();
     while ($r = $stmt->fetch()) {
@@ -202,9 +206,9 @@ function getDistinctValues(PDO $conn, string $column, string $dir, string $curre
     return $values;
 }
 
-function sumExposureTime(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin = '', string $exptimeMax = ''): float
+function sumExposureTime(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin = '', string $exptimeMax = '', string $instrume = '', string $telescop = ''): float
 {
-    list($sql, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
+    list($sql, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax, $instrume, $telescop);
     
     $sumSql = "SELECT SUM(exptime) as total_exposure FROM files WHERE " . implode(' AND ', $sql);
 
@@ -225,9 +229,9 @@ function sumExposureTime(PDO $conn, string $dir, string $object, string $filter,
  *
  * @return array List of ['filter_name' => string, 'cnt' => int, 'total' => float]
  */
-function getExposureStatsByFilter(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin = '', string $exptimeMax = ''): array
+function getExposureStatsByFilter(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin = '', string $exptimeMax = '', string $instrume = '', string $telescop = ''): array
 {
-    list($sql, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
+    list($sql, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax, $instrume, $telescop);
 
     $statsSql = "SELECT filter AS filter_name, COUNT(*) as cnt, COALESCE(SUM(exptime), 0) as total "
         . "FROM files WHERE " . implode(' AND ', $sql)
@@ -258,9 +262,9 @@ function getExposureStatsByFilter(PDO $conn, string $dir, string $object, string
  *
  * @return array List of ['name' => string, 'hfr' => ?float, ...]
  */
-function getStarTrend(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin, string $exptimeMax, string $sortBy, string $sortOrder, int $limit = 10000): array
+function getStarTrend(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin, string $exptimeMax, string $sortBy, string $sortOrder, int $limit = 10000, string $instrume = '', string $telescop = ''): array
 {
-    list($sql, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
+    list($sql, $params) = buildQueryParts($dir, $object, $filter, $imgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax, $instrume, $telescop);
     $orderClause = buildOrderClause($sortBy, $sortOrder);
 
     $trendSql = "SELECT name, hfr, fwhm, hfr_sd, eccentricity, star_count, snr_weight, psf_signal "
@@ -346,9 +350,9 @@ function formatForDatetimeInput(string $value, bool $isEnd): string
  *
  * @return array Map of 'YYYY-MM-DD' => file count.
  */
-function getObservationDateCounts(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $exptimeMin = '', string $exptimeMax = ''): array
+function getObservationDateCounts(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $exptimeMin = '', string $exptimeMax = '', string $instrume = '', string $telescop = ''): array
 {
-    list($sql, $params) = buildQueryParts($dir, $object, $filter, $imgtype, '', '', $exptimeMin, $exptimeMax);
+    list($sql, $params) = buildQueryParts($dir, $object, $filter, $imgtype, '', '', $exptimeMin, $exptimeMax, $instrume, $telescop);
     $sql[] = "date_obs IS NOT NULL";
 
     $datesSql = "SELECT DATE(date_obs) AS d, COUNT(*) AS cnt FROM files WHERE "
@@ -369,7 +373,7 @@ function getObservationDateCounts(PDO $conn, string $dir, string $object, string
     return $out;
 }
 
-function buildQueryParts(string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin = '', string $exptimeMax = ''): array
+function buildQueryParts(string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin = '', string $exptimeMax = '', string $instrume = '', string $telescop = ''): array
 {
     $sql = [
         "is_hidden = 0",
@@ -398,6 +402,14 @@ function buildQueryParts(string $dir, string $object, string $filter, string $im
     if ($imgtype !== '') {
         $sql[] = "imgtype = :imgtype";
         $params[':imgtype'] = $imgtype;
+    }
+    if ($instrume !== '') {
+        $sql[] = "instrume = :instrume";
+        $params[':instrume'] = $instrume;
+    }
+    if ($telescop !== '') {
+        $sql[] = "telescop = :telescop";
+        $params[':telescop'] = $telescop;
     }
     $normFrom = normalizeDateObsBound($dateObsFrom, false);
     if ($normFrom !== null) {

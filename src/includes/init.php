@@ -31,6 +31,8 @@ $dir = $_GET['dir'] ?? '';
 $filterObject = $_GET['object'] ?? '';
 $filterFilter = $_GET['filter'] ?? '';
 $filterImgtype = $_GET['imgtype'] ?? '';
+$filterInstrume = $_GET['instrume'] ?? '';
+$filterTelescop = $_GET['telescop'] ?? '';
 $dateObsFrom = $_GET['date_obs_from'] ?? '';
 $dateObsTo = $_GET['date_obs_to'] ?? '';
 $exptimeMin = (isset($_GET['exptime_min']) && is_numeric($_GET['exptime_min'])) ? (string)$_GET['exptime_min'] : '';
@@ -77,18 +79,18 @@ $conn = connectDB();
 $folders = getAllFoldersAsTree($conn);
 
 // Count total files for pagination
-$totalRecords = countFiles($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
-$totalExposure = sumExposureTime($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
+$totalRecords = countFiles($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax, $filterInstrume, $filterTelescop);
+$totalExposure = sumExposureTime($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax, $filterInstrume, $filterTelescop);
 // Exposure breakdown per filter on the currently filtered image set
-$filterStats = getExposureStatsByFilter($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
+$filterStats = getExposureStatsByFilter($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax, $filterInstrume, $filterTelescop);
 // Per-file star metrics for the trend chart (same filters + table ordering)
 $starTrend = [];
 if ($showStarMetrics) {
-    $starTrend = getStarTrend($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax, $sortBy, $sortOrder, 10000);
+    $starTrend = getStarTrend($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax, $sortBy, $sortOrder, 10000, $filterInstrume, $filterTelescop);
 }
 // LIGHT frames in the current filter set (trend card header)
-$lightRecords = countFiles($conn, $dir, $filterObject, $filterFilter, 'LIGHT', $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
+$lightRecords = countFiles($conn, $dir, $filterObject, $filterFilter, 'LIGHT', $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax, $filterInstrume, $filterTelescop);
 $totalPages = max(1, ceil($totalRecords / $perPage));
 
 // Query for files with filters, LIMIT and sorting
-$files = getFiles($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax, $perPage, ($page - 1) * $perPage, $sortBy, $sortOrder);
+$files = getFiles($conn, $dir, $filterObject, $filterFilter, $filterImgtype, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax, $perPage, ($page - 1) * $perPage, $sortBy, $sortOrder, $filterInstrume, $filterTelescop);

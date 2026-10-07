@@ -14,6 +14,8 @@ return [
     'all_objects' => 'All objects',
     'all_filters' => 'All filters',
     'all_types' => 'All types',
+    'all_instruments' => 'All instruments',
+    'all_telescopes' => 'All telescopes',
     'filters' => 'Search filters',
     'hscroll_hint' => 'Shift + wheel: horizontal scroll',
     'filter_not_in_folder' => 'not in this folder',
