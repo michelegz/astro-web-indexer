@@ -28,6 +28,20 @@ $originalUri = $_SERVER['HTTP_X_ORIGINAL_URI'] ?? '';
 $relativePath = urldecode(preg_replace('#^/fits/#', '', $originalUri));
 $relativePath = rtrim($relativePath, '/');
 
+// X-Original-URI is $request_uri, the raw request line: still percent-encoded and not
+// path-normalised. Decoding it produced a path whose first segment could disagree with the
+// one nginx actually resolved. Asking for /fits/M33%2F..%2FNGC7000%2F<file> decoded here
+// to "M33/../NGC7000/<file>", whose first segment is M33, so the permission check passed
+// while the file served came from NGC7000: any user granted a single directory could read
+// the whole archive. Refuse any traversal segment, so the segment the check reads is the
+// segment that gets served.
+foreach (preg_split('#[/\\\\]#', $relativePath) as $segment) {
+    if ($segment === '.' || $segment === '..') {
+        http_response_code(403);
+        exit;
+    }
+}
+
 // Empty path = root listing: only allow if user has full access
 if ($relativePath === '') {
     http_response_code(getAllowedDirs() === null ? 200 : 403);
