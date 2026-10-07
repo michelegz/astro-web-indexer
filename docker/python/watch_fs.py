@@ -30,7 +30,7 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
-VALID_EXTS = {".fits", ".fit", ".xisf"}
+VALID_EXTS = {".fits", ".fit", ".fz", ".xisf"}
 
 # Filesystems that do not propagate inotify events (network/virtualized mounts).
 # Docker Desktop on Windows exposes bind mounts via fuse.grpcfuse (gRPC-FUSE), 9p, or

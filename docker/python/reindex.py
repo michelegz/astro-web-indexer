@@ -18,7 +18,7 @@ import multiprocessing
 # Corrected imports for the new structure
 from indexer_lib.image_processing import make_thumbnail, make_crop_preview, frame_statistics
 from indexer_lib.star_analysis import analyze_frame
-from indexer_lib.file_utils import calculate_hash, get_header_value, get_xisf_header_value
+from indexer_lib.file_utils import calculate_hash, get_header_value, get_xisf_header_value, pick_image_hdu
 from indexer_lib.db_utils import soft_delete_missing_files, purge_deleted_files, update_duplicate_counts
 from indexer_lib.ephemeris import get_moon_ephemeris
 from indexer_lib.schema_upgrade import SCHEMA_VERSION_FIELDS, schema_upgrade_worker
@@ -106,10 +106,9 @@ def process_file_worker(full_path, fits_root, thumb_size, star_metrics=True, wit
             
         header, data, get_value = {}, None, None
 
-        if file_lower.endswith(('.fits', '.fit')):
+        if file_lower.endswith(('.fits', '.fit', '.fz')):
             with fits.open(full_path, ignore_missing_end=True) as hdul:
-                header = hdul[0].header
-                data = hdul[0].data
+                header, data = pick_image_hdu(hdul)
                 get_value = get_header_value
         elif file_lower.endswith('.xisf'):
             xisf_file = XISF(full_path)
@@ -351,7 +350,7 @@ def main():
         for root, dirs, files in os.walk(fits_root):
             for file in files:
                 file_lower = file.lower()
-                if not file_lower.endswith(('.fits', '.fit', '.xisf')):
+                if not file_lower.endswith(('.fits', '.fit', '.fz', '.xisf')):
                     continue
 
                 full_path = os.path.join(root, file)

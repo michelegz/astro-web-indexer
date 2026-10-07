@@ -22,7 +22,7 @@ import logging
 from astropy.io import fits
 from xisf import XISF
 
-from indexer_lib.file_utils import get_header_value, get_xisf_header_value
+from indexer_lib.file_utils import get_header_value, get_xisf_header_value, pick_image_hdu
 
 logger = logging.getLogger('reindex')
 
@@ -71,9 +71,9 @@ def schema_upgrade_worker(task, fits_root):
 
         header = None
         get_value = None
-        if file_lower.endswith(('.fits', '.fit')):
+        if file_lower.endswith(('.fits', '.fit', '.fz')):
             with fits.open(full_path, ignore_missing_end=True) as hdul:
-                header = hdul[0].header
+                header, _ = pick_image_hdu(hdul)
                 get_value = get_header_value
         elif file_lower.endswith('.xisf'):
             xisf_file = XISF(full_path)
