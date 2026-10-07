@@ -8,7 +8,7 @@ if (!isset($_GET['hash']) || empty($_GET['hash'])) {
     exit;
 }
 
-require_once '../includes/init.php';
+require_once '../includes/api_bootstrap.php';
 
 try {
     $conn = connectDB();

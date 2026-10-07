@@ -4,7 +4,7 @@
 header('Content-Type: application/json');
 
 // Bootstrap the application
-require_once __DIR__ . '/../includes/init.php';
+require_once __DIR__ . '/../includes/api_bootstrap.php';
 require_once __DIR__ . '/../includes/sff_results_table.php';
 
 // --- Read Input ---
@@ -61,6 +61,20 @@ $imgTypes = [
     'darks'          => 'DARK',
     'flats'          => 'FLAT'
 ];
+// search_type was only checked for presence, so any unrecognised value fell through
+// to $imgTypes[$searchType] and raised "Undefined array key". display_errors is on, and
+// that warning is printed into the response body ahead of the JSON, so the client got a
+// SyntaxError instead of an error it could act on. Reject the value, and name the
+// valid ones: the caller sends this from a select, and the values were never documented.
+if (!isset($imgTypes[$searchType])) {
+    http_response_code(400);
+    header('Content-Type: application/json');
+    echo json_encode([
+        'error' => 'Invalid search_type.',
+        'valid' => array_keys($imgTypes),
+    ]);
+    exit;
+}
 $sqlWhere[] = "imgtype = :imgtype";
 $sqlParams[':imgtype'] = $imgTypes[$searchType];
 

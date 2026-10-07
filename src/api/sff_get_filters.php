@@ -2,7 +2,7 @@
 // api/sff_get_filters.php
 
 // Bootstrap the application
-require_once __DIR__ . '/../includes/init.php';
+require_once __DIR__ . '/../includes/api_bootstrap.php';
 require_once __DIR__ . '/../includes/sff_filter_template.php';
 
 // --- Input Validation ---
