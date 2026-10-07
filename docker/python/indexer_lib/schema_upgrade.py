@@ -63,45 +63,56 @@ def schema_upgrade_worker(task, fits_root):
     try:
         result = {'status': 'success', 'path': rel_path, 'old_version': old_version}
 
-        if needed_fields:
-            header = None
-            get_value = None
-            if file_lower.endswith(('.fits', '.fit')):
-                with fits.open(full_path, ignore_missing_end=True) as hdul:
-                    header = hdul[0].header
-                    get_value = get_header_value
-            elif file_lower.endswith('.xisf'):
-                xisf_file = XISF(full_path)
-                images_meta = xisf_file.get_images_metadata()
-                if images_meta:
-                    header = images_meta[0].get('FITSKeywords', {})
-                    get_value = get_xisf_header_value
+        if not needed_fields:
+            # Already at the last known step: nothing to extract, and the caller may
+            # advance the version.
+            result['header_read'] = True
+            return result
 
-            if header is not None and get_value is not None:
-                # v1 -> v2
-                if 'gain' in needed_fields:
-                    result['gain'] = get_value(header, 'GAIN', None, float)
-                # v4 -> v5: frame context (rotator, readout mode, meteo)
-                if 'rotator_angle' in needed_fields:
-                    rotator = get_value(header, 'ROTATOR', None, float)
-                    if rotator is None:
-                        rotator = get_value(header, 'ROTATANG', None, float)
-                    result['rotator_angle'] = rotator
-                if 'rotator_name' in needed_fields:
-                    result['rotator_name'] = get_value(header, 'ROTNAME', None, str)
-                if 'readoutm' in needed_fields:
-                    result['readoutm'] = get_value(header, 'READOUTM', None, str)
-                if 'cloudcvr' in needed_fields:
-                    result['cloudcvr'] = get_value(header, 'CLOUDCVR', None, float)
-                if 'dewpoint' in needed_fields:
-                    result['dewpoint'] = get_value(header, 'DEWPOINT', None, float)
-                if 'humidity' in needed_fields:
-                    result['humidity'] = get_value(header, 'HUMIDITY', None, float)
-                if 'pressure' in needed_fields:
-                    result['pressure'] = get_value(header, 'PRESSURE', None, float)
-                if 'ambtemp' in needed_fields:
-                    result['ambtemp'] = get_value(header, 'AMBTEMP', None, float)
-                # v2 -> v3: add new fields here in the future
+        header = None
+        get_value = None
+        if file_lower.endswith(('.fits', '.fit')):
+            with fits.open(full_path, ignore_missing_end=True) as hdul:
+                header = hdul[0].header
+                get_value = get_header_value
+        elif file_lower.endswith('.xisf'):
+            xisf_file = XISF(full_path)
+            images_meta = xisf_file.get_images_metadata()
+            if images_meta:
+                header = images_meta[0].get('FITSKeywords', {})
+                get_value = get_xisf_header_value
+
+        # Say whether the header was obtained at all. Without it the caller cannot tell
+        # "these keywords are absent from the header" (a legitimate NULL) from "no header
+        # was readable", and advancing data_schema_version on the latter marks the file as
+        # up to date forever, leaving the new columns NULL with nothing to retry them.
+        result['header_read'] = header is not None and get_value is not None
+
+        if result['header_read']:
+            # v1 -> v2
+            if 'gain' in needed_fields:
+                result['gain'] = get_value(header, 'GAIN', None, float)
+            # v4 -> v5: frame context (rotator, readout mode, meteo)
+            if 'rotator_angle' in needed_fields:
+                rotator = get_value(header, 'ROTATOR', None, float)
+                if rotator is None:
+                    rotator = get_value(header, 'ROTATANG', None, float)
+                result['rotator_angle'] = rotator
+            if 'rotator_name' in needed_fields:
+                result['rotator_name'] = get_value(header, 'ROTNAME', None, str)
+            if 'readoutm' in needed_fields:
+                result['readoutm'] = get_value(header, 'READOUTM', None, str)
+            if 'cloudcvr' in needed_fields:
+                result['cloudcvr'] = get_value(header, 'CLOUDCVR', None, float)
+            if 'dewpoint' in needed_fields:
+                result['dewpoint'] = get_value(header, 'DEWPOINT', None, float)
+            if 'humidity' in needed_fields:
+                result['humidity'] = get_value(header, 'HUMIDITY', None, float)
+            if 'pressure' in needed_fields:
+                result['pressure'] = get_value(header, 'PRESSURE', None, float)
+            if 'ambtemp' in needed_fields:
+                result['ambtemp'] = get_value(header, 'AMBTEMP', None, float)
+            # v2 -> v3: add new fields here in the future
 
         return result
     except Exception as e:

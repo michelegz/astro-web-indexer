@@ -560,6 +560,18 @@ def main():
                         error_count += 1
                         logger.error(f"Schema upgrade failed for {result['path']}: {result['reason']}")
                         continue
+                    # A file whose header could not be read has extracted nothing. Advancing
+                    # data_schema_version anyway would mark it up to date with every new
+                    # column NULL, and reindex.py:383 would then skip it forever, so the
+                    # missing values would never be filled and nothing would say so. Leave
+                    # the version alone so the next run retries it.
+                    if result.get('header_read') is False:
+                        error_count += 1
+                        logger.error(
+                            f"Schema upgrade deferred for {result['path']}: header not "
+                            f"readable, version left at {result['old_version']}"
+                        )
+                        continue
                     # Build the SET clause only for fields added between old_version and current
                     old_v = result['old_version']
                     set_parts = []
