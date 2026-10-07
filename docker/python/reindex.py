@@ -523,6 +523,17 @@ def main():
                     except Exception as e:
                         logger.error(f"Error during batch processing for {result.get('path', 'unknown file')}: {e}")
                         error_count += 1
+                        # executemany is all-or-nothing, so a failed batch wrote nothing.
+                        # Roll back and drop it: keeping the list meant the offending
+                        # record was replayed in every later flush, so one unreadable file
+                        # made every remaining file in the run fail with it and the final
+                        # flush at the end of the loop failed too.
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
+                        batch_params.clear()
+                        hashes_to_update.clear()
 
                 if batch_params:
                     cur.executemany(sql, batch_params)
