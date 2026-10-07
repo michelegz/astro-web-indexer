@@ -33,8 +33,8 @@ This project is developed and maintained in my spare time. If you find it useful
 ## 🚀 Features
 
 ### Core Functionality
-- 📁 Browse and search FITS and XISF files in a directory structure
-- 🔍 Advanced filtering by object, filter type, image type, observation date and exposure time
+- 📁 Browse and search FITS, tile-compressed FITS (`.fz`) and XISF files in a directory structure
+- 🔍 Advanced filtering by object, filter type, image type, instrument, telescope, observation date and exposure time, with an observation-date calendar marking the time and session of every captured night
 - 🔄 Real-time monitoring and automatic indexing of new files
 - 🖼️ Built-in preview generation (full and 100% crop) with a non-linear MTF stretch
 - 👁️ Calculates Field of View (FoV) and angular resolution based on FITS header data
@@ -44,6 +44,21 @@ This project is developed and maintained in my spare time. If you find it useful
 - 📊 Per-filter exposure statistics: a collapsible card showing total exposure and percentage for each filter on the currently filtered images, with progress bars for easy comparison
 - ⭐ Star & frame quality metrics: per-LIGHT-frame HFR, measured FWHM, eccentricity, star count, relative stellar SNR and relative PSF quality in sortable columns, computed at index time with [`sep`](https://github.com/sep-developers/sep), plus per-frame pixel statistics (background, min/max/mean/median) and sensor metadata (bit depth, channels, color type, Bayer pattern) for all frame types
 - 📈 Metrics trend charts: collapsible card with one chart per metric plus its median line, following the current table order
+
+### 🗂️ Projects & Calibration Planning
+A project is one imaging target (single or mosaic). It keeps track of which setup, panel and session every frame belongs to, works out the calibrations that match, rejects the frames that are not worth stacking, and hands the result over as a ready-to-stack archive.
+
+- **Four assignment modes:** `Manual` (only your own adds), `Suggestions` (new files wait for you to accept or discard one by one), `Automatic` (trusted setups are linked immediately and logged) and `Frozen` (locked: no adds, no suggestions, no automation).
+- **Project tree:** frames organized as setup → panel → session, with collapsible sections, consecutive numbering per project and the full setup fingerprint (instrument, telescope, camera, binning, gain, pixel size, offset) shown on every setup.
+- **Automatic suggestions:** the indexer proposes the right project, panel and session for each new frame and queues it for review. Suggestions are re-evaluated when the matching context changes, and dismissals are remembered instead of coming back on the next scan. Frames can also be added straight from Smart Frame Finder results, or into a custom setup by overriding the fingerprint.
+- **Calibration diagnostics:** collapsible light/dark/flat/bias groups per session with letter badges and a legend, coverage badges showing which flats are already covered by a bias or dark, short darks matched to flats as darkflats, and recursive subframe and total summaries up the tree.
+- **Calibration scopes:** a calibration linked at setup level applies to everything below it by default. Scope it to specific sessions when a dark or a flat is only good for part of the project, and promote or demote calibrations between levels, with the choice surviving moves and renames. Scoped sets are tagged by keyword in the export through `DARKSET_`, `FLATSET_` and `DARKFLATSET_` tokens, so the stacking software applies the right master to the right nights instead of one everywhere.
+- **Integration groups:** a preview of how your frames will be grouped once the stacking software gets them. They are built from the very same criteria and thresholds that drive the export, so what you see here is what ends up in the archive. Groups span sessions, so a target imaged over several nights becomes one integration. Each group doubles as a preliminary quality assessment of its subframes: a sortable per-metric table, bar charts following the table order, total hours, metric medians, the frames your thresholds would reject, and a blink player to compare them.
+- **You decide how groups split:** per project, toggle whether setup, panel, filter, exposure and temperature separate groups, and give the grouping its own exposure and temperature tolerance. Turn temperature off and nights at -10 °C and -5 °C stack into one integration; turn it on and every temperature gets its own group.
+- **Filter aliases:** tell the project that `H-alpha`, `Ha` and `Hα` are the same physical filter and they are merged everywhere — tree, integration groups, calibration matching, quality thresholds and the export folders. Without this, one filter fragments into several half-empty integrations, each with its own medians and its own thresholds.
+- **Quality rejection thresholds:** automatic thresholds from a robust median-MAD estimate at 5, 4 or 3.5 sigma, or click a bar on the chart to set the value yourself. Stored per group, labelled manual or automatic, with live bar recoloring and a summary of what each threshold excluded.
+- **Mosaics:** panels that captured the same sky tile through different optics can be merged into a single panel, tagged with a `TILE_` keyword in the export. PRE/POST badges mark calibration and integration frames.
+- **Ready-to-stack export:** a ZIP previewed with its size and contents before download. Only frames that are actually enabled are included — pending, disabled and auto-rejected ones are left out — masters are preferred over subs, and folders carry processing-software keywords (`FILTER_`, `TILE_`, `DARKFLAT`) so nothing needs manual renaming.
 
 ### 🔬 Smart Frame Finder (SFF)
 A powerful search engine to find matching calibration frames (darks, flats, bias) or similar, stackable `LIGHT` frames using a flexible, tolerance-based rules engine.
