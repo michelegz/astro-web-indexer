@@ -138,6 +138,8 @@ return [
     'astrobin_modal_explanation' => 'Copy the text below and paste it into the AstroBin session importer.',
     'copy_to_clipboard' => 'Copy to Clipboard',
     'observation_date' => 'Observation Date',
+    'observation_calendar_title' => 'Open calendar (red dot = existing session)',
+    'clear' => 'Clear',
     'exposure_time' => 'Exposure time (s)',
     'thumbnail_size' => 'Thumbnail Size',
     'list_view' => 'List View',

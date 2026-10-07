@@ -277,6 +277,98 @@ function getStarTrend(PDO $conn, string $dir, string $object, string $filter, st
     return $stmt->fetchAll();
 }
 
+/**
+ * Normalize a date_obs filter bound to a MySQL DATETIME string.
+ *
+ * Accepts both the legacy date-only format (YYYY-MM-DD, from the old
+ * <input type="date">) and full datetimes (YYYY-MM-DD HH:MM[:SS] or the
+ * datetime-local variant YYYY-MM-DDTHH:MM[:SS]).
+ *
+ * Date-only bounds keep the historical inclusive-day semantics:
+ * from -> 00:00:00, to -> 23:59:59. Anything with a time part is used
+ * exactly as given (seconds default to :00), so a night session can be
+ * selected noon-to-noon, e.g. from=2024-05-01T12:00 to=2024-05-02T12:00.
+ *
+ * @return string|null Normalized 'Y-m-d H:i:s' or null when empty/invalid.
+ */
+function normalizeDateObsBound(string $value, bool $isEnd): ?string
+{
+    $value = trim($value);
+    if ($value === '') {
+        return null;
+    }
+    // datetime-local uses 'T' as separator; normalize to space for parsing.
+    $value = str_replace('T', ' ', $value);
+    $formats = ['Y-m-d H:i:s', 'Y-m-d H:i', 'Y-m-d'];
+    foreach ($formats as $fmt) {
+        $dt = DateTime::createFromFormat($fmt, $value);
+        if ($dt !== false) {
+            $errors = DateTime::getLastErrors();
+            if (empty($errors['warnings']) && empty($errors['errors'])) {
+                if ($fmt === 'Y-m-d') {
+                    $dt->setTime($isEnd ? 23 : 0, $isEnd ? 59 : 0, $isEnd ? 59 : 0);
+                }
+                return $dt->format('Y-m-d H:i:s');
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * Format any accepted date_obs filter value for the filter text inputs
+ * (Y-m-d H:i). Date-only values default the time to 12:00 so that picking a
+ * day from/to covers a noon-to-noon night session. Returns '' when invalid.
+ */
+function formatForDatetimeInput(string $value, bool $isEnd): string
+{
+    $value = trim($value);
+    if ($value === '') {
+        return '';
+    }
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+        // Legacy date-only URL: show it with the noon default.
+        return $value . ' 12:00';
+    }
+    $norm = normalizeDateObsBound($value, $isEnd);
+    if ($norm === null) {
+        return '';
+    }
+    $dt = DateTime::createFromFormat('Y-m-d H:i:s', $norm);
+    return $dt !== false ? $dt->format('Y-m-d H:i') : '';
+}
+
+/**
+ * Count files per observation day (DATE(date_obs)) on the currently filtered
+ * set, IGNORING the date range itself so the calendars can show every session
+ * available for the other active filters (dir, object, filter, imgtype,
+ * exposure + directory permissions).
+ *
+ * @return array Map of 'YYYY-MM-DD' => file count.
+ */
+function getObservationDateCounts(PDO $conn, string $dir, string $object, string $filter, string $imgtype, string $exptimeMin = '', string $exptimeMax = ''): array
+{
+    list($sql, $params) = buildQueryParts($dir, $object, $filter, $imgtype, '', '', $exptimeMin, $exptimeMax);
+    $sql[] = "date_obs IS NOT NULL";
+
+    $datesSql = "SELECT DATE(date_obs) AS d, COUNT(*) AS cnt FROM files WHERE "
+        . implode(' AND ', $sql) . " GROUP BY DATE(date_obs) ORDER BY d";
+
+    $stmt = $conn->prepare($datesSql);
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
+    $stmt->execute();
+
+    $out = [];
+    while ($row = $stmt->fetch()) {
+        if (!empty($row['d'])) {
+            $out[$row['d']] = (int)($row['cnt'] ?? 0);
+        }
+    }
+    return $out;
+}
+
 function buildQueryParts(string $dir, string $object, string $filter, string $imgtype, string $dateObsFrom, string $dateObsTo, string $exptimeMin = '', string $exptimeMax = ''): array
 {
     $sql = [
@@ -307,13 +399,15 @@ function buildQueryParts(string $dir, string $object, string $filter, string $im
         $sql[] = "imgtype = :imgtype";
         $params[':imgtype'] = $imgtype;
     }
-    if ($dateObsFrom !== '') {
-        $sql[] = "DATE(date_obs) >= :date_obs_from";
-        $params[':date_obs_from'] = $dateObsFrom;
+    $normFrom = normalizeDateObsBound($dateObsFrom, false);
+    if ($normFrom !== null) {
+        $sql[] = "date_obs >= :date_obs_from";
+        $params[':date_obs_from'] = $normFrom;
     }
-    if ($dateObsTo !== '') {
-        $sql[] = "DATE(date_obs) <= :date_obs_to";
-        $params[':date_obs_to'] = $dateObsTo;
+    $normTo = normalizeDateObsBound($dateObsTo, true);
+    if ($normTo !== null) {
+        $sql[] = "date_obs <= :date_obs_to";
+        $params[':date_obs_to'] = $normTo;
     }
     if ($exptimeMin !== '' && is_numeric($exptimeMin)) {
         $sql[] = "exptime >= :exptime_min";

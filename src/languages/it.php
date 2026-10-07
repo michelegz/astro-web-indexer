@@ -138,6 +138,8 @@ return [
     'astrobin_modal_explanation' => 'Copia il testo qui sotto e incollalo nell\'importatore di sessioni di AstroBin.',
     'copy_to_clipboard' => 'Copia negli Appunti',
     'observation_date' => 'Data di Osservazione',
+    'observation_calendar_title' => 'Apri calendario (pallino rosso = sessione esistente)',
+    'clear' => 'Cancella',
     'exposure_time' => 'Tempo di esposizione (s)',
     'thumbnail_size' => 'Dimensione miniature',
     'list_view' => 'Vista elenco',

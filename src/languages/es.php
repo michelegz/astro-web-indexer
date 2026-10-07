@@ -91,6 +91,8 @@ return [
     'astrobin_modal_explanation' => 'Copie el texto a continuación y péguelo en el importador de sesiones de AstroBin.',
     'copy_to_clipboard' => 'Copiar al Portapapeles',
     'observation_date' => 'Fecha de observación',
+    'observation_calendar_title' => 'Abrir calendario (punto rojo = sesión existente)',
+    'clear' => 'Borrar',
     'exposure_time' => 'Tiempo de exposición (s)',
     'thumbnail_size' => 'Tamaño de Miniaturas',
     'list_view' => 'Vista de Lista',

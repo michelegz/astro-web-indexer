@@ -24,6 +24,8 @@
         loading: <?php echo json_encode(__('loading...')); ?>,
 
         // Main page
+        columns_apply: <?php echo json_encode(__('columns_apply')); ?>,
+        clear: <?php echo json_encode(__('clear')); ?>,
         no_files_selected: <?php echo json_encode(__('no_files_selected')); ?>,
         copied: <?php echo json_encode(__('copied')); ?>,
         copy_to_clipboard_failed: <?php echo json_encode(__('copy_to_clipboard_failed')); ?>,

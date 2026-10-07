@@ -90,6 +90,8 @@ return [
     'astrobin_modal_explanation' => 'Copiez le texte ci-dessous et collez-le dans l\'importateur de session d\'AstroBin.',
     'copy_to_clipboard' => 'Copier dans le Presse-papiers',
     'observation_date' => 'Date d\'observation',
+    'observation_calendar_title' => 'Ouvrir le calendrier (point rouge = session existante)',
+    'clear' => 'Effacer',
     'exposure_time' => 'Temps d\'exposition (s)',
     'thumbnail_size' => 'Taille des vignettes',
     'list_view' => 'Vue liste',
