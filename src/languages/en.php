@@ -19,6 +19,7 @@ return [
     'filters' => 'Search filters',
     'hscroll_hint' => 'Shift + wheel: horizontal scroll',
     'filter_not_in_folder' => 'not in this folder',
+    'filter_no_match' => 'no files match current filters',
     'apply_filters' => 'Apply filters',
     'reset_filters' => 'Reset filters',
     'file_name' => 'File name',

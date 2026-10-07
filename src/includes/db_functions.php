@@ -158,7 +158,7 @@ function getFiles(PDO $conn, string $dir, string $object, string $filter, string
  * Get distinct values for a column, applying already selected filters.
  * This makes filter dropdowns dynamic and interdependent.
  */
-function getDistinctValues(PDO $conn, string $column, string $dir, string $currentObject, string $currentFilter, string $currentImgtype, string $currentInstrume = '', string $currentTelescop = ''): array
+function getDistinctValues(PDO $conn, string $column, string $dir, string $currentObject, string $currentFilter, string $currentImgtype, string $currentInstrume = '', string $currentTelescop = '', string $dateObsFrom = '', string $dateObsTo = '', string $exptimeMin = '', string $exptimeMax = ''): array
 {
     $values = [];
     $dirPattern = $dir === '' ? '%' : $dir . '/%';
@@ -178,12 +178,20 @@ function getDistinctValues(PDO $conn, string $column, string $dir, string $curre
         $sql .= " AND " . $permSql;
     }
 
-    // Aggiungi gli altri filtri, ma escludi la colonna che stiamo filtrando ora
+    // Aggiungi gli altri filtri, ma escludi la colonna che stiamo filtrando ora.
+    // Date ed esposizione valgono per tutti i dropdown: mostrano solo valori
+    // con almeno un file nel set filtrato.
     if ($column !== 'object' && $currentObject !== '') $sql .= " AND object = :object";
     if ($column !== 'filter' && $currentFilter !== '') $sql .= " AND filter = :filter";
     if ($column !== 'imgtype' && $currentImgtype !== '') $sql .= " AND imgtype = :imgtype";
     if ($column !== 'instrume' && $currentInstrume !== '') $sql .= " AND instrume = :instrume";
     if ($column !== 'telescop' && $currentTelescop !== '') $sql .= " AND telescop = :telescop";
+    $normFrom = normalizeDateObsBound($dateObsFrom, false);
+    if ($normFrom !== null) $sql .= " AND date_obs >= :date_obs_from";
+    $normTo = normalizeDateObsBound($dateObsTo, true);
+    if ($normTo !== null) $sql .= " AND date_obs <= :date_obs_to";
+    if ($exptimeMin !== '' && is_numeric($exptimeMin)) $sql .= " AND exptime >= :exptime_min";
+    if ($exptimeMax !== '' && is_numeric($exptimeMax)) $sql .= " AND exptime <= :exptime_max";
 
     $sql .= " AND " . $column . " IS NOT NULL AND " . $column . " != '' ORDER BY " . $column;
 
@@ -198,6 +206,10 @@ function getDistinctValues(PDO $conn, string $column, string $dir, string $curre
     if ($column !== 'imgtype' && $currentImgtype !== '') $stmt->bindValue(':imgtype', $currentImgtype, PDO::PARAM_STR);
     if ($column !== 'instrume' && $currentInstrume !== '') $stmt->bindValue(':instrume', $currentInstrume, PDO::PARAM_STR);
     if ($column !== 'telescop' && $currentTelescop !== '') $stmt->bindValue(':telescop', $currentTelescop, PDO::PARAM_STR);
+    if ($normFrom !== null) $stmt->bindValue(':date_obs_from', $normFrom);
+    if ($normTo !== null) $stmt->bindValue(':date_obs_to', $normTo);
+    if ($exptimeMin !== '' && is_numeric($exptimeMin)) $stmt->bindValue(':exptime_min', (float)$exptimeMin);
+    if ($exptimeMax !== '' && is_numeric($exptimeMax)) $stmt->bindValue(':exptime_max', (float)$exptimeMax);
 
     $stmt->execute();
     while ($r = $stmt->fetch()) {

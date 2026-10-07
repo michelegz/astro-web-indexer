@@ -19,6 +19,7 @@ return [
     'filters' => 'Filtres de recherche',
     'hscroll_hint' => 'Maj + molette : défilement horizontal',
     'filter_not_in_folder' => 'pas dans ce dossier',
+    'filter_no_match' => 'aucun fichier avec les filtres actuels',
     'apply_filters' => 'Appliquer les filtres',
     'reset_filters' => 'Réinitialiser les filtres',
     'file_name' => 'Nom du fichier',

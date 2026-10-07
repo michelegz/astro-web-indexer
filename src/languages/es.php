@@ -19,6 +19,7 @@ return [
     'filters' => 'Filtros de búsqueda',
     'hscroll_hint' => 'Mayús + rueda: desplazamiento horizontal',
     'filter_not_in_folder' => 'no en esta carpeta',
+    'filter_no_match' => 'ningún archivo con los filtros actuales',
     'apply_filters' => 'Aplicar filtros',
     'reset_filters' => 'Restablecer filtros',
     'file_name' => 'Nombre de archivo',

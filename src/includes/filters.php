@@ -32,12 +32,12 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
             <option value=""><?php echo __('all_objects') ?></option>
             <?php
             // Get OBJECT values considering other filters (except OBJECT itself)
-            $availableObjects = getDistinctValues($conn, 'object', $dir, '', $filterFilter, $filterImgtype, $filterInstrume, $filterTelescop);
+            $availableObjects = getDistinctValues($conn, 'object', $dir, '', $filterFilter, $filterImgtype, $filterInstrume, $filterTelescop, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
             // Stale filter from another folder: no <option> would match, so the
             // browser falls back to displaying "All objects" while the query
             // still filters by it (empty table, misleading). Show it explicitly.
             if ($filterObject !== '' && !in_array($filterObject, $availableObjects, true)): ?>
-                <option value="<?= htmlspecialchars($filterObject) ?>" selected><?= htmlspecialchars($filterObject) ?> — <?= __('filter_not_in_folder') ?></option>
+                <option value="<?= htmlspecialchars($filterObject) ?>" selected><?= htmlspecialchars($filterObject) ?> — <?= __('filter_no_match') ?></option>
             <?php endif;
             foreach($availableObjects as $o): ?>
                 <option value="<?= htmlspecialchars($o) ?>" <?= $o==$filterObject?'selected':'' ?>><?= htmlspecialchars($o) ?></option>
@@ -51,9 +51,9 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
             <option value=""><?php echo __('all_filters') ?></option>
             <?php
             // Get FILTER values considering other filters (except FILTER itself)
-            $availableFilters = getDistinctValues($conn, 'filter', $dir, $filterObject, '', $filterImgtype, $filterInstrume, $filterTelescop);
+            $availableFilters = getDistinctValues($conn, 'filter', $dir, $filterObject, '', $filterImgtype, $filterInstrume, $filterTelescop, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
             if ($filterFilter !== '' && !in_array($filterFilter, $availableFilters, true)): ?>
-                <option value="<?= htmlspecialchars($filterFilter) ?>" selected><?= htmlspecialchars($filterFilter) ?> — <?= __('filter_not_in_folder') ?></option>
+                <option value="<?= htmlspecialchars($filterFilter) ?>" selected><?= htmlspecialchars($filterFilter) ?> — <?= __('filter_no_match') ?></option>
             <?php endif;
             foreach($availableFilters as $f): ?>
                 <option value="<?= htmlspecialchars($f) ?>" <?= $f==$filterFilter?'selected':'' ?>><?= htmlspecialchars($f) ?></option>
@@ -67,9 +67,9 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
             <option value=""><?php echo __('all_types') ?></option>
             <?php
             // Get IMGTYPE values considering other filters (except IMGTYPE itself)
-            $availableImgtypes = getDistinctValues($conn, 'imgtype', $dir, $filterObject, $filterFilter, '', $filterInstrume, $filterTelescop);
+            $availableImgtypes = getDistinctValues($conn, 'imgtype', $dir, $filterObject, $filterFilter, '', $filterInstrume, $filterTelescop, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
             if ($filterImgtype !== '' && !in_array($filterImgtype, $availableImgtypes, true)): ?>
-                <option value="<?= htmlspecialchars($filterImgtype) ?>" selected><?= htmlspecialchars($filterImgtype) ?> — <?= __('filter_not_in_folder') ?></option>
+                <option value="<?= htmlspecialchars($filterImgtype) ?>" selected><?= htmlspecialchars($filterImgtype) ?> — <?= __('filter_no_match') ?></option>
             <?php endif;
                         foreach($availableImgtypes as $i): ?>
                 <option value="<?= htmlspecialchars($i) ?>" <?= $i==$filterImgtype?'selected':'' ?>><?= htmlspecialchars($i) ?></option>
@@ -83,9 +83,9 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
             <option value=""><?php echo __('all_instruments') ?></option>
             <?php
             // Get INSTRUME values considering other filters (except INSTRUME itself)
-            $availableInstrume = getDistinctValues($conn, 'instrume', $dir, $filterObject, $filterFilter, $filterImgtype, '', $filterTelescop);
+            $availableInstrume = getDistinctValues($conn, 'instrume', $dir, $filterObject, $filterFilter, $filterImgtype, '', $filterTelescop, $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
             if ($filterInstrume !== '' && !in_array($filterInstrume, $availableInstrume, true)): ?>
-                <option value="<?= htmlspecialchars($filterInstrume) ?>" selected><?= htmlspecialchars($filterInstrume) ?> — <?= __('filter_not_in_folder') ?></option>
+                <option value="<?= htmlspecialchars($filterInstrume) ?>" selected><?= htmlspecialchars($filterInstrume) ?> — <?= __('filter_no_match') ?></option>
             <?php endif;
             foreach($availableInstrume as $ins): ?>
                 <option value="<?= htmlspecialchars($ins) ?>" <?= $ins==$filterInstrume?'selected':'' ?>><?= htmlspecialchars($ins) ?></option>
@@ -99,9 +99,9 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
             <option value=""><?php echo __('all_telescopes') ?></option>
             <?php
             // Get TELESCOP values considering other filters (except TELESCOP itself)
-            $availableTelescop = getDistinctValues($conn, 'telescop', $dir, $filterObject, $filterFilter, $filterImgtype, $filterInstrume, '');
+            $availableTelescop = getDistinctValues($conn, 'telescop', $dir, $filterObject, $filterFilter, $filterImgtype, $filterInstrume, '', $dateObsFrom, $dateObsTo, $exptimeMin, $exptimeMax);
             if ($filterTelescop !== '' && !in_array($filterTelescop, $availableTelescop, true)): ?>
-                <option value="<?= htmlspecialchars($filterTelescop) ?>" selected><?= htmlspecialchars($filterTelescop) ?> — <?= __('filter_not_in_folder') ?></option>
+                <option value="<?= htmlspecialchars($filterTelescop) ?>" selected><?= htmlspecialchars($filterTelescop) ?> — <?= __('filter_no_match') ?></option>
             <?php endif;
             foreach($availableTelescop as $tel): ?>
                 <option value="<?= htmlspecialchars($tel) ?>" <?= $tel==$filterTelescop?'selected':'' ?>><?= htmlspecialchars($tel) ?></option>

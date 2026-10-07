@@ -19,6 +19,7 @@ return [
     'filters' => 'Filtri di ricerca',
     'hscroll_hint' => 'Maiusc + rotella: scorrimento orizzontale',
     'filter_not_in_folder' => 'non in questa cartella',
+    'filter_no_match' => 'nessun file con i filtri correnti',
     'apply_filters' => 'Applica filtri',
     'reset_filters' => 'Reimposta filtri',
     'file_name' => 'Nome file',
