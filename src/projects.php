@@ -259,7 +259,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
         // Canvas Relaunch: successful actions triggered from the home
         // projects panel carry a `return` path -> go back home (PRG).
-        $returnTo = (string)($_POST['return'] ?? '');
+        //
+        // A browser normalises backslashes to slashes inside a Location value, so
+        // '/\evil.example' leaves as '//evil.example' while passing a plain
+        // str_starts_with('//') test. Judge the normalised form, as login.php already does.
+        $returnTo = str_replace('\\', '/', (string)($_POST['return'] ?? ''));
         if ($messageType === 'success' && $returnTo !== ''
             && str_starts_with($returnTo, '/') && !str_starts_with($returnTo, '//')) {
             if (strpos($returnTo, 'panel=projects') === false) {
