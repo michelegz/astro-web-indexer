@@ -83,6 +83,22 @@ $sqlParams[':imgtype'] = $imgTypes[$searchType];
 foreach ($filters as $filter) {
     $id = $filter['id'];
 
+    // The filter id becomes a column name below, so it has to be one of ours. Before
+    // this, the only thing standing between the JSON body and "{$escapedId}" inside the
+    // query was the isset($refFile[$id]) check below, which held only because real
+    // column names happen to contain no backtick. That is an incidental property of a
+    // guard written for a different reason: it skipped filters the reference file had
+    // no value for. Whitelist it explicitly, and say what was wrong.
+    if (!is_string($id) || !isset($allFilters[$id])) {
+        http_response_code(400);
+        header('Content-Type: application/json');
+        echo json_encode([
+            'error' => 'Invalid filter id.',
+            'valid' => array_keys($allFilters),
+        ]);
+        exit;
+    }
+
     // CRITICAL: Do not apply a filter if the reference file has no value for it.
     if (!isset($refFile[$id]) || $refFile[$id] === null) {
         continue;
