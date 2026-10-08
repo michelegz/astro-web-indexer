@@ -1,26 +1,26 @@
 #!/bin/sh
-# Suite di regressione: esegue i gate di tests/{php,python,js} nei container.
+# Regression suite: runs the tests/{php,python,js} gates inside the containers.
 #
-# Uso:  sh tests/run.sh [pattern ...]
-#   Gli argomenti opzionali filtrano i test per nome (es: sh tests/run.sh escape).
-# Richiede: container awi-php e awi-python avviati (stack docker di sviluppo
-#   con src/ montato e DB con dati); node per i check .mjs.
-# Uscita: 0 se tutto verde, 1 se almeno un gate fallisce.
+# Usage:  sh tests/run.sh [pattern ...]
+#   The optional arguments filter the tests by name (e.g. sh tests/run.sh escape).
+# Requires: running awi-php and awi-python containers (development docker stack
+#   with src/ mounted and a populated DB); node for the .mjs checks.
+# Exit: 0 if everything is green, 1 if at least one gate fails.
 #
-# Convenzioni (da tests/README.md):
-# - i test PHP girano in /tmp/harness dentro awi-php (copia di api+includes+
-#   assets+languages+*.php da /var/www/html): vale sia per gli "autonomi" che
-#   per quelli "con albero", un solo percorso, meno modi di sbagliare;
-# - i test Python girano in /tmp dentro awi-python con
-#   AWI_PROJECTS_LIB=/opt/scripts (mai scrivere nei mount: /tmp non e' montato);
-# - tree_render_escape_check.php gira in TRE processi (hypo 1, 0 e review 2);
-# - hash_parity e' un gate a due meta': php + python + diff;
-# - stale_check.py / stale_resurrect.py sono strumenti manuali (vogliono un
-#   file_id): vengono saltati con nota.
+# Conventions (from tests/README.md):
+# - PHP tests run in /tmp/harness inside awi-php (a copy of api+includes+
+#   assets+languages+*.php from /var/www/html): this covers both the
+#   "standalone" and the "with-tree" ones, a single path, fewer ways to go wrong;
+# - Python tests run in /tmp inside awi-python with
+#   AWI_PROJECTS_LIB=/opt/scripts (never write into the mounts: /tmp is not mounted);
+# - tree_render_escape_check.php runs in THREE processes (hypo 1, 0 and review 2);
+# - hash_parity is a two-halves gate: php + python + diff;
+# - stale_check.py / stale_resurrect.py are manual tools (they want a
+#   file_id): they are skipped with a note.
 
-# Git Bash su Windows converte gli argomenti che sembrano path POSIX
-# (-e AWI_PROJECTS_LIB=/opt/scripts arrivava come C:/Program Files/...):
-# disattiva la conversione per tutti i docker exec sotto.
+# Git Bash on Windows converts arguments that look like POSIX paths
+# (-e AWI_PROJECTS_LIB=/opt/scripts arrived as C:/Program Files/...):
+# disable the conversion for every docker exec below.
 MSYS_NO_PATHCONV=1
 export MSYS_NO_PATHCONV
 
@@ -30,7 +30,7 @@ SKIP=0
 FAILED_LIST=""
 
 match() {
-    # $1 = basename; true se nessun filtro o se un filtro matcha
+    # $1 = basename; true if there is no filter or if a filter matches
     if [ "$#" -eq 1 ]; then
         return 0
     fi
@@ -45,7 +45,7 @@ match() {
 }
 
 record() {
-    # $1 = nome, $2 = exit code
+    # $1 = name, $2 = exit code
     if [ "$2" -eq 0 ]; then
         PASS=$((PASS + 1))
         echo "PASS $1"
@@ -63,7 +63,7 @@ skip() {
 
 echo "=== setup: harness PHP in awi-php ==="
 docker exec awi-php sh -c 'rm -rf /tmp/harness && mkdir -p /tmp/harness && cp -r /var/www/html/api /var/www/html/includes /var/www/html/assets /var/www/html/languages /tmp/harness/ && cp /var/www/html/*.php /tmp/harness/' || {
-    echo "FATAL: impossibile preparare /tmp/harness in awi-php"
+    echo "FATAL: cannot prepare /tmp/harness in awi-php"
     exit 1
 }
 
@@ -71,7 +71,7 @@ echo "=== gate PHP ==="
 for f in tests/php/*.php; do
     base=$(basename "$f" .php)
     case "$base" in
-        hash_parity) continue ;; # gate a due meta', sotto
+        hash_parity) continue ;; # two-halves gate, below
     esac
     if ! match "$base" "$@"; then
         continue
@@ -103,7 +103,7 @@ for f in tests/python/*.py; do
         continue
     fi
     if [ "$base" = "hash_parity_diff" ]; then
-        continue # gira dentro il gate di parita', sotto
+        continue # runs inside the parity gate, below
     fi
     docker cp "$f" awi-python:/tmp/ > /dev/null || {
         record "$base (docker cp)" 1
@@ -113,13 +113,13 @@ for f in tests/python/*.py; do
     record "$base" $?
 done
 if match "stale_check" "$@"; then
-    skip "stale_check.py" "manuale: richiede <file_id>"
+    skip "stale_check.py" "manual: requires <file_id>"
 fi
 if match "stale_resurrect" "$@"; then
-    skip "stale_resurrect.py" "manuale: richiede <file_id>"
+    skip "stale_resurrect.py" "manual: requires <file_id>"
 fi
 
-echo "=== gate parita' PHP<->Python ==="
+echo "=== parity gate PHP<->Python ==="
 if match "hash_parity" "$@"; then
     docker cp tests/php/hash_parity.php awi-php:/tmp/harness/ > /dev/null
     docker cp tests/python/hash_parity.py awi-python:/tmp/ > /dev/null
@@ -152,11 +152,11 @@ if command -v node > /dev/null 2>&1; then
         record "$base" $?
     done
 else
-    skip "tests/js/*" "node non trovato"
+    skip "tests/js/*" "node not found"
 fi
 
-echo "=== risultato: PASS=$PASS FAIL=$FAIL SKIP=$SKIP ==="
+echo "=== result: PASS=$PASS FAIL=$FAIL SKIP=$SKIP ==="
 if [ -n "$FAILED_LIST" ]; then
-    echo "falliti:$FAILED_LIST"
+    echo "failed:$FAILED_LIST"
 fi
 [ "$FAIL" -eq 0 ]

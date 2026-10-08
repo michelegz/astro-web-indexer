@@ -1,28 +1,29 @@
-# Suite di regressione del progetto
+# Project regression suite
 
-Gate di verifica promossi da `tmp/` (gitignorato): solo i test con verdetto
-documentato sotto. Si eseguono tutti con `sh tests/run.sh` (serve lo stack
-docker di sviluppo: `awi-php`, `awi-python`, `awi-mariadb` con dati). Il resto
-di `tmp/` (sonde senza verdetto, helper, strumenti manuali, piani) resta lì.
+Verification gates promoted out of `tmp/` (gitignored): only the tests with a
+documented verdict below. They all run with `sh tests/run.sh` (requires the
+development docker stack: `awi-php`, `awi-python`, `awi-mariadb` with data).
+The rest of `tmp/` (probes without a verdict, helpers, manual tools, plans)
+stays there.
 
-## Come eseguirli
+## How to run them
 
-I test PHP girano dentro `awi-php`, che ha `src/` montato in `/var/www/html` e l'accesso
-al DB. I test Python girano dentro `awi-python`.
+PHP tests run inside `awi-php`, which has `src/` mounted at `/var/www/html` and
+access to the DB. Python tests run inside `awi-python`.
 
-Esistono **due modi**, e usare quello sbagliato fa fallire il test per un motivo che non
-ha niente a che fare con il codice:
+There are **two ways**, and using the wrong one makes a test fail for a reason
+that has nothing to do with the code:
 
-| Tipo | Quando | Comando |
+| Type | When | Command |
 |------|--------|---------|
-| autonomo | non richiede `includes/` (per esempio `sff_filter_live_check.php`) | `docker cp tests/php/<s>.php awi-php:/tmp/` poi `docker exec awi-php php /tmp/<s>.php` |
-| con albero | usa `__DIR__ . '/includes/…'` | copiare l'albero in `/tmp/harness` e rieseguire da lì |
-| strumento manuale | richiede un argomento (per esempio `stale_check.py <file_id>`) | come sopra, ma con l'argomento |
+| standalone | does not need `includes/` (for example `sff_filter_live_check.php`) | `docker cp tests/php/<s>.php awi-php:/tmp/` then `docker exec awi-php php /tmp/<s>.php` |
+| with-tree | uses `__DIR__ . '/includes/…'` | copy the tree into `/tmp/harness` and run from there |
+| manual tool | requires an argument (for example `stale_check.py <file_id>`) | same as above, but with the argument |
 
-Gli script con albero sono quelli che caricano `config.php` / `db_functions.php` /
+The scripts with a tree are the ones loading `config.php` / `db_functions.php` /
 `project_export.php`: `export_regression_probe.php`, `export_dup_scenario.php`,
-`hash_parity.php`, `resuggest_check.php`, `api_bootstrap_all_check.php`. Con `src/`
-montato, il modo più semplice è eseguirli da una copia:
+`hash_parity.php`, `resuggest_check.php`, `api_bootstrap_all_check.php`. With
+`src/` mounted, the simplest way to run them is from a copy:
 
 ```bash
 docker exec awi-php sh -c 'rm -rf /tmp/harness && mkdir -p /tmp/harness && \
@@ -32,125 +33,125 @@ docker cp tests/php/<s>.php tmp/_old_export_probe.php awi-php:/tmp/harness/
 docker exec awi-php sh -c 'cd /tmp/harness && php <s>.php'
 ```
 
-I test JS girano in locale con Node.
+JS tests run locally with Node.
 
-| Test | Verifica | Fixture |
+| Test | Verifies | Fixture |
 |------|----------|---------|
-| `cols_alignment_check.php` | §4 — `<th>`/`<td>` allineati nelle integration group | nessuna scrittura |
-| `frozen_check.php` | §6 — la modalità frozen non scrive | crea e rimuove 2 progetti di prova |
-| `zip_guard_check.php` | §1 — l'export ZIP rispetta `can_download` | crea e rimuove 1 utente di prova |
-| `numbering_check.php` | §9, §8 — numerazione senza collisioni, `session_no` per notte | crea e rimuove 1 progetto di prova |
-| `export_basename_check.php` | §11 — basename estraibili su Windows, collisioni case-insensitive | nessuna scrittura |
-| `addmsg_check.php` | §12 — il messaggio d'errore è fuori dagli step nascosti | crea e rimuove 1 utente di prova |
-| `legacy_normalize_check.php` | §13.6, §13.7 — normalizzazione imgtype e label_object | pianta e ripristina 1 panel |
-| `project_visibility_check.php` | §13.8 — il progetto resta visibile, la coda è filtrata | crea e rimuove 1 progetto + 2 suggestion |
-| `thumb_render_check.php` | §13.16 — le miniature restano rilevate con `OCTET_LENGTH` | nessuna scrittura |
-| `blob_weight_check.php` | §13.16 — il risparmio sui blob è reale | nessuna scrittura |
-| `api_bootstrap_check.php` | §13.41, §13.2 — i 5 endpoint col bootstrap slim, niente manifest, chiavi del contratto | crea e rimuove 1 utente |
-| `bootstrap_cost_check.php` | §13.41 — costo del blocco dati di init.php | crea e rimuove 1 utente |
-| `security_batch_check.php` | §13.36, §13.37, §13.38, §13.39 — CSRF sul form ZIP, confine di percorso, codifica JSON, permessi AstroBin | crea 2 utenti, albero di prova in `/tmp` |
-| `api_contract_check.php` | §13.33, §13.34, §13.35 — 400 con chiave `error`, 401 JSON, 404 su progetto inesistente, HTML senza warning | crea e rimuove 1 utente |
-| `threshold_key_check.php` | §13.1 — una riga per gruppo, il vincolo respinge i duplicati con NULL | transazione annullata |
-| `write_atomicity_check.php` | §13.3, §13.4, §13.32 — alias senza applicazione parziale, un pending per progetto, `catch (Throwable)` | transazioni annullate, crea e rimuove 1 utente |
-| `export_manifest_check.php` | §13.24, §13.25, §13.26, §13.40 — rotazione non numerica, tolleranze, manifest filtrato sul disco | ripristina `projects.tolerances` |
-| `suggest_parity_check.py` | §13.25, §13.26, §13.27 — `_num_prefix`, RA/Dec con maiuscoli, `get_globals` che propaga | nessuna scrittura |
-| `export_ids_check.php` | §13.10 — 4000 id via body (il GET dà 414), permessi su `get_unmapped_filters.php` | crea e rimuove 2 utenti |
-| `watcher_queue_check.py` | §13.28, §13.29 — riscan chiamato, una connessione e un reset | connessione finta in `sys.modules` |
-| `ux_feedback_check.php` | §13.9, §13.11, §13.13, §13.18 — chart con colonna nascosta, troncamento dichiarato, errori senza query, doppio spazio | crea e rimuove 1 utente |
-| `igroup_total_check.php` | §13.14, §13.15 — i gruppi sono una partizione, anche in modalità tile | nessuna scrittura |
-| `duplicates_handler_check.php` | §13.44, §13.45 — un solo blocco script, `escapeHTML` vero | crea e rimuove 1 utente |
-| `docblock_owner_check.php` | §13.21 — ogni docblock documenta la funzione che segue, e le sue affermazioni sono vere | nessuna scrittura |
-| `export_smoke_check.php` | §11 — `buildProjectExportMap` su un progetto reale, i basename sanificati non rompono la mappa | nessuna scrittura |
-| `resuggest_check.php` | §13 — `resuggestDismissed()` e `getDismissedCount()` sul percorso reale, si toccano solo i dismissed | transazione annullata |
-| `stale_check.py` | §13 — coerenza dei payload di suggerimento tra PHP e Python | nessuna scrittura |
-| `calib_suggest_check.py` | §7 — DARK/BIAS linkati a setup, senza sessioni orfane | transazioni annullate |
-| `session_numbering_check.py` | §8 — `session_no` segue la notte lato Python | transazione annullata |
-| `watch_backoff_check.py` | §10 — il watcher non riprova ogni secondo | nessuna scrittura (stub di subprocess) |
-| `imgtype_parity_check.py` | §13.6 — la SQL della migration coincide con Python | nessuna scrittura |
-| `check_chart_ids.mjs` | §3 — id dei canvas per chiave metrica | nessuna |
-| `check_escattr.mjs` | §5 — `escAttr` chiude l'attributo `title` | nessuna |
-| `api_bootstrap_all_check.php` | i 4 endpoint non-projects migrati ad `api_bootstrap.php` non caricano più `init.php` | crea e rimuove 1 utente |
-| `api_bootstrap_sweep.php` | gli stessi 4 endpoint su percorsi **felici e di errore**; nessuna diagnostica PHP nel corpo | nessuna scrittura |
-| `calib_filter_id_check.php` | il nome di colonna dei filtri arriva dal body JSON ed è validato | nessuna scrittura |
-| `sff_filter_live_check.php` | la ricerca calibrazioni con filtri risponde davvero JSON valido, e la whitelist respinge | nessuna scrittura |
-| `sff_filter_http_escape_check.php` | il pannello filtri che `sff.js:53` mette in `innerHTML` non esegue un header FITS, **su HTTP reale** | inserisce e cancella 1 riga `files` e 1 utente di prova; conteggi verificati |
-| `sff_results_http_escape_check.php` | la tabella risultati che `sff.js:152` mette in `innerHTML` non esegue `name`/`path` dell'archivio, e nessuna diagnostica PHP raggiunge il pannello | inserisce e cancella 2 righe `files` e 1 utente; conteggi verificati |
-| `sff_payload_check.php` | `find_calibration_files.php` non porta più i blob nella risposta, e le miniature passano da `image.php` | nessuna scrittura |
-| `cols_test.php` | registro colonne: insieme toggleable e gruppi si descrivono a vicenda, `name` non nascondibile | nessuna scrittura |
-| `lang_selector_sink_check.php` | renderizza il vero `language_selector.php` con `$_GET` ostile e verifica il DOM parsato | nessuna scrittura |
-| `reindex_batch_continue_check.py` | un record che il DB rifiuta non ferma il resto della passata: 4 blocchi da 50, 150 file committati | scrive righe sintetiche in `files` con prefisso univoco, poi le rimuove; conteggi verificati tornati allo stato iniziale |
-| `file_cells_escape_check.php` | `file_cells.php` escapa testo, attributi e href in entrambi gli ambiti (`main` e `project`): 62 occorrenze del payload, nessuna grezza | nessuna scrittura (riga sintetica) |
-| `table_escape_check.php` | `table.php` escapa in **entrambe le viste**, con due sink di nome distinti verificati per posizione | nessuna scrittura (riga sintetica) |
-| `tree_render_escape_check.php` | `projects_tree.php` escapa testo, attributo e tooltip in **tutte e tre** le modalità (`hypoMode` 1 e 0, review 2 con `suggestion_ids[]` a intero e reason escapato) | nessuna scrittura (albero sintetico) |
-| `sff_filter_escape_check.php` | `sff_filter_template.php` escapa il valore di riferimento in testo, `value=` e `data-unit=` | nessuna scrittura |
-| `tree_preview_escape_check.php` | la catena HTTP reale `project_tree_preview.php` → JSON `html` → `main.js:646` | crea e rimuove 1 utente; nessuna scrittura (la preview annulla la transazione) |
-| `export_regression_probe.php` | un frame di un tipo vive sotto la cartella di quel tipo; nessun `fid` in due cartelle senza essere duplicato dichiarato | nessuna scrittura |
-| `export_dup_scenario.php` | una calibrazione linkata a due setup: il builder nuovo emette entrambe le copie e le dichiara | transazione annullata |
-| `hash_parity.php` + `hash_parity.py` + `hash_parity_diff.py` | **gate di parità PHP<->Python**: `config_hash` e `match_inputs` devono coincidere, o ogni dismiss diventa stale a ogni passata | nessuna scrittura |
-| `stale_check.py`, `stale_resurrect.py` | strumenti manuali di diagnostica, richiedono `<file_id>` | transazione annullata |
+| `cols_alignment_check.php` | §4 — `<th>`/`<td>` aligned in the integration groups | no writes |
+| `frozen_check.php` | §6 — frozen mode does not write | creates and removes 2 test projects |
+| `zip_guard_check.php` | §1 — the ZIP export respects `can_download` | creates and removes 1 test user |
+| `numbering_check.php` | §9, §8 — numbering without collisions, `session_no` per night | creates and removes 1 test project |
+| `export_basename_check.php` | §11 — Windows-extractable basenames, case-insensitive collisions | no writes |
+| `addmsg_check.php` | §12 — the error message is outside the hidden steps | creates and removes 1 test user |
+| `legacy_normalize_check.php` | §13.6, §13.7 — imgtype and label_object normalization | plants and restores 1 panel |
+| `project_visibility_check.php` | §13.8 — the project stays visible, the queue is filtered | creates and removes 1 project + 2 suggestions |
+| `thumb_render_check.php` | §13.16 — thumbnails stay detected with `OCTET_LENGTH` | no writes |
+| `blob_weight_check.php` | §13.16 — the saving on blobs is real | no writes |
+| `api_bootstrap_check.php` | §13.41, §13.2 — the 5 endpoints with the slim bootstrap, no manifest, contract keys | creates and removes 1 user |
+| `bootstrap_cost_check.php` | §13.41 — cost of the init.php data block | creates and removes 1 user |
+| `security_batch_check.php` | §13.36, §13.37, §13.38, §13.39 — CSRF on the ZIP form, path boundary, JSON encoding, AstroBin permissions | creates 2 users, test tree in `/tmp` |
+| `api_contract_check.php` | §13.33, §13.34, §13.35 — 400 with `error` key, 401 JSON, 404 on a nonexistent project, HTML without warnings | creates and removes 1 user |
+| `threshold_key_check.php` | §13.1 — one row per group, the constraint rejects duplicates with NULL | rolled-back transaction |
+| `write_atomicity_check.php` | §13.3, §13.4, §13.32 — aliases without partial application, one pending per project, `catch (Throwable)` | rolled-back transactions, creates and removes 1 user |
+| `export_manifest_check.php` | §13.24, §13.25, §13.26, §13.40 — non-numeric rotation, tolerances, manifest filtered on disk | restores `projects.tolerances` |
+| `suggest_parity_check.py` | §13.25, §13.26, §13.27 — `_num_prefix`, uppercase RA/Dec, `get_globals` that propagates | no writes |
+| `export_ids_check.php` | §13.10 — 4000 ids via body (GET gives 414), permissions on `get_unmapped_filters.php` | creates and removes 2 users |
+| `watcher_queue_check.py` | §13.28, §13.29 — rescan invoked, one connection and one reset | fake connection in `sys.modules` |
+| `ux_feedback_check.php` | §13.9, §13.11, §13.13, §13.18 — chart with a hidden column, declared truncation, errors without a query, double space | creates and removes 1 user |
+| `igroup_total_check.php` | §13.14, §13.15 — the groups are a partition, also in tile mode | no writes |
+| `duplicates_handler_check.php` | §13.44, §13.45 — a single script block, a true `escapeHTML` | creates and removes 1 user |
+| `docblock_owner_check.php` | §13.21 — every docblock documents the function that follows, and its claims are true | no writes |
+| `export_smoke_check.php` | §11 — `buildProjectExportMap` on a real project, sanitized basenames do not break the map | no writes |
+| `resuggest_check.php` | §13 — `resuggestDismissed()` and `getDismissedCount()` on the real path, only dismissed rows are touched | rolled-back transaction |
+| `stale_check.py` | §13 — consistency of the suggestion payloads between PHP and Python | no writes |
+| `calib_suggest_check.py` | §7 — DARK/BIAS linked to a setup, no orphan sessions | rolled-back transactions |
+| `session_numbering_check.py` | §8 — `session_no` follows the night on the Python side | rolled-back transaction |
+| `watch_backoff_check.py` | §10 — the watcher does not retry every second | no writes (subprocess stub) |
+| `imgtype_parity_check.py` | §13.6 — the migration SQL matches Python | no writes |
+| `check_chart_ids.mjs` | §3 — canvas ids per metric key | none |
+| `check_escattr.mjs` | §5 — `escAttr` closes the `title` attribute | none |
+| `api_bootstrap_all_check.php` | the 4 non-projects endpoints migrated to `api_bootstrap.php` no longer load `init.php` | creates and removes 1 user |
+| `api_bootstrap_sweep.php` | the same 4 endpoints on **happy and error paths**; no PHP diagnostic in the body | no writes |
+| `calib_filter_id_check.php` | the filter column name arrives from the JSON body and is validated | no writes |
+| `sff_filter_live_check.php` | the filter-based calibration search really returns valid JSON, and the whitelist rejects | no writes |
+| `sff_filter_http_escape_check.php` | the filter panel that `sff.js:53` assigns to `innerHTML` does not execute a FITS header, **on real HTTP** | inserts and deletes 1 `files` row and 1 test user; counts verified |
+| `sff_results_http_escape_check.php` | the results table that `sff.js:152` assigns to `innerHTML` does not execute the archive's `name`/`path`, and no PHP diagnostic reaches the panel | inserts and deletes 2 `files` rows and 1 user; counts verified |
+| `sff_payload_check.php` | `find_calibration_files.php` no longer carries the blobs in the response, and the thumbnails go through `image.php` | no writes |
+| `cols_test.php` | column registry: the toggleable set and the groups describe each other, `name` is not hideable | no writes |
+| `lang_selector_sink_check.php` | renders the real `language_selector.php` with a hostile `$_GET` and checks the parsed DOM | no writes |
+| `reindex_batch_continue_check.py` | a record the DB rejects does not stop the rest of the pass: 4 blocks of 50, 150 files committed | writes synthetic rows into `files` with a unique prefix, then removes them; counts verified back to the initial state |
+| `file_cells_escape_check.php` | `file_cells.php` escapes text, attributes and href in both scopes (`main` and `project`): 62 payload occurrences, none raw | no writes (synthetic row) |
+| `table_escape_check.php` | `table.php` escapes in **both views**, with two distinct named sinks verified by position | no writes (synthetic row) |
+| `tree_render_escape_check.php` | `projects_tree.php` escapes text, attribute and tooltip in **all three** modes (`hypoMode` 1 and 0, review 2 with `suggestion_ids[]` as an integer and the reason escaped) | no writes (synthetic tree) |
+| `sff_filter_escape_check.php` | `sff_filter_template.php` escapes the reference value in text, `value=` and `data-unit=` | no writes |
+| `tree_preview_escape_check.php` | the real HTTP chain `project_tree_preview.php` → JSON `html` → `main.js:646` | creates and removes 1 user; no writes (the preview rolls back the transaction) |
+| `export_regression_probe.php` | a frame of one type lives under that type's folder; no `fid` in two folders without being a declared duplicate | no writes |
+| `export_dup_scenario.php` | a calibration linked to two setups: the new builder emits both copies and declares them | rolled-back transaction |
+| `hash_parity.php` + `hash_parity.py` + `hash_parity_diff.py` | **PHP<->Python parity gate**: `config_hash` and `match_inputs` must match, or every dismissal goes stale on every pass | no writes |
+| `stale_check.py`, `stale_resurrect.py` | manual diagnostic tools, require `<file_id>` | rolled-back transaction |
 
-### I sink `innerHTML` del JS residuo: verificati e refutati
+### The remaining JS `innerHTML` sinks: verified and refuted
 
-Il cliente ha quattro `innerHTML = <HTML costruito dal server>`. Sono stati auditati
-tutti, e nessuno è un difetto. Vale la pena scriverlo, perché tre dei quattro
-*sembravano* sospetti e due sono refutazioni che richiedono una misura per essere
-credibili.
+The client has four `innerHTML = <HTML built by the server>`. All of them were
+audited, and none is a defect. It is worth writing down, because three of the
+four *looked* suspicious and two are refutations that need a measurement to be
+credible.
 
-| Sink | Sorgente | Esito |
+| Sink | Source | Outcome |
 |---|---|---|
-| `main.js:646` | `api/project_tree_preview.php` → `includes/projects_tree.php` | escaping completo, coperto da `tree_render_escape_check.php` e `tree_preview_escape_check.php` |
-| `sff.js:152` | `api/find_calibration_files.php` → `sff_results_table.php` | già verificato in una sessione precedente |
-| `sff.js:53` | `api/sff_get_filters.php` → `sff_filter_template.php` | escaping completo, coperto a harness da `sff_filter_escape_check.php` e **su HTTP reale** da `sff_filter_http_escape_check.php` |
-| `main.js:490` | `api/project_preview.php`, HTML costruito **lato client** con `escHtml`/`escAttr` | sicuro per costruzione |
+| `main.js:646` | `api/project_tree_preview.php` → `includes/projects_tree.php` | complete escaping, covered by `tree_render_escape_check.php` and `tree_preview_escape_check.php` |
+| `sff.js:152` | `api/find_calibration_files.php` → `sff_results_table.php` | already verified in a previous session |
+| `sff.js:53` | `api/sff_get_filters.php` → `sff_filter_template.php` | complete escaping, covered at harness level by `sff_filter_escape_check.php` and **on real HTTP** by `sff_filter_http_escape_check.php` |
+| `main.js:490` | `api/project_preview.php`, HTML built **client-side** with `escHtml`/`escAttr` | safe by construction |
 
-Le tre interpolazioni di `${error.message}` senza escaping erano l'altro sospetto.
-Nessuna è controllabile dal server, e due si chiudono senza nemmeno guardare il PHP:
+The three unescaped `${error.message}` interpolations were the other suspect.
+None is controllable from the server, and two close without even looking at the PHP:
 
-- **`sff.js:57`** — l'errore nasce da `throw new Error('Network response was not ok')`,
-  una stringa letterale del client. Nessun testo del server raggiunge quel ramo.
-- **`main.js:288`** — `get_duplicates.php` non mette mai `$_GET['hash]` nella risposta:
-  in successo restituisce l'array dei duplicati (che non ha una chiave `error`), e in
-  errore solo costanti e `__('error_fetching_duplicates')`.
-- **`sff.js:164`** — qui il sospetto era reale: `find_calibration_files.php:223` fa
-  `json_encode(['error' => 'Database query failed: ' . $e->getMessage()])`, quindi il
-  messaggio del driver entrava nell'HTML. **Refutato misurando**: un
-  `PDOException` su questa configurazione (`ATTR_EMULATE_PREPARES => false`) riporta
-  solo la diagnosi del driver e la traccia della query, **mai i valori dei parametri
-  legati**. Provato con tre forme, fra cui un payload legato come parametro a una
-  query che fallisce: nessuna l'ha fatto riapparire. E il testo della query è
-  costruito solo da id di filtro e valori di `search_type` già passati per whitelist.
+- **`sff.js:57`** — the error comes from `throw new Error('Network response was not ok')`,
+  a literal client-side string. No server text reaches that branch.
+- **`main.js:288`** — `get_duplicates.php` never puts `$_GET['hash]` in the response:
+  on success it returns the array of duplicates (which has no `error` key), and on
+  error only constants and `__('error_fetching_duplicates')`.
+- **`sff.js:164`** — here the suspicion was real: `find_calibration_files.php:223` does
+  `json_encode(['error' => 'Database query failed: ' . $e->getMessage()])`, so the
+  driver message was entering the HTML. **Refuted by measuring**: a
+  `PDOException` on this configuration (`ATTR_EMULATE_PREPARES => false`) reports
+  only the driver diagnostic and the query trace, **never the values of bound
+  parameters**. Tried with three shapes, among them a payload bound as a parameter
+  to a failing query: none made it reappear. And the query text is
+  built only from filter ids and `search_type` values that already passed the whitelist.
 
-`main.js:350` (`return d.innerHTML` dentro `escHtml`) non è un difetto: è l'idioma
-standard di escaping via DOM, e `main.js:352` documenta già il suo limite — escapa
-`& < >` e non le virgolette — con `escAttr()` accanto per gli attributi. Il
-distinguo è già coperto da `check_escattr.mjs`.
+`main.js:350` (`return d.innerHTML` inside `escHtml`) is not a defect: it is the
+standard DOM-based escaping idiom, and `main.js:352` already documents its limit —
+it escapes `& < >` and not quotes — with `escAttr()` next to it for attributes. That
+distinction is already covered by `check_escattr.mjs`.
 
-### Cosa in `tests/` non è un test
-`tests/` contiene anche altro, e non tutto deve girare nella suite:
+### What in `tests/` is not a test
+`tests/` contains other things too, and not all of them should run in the suite:
 
-- **helper**: `_old_export_probe.php` è il builder pre-fix congelato (funzioni con prefisso
-  `OLD_` per non collidere), serve da baseline di confronto.
-- **sonde diagnostiche** (`imgtype_probe.php`, `schema_probe.php`, `phinxlog_probe.php`,
-  `snr_diag.py`, `frame_smoke.py`): stampano tabelle, non hanno verdetto.
-- **usa-e-getta**: `dbg.php`, `dupdebug.php`, `cksec.php`, `srrender2.php`,
-  `refactorcheck.php` — `refactorcheck.php` e `dupdebug.php` si dichiarano da soli
-  «Throwaway, deleted after run» e sono ancora lì: candidati alla cancellazione.
-- **piani**: i `*-plan.md` e il `scan_php.ps1` che li ha generati.
-- **esperimenti con soglia**: `sep_dense.py`, `sep_smoke.py` arrivano a un `AssertionError`
-  su una soglia di taratura: sono probe di misura, non gate. `snr_diag.py` e `frame_smoke.py`
-  hanno bisogno di file FITS su disco.
+- **helper**: `_old_export_probe.php` is the frozen pre-fix builder (functions with
+  an `OLD_` prefix so they do not collide), used as a comparison baseline.
+- **diagnostic probes** (`imgtype_probe.php`, `schema_probe.php`, `phinxlog_probe.php`,
+  `snr_diag.py`, `frame_smoke.py`): they print tables, they have no verdict.
+- **throwaway** (`usa-e-getta`): `dbg.php`, `dupdebug.php`, `cksec.php`, `srrender2.php`,
+  `refactorcheck.php` — `refactorcheck.php` and `dupdebug.php` declare themselves
+  as «Throwaway, deleted after run» and are still there: candidates for deletion.
+- **plans**: the `*-plan.md` files and the `scan_php.ps1` that generated them.
+- **threshold experiments**: `sep_dense.py`, `sep_smoke.py` reach an `AssertionError`
+  on a calibration threshold: they are measurement probes, not gates. `snr_diag.py`
+  and `frame_smoke.py` need FITS files on disk.
 
-Attenzione: `frame_smoke.py`, `sep_grid.py`, `sep_hot.py` e `sep_poison.py` erano **morti**
-in silenzio. Importavano da `/pkg` e `/mod`, cioè dalla disposizione della libreria prima
-che `projects.py` e `star_analysis.py` arrivassero sotto `indexer_lib`. Erano già in
-`tests/` e non risultavano da nessuna parte: nessuna asserzione, nessun errore visibile, solo
-l'assenza di output.
+Note: `frame_smoke.py`, `sep_grid.py`, `sep_hot.py` and `sep_poison.py` were **dead**
+silently. They imported from `/pkg` and `/mod`, i.e. from the library layout that
+predates `projects.py` and `star_analysis.py` moving under `indexer_lib`. They were
+already in `tests/` and showed up nowhere: no assertion, no visible error, just the
+absence of output.
 
-### Gate di parità PHP<->Python
+### PHP<->Python parity gate
 
-`hash_parity.php` e `hash_parity.py` emettono la stessa forma JSON su stdout; il confronto
-è il gate. Va eseguito end to end, perché è proprio la cattura manuale delle due metà che
-aveva lasciato il gate marcio:
+`hash_parity.php` and `hash_parity.py` emit the same JSON shape on stdout; the
+comparison is the gate. It has to run end to end, because it is precisely the
+manual capture of the two halves that had left the gate rotten:
 
 ```bash
 docker exec awi-php sh -c 'cd /tmp/harness && php hash_parity.php' > /tmp/php.json
@@ -160,52 +161,52 @@ docker cp /tmp/py.json awi-python:/tmp/py.json
 docker exec awi-python sh -c 'cd /tmp && python hash_parity_diff.py php.json py.json'
 ```
 
-Tollera di proposito cinque chiavi che Python emette e PHP no
-(`globals/tol_*`, tranne quelle già in lista): entrambi gli hash iterano la **stessa**
-lista fissa di chiavi — `PROJECT_SUGGEST_TOL_KEYS` in `projects_functions.php` e
-`SUGGEST_TOL_KEYS` in `indexer_lib/projects.py` — quindi un `globals` più ricco non
-entra nell'hash. Qualsiasi altra differenza è una rottura di parità reale.
+It deliberately tolerates five keys that Python emits and PHP does not
+(`globals/tol_*`, except those already listed): both hashes iterate the **same**
+fixed list of keys — `PROJECT_SUGGEST_TOL_KEYS` in `projects_functions.php` and
+`SUGGEST_TOL_KEYS` in `indexer_lib/projects.py` — so a richer `globals` does not
+enter the hash. Any other difference is a real parity break.
 
-`AWI_PROJECTS_LIB` è la directory **genitore** che contiene `indexer_lib`, cioè
-`/opt/scripts`, non `/opt/scripts/indexer_lib`: `calib_suggest_check.py` fa
-`from indexer_lib.projects import …`. I test che facevano `import projects` con
-`sys.path` su `/opt/scripts` sono morti con `ModuleNotFoundError`.
+`AWI_PROJECTS_LIB` is the **parent** directory that contains `indexer_lib`, i.e.
+`/opt/scripts`, not `/opt/scripts/indexer_lib`: `calib_suggest_check.py` does
+`from indexer_lib.projects import …`. The tests that did `import projects` with
+`sys.path` on `/opt/scripts` died with `ModuleNotFoundError`.
 
-I test Python girano dentro `awi-python`:
+Python tests run inside `awi-python`:
 
 ```bash
 docker cp tests/<script>.py awi-python:/tmp/
 docker exec -e AWI_PROJECTS_LIB=/opt/scripts awi-python sh -c 'cd /tmp && python <script>.py'
 ```
 
-> **Perché `/tmp` e non la directory montata.** `src/` e `docker/python/indexer_lib`
-> sono bind mount dentro i container: scrivere `/var/www/html/...` o
-> `/opt/scripts/indexer_lib/...` da `docker exec` **sovrascrive anche il file locale**.
-> È successo tre volte e in ogni caso il fix era andato perso. I test vanno quindi
-> copiati in `/tmp` dentro il container.
+> **Why `/tmp` and not the mounted directory.** `src/` and `docker/python/indexer_lib`
+> are bind mounts inside the containers: writing `/var/www/html/...` or
+> `/opt/scripts/indexer_lib/...` from `docker exec` **overwrites the local file
+> too**. It happened three times and each time the fix was lost. The tests must
+> therefore be copied into `/tmp` inside the container.
 >
-> Se serve una regressione su un sorgente, **salvalo fuori dal container prima** di
-> sovrascriverlo, e riapplicarlo in locale dopo.
+> If you need a regression against a source file, **save it outside the container
+> before** overwriting it, and reapply it locally afterwards.
 
-## Regressione
+## Regression
 
-`cols_alignment_check.php`, `frozen_check.php` e `calib_suggest_check.py` verificano
-anche il comportamento *prima* del fix.
+`cols_alignment_check.php`, `frozen_check.php` and `calib_suggest_check.py` also
+verify the behavior *before* the fix.
 
 ```bash
-# §4: rimuovere il gate star in file_cells.php
+# §4: remove the star gate in file_cells.php
 docker exec awi-php sh -c 'cd /var/www/html && cp includes/file_cells.php /tmp/fc.bak && \
   sed -i "/if (\$groupKey === .star. && empty(\$pStar)) {/,+2d" includes/file_cells.php'
-docker exec awi-php php /var/www/html/cols_alignment_check.php   # atteso: star OFF DISALLINEATO
+docker exec awi-php php /var/www/html/cols_alignment_check.php   # expected: star OFF MISALIGNED
 docker exec awi-php sh -c 'cp /tmp/fc.bak /var/www/html/includes/file_cells.php'
 
-# §6: rimuovere il guard frozen in projects_functions.php
+# §6: remove the frozen guard in projects_functions.php
 docker exec awi-php sh -c 'cd /var/www/html && cp includes/projects_functions.php /tmp/pf.bak && \
   sed -i "/Frozen means locked. Checked here as well/,/^    }$/d" includes/projects_functions.php'
-docker exec awi-php php /var/www/html/frozen_check.php          # atteso: caso B "MUTATO <<< BUG"
+docker exec awi-php php /var/www/html/frozen_check.php          # expected: case B "CHANGED <<< BUG"
 docker exec awi-php sh -c 'cp /tmp/pf.bak /var/www/html/includes/projects_functions.php'
 
-# §7 e §8 (Python): copia della libreria con la versione PRE-fix, poi test contro la copia
+# §7 and §8 (Python): copy the library with the PRE-fix version, then test against the copy
 docker exec awi-python sh -c 'rm -rf /tmp/oldlib && mkdir -p /tmp/oldlib && \
   cp -r /opt/scripts/indexer_lib /tmp/oldlib/ && rm -rf /tmp/oldlib/indexer_lib/__pycache__'
 git show HEAD~1:docker/python/indexer_lib/projects.py | \
@@ -216,670 +217,671 @@ docker exec -e AWI_PROJECTS_LIB=/tmp/oldlib    awi-python sh -c 'cd /tmp && pyth
 docker exec -e AWI_PROJECTS_LIB=/opt/scripts  awi-python sh -c 'cd /tmp && python session_numbering_check.py'
 ```
 
-`numbering_check.php` ha bisogno delle migration applicate (gli indici unici): senza
-`uq_project_setups_no` / `uq_project_panels_no` il test di concorrenza non dimostra
-nulla, e lo segnala a inizio output.
+`numbering_check.php` needs the migrations applied (the unique indexes): without
+`uq_project_setups_no` / `uq_project_panels_no` the concurrency test proves
+nothing, and it says so at the start of the output.
 
-### I tre test di escaping vanno provati rossi, non solo verdi
+### The three escaping tests must be tried red, not just green
 
-Un test di escaping che non è mai stato visto fallire non dimostra niente. I tre
+An escaping test that has never been seen failing proves nothing. The three
 (`tree_render_escape_check.php`, `sff_filter_escape_check.php`,
-`tree_preview_escape_check.php`) sono stati tolti di mezzo uno alla volta per vedere
-quali verifiche si accendono, poi ripristinati. Il metodo usato è l'edit del file nel
-repo seguito da `git checkout --`: **`sed` non va bene per queste righe da
-PowerShell**, perché il pattern contiene `<?=` e il `<` viene letto come operatore
-(trappola #6, già capita). Il bind mount fa il resto: modificare il file nel repo è
-visibile al container, quindi basta attendere l'opcache.
+`tree_preview_escape_check.php`) were broken one at a time to see which checks
+light up, then restored. The method used is editing the file in the
+repo followed by `git checkout --`: **`sed` is not suitable for these PowerShell-written
+lines**, because the pattern contains `<?=` and the `<` is read as an operator
+(trap #6, already hit). The bind mount does the rest: modifying the file in the repo
+is visible to the container, so it is enough to wait for the opcache.
 
 ```bash
-# 1. togliere l'escaping di UN contesto, eseguire i test, ripristinare
-#    (l'edit si fa nel repo, non dentro il container)
-# 2. attendere l'opcache: opcache.revalidate_freq=2, trappola #5
+# 1. remove the escaping of ONE context, run the tests, restore
+#    (the edit happens in the repo, not inside the container)
+# 2. wait for the opcache: opcache.revalidate_freq=2, trap #5
 sleep 3
 docker exec awi-php sh -c 'cd /tmp && php tree_render_escape_check.php 1; \
   php tree_render_escape_check.php 0; \
   php tree_render_escape_check.php 2; \
   php sff_filter_escape_check.php; \
   php tree_preview_escape_check.php'
-# 3. ripristinare e ricontrollare che siano tornati verdi
+# 3. restore and recheck that they are green again
 git checkout -- ../src/includes/projects_tree.php ../src/includes/sff_filter_template.php
 ```
 
-I tre casi provati, con il verdetto atteso, così la verifica è ripetibile:
+The three cases tried, with the expected verdict, so the check is repeatable:
 
-| Rottura introdotta | Test da eseguire | Atteso |
+| Break introduced | Test to run | Expected |
 |---|---|---|
-| `projects_tree.php:250` — `data-setup-name` senza `htmlspecialchars` | `tree_render_escape_check.php 1` | **verde**: l'attributo è nel ramo `!$hypoMode`, la preview non lo raggiunge |
-| idem, stesso file | `tree_render_escape_check.php 0` | **rossa**: `1 grezze`, `attribute onload su <button>`, `il suo valore resta chiuso` |
-| `projects_tree.php:252` — `renderSetupFingerprint` senza `htmlspecialchars` | `tree_preview_escape_check.php` | **rossa**: occorrenze 1/2 escaped, `<img>` e `<svg onload>` iniettati, HTML 22 byte più corto |
-| `sff_filter_template.php:38` — `value=` senza `htmlspecialchars` | `sff_filter_escape_check.php` | **rossa**: 4 verifiche, fra cui `il valore e' escaped in value= (riga 38)` |
-| `sff_filter_template.php:37` — testo senza `htmlspecialchars` | `sff_filter_escape_check.php` | **rossa**: `element <img>`, `attribute onerror su <img>` |
+| `projects_tree.php:250` — `data-setup-name` without `htmlspecialchars` | `tree_render_escape_check.php 1` | **green**: the attribute is in the `!$hypoMode` branch, the preview does not reach it |
+| same, same file | `tree_render_escape_check.php 0` | **red**: `grezze=1`, `attribute onload su <button>`, `il suo valore resta chiuso` |
+| `projects_tree.php:252` — `renderSetupFingerprint` without `htmlspecialchars` | `tree_preview_escape_check.php` | **red**: occurrences 1/2 escaped, `<img>` and `<svg onload>` injected, HTML 22 bytes shorter |
+| `sff_filter_template.php:38` — `value=` without `htmlspecialchars` | `sff_filter_escape_check.php` | **red**: 4 checks, among which `il valore e' escaped in value= (riga 38)` |
+| `sff_filter_template.php:37` — text without `htmlspecialchars` | `sff_filter_escape_check.php` | **red**: `element <img>`, `attribute onerror su <img>` |
 
-I tre test hanno in comune tre cose che li rendono credibili, e vanno mantenute se
-uno viene modificato:
+The three tests share three things that make them credible, and they must be kept
+if one of them is modified:
 
-- **controllo di positività prima del verdetto.** Il payload deve essere *arrivato*
-  nell'HTML (`substr_count` > 0) e, meglio, ogni sua occorrenza deve essere seguita da
-  `&lt;`. Senza questo, «nessuna iniezione» è vero anche quando la pagina era vuota.
-- **secondo parere dal DOM parsato.** `DOMDocument` + `DOMXPath` cercano un elemento
-  o un attributo `on*` che il template non ha scritto. È l'unico dei due controlli
-  che becca la rottura dell'attributo, perché lì il carattere dopo il payload è `<`
-  e non `"` (trappola #39).
-- **verifica posizionale del contesto.** Non basta «il payload è escaped da qualche
-  parte»: si controlla la posizione (`text-gray-300">PAYLOAD&lt;`,
-  `value="PAYLOAD&lt;`, `data-setup-name="PAYLOAD&lt;`). Una verifica globale
-  passerebbe anche se la metà scoperta non fosse protetta.
+- **positivity check before the verdict.** The payload must have *arrived*
+  in the HTML (`substr_count` > 0) and, better, every one of its occurrences must be followed by
+  `&lt;`. Without this, «no injection» is true even when the page was empty.
+- **second opinion from the parsed DOM.** `DOMDocument` + `DOMXPath` look for an element
+  or an `on*` attribute that the template did not write. It is the only one of the two checks
+  that catches the attribute break, because there the character after the payload is `<`
+  and not `"` (trap #39).
+- **positional check of the context.** «The payload is escaped somewhere» is not
+  enough: the position is checked (`text-gray-300">PAYLOAD&lt;`,
+  `value="PAYLOAD&lt;`, `data-setup-name="PAYLOAD&lt;`). A global check
+  would pass even if the uncovered half were unprotected.
 
-### `reindex_batch_continue_check.py`: il caso pre-fix
+### `reindex_batch_continue_check.py`: the pre-fix case
 
-Questo gira contro la tabella `files` vera, perché `awi_user` non può creare uno schema
-isolato. Per provare il codice **pre-fix** non si scrive sul mount `/opt/scripts`
-(trappola #38): si copia l'albero altrove e si punta `REINDEX_PY` e `AWI_PROJECTS_LIB`
-lì. I due parametri sono stampati all'inizio, e la loro assenza nell'output è il
-segnale che stai girando la copia vecchia della sonda (trappola #47).
+This runs against the real `files` table, because `awi_user` cannot create an isolated
+schema. To try the **pre-fix** code you must not write on the `/opt/scripts`
+mount (trap #38): copy the tree elsewhere and point `REINDEX_PY` and `AWI_PROJECTS_LIB`
+there. The two parameters are printed at the start, and their absence from the output is the
+signal that you are running the old copy of the probe (trap #47).
 
 ```bash
-# albero pre-fix, fuori dal mount
+# pre-fix tree, outside the mount
 docker exec awi-python sh -c 'rm -rf /tmp/prefix_lib && mkdir -p /tmp/prefix_lib && \
   cp -r /opt/scripts/indexer_lib /tmp/prefix_lib/ && rm -rf /tmp/prefix_lib/indexer_lib/__pycache__'
 git show "d4ac075^:docker/python/reindex.py" | \
   docker exec -i awi-python sh -c 'cat > /tmp/prefix_lib/reindex.py'
 docker exec awi-python sh -c 'printf "pre-fix : "; grep -c batch_params.clear /tmp/prefix_lib/reindex.py'
 docker exec awi-python sh -c 'printf "post-fix: "; grep -c batch_params.clear /opt/scripts/reindex.py'
-# 1 contro 2: il pre-fix svuota batch_params solo dopo un flush riuscito
+# 1 vs 2: the pre-fix empties batch_params only after a successful flush
 
 docker cp tests/reindex_batch_continue_check.py awi-python:/tmp/
-# post-fix: verde
+# post-fix: green
 docker exec -e AWI_PROJECTS_LIB=/opt/scripts awi-python \
   sh -c 'cd /tmp && python reindex_batch_continue_check.py'
-# pre-fix: rosso
+# pre-fix: red
 docker exec -e AWI_PROJECTS_LIB=/tmp/prefix_lib -e REINDEX_PY=/tmp/prefix_lib/reindex.py \
   awi-python sh -c 'cd /tmp && python reindex_batch_continue_check.py'
 ```
 
-Cosa distingue i due, misurato:
+What distinguishes the two, measured:
 
 | | post-fix | pre-fix |
 |---|---|---|
 | exit code | 0 | **1** |
-| righe committate | **150** su 199 | 100 su 199 |
-| blocchi persi | 1 su 4 | **2 su 4** |
-| righe di errore nel log | 1 | una per file, da quel momento in poi |
+| committed rows | **150** out of 199 | 100 out of 199 |
+| lost blocks | 1 out of 4 | **2 out of 4** |
+| error rows in the log | 1 | one per file, from that moment on |
 
-Il test asserisce **sia** il conteggio sia il codice di uscita, e il codice di uscita non
-è decorativo: il flush di coda sta fuori dal `try`, quindi col velenoso nell'ultimo
-blocco il pre-fix committerebbe comunque 150 file e fallirebbe solo sul `sys.exit(1)`.
-Con il conteggio da solo il test sarebbe ambiguo in quell'ordine.
+The test asserts **both** the count and the exit code, and the exit code is not
+decorative: the tail flush is outside the `try`, so with the poisonous record in the last
+block the pre-fix would still commit 150 files and fail only on the `sys.exit(1)`.
+With the count alone the test would be ambiguous in that ordering.
 
-Da notare che il caso qui descritto non è il più grave possibile: il codice **attuale**
-non è nemmeno in grado di accorgersi del caso «velenoso nell'ultimo blocco» se non per
-il fatto che il flush di coda propaga. È una scelta deliberata (vedi il messaggio di
-`d4ac075`: il lavoro già committato è al sicuro e il fallimento è rumoroso), quindi il
-test non la mette sotto esame, ma il limite è scritto qui perché il test non lo copre.
+Note that the case described here is not the most severe possible: the **current** code
+is not even able to notice the «poisonous record in the last block» case other than
+because the tail flush propagates. It is a deliberate choice (see the message of
+`d4ac075`: the work already committed is safe and the failure is noisy), so the
+test does not put it under examination, but the limit is written here because the test
+does not cover it.
 
-### I partial PHP renderizzati dal server
+### The PHP partials rendered by the server
 
-L'audit degli `innerHTML` del client (sopra) copre solo l'HTML che arriva via
-`fetch`. I partial che il server stampa direttamente sono una superficie separata, e
-quella piu' grande era intatta. `file_cells.php` disegna **tutte** le righe
-dell'archivio: su questa copia 365 file, ciascuno con nome, object, filter, instrume,
-cameraid, telescop e una quarantina di altri header FITS. Chi deposita un file lo
-controlla.
+The audit of the client `innerHTML` (above) only covers the HTML arriving via
+`fetch`. The partials the server prints directly are a separate surface, and
+the largest one was untouched. `file_cells.php` draws **all** the rows
+of the archive: on this copy 365 files, each with name, object, filter, instrume,
+cameraid, telescop and forty other FITS headers. Whoever deposits a file checks it.
 
-`file_cells_escape_check.php` guida il partial vero con una riga sintetica in cui ogni
-colonna stringa dell'archivio contiene il payload, in entrambi gli ambiti:
+`file_cells_escape_check.php` drives the real partial with a synthetic row in which every
+string column of the archive contains the payload, in both scopes:
 
-- `main` — `table.php:103`, la tabella principale della home
-- `project` — `igroup_files_table.php:29`, le tabelle integration group dei progetti
+- `main` — `table.php:103`, the main table of the home page
+- `project` — `igroup_files_table.php:29`, the project integration group tables
 
-Esito: **62 occorrenze del payload, tutte escaped o percent-encoded, zero grezze.** I
-tre contesti sono distinti e vengono controllati separatamente:
+Outcome: **62 payload occurrences, all escaped or percent-encoded, zero raw.** The
+three contexts are distinct and are checked separately:
 
-| Contesto | Come lo scrive | Cosa produce col payload |
+| Context | How it writes it | What the payload produces |
 |---|---|---|
-| testo | `htmlspecialchars()` su ogni colonna stringa | `XSS&lt;img …` |
-| attributo | `htmlspecialchars()` in `fileCellAttrs()` (riga 71), sul `data-val` grezzo | `XSS&lt;img …` |
-| href | `rawurlencode()` sul path (riga 228) | `DIR%2FXSS%3Cimg%20…` |
+| text | `htmlspecialchars()` on every string column | `XSS&lt;img …` |
+| attribute | `htmlspecialchars()` in `fileCellAttrs()` (line 71), on the raw `data-val` | `XSS&lt;img …` |
+| href | `rawurlencode()` on the path (line 228) | `DIR%2FXSS%3Cimg%20…` |
 
-Il test conta **tre forme** del payload — grezza, entità HTML, percent-encoded — e
-pretende che la grezza sia 0 e che le altre due sommino al totale. Se il path
-arrivasse nell'href senza codifica, la forma grezza salirebbe e il test lo direbbe.
+The test counts **three shapes** of the payload — raw, HTML entities, percent-encoded — and
+requires the raw one to be 0 and the other two to sum to the total. If the path
+reached the href without encoding, the raw shape would rise and the test would say so.
 
-Punti che la lettura non bastava a chiudere, e che il test blocca:
+Points that reading alone was not enough to close, and that the test blocks:
 
-- **`$nameSuffix` (riga 230) è l'unico punto che stampa senza `htmlspecialchars`.** Il
-  solo chiamante, `igroup_files_table.php:21-26`, ci passa markup fisso attorno a una
-  traduzione, quindi non è controllato dall'archivio. Il test verifica quell'invariante
-  («uno span inserito a mano, e il payload non ci passa dentro») invece di darlo per
-  scontato: è il tipo di argomento che regge finché qualcuno non aggiunge un chiamante.
-- **`getMoonPhaseMarkup(?float, ?float)`** ha il tipo dichiarato, quindi una stringa non
-  numerica diventa `TypeError` invece di finire nell'HTML: sicuro, ma per un motivo che
-  non è l'escaping.
-- **`resolution`, `fov_w`, `fov_h` e `file_size`** sono formattati **senza cast**
-  (`number_format($f['fov_w'], 1)`, `$f['file_size'] / 1048576`). Qui il test mette dei
-  numeri, non il payload, e il motivo è scritto nel file: non sono controllati
-  dall'archivio (`resolution = (xpixsz * xb / focallen) * 206.265`, `file_size =
-  os.stat().st_size`), e con una stringa il test morirebbe di `TypeError` senza dire
-  nulla sull'escaping. È una fragilità, non un difetto dimostrato, e quindi non è una
-  correzione: se un giorno quei campi arrivassero da una fonte non numerica, il sintomo
-  sarebbe un 500 e non un'escape.
+- **`$nameSuffix` (line 230) is the only point that prints without `htmlspecialchars`.** The
+  only caller, `igroup_files_table.php:21-26`, passes it fixed markup around a
+  translation, so it is not controlled by the archive. The test verifies that invariant
+  («uno span inserito a mano, e il payload non ci passa dentro») instead of taking it for
+  granted: it is the kind of argument that holds until someone adds a caller.
+- **`getMoonPhaseMarkup(?float, ?float)`** has the declared type, so a non-numeric string
+  becomes a `TypeError` instead of ending up in the HTML: safe, but for a reason that
+  is not escaping.
+- **`resolution`, `fov_w`, `fov_h` and `file_size`** are formatted **without a cast**
+  (`number_format($f['fov_w'], 1)`, `$f['file_size'] / 1048576`). Here the test puts
+  numbers, not the payload, and the reason is written in the file: they are not controlled
+  by the archive (`resolution = (xpixsz * xb / focallen) * 206.265`, `file_size =
+  os.stat().st_size`), and with a string the test would die of `TypeError` without saying
+  anything about escaping. It is a fragility, not a demonstrated defect, and therefore not a
+  fix: if one day those fields arrived from a non-numeric source, the symptom
+  would be a 500 and not an escape.
 
-Il caso pre-fix si prova togliendo una singola `htmlspecialchars` e aspettando 3 secondi
-per l'opcache:
+The pre-fix case is tried by removing a single `htmlspecialchars` and waiting 3 seconds
+for the opcache:
 
-| Rottura introdotta | Atteso |
+| Break introduced | Expected |
 |---|---|
-| riga 229, `name` senza `htmlspecialchars` | **rossa**: `grezze=1`, `<img onerror>` e `<svg onload>` iniettati, in entrambi gli ambiti |
-| riga 71, `data-val` senza `htmlspecialchars` | **rossa in `project` solo**: `grezze=20`, `attributo onload su <td>`; in `main` resta verde, perché quel ramo non porta `data-val` |
+| line 229, `name` without `htmlspecialchars` | **red**: `grezze=1`, `<img onerror>` and `<svg onload>` injected, in both scopes |
+| line 71, `data-val` without `htmlspecialchars` | **red in `project` only**: `grezze=20`, `attribute onload su <td>`; in `main` it stays green, because that branch does not carry `data-val` |
 
-La seconda riga è la più informativa: un controllo di `innerHTML` o un campo di solo
-`main` non l'avrebbe vista, perché il ramo incriminato esiste solo in `project`.
+The second line is the most informative: an `innerHTML` check or a `main`-only field
+would not have seen it, because the incriminated branch exists only in `project`.
 
-### Come il pannello filtri è stato chiuso su HTTP reale
+### How the filter panel was closed on real HTTP
 
-Il buco che `sff_filter_http_escape_check.php` colma era dichiarato in questa sezione
-sulla sicurezza: il valore di riferimento di `render_sff_filter()` viene da
-`files.<colonna>`, cioè dall'header FITS, e **non esiste un modo per renderlo
-controllabile dal client senza scrivere una riga in `files`**. Finché le scritture sul DB
-erano vietate la verifica poteva esistere solo a harness.
+The hole that `sff_filter_http_escape_check.php` closes was declared in this section
+on security: the reference value of `render_sff_filter()` comes from
+`files.<column>`, i.e. from the FITS header, and **there is no way to render it
+controllable by the client without writing a row into `files`**. As long as DB writes
+were forbidden the check could only exist at harness level.
 
-Ora il percorso vero è provato end to end:
+Now the real path is proven end to end:
 
 ```
-GET /api/sff_get_filters.php?id=<id>&type=lights        (sessione reale, CSRF vero)
+GET /api/sff_get_filters.php?id=<id>&type=lights        (real session, real CSRF)
   -> SELECT * FROM files WHERE id = :id AND imgtype = 'LIGHT'
-  -> render_sff_filter($config, $referenceFile[$key])   per ogni chiave attiva
-  -> echo, con Content-Type: text/html
+  -> render_sff_filter($config, $referenceFile[$key])   for each active key
+  -> echo, with Content-Type: text/html
   -> sff.js:53   sffFiltersPanel.innerHTML = html
 ```
 
-Con `type=lights` le colonne attive sono `object`, `filter`, `instrume`, `cameraid`,
+With `type=lights` the active columns are `object`, `filter`, `instrume`, `cameraid`,
 `exptime`, `ccd_temp`, `xbinning`, `ybinning`, `ra`, `dec`, `objctrot`, `fov_w`, `fov_h`,
-`moon_phase`, `width`, `height`, `date_obs`. Le stringhe sono le prime quattro.
+`moon_phase`, `width`, `height`, `date_obs`. The strings are the first four.
 
-Esito: **8 occorrenze del payload, tutte escaped, zero grezze**, e i due contesti
-mostrati a byte (`text-gray-300">XSS&lt;img …` e `value="XSS&lt;img …`).
+Outcome: **8 payload occurrences, all escaped, zero raw**, and the two contexts
+shown at byte level (`text-gray-300">XSS&lt;img …` and `value="XSS&lt;img …`).
 
-Il file di prova **non viene messo su disco**: solo una riga in `files`, cancellata per
-`id` esatto. Nessun reindex, nessun file in `/var/fits`, nessun'altra riga toccata. Il
-`finally` cancella riga e utente anche quando il test muove a metà, ed è verificato:
-durante lo sviluppo una versione è morta con `1406 Data too long` e il conteggio è
-tornato a 365 lo stesso.
+The test file is **not written to disk**: only a row in `files`, deleted by
+exact `id`. No reindex, no file in `/var/fits`, no other row touched. The
+`finally` deletes row and user even when the test dies halfway, and this is verified:
+during development one version died with `1406 Data too long` and the count
+went back to 365 all the same.
 
-Tre cose che il percorso HTTP ha reso necessarie e che un harness non avrebbe chiesto:
+Three things that the HTTP path made necessary and that a harness would not have
+asked for:
 
-- **`filter` è `varchar(50)` con `STRICT_TRANS_TABLES`.** La copia corta del payload
-  doveva stare in 50 caratteri, altrimenti l'`INSERT` moriva con `1406` e il test
-  misurava il vincolo del database invece dell'escaping. Per questo ha un marcatore
-  proprio (`Z9`): senza, non si distingueva dalle altre tre copie, che i conteggi
-  riportano solo per `XSS`.
-- **Il controllo di positività va sull'endpoint, non sul template.** Prima della richiesta
-  ostile il test chiede lo stesso pannello per il primo LIGHT vero dell'archivio e pretende
-  200 con HTML non vuoto. «Il payload non è iniettato» è vero anche quando l'endpoint non
-  ha restituito niente, e su HTTP quella distinzione costa una richiesta.
-- **`imgtype` deve essere esattamente `'LIGHT'`**, altrimenti la `WHERE` non trova la riga
-  e il test misurerebbe un 404 travestito da prova di escaping.
+- **`filter` is `varchar(50)` with `STRICT_TRANS_TABLES`.** The short copy of the payload
+  had to fit in 50 characters, otherwise the `INSERT` died with `1406` and the test
+  measured the database constraint instead of the escaping. That is why it has its own
+  marker (`Z9`): without it, it was indistinguishable from the other three copies, which
+  the counts report only for `XSS`.
+- **The positivity check belongs on the endpoint, not on the template.** Before the hostile
+  request the test asks for the same panel for the archive's first real LIGHT and requires
+  200 with non-empty HTML. «The payload is not injected» is true even when the endpoint
+  returned nothing, and over HTTP that distinction costs one request.
+- **`imgtype` must be exactly `'LIGHT'`**, otherwise the `WHERE` does not find the row
+  and the test would measure a 404 disguised as an escaping check.
 
-Il caso pre-fix, togliendo una sola `htmlspecialchars`:
+The pre-fix case, by removing a single `htmlspecialchars`:
 
-| Rottura introdotta | Atteso |
+| Break introduced | Expected |
 |---|---|
-| riga 38, `value=` senza `htmlspecialchars` | **rossa**: `grezze=3` su `XSS` e `grezze=1` su `Z9`, `attributo onload su <input>`, `il value= nascosto e' escaped` |
+| line 38, `value=` without `htmlspecialchars` | **red**: `grezze=3` on `XSS` and `grezze=1` on `Z9`, `attribute onload su <input>`, `il value= nascosto e' escaped` |
 
-53. **Un controllo sul corpo grezso della risposta può essere vacuo, perché `json_encode`
-    escapa le barre in `\/`.** «Nessun percorso assoluto del server esposto» verificava
-    `str_contains($body, '/var/www/html/')` sul corpo HTTP: quella sequenza non ci può
-    mai essere, nemmeno quando la diagnostica che la contiene è presente. Il check
-    passava anche su codice rotto, e l'ho lasciato com'era per un po' perché passava.
-    Va controllato il campo **decodificato**, che è quello che il browser vede. È la
-    stessa famiglia della #33: un test che non può fallire non è un test.
+53. **A check on the raw response body can be vacuous, because `json_encode`
+    escapes slashes into `\/`.** «No absolute server path exposed» checked
+    `str_contains($body, '/var/www/html/')` on the HTTP body: that sequence can never
+    be there, not even when the diagnostic containing it is present. The check
+    passed even on broken code, and I left it as it was for a while because it passed.
+    The **decoded** field must be checked, which is what the browser sees. It is the
+    same family as #33: a test that cannot fail is not a test.
 
-54. **Il controllo di positività va fatto PRIMA di inserire i dati della prova.** Con
-    `filters` vuoto la ricerca SFF ha come unico WHERE `imgtype = 'LIGHT'`, quindi
-    restituisce **tutto** l'archivio. La prima versione inseriva le righe ostili e poi
-    chiedeva il controllo su un LIGHT "vero": quel controllo riportava anche le righe
-    appena create, e il test segnalava come difetto che il proprio payload fosse
-    arrivato nella risposta. L'ordine delle operazioni è parte dell'invariante.
+54. **The positivity check must be done BEFORE inserting the test data.** With
+    `filters` empty the SFF search has `imgtype = 'LIGHT'` as its only WHERE, so it
+    returns **the whole** archive. The first version inserted the hostile rows and then
+    asked for the check on a "real" LIGHT: that check also reported the rows
+    just created, and the test flagged as a defect that its own payload had
+    arrived in the response. The order of operations is part of the invariant.
 
-55. **`preg_match` vuole il terzo argomento per riferimento.** La verifica delle `<img>`
-    passava `'#'` come argomento delle corrispondenze:
+55. **`preg_match` wants the third argument by reference.** The `<img>` check
+    passed `'#'` as the matches argument:
     `Error: preg_match(): Argument #3 ($matches) could not be passed by reference`.
-    Il check **moriva** invece di verificare, e la riga dopo non è mai arrivata
-    all'output, quindi sembrava che il test fosse semplicemente silenzioso.
+    The check **died** instead of verifying, and the next line never reached
+    the output, so it looked like the test was simply silent.
 
-56. **Mettere il payload solo in `name` non basta per coprire i contesti.** `path` è la
-    colonna che finisce nel `value=` della checkbox e nell'`href /fits/`, ed è l'unica
-    delle due che passa da `rawurlencode` invece che da `htmlspecialchars`. Con il `path`
-    pulito quei due check fallivano **per assenza di payload**, non per difetto: un test
-    che segnala «non c'è il payload» quando il payload non è mai stato messo lì.
+56. **Putting the payload only in `name` is not enough to cover the contexts.** `path` is
+    the column that ends up in the checkbox `value=` and in the `/fits/` `href`, and it is the only
+    one of the two that goes through `rawurlencode` instead of `htmlspecialchars`. With a clean
+    `path` those two checks failed **for absence of payload**, not because of a defect: a test
+    that reports «there is no payload» when the payload was never put there.
 
-### `sff_results_table.php`: un difetto vero, trovato dalla verifica dell'escaping
+### `sff_results_table.php`: a real defect, found by the escaping check
 
-L'audit dell'escaping ha prodotto qui un difetto che non è di escaping.
+The escaping audit produced here a defect that is not about escaping.
 
-`sff_results_table.php:58` faceva `substr($file['date_obs'], 0, 10)` senza controllare il
-NULL. In PHP 8.1+ `substr(null)` è deprecato, e **`reindex.py` scrive `date_obs = NULL`
-quando il DATE-OBS non è parsabile**, quindi il ramo è raggiungibile dall'archivio: basta
-un FITS con un DATE-OBS malformato.
+`sff_results_table.php:58` did `substr($file['date_obs'], 0, 10)` without checking for
+NULL. In PHP 8.1+ `substr(null)` is deprecated, and **`reindex.py` writes `date_obs = NULL`
+when DATE-OBS is not parseable**, so the branch is reachable from the archive: a
+FITS with a malformed DATE-OBS is enough.
 
-Ladiagnostica veniva stampata mentre era aperto il buffer che racchiude il partial, quindi
-finiva nel campo JSON `html` invece di rompere la risposta — il JSON restava valido, ed è
-per questo che non si era mai visto come errore lato client. Ma `sff.js:152` assegna quel
-campo a `sffResultsPanel.innerHTML`, quindi l'utente leggeva, in mezzo alla tabella:
+The diagnostic was printed while the buffer wrapping the partial was open, so it
+ended up in the `html` JSON field instead of breaking the response — the JSON stayed
+valid, and that is why it had never been seen as a client-side error. But `sff.js:152`
+assigns that field to `sffResultsPanel.innerHTML`, so the user read, in the middle of the table:
 
 ```
 Deprecated: substr(): Passing null to parameter #1 ($string) of type string is
 deprecated in /var/www/html/includes/sff_results_table.php on line 58
 ```
 
-Riga dall'aspetto rotta e **divulgazione del percorso assoluto del server con il numero di
-riga**. Misurato prima del fix: una volta dentro `html`, al byte 1523 di una risposta da
-338 KB.
+A line that looks broken and **disclosure of the server's absolute path with the line
+number**. Measured before the fix: once inside `html`, at byte 1523 of a 338 KB
+response.
 
-Su questa copia il difetto era **latente**: tutti i 236 LIGHT hanno `date_obs`. E
-`grep` su tutti i `substr()` di `src/` conferma che questo era l'unico applicato a una
-colonna nullable del database; gli altri lavorano su valori già normalizzati o controllati.
+On this copy the defect was **latent**: all 236 LIGHTs have `date_obs`. And
+`grep` over all the `substr()` in `src/` confirms this was the only one applied to a
+nullable database column; the others work on already normalized or checked values.
 
-Il fix (`68b4f41`) è una riga, e riusa la convenzione delle tre celle sotto, che stampano
-già `N/A` per un valore assente invece di lasciare la cella vuota.
+The fix (`68b4f41`) is one line, and reuses the convention of the three cells below, which
+already print `N/A` for an absent value instead of leaving the cell empty.
 
-`tmp/sff_results_http_escape_check.php` porta la regressione: inserisce un LIGHT con
-`date_obs` NULL e verifica che nessuna diagnostica PHP raggiunga la risposta e che il
-percorso assoluto non compaia nel campo decodificato. Entrambe le verifiche vanno rosse
-sul codice pre-fix.
+`tmp/sff_results_http_escape_check.php` carries the regression: it inserts a LIGHT with
+`date_obs` NULL and verifies that no PHP diagnostic reaches the response and that the
+absolute path does not appear in the decoded field. Both checks go red
+on the pre-fix code.
 
-57. **Un partial che scrive `<script>` e `onclick` di proposito non si verifica con una
-    lista di divieto secca.** `table.php` contiene un blocco `<script>` (il gestore dei
-    duplicati) e `template_functions.php:55` mette `onclick="sortTable(...)"` sulle
-    intestazioni che ordinano. Vietarli produceva due falsi positivi su codice corretto.
-    L'invariante non è «nessun handler» — che qui sarebbe falso — ma «nessun handler che
-    il template non scrive di suo»: si tollera `onclick` su `<th>` e si vieta il resto.
-    E si controlla che il payload non sia finito **dentro** lo `<script>`, perché lì
-    l'escaping non proteggerebbe nulla: uno `<script>` iniettato esegue anche con tutto il
-    resto escapato.
+57. **A partial that deliberately writes `<script>` and `onclick` cannot be verified with a
+    flat deny-list.** `table.php` contains a `<script>` block (the duplicates handler)
+    and `template_functions.php:55` puts `onclick="sortTable(...)"` on the
+    headings that sort. Banning them produced two false positives on correct code.
+    The invariant is not «no handler» — which here would be false — but «no handler that
+    the template does not write itself»: `onclick` on `<th>` is tolerated and the rest
+    is banned.
+    And it is checked that the payload did not end up **inside** the `<script>`, because there
+    escaping would protect nothing: an injected `<script>` executes even with everything
+    else escaped.
 
-58. **Sul DOM il payload compare *sempre* nel testo, anche quando è escaped.** Il parser
-    restituisce i valori **decodificati**, e `XSS&lt;img` arriva come testo `XSS<img`. Un
-    check «il payload non compare nel testo dei nodi» è quindi vero solo per codice
-    rotto: l'esatto opposto di un test. È la trappola #50 in un vestito diverso, e me la
-    sono ritrovata due volte nella stessa sessione. L'unico posto dove il confronto del
-    contenuto ha senso è dentro `<script>`, perché il suo contenuto è testo grezzo e il
-    parser **non** vi risolve le entità. Altrove la prova che il payload sia stato portato
-    come valore e non come markup è la conta grezza/entità sul sorgente, più l'assenza di
-    elementi e handler nuovi nel DOM.
+58. **In the DOM the payload *always* appears in the text, even when escaped.** The parser
+    returns the values **decoded**, and `XSS&lt;img` arrives as text `XSS<img`. A
+    check «the payload does not appear in the text of the nodes» is therefore only true for
+    broken code: the exact opposite of a test. It is trap #50 in a different outfit, and I
+    ran into it twice in the same session. The only place where comparing the
+    content makes sense is inside `<script>`, because its content is raw text and the
+    parser does **not** resolve entities there. Elsewhere the proof that the payload was carried
+    as a value and not as markup is the raw/entity count on the source, plus the absence of
+    new elements and handlers in the DOM.
 
-59. **`thumb-title>` non esiste: c'è una virgoletta di troppo.** Il pattern di prova del
-    blocco schede era `#thumb-title>\s*<a[^>]*>\s*…#`, e non trovava nulla **su codice
-    corretto**. Nell'HTML c'è `class="thumb-title">`: la virgoletta di chiusura
-    dell'attributo sta fra la parola e l'angolo. Il pattern giusto aggancia
-    `class="thumb-title">`. Verificato con cinque pattern incrementali invece di
-    indovinare: `#thumb-title>#` dà 0 matches, `#<a[^>]*>\s*XSS&lt;#s` ne dà 1 — cioè il
-    codice era corretto e il pattern no.
+59. **`thumb-title>` does not exist: there is an extra quote.** The test pattern of the
+    cards block was `#thumb-title>\s*<a[^>]*>\s*…#`, and it found nothing **on correct
+    code**. In the HTML there is `class="thumb-title">`: the closing quote of the
+    attribute sits between the word and the angle bracket. The right pattern hooks
+    `class="thumb-title">`. Verified with five incremental patterns instead of
+    guessing: `#thumb-title>#` gives 0 matches, `#<a[^>]*>\s*XSS&lt;#s` gives 1 — i.e. the
+    code was correct and the pattern was not.
 
-60. **Un `include` dentro una funzione vede l'ambito locale, non `$GLOBALS`.** Nel primo
-    tentativo `render($mode)` metteva `$files` solo in `$GLOBALS['files']` e poi includeva
-    `table.php`: dentro la funzione `$files` era *undefinita*, il partial non disegnava
-    nessuna riga, e il risultato era zero occorrenze del payload — che il test avrebbe
-    potuto leggere come «pulito». Il test vero passa `$files` come parametro, ed è il
-    parametro a renderlo visibile. Se un harness «non trova nulla», controllare prima che
-    stia disegnando qualcosa: è la trappola #3 in forma nuova.
+60. **An `include` inside a function sees the local scope, not `$GLOBALS`.** In the first
+    attempt `render($mode)` put `$files` only in `$GLOBALS['files']` and then included
+    `table.php`: inside the function `$files` was *undefined*, the partial drew
+    no rows, and the result was zero payload occurrences — which the test could
+    have read as «clean». The real test passes `$files` as a parameter, and it is the
+    parameter that makes it visible. If a harness «finds nothing», first check that it is
+    drawing something: it is trap #3 in a new form.
 
-### `table.php`: due viste, due sink distinti
+### `table.php`: two views, two distinct sinks
 
-`table.php` è il guscio della tabella principale e contiene **due** rendering degli stessi
-dati: la vista a elenco, che delega le celle a `renderFileTableCells` (coperta da
-`file_cells_escape_check.php`), e la **vista a schede**, che riscrive da capo nome, path,
-object, filter, exptime, imgtype e date_obs. Sono codice separato: una correzione alla
-prima non tocca la seconda.
+`table.php` is the shell of the main table and contains **two** renderings of the same
+data: the list view, which delegates the cells to `renderFileTableCells` (covered by
+`file_cells_escape_check.php`), and the **cards view**, which rewrites from scratch name, path,
+object, filter, exptime, imgtype and date_obs. They are separate code: a fix to the
+first does not touch the second.
 
-`table_escape_check.php` copre entrambe: **14 occorrenze del payload, 12 escaped e 2
-percent-encoded, zero grezze**, con i due sink di nome verificati per posizione
-(`class="thumb-title"` per la schede, la cella delegata per l'elenco) perché un controllo
-globale passerebbe anche se solo uno dei due fosse scoperto.
+`table_escape_check.php` covers both: **14 payload occurrences, 12 escaped and 2
+percent-encoded, zero raw**, with the two named sinks verified by position
+(`class="thumb-title"` for the cards, the delegated cell for the list) because a global check
+would pass even if only one of the two were uncovered.
 
-Il caso pre-fix, togliendo la `htmlspecialchars` del nome nella vista a schede (riga 146):
+The pre-fix case, by removing the `htmlspecialchars` of the name in the cards view (line 146):
 
-| Rottura introdotta | Atteso |
+| Break introduced | Expected |
 |---|---|
-| `htmlspecialchars($f['name'])` → `$f['name']` nella vista schede | **rossa**: `grezze=1`, `<img onerror>` e `<svg onload>` iniettati, e `vista schede: il nome e' escaped` va rosso con il dettaglio «il blocco thumb-title non contiene il nome escaped» |
+| `htmlspecialchars($f['name'])` → `$f['name']` in the cards view | **red**: `grezze=1`, `<img onerror>` and `<svg onload>` injected, and `vista schede: il nome e' escaped` goes red with the detail «the thumb-title block does not contain the escaped name» |
 
-Una cosa che il test scopre e che è facile dare per scontata: **il cookie `viewMode` non
-sceglie quale vista venga renderizzata**, cambia solo la classe `hidden` di un
-contenitore. Il partial stampa sempre entrambe, quindi le due esecuzioni danno gli stessi
-conteggi ma **byte diversi** (40111 in entrambe, ma non identici). Un invariante scritto
-sui byte sarebbe fallito sul codice giusto; l'invariante giusto è «stesse occorrenze del
-payload, e tutte escaped».
+One thing the test discovers and that is easy to take for granted: **the `viewMode` cookie does not
+choose which view gets rendered**, it only changes the `hidden` class of a
+container. The partial always prints both, so the two executions give the same
+counts but **different bytes** (40111 in both, but not identical). An invariant written
+on bytes would have failed on the correct code; the right invariant is «same payload
+occurrences, and all escaped».
 
-Non coperto qui: i nomi dei progetti nel `<option>` della modale (riga 36). Sono
-`htmlspecialchars`, ma per provarli servirebbe un progetto inserito a mano, e finora si è
-preferito non scrivere righe di progetto.
+Not covered here: the project names in the modal's `<option>` (line 36). They are
+`htmlspecialchars`, but testing them would require a hand-inserted project, and so far it has been
+preferred not to write project rows.
 
-## Trappole dei test (non del codice di produzione)
+## Test traps (not production-code traps)
 
-1. **`projects.php` risponde `302 → /?panel=projects` anche con sessione valida.**
-   Non si può dedurre "non autenticato" dal 302: il segnale è un body che contiene
-   il form di login (`name="password"`).
-2. **`project_files` è chiazzato `(file_id, level, node_id)`.** Non esiste
-   `project_files.setup_id`, e i light vengono linkati a livello `filter`, non
-   `setup`. Contare i soli `level='setup'` dà un falso "0 aggiunti".
-3. **Nel dataset i DARK/BIAS appartengono a un telescopio diverso dai LIGHT**
-   (il fingerprint del setup include `TELESCOP`), quindi il test di §7 usa due
-   progetti di prova. Inoltre `already_processed` fa rispondere `skipped` se si
-   ripropone lo stesso file: per due sonde sullo stesso file la riga di suggestion
-   va cancellata in mezzo.
-4. **`astro_night` torna come `datetime.date`**, non stringa: le chiavi dei dizionari
-   vanno normalizzate con `str()`.
-5. **`opcache.revalidate_freq=2`.** Dopo aver modificato un PHP serve comunque il
-   markup in cache: una regressione su `addmsg_check.php` è passata falsamente la
-   prima volta per questo, e ha solo fallito dopo `sleep 4`. Prima di confrontare
-   pre-fix e post-fix, **attendere almeno 3 secondi**.
-6. **`json_encode` può restituire `false`** su dati reali (byte non UTF-8 nelle righe
-   di `files`), e `echo false` produce stringa vuota. `project_visibility_check.php` ne
-   è stato vittima: il confronto su JSON era sempre falso, quindi il test sarebbe
-   passato per il motivo sbagliato. Raccogliere i valori direttamente dalle strutture.
-7. **`CURLOPT_POSTFIELDS` con un array** invia `multipart/form-data`, non
-   `application/x-www-form-urlencoded`. `login.php` e gli endpoint form leggono da
-   `$_POST`, quindi il login fallisce **in silenzio** (HTTP 200 con la pagina di login
-   dentro) e ogni richiesta successiva risulta non autenticata. Usare
-   `http_build_query()` esplicitamente.
-8. **`require_once` fallito è fatale e `@` non lo silenzia.** Un test destinato a girare
-   sia sul codice pre-fix sia su quello corretto non può fare `require` di un file che
-   nel pre-fix non esiste: serve `if (file_exists(...))`. Con lo shim in `security_batch_check.php`
-   lo stesso test riporta i 13 difetti sul codice di prima e passa su quello dopo.
-9. **Non bufferizzare un archivio ZIP per testarlo.** L'export di un progetto reale
-   supera i 512M di `memory_limit` e il test muore esaurendo la memoria invece di
-   riportare il difetto. `httpPostHead()` in `security_batch_check.php` raccoglie i
-   primi byte con `CURLOPT_WRITEFUNCTION`.
-10. **Le chiavi inesistenti in PHP valgono `null`, non errore.** Il contratto di
-   `parseProjectAddRequest` / `projectAddPrepare` è in parte camelCase
-   (`customSetups`, `groupFpOverrides`, `customSkipped`) e in parte snake_case
-   (`project_id`, `new_project`), quindi un refactor di stile che "allinea" i nomi
-   rompe i rami senza che nulla lo segnali. `api_bootstrap_check.php` confronta le chiavi
-   lette dagli endpoint con quelle restituite dalle funzioni.
-11. **`main.js` guarda solo `data.error`.** I `fetch` del wizard fanno
-   `.then(r => r.json())` e poi `if (data.error) throw`, senza controllare `r.ok`.
-   Quindi un `{"success":false}` con HTTP 400 non produce comunque un errore utile: il
-   ramo successivo costruiva una preview vuota. Le risposte d'errore dei quattro endpoint
-   JSON devono avere la chiave `error`, non solo lo status.
-12. **Un `require_once` di un partial che rende markup esegue il markup.** `igroup_files_table.php`
-   è un partial che stampa subito e si aspetta `$grp`/`$gi`: richiederlo a livello di
-   bootstrap produce warning che finiscono nel corpo JSON (`401` preceduto da 2.7 KB di
-   HTML spazzatura). I partial vanno inclusi dal chiamante nel contesto giusto.
-   `api_contract_check.php` controlla che nessun `Warning`/`Notice`/`Deprecated` arrivi
-   nell'HTML della home e del dettaglio progetto.
-13. **Una ricerca testuale sul corpo di una funzione può trovare il proprio commento.**
-   `threshold_key_check.php` verificava che `getProjectThresholds` ordinasse per
-   `ORDER BY id DESC`, e passava anche senza: la stringa cercata era nel commento che
-   spiega il perché. Va controllata la stringa SQL estratta dal `prepare()`, non il
-   corpo. È la stessa classe della #11, e come quella l'ho trovata perché il test
-   passava dove doveva fallire.
-14. **`change()` non sa invertire un `execute()` raw.** La prima versione della migration
-   `FixGroupThresholdsUniqueKey` diceva "reverted" senza aver toccato niente, lasciando
-   una schema che non corrispondeva a nessuna versione: `down()` esplicito.
-   `20261019120000_add_numbering_unique_indexes.php` ha lo stesso limite.
-15. **Prima di dichiarare "pre-fix fallisce", togli anche la migration.** Con la schema
-   nuova e il codice di prima `threshold_key_check.php` passava: l'upsert ricominciava a
-   scattare. Le due metà del fix erano indipendenti e la schema nuova mascherava il
-   difetto del codice. Per la prova serve schema di origine *e* codice di origine.
-16. **Non dedurre il formato della richiesta dal tipo dell'argomento.** Il primo
-   `httpPost` di `write_atomicity_check.php` mandava JSON anche al login (trappola #7,
-   già documentata: il login fallisce in silenzio). Corretto deducendo "array = form",
-   gli endpoint hanno cominciato a ricevere urlencoded, perché anche loro mandano array.
-   Il formato è ora un flag esplicito.
-17. **Un test a thread singolo non può dimostrare una corsa.** "due chiamate a
-   `enqueueSuggestRequest` producono una riga" passa anche col codice che non protegge
-   niente, perché le due chiamate sono sequenziali. La prova è l'inserimento doppio
-   diretto, che simula i due scrittori e fallisce senza il vincolo. Vale in generale:
-   un test verde su una race non è una prova della race.
-18. **PDO non ha transazioni annidate.** Per verificare che una funzione non committi
-   da sola quando il chiamante ha già aperto una transazione, si apre **una** transazione
-   e si chiama la funzione dentro: non si annida `beginTransaction`.
-19. **Dal container non si lancia `docker`.** `export_manifest_check.php` voleva confrontare
-   i risultati PHP con quelli Python chiamando `docker exec`: dentro `awi-php` non c'è il
-   docker CLI, quindi il confronto era muto. Sostituito ancorando i due test agli stessi
-   valori attesi, calcolati dai primi principi in entrambi: se una metà implementa
-   diversamente, la sua verifica fallisce comunque.
-20. **Un test che muore al primo fallimento informa meno di uno che li elenca.**
-   `suggest_parity_check.py` pre-fix faceva `abs(None - x)` e moriva di `TypeError`, quindi
-   dei 16 difetti se ne vedeva uno. Ora ha `close()` e `fmt()` che tollerano `None` e
-   l'elenco completo è quello che conta nella prova pre-fix.
-21. **`''` dentro una stringa PHP non è un apostrofo.** `'a''{value}''b'` viene letto come
-   stringa `'a'` poi `{value}` poi `'b'`: parse error. Se serve un apostrofo in un
-   messaggio i18n, non usare `''`.
-22. **Le tolleranze hanno un'unità, non sono numeri.** I default sono `'1%'`, `'2C'`,
-   `'3deg'`, `'10%'`, quindi una validazione come `/^\d+(\.\d+)?$/` sul valore salvato
-   rifiuta ogni valore legittimo e rompe la feature. La condizione giusta è che la stringa
-   **inizi** con un numero non negativo. `export_manifest_check.php` copre il ramo con le
-   unità esplicitamente, perché è il rischio che una validazione ragionevole introduce.
-23. **Dopo un riavvio di Docker Desktop i bind mount sono serviti da una cache stale.**
-   Il container continuava a mostrare la versione *pre-fix* di `watch_fs.py` mentre il file
-   locale era già corretto, e `watcher_queue_check.py` è quindi **passato pre-fix** senza
-   guardare il codice giusto. Va riavviato il container prima di fidarsi di una verifica
-   pre-fix. Nello stesso gruppo nginx aveva risolto `php` quando era a `.4` mentre il
-   container era passato a `.5`, con 502 su tutte le richieste: un riavvio di nginx risolve.
-24. **In Python, assegnare una variabile a livello di modulo la rende locale.** Nella nuova
-   `process_suggest_queue()` scrivevo `_suggest_conn = None` per gestire una connessione
-   caduta: da quel punto Python la tratta come locale e la prima lettura solleva
-   `UnboundLocalError`. Serve `global`.
-25. **Una chiave i18n non finisce mai nell'HTML, il suo valore sì.** Cercando
-   `projects_error_name` nel corpo della pagina l'asserzione era un falso pass: la chiave
-   resta nel sorgente, nell'HTML c'è il testo tradotto. Va cercato il valore della lingua
-   effettivamente in uso.
-26. **Uno spazio finale in una stringa di traduzione è un contratto invisibile.**
-   `filter_mapping_unmapped` finiva con `": "` e il JS aggiungeva `" (" + nomi + ")"`,
-   dando due spazi. Tolto lo spazio dal template invece che dal JS: la spaziatura è
-   invisibile in review, il separatore nel codice no.
-27. **Non scrivere sintassi PowerShell dentro un file PHP.** In un test ho scritto
-   `$i -ge`, `$lines.Count` e `[Math]::Max(...)`: in PHP `-ge` diventa la costante `ge`,
-   `.Count` diventa la costante `Count`, e si ottiene `Undefined constant` invece di un
-   errore di sintassi utile. Il controllo è fallito per tre righe prima che me ne accorgessi.
-28. **Spostare un commento non basta se il commento menteva.** Prima di spostare il docblock
-   orfano ho verificato le sue tre affermazioni contro il codice (forma di ritorno,
-   cancellazione dei suggerimenti, creazione della catena): tutte e tre reggevano. Se
-   fossero state false, il fix avrebbe solo spostato una descrizione sbagliata.
+1. **`projects.php` answers `302 → /?panel=projects` even with a valid session.**
+   You cannot deduce "not authenticated" from the 302: the signal is a body that contains
+   the login form (`name="password"`).
+2. **`project_files` is keyed `(file_id, level, node_id)`.** There is no
+   `project_files.setup_id`, and lights get linked at `filter` level, not
+   `setup`. Counting only `level='setup'` gives a false "0 added".
+3. **In the dataset the DARK/BIAS belong to a different telescope than the LIGHTs**
+   (the setup fingerprint includes `TELESCOP`), so the §7 test uses two
+   test projects. Also `already_processed` answers `skipped` if the
+   same file is proposed again: for two probes on the same file the suggestion row
+   must be deleted in between.
+4. **`astro_night` comes back as `datetime.date`**, not a string: dictionary keys
+   must be normalized with `str()`.
+5. **`opcache.revalidate_freq=2`.** After modifying a PHP it still serves the
+   cached markup: a regression on `addmsg_check.php` falsely passed
+   the first time for this reason, and only failed after `sleep 4`. Before comparing
+   pre-fix and post-fix, **wait at least 3 seconds**.
+6. **`json_encode` can return `false`** on real data (non-UTF-8 bytes in the
+   `files` rows), and `echo false` produces an empty string. `project_visibility_check.php` was
+   its victim: the JSON comparison was always false, so the test would
+   have passed for the wrong reason. Collect the values directly from the structures.
+7. **`CURLOPT_POSTFIELDS` with an array** sends `multipart/form-data`, not
+   `application/x-www-form-urlencoded`. `login.php` and the form endpoints read from
+   `$_POST`, so the login fails **silently** (HTTP 200 with the login page
+   inside) and every subsequent request comes out unauthenticated. Use
+   `http_build_query()` explicitly.
+8. **A failed `require_once` is fatal and `@` does not silence it.** A test meant to run
+   both on the pre-fix code and on the correct one cannot `require` a file that
+   does not exist in the pre-fix: `if (file_exists(...))` is needed. With the shim in `security_batch_check.php`
+   the same test reports the 13 defects on the old code and passes on the new one.
+9. **Do not buffer a ZIP archive to test it.** The export of a real project
+   exceeds the 512M `memory_limit` and the test dies of memory exhaustion instead of
+   reporting the defect. `httpPostHead()` in `security_batch_check.php` collects the
+   first bytes with `CURLOPT_WRITEFUNCTION`.
+10. **Missing keys in PHP are `null`, not an error.** The contract of
+    `parseProjectAddRequest` / `projectAddPrepare` is partly camelCase
+    (`customSetups`, `groupFpOverrides`, `customSkipped`) and partly snake_case
+    (`project_id`, `new_project`), so a style refactor that "aligns" the names
+    breaks the branches with nothing signalling it. `api_bootstrap_check.php` compares the keys
+    read by the endpoints with those returned by the functions.
+11. **`main.js` only looks at `data.error`.** The wizard's `fetch` calls do
+    `.then(r => r.json())` and then `if (data.error) throw`, without checking `r.ok`.
+    So a `{"success":false}` with HTTP 400 still produces no useful error: the next
+    branch was building an empty preview. The error responses of the four JSON endpoints
+    must have the `error` key, not just the status.
+12. **A `require_once` of a partial that renders markup executes the markup.** `igroup_files_table.php`
+    is a partial that prints immediately and expects `$grp`/`$gi`: requiring it at bootstrap level
+    produces warnings that end up in the JSON body (`401` preceded by 2.7 KB of
+    junk HTML). Partials must be included by the caller in the right context.
+    `api_contract_check.php` checks that no `Warning`/`Notice`/`Deprecated` reaches
+    the HTML of the home page and of the project detail.
+13. **A text search on the body of a function can find its own comment.**
+    `threshold_key_check.php` verified that `getProjectThresholds` sorted by
+    `ORDER BY id DESC`, and it passed even without it: the searched string was in the comment
+    explaining why. The SQL string extracted from the `prepare()` must be checked, not the
+    body. It is the same class as #11, and like that one I found it because the test
+    passed where it should have failed.
+14. **`change()` cannot invert a raw `execute()`.** The first version of the migration
+    `FixGroupThresholdsUniqueKey` said "reverted" without having touched anything, leaving
+    a schema that matched no version: explicit `down()`.
+    `20261019120000_add_numbering_unique_indexes.php` has the same limit.
+15. **Before declaring "pre-fix fails", remove the migration too.** With the new
+    schema and the old code `threshold_key_check.php` passed: the upsert started
+    working again. The two halves of the fix were independent and the new schema masked the
+    code defect. The proof needs the original schema *and* the original code.
+16. **Do not infer the request format from the argument type.** The first
+    `httpPost` of `write_atomicity_check.php` sent JSON to the login too (trap #7,
+    already documented: the login fails silently). After correcting it by deducing "array = form",
+    the endpoints started receiving urlencoded, because they too send arrays.
+    The format is now an explicit flag.
+17. **A single-threaded test cannot demonstrate a race.** "Two calls to
+    `enqueueSuggestRequest` produce one row" passes even with code that protects
+    nothing, because the two calls are sequential. The proof is the direct double
+    insert, which simulates the two writers and fails without the constraint. This holds in general:
+    a green test on a race is not proof of the race.
+18. **PDO has no nested transactions.** To verify that a function does not commit
+    on its own when the caller has already opened a transaction, open **one** transaction
+    and call the function inside it: do not nest `beginTransaction`.
+19. **You cannot launch `docker` from the container.** `export_manifest_check.php` wanted to compare
+    the PHP results with the Python ones by calling `docker exec`: inside `awi-php` there is no
+    docker CLI, so the comparison was mute. Replaced by anchoring both tests to the same
+    expected values, computed from first principles in both: if one half implements
+    it differently, its check fails anyway.
+20. **A test that dies at the first failure informs less than one that lists them.**
+    `suggest_parity_check.py` pre-fix did `abs(None - x)` and died of `TypeError`, so
+    of 16 defects only one was visible. Now it has `close()` and `fmt()` that tolerate `None` and
+    the complete list is what counts in the pre-fix run.
+21. **`''` inside a PHP string is not an apostrophe.** `'a''{value}''b'` is read as
+    the string `'a'` then `{value}` then `'b'`: parse error. If you need an apostrophe in an
+    i18n message, do not use `''`.
+22. **Tolerances have a unit, they are not numbers.** The defaults are `'1%'`, `'2C'`,
+    `'3deg'`, `'10%'`, so a validation like `/^\d+(\.\d+)?$/` on the saved value
+    rejects every legitimate value and breaks the feature. The right condition is that the string
+    **starts** with a non-negative number. `export_manifest_check.php` covers the branch with
+    units explicitly, because it is the risk a reasonable validation introduces.
+23. **After a Docker Desktop restart the bind mounts are served from a stale cache.**
+    The container kept showing the *pre-fix* version of `watch_fs.py` while the local file
+    was already correct, and `watcher_queue_check.py` therefore **passed pre-fix** without
+    looking at the correct code. Restart the container before trusting a pre-fix check.
+    In the same group nginx had resolved `php` when it was at `.4` while the
+    container had moved to `.5`, with 502 on every request: restarting nginx fixes it.
+24. **In Python, assigning a variable at module level makes it local.** In the new
+    `process_suggest_queue()` I wrote `_suggest_conn = None` to handle a dropped
+    connection: from that point Python treats it as local and the first read raises
+    `UnboundLocalError`. `global` is needed.
+25. **An i18n key never reaches the HTML, its value does.** Looking for
+    `projects_error_name` in the page body, the assertion was a false pass: the key
+    stays in the source, in the HTML there is the translated text. The value of the language
+    actually in use must be looked for.
+26. **A trailing space in a translation string is an invisible contract.**
+    `filter_mapping_unmapped` ended with `": "` and the JS added `" (" + nomi + ")"`,
+    giving two spaces. The space was removed from the template rather than from the JS: spacing is
+    invisible in review, the separator in the code is not.
+27. **Do not write PowerShell syntax inside a PHP file.** In a test I wrote
+    `$i -ge`, `$lines.Count` and `[Math]::Max(...)`: in PHP `-ge` becomes the constant `ge`,
+    `.Count` becomes the constant `Count`, and you get `Undefined constant` instead of a
+    useful syntax error. The check failed for three lines before I noticed.
+28. **Moving a comment is not enough if the comment was lying.** Before moving the orphan
+    docblock I checked its three claims against the code (return shape,
+    deletion of the suggestions, chain creation): all three held. If
+    they had been false, the fix would only have moved a wrong description.
 
-29. **Un `?>` dentro un commento `//` chiude la modalità PHP.** `lang_selector_sink_check.php`
-    aveva nella testata un esempio del sink con il tag di chiusura: da lì in poi PHP
-    usciva dalla modalità PHP e **stampava il resto del file** invece di eseguire una
-    sola verifica. Il file sembrava un test perché era un test. Se un file PHP «non
-    fallisce mai», controllare che produca verdetto.
-30. **Il metodo e il nome del parametro vanno letti nella sorgente dell'endpoint.**
-    `sff_get_filters.php` e `get_duplicates.php` leggono da `INPUT_GET`/`$_GET`; mandare
-    un POST produce `400` a ogni richiesta, e il test misurava il percorso di rifiuto sotto
-    l'etichetta «happy path». Le prime due versioni di `api_bootstrap_sweep.php` avevano
-    anche `$traces === ''` su una funzione che restituisce un array: verde impossibile.
-31. **Una colonna inesistente muore come «Unknown column», non come difetto dell'endpoint.**
-    `get_duplicates` cerca in `files.file_hash`, non `files.hash`. Lo avevo scritto male e
-    avevo scritto nel riassunto che «l'hash viene derivato»: un fatto inventato, propagato
-    anche in un test. Tre volte in una sessione ho indovinato il nome di una colonna prima
-    di leggere `information_schema`.
-32. **Non confrontare byte-per-byte con un precedente già buggy.**
-    `export_regression_probe.php` verificava che `entries` fosse identico al builder
-    pre-fix, e il pre-fix aveva un ramo `elseif ($kind === 'bias')` duplicato e vuoto:
-    i BIAS finivano sotto la cartella DARK del gruppo precedente. Il probe codificava il
-    bug come invariante e segnalava come regressione l'output corretto. L'invariante giusta
-    è «un frame di un tipo vive sotto la cartella di quel tipo». E il probe deve esigere che
-    il vecchio builder **violi** l'invariante, altrimenti un giorno smetterebbe di provare
-    nulla restando verde.
-33. **Un test che asserisce l'assenza di un escaping fallisce il giorno in cui l'escaping
-    viene aggiunto.** Il vecchio `lang_selector_sink_check.php` verificava che il template
-    «non escapa», e il template è stato proprio irrobustito con `htmlspecialchars`. Il test
-    rendeva pieno crediti al difetto che stava per essere corretto.
-34. **Cercare una sottostringa per provare che un handler non è iniettabile è sbagliato.**
-    `onmouseover` compare legittimamente come dato percent-encoded dentro `data-return`.
-    Il livello giusto è il **nome dell'attributo nel DOM parsato**, e l'invariante è che
-    `onchange` sia l'unico gestore, non che non ce ne siano.
-35. **I conteggi assoluti sono invarianti fragili.** `cols_test.php` chiedeva 68 chiavi e 9
-    gruppi: erano diventati 76 e 10, quindi il test falliva avendo ragione sul codice. La
-    proprietà che vale è la corrispondenza fra insieme toggleable e gruppi, e va verificato
-    che l'invariante nuovo reagisca a una rottura, altrimenti è decorativo.
-36. **Il sintomo di una variabile non inizializzata dipende dall'ordine.** Lo stesso ramo
-    `bias` vuoto produceva `$leaf` obsoleto (BIAS dopo DARK → `SETUP_Sn/DARK/…`) oppure
-    `$leaf` mai definito (BIAS per primo → `SETUP_Sn//…`, con `Warning`). Un commento che
-    documenta solo una delle due forme è sbagliato a metà.
-37. **`AWI_PROJECTS_LIB` è il genitore di `indexer_lib`, non la libreria.** Passare
-    `/opt/scripts/indexer_lib` a `calib_suggest_check.py` rompe con
-    `ModuleNotFoundError: No module named 'indexer_lib'`; passare `/opt/scripts` a uno
-    script che fa `import projects` lo rompe lo stesso. Le due convenzioni convivevano e i
-    tre script con quella vecchia erano morti senza che nessuno lo notasse, perché il
-    gate di parità dipende dal lato Python e il lato Python semplicemente non partiva.
-38. **`/opt/scripts` è montato, ma la propagazione è a senso unico.**
-    `/opt/scripts/watch_fs.py`, `/opt/scripts/reindex.py` e `/opt_scripts/indexer_lib`
-    sono mount **grpcfuse**, non copie nel layer del container:
-    ```
-    grpcfuse /opt/scripts/watch_fs.py fuse.grpcfuse rw,...
-    grpcfuse /opt/scripts/indexer_lib fuse.grpcfuse rw,...
-    ```
-    Scrivere nel mount **scrive nel repo** (una `cat vecchio > /opt/scripts/watch_fs.py`
-    per provare il caso pre-fix mi ha cancellato la correzione appena fatta, e ho dovuto
-    rifarla), mentre modificare il file nel repo **non** aggiorna il mount: il mount
-    continua a servire la versione precedente finché non ci si scrive dentro. Quindi:
-    - per portare una correzione nel container si scrive **dal container**, non si usa
-      `docker cp` sul mount (`unlinkat: device or resource busy` su un mount di un singolo
-      file);
-    - per provare il caso pre-fix **non** si scrive il file vecchio sul mount: si copia
-      altrove, si esegue da lì, e si ripristina;
-    - `docker cp` su `/tmp` dentro il container è sicuro: `/tmp` non è montato.
-    Il watcher in esecuzione (`python watch_fs.py /var/fits`) tiene in memoria il modulo
-    caricato al boot: dopo una correzione **non** è ricaricato, serve un riavvio del
-    processo perché la modifica valga.
-Da CLI `session_start()` fallisce (`/tmp` non scrivibile): per test end-to-end
-occorre fare login via `login.php` come fanno `zip_guard_check.php`,
-`addmsg_check.php`, `api_bootstrap_check.php`, `bootstrap_cost_check.php` e
-`security_batch_check.php`.
+29. **A `?>` inside a `//` comment ends PHP mode.** `lang_selector_sink_check.php`
+     had in its header an example of the sink with the closing tag: from there on PHP
+     left PHP mode and **printed the rest of the file** instead of running a
+     single check. The file looked like a test because it was a test. If a PHP file «never
+     fails», check that it produces a verdict.
+30. **The method and the parameter name must be read in the endpoint's source.**
+     `sff_get_filters.php` and `get_duplicates.php` read from `INPUT_GET`/`$_GET`; sending
+     a POST produces `400` on every request, and the test was measuring the rejection path under
+     the label «happy path». The first two versions of `api_bootstrap_sweep.php` also
+     had `$traces === ''` on a function that returns an array: impossible green.
+31. **A nonexistent column dies as «Unknown column», not as an endpoint defect.**
+     `get_duplicates` looks in `files.file_hash`, not `files.hash`. I had written it wrong and
+     had written in the summary that «the hash is derived»: an invented fact, propagated
+     into a test too. Three times in one session I guessed a column name before
+     reading `information_schema`.
+32. **Do not compare byte-for-byte with an already buggy predecessor.**
+     `export_regression_probe.php` verified that `entries` was identical to the pre-fix builder,
+     and the pre-fix had a duplicated and empty `elseif ($kind === 'bias')` branch:
+     the BIAS ended up under the DARK folder of the previous group. The probe encoded the
+     bug as an invariant and reported the correct output as a regression. The right invariant
+     is «a frame of one type lives under that type's folder». And the probe must require that
+     the old builder **violates** the invariant, otherwise one day it would stop proving
+     anything while staying green.
+33. **A test that asserts the absence of an escaping fails the day the escaping is added.**
+     The old `lang_selector_sink_check.php` verified that the template
+     «does not escape», and the template was hardened precisely with `htmlspecialchars`. The test
+     gave full credit to the defect that was about to be corrected.
+34. **Searching for a substring to prove a handler is not injectable is wrong.**
+     `onmouseover` legitimately appears as percent-encoded data inside `data-return`.
+     The right level is the **attribute name in the parsed DOM**, and the invariant is that
+     `onchange` is the only handler, not that there are none.
+35. **Absolute counts are fragile invariants.** `cols_test.php` asked for 68 keys and 9
+     groups: they had become 76 and 10, so the test failed while being right about the code. The
+     property that holds is the correspondence between the toggleable set and the groups, and it must be verified
+     that the new invariant reacts to a break, otherwise it is decorative.
+36. **The symptom of an uninitialized variable depends on the order.** The same empty `bias`
+     branch produced a stale `$leaf` (BIAS after DARK → `SETUP_Sn/DARK/…`) or
+     `$leaf` never defined (BIAS first → `SETUP_Sn//…`, with a `Warning`). A comment that
+     documents only one of the two forms is half wrong.
+37. **`AWI_PROJECTS_LIB` is the parent of `indexer_lib`, not the library.** Passing
+     `/opt/scripts/indexer_lib` to `calib_suggest_check.py` breaks with
+     `ModuleNotFoundError: No module named 'indexer_lib'`; passing `/opt/scripts` to a
+     script that does `import projects` breaks it the same way. The two conventions coexisted and
+     the three scripts with the old one were dead without anyone noticing, because the
+     parity gate depends on the Python side and the Python side simply never started.
+38. **`/opt/scripts` is mounted, but propagation is one-way.**
+     `/opt/scripts/watch_fs.py`, `/opt/scripts/reindex.py` and `/opt_scripts/indexer_lib`
+     are **grpcfuse** mounts, not copies in the container layer:
+     ```
+     grpcfuse /opt/scripts/watch_fs.py fuse.grpcfuse rw,...
+     grpcfuse /opt/scripts/indexer_lib fuse.grpcfuse rw,...
+     ```
+     Writing into the mount **writes into the repo** (a `cat old > /opt/scripts/watch_fs.py`
+     to try the pre-fix case deleted the fix I had just made, and I had to
+     redo it), while modifying the file in the repo **does not** update the mount: the mount
+     keeps serving the previous version until something writes into it. So:
+     - to bring a fix into the container you write **from the container**, you do not use
+       `docker cp` on the mount (`unlinkat: device or resource busy` on a single-file
+       mount);
+     - to try the pre-fix case **do not** write the old file onto the mount: copy it
+       elsewhere, run from there, and restore;
+     - `docker cp` to `/tmp` inside the container is safe: `/tmp` is not mounted.
+     The running watcher (`python watch_fs.py /var/fits`) keeps the module
+     loaded at boot in memory: after a fix it is **not** reloaded, the process must be restarted for
+     the change to take effect.
+From the CLI `session_start()` fails (`/tmp` is not writable): for end-to-end tests
+you must log in via `login.php` the way `zip_guard_check.php`,
+`addmsg_check.php`, `api_bootstrap_check.php`, `bootstrap_cost_check.php` and
+`security_batch_check.php` do.
 
-39. **Il delimitatore di una regex dentro un gruppo la tronca e il test va verde.**
-    Per cercare `<img` dopo il payload avevo scritto
-    `'/…' . $NEEDLE . '\s*<(img|svg|script)/i'`: lo `/` davanti a `i` chiudeva il
-    pattern, PHP emetteva un `Warning` e restituiva `false`, e `!$liveTag` valeva
-    «nessuna fuga». Il test passava mentre era rotto, ed è passato anche **dopo** che
-    avevo tolto l'escaping. Ora il delimitatore è `#` e i due controlli sono
-    affiancati dal DOM parsato, che non soffre di questo errore: nel caso
-    dell'attributo è stato proprio il parser a trovare `onload` su `<button>`, perché
-    lì il carattere dopo il payload è `<` e non `"`, cioè quello che la regex guardava.
-    In generale `preg_match` che ritorna `false` è un test che non ha verificato
-    niente: va trattato come fallimento, non come assenza di fuga.
+39. **A regex delimiter inside a group truncates it and the test goes green.**
+     To look for `<img` after the payload I had written
+     `'/…' . $NEEDLE . '\s*<(img|svg|script)/i'`: the `/` before `i` closed the
+     pattern, PHP emitted a `Warning` and returned `false`, and `!$liveTag` meant
+     «no leak». The test passed while broken, and it also passed **after** I
+     had removed the escaping. Now the delimiter is `#` and the two checks are
+     backed by the parsed DOM, which does not suffer from this error: in the attribute
+     case it was the parser that found `onload` on `<button>`, because
+     there the character after the payload is `<` and not `"`, i.e. what the regex was watching.
+     In general a `preg_match` that returns `false` is a test that verified
+     nothing: it must be treated as a failure, not as the absence of a leak.
 
-40. **Un partial che dichiara funzioni non si può includere due volte in un processo.**
-    `projects_tree.php` definisce `fmtExp()`, `linkKey()`, `diagBox()` e altre a
-    livello di file. Per provarlo nelle tre modalità in un solo `include` si ottiene
-    `Cannot redeclare fmtExp()`, un errore fatale che non ha a che fare con
-    l'escaping. Le tre modalità sono quindi tre processi separati
-    (`php tree_render_escape_check.php 1`, `… 0` e `… 2`), ed è un parametro, non un flag
-    `foreach`: un test che si autodichiara nelle tre modalità ma ne esegue solo due
-    lascia dei rami non visitati senza dirlo.
+40. **A partial that declares functions cannot be included twice in one process.**
+     `projects_tree.php` defines `fmtExp()`, `linkKey()`, `diagBox()` and others at
+     file level. Trying it in the three modes in a single `include` gives
+     `Cannot redeclare fmtExp()`, a fatal error that has nothing to do with
+     escaping. The three modes are therefore three separate processes
+     (`php tree_render_escape_check.php 1`, `… 0` and `… 2`), and it is a parameter, not a
+     `foreach` flag: a test that declares itself in the three modes but runs only two
+     leaves branches unvisited without saying so.
 
-41. **Da CLI, `language.php` va preceduto da `language_functions.php`.**
-    `language.php` chiama `getBestLanguage()` alla riga 3, quindi caricarlo da solo
-    dà `Call to undefined function`. E il file di lingua va incluso a mano
-    (`$strings = include '…/languages/en.php'`) perché usa `HEADER_TITLE`, che nella
-    CLI non è definito. Con `config.php` prima dei due include il boilerplate è:
-    ```php
-    $lang = DEFAULT_LANGUAGE;
-    $strings = include '/var/www/html/languages/' . $lang . '.php';
-    require_once '/var/www/html/includes/language_functions.php';
-    require_once '/var/www/html/includes/language.php';
-    ```
+41. **From the CLI, `language.php` must be preceded by `language_functions.php`.**
+     `language.php` calls `getBestLanguage()` at line 3, so loading it alone
+     gives `Call to undefined function`. And the language file must be included by hand
+     (`$strings = include '…/languages/en.php'`) because it uses `HEADER_TITLE`, which in the
+     CLI is not defined. With `config.php` before the two includes the boilerplate is:
+     ```php
+     $lang = DEFAULT_LANGUAGE;
+     $strings = include '/var/www/html/languages/' . $lang . '.php';
+     require_once '/var/www/html/includes/language_functions.php';
+     require_once '/var/www/html/includes/language.php';
+     ```
 
-42. **La riga giusta per provare lo escaping di una catena non è sempre la stessa.**
-    `data-setup-name` sta dentro `if (!$hypoMode)` e `project_tree_preview.php` gira
-    **sempre** in hypoMode: quel ramo non viene mai renderizzato dall'endpoint, quindi
-    un test end-to-end che lo pretenderebbe fallirebbe per il motivo sbagliato. Il
-    test HTTP verifica i contesti che quell'endpoint raggiunge davvero e **afferma**
-    che il ramo attributo non è stato visitato; il contesto attributo è coperto dal
-    test a harness, che esercita `hypoMode` anche falso. Lo stesso vale per
-    `render_sff_filter()`: il ramo `toggle` non ha slider, quindi un `unit` ostile
-    messo lì non raggiunge `data-unit` e la verifica passerebbe senza coprire niente.
+42. **The right line to test a chain's escaping is not always the same one.**
+     `data-setup-name` is inside `if (!$hypoMode)` and `project_tree_preview.php` always
+     runs in hypoMode: that branch is never rendered by the endpoint, so
+     an end-to-end test requiring it would fail for the wrong reason. The
+     HTTP test checks the contexts that endpoint actually reaches and **asserts**
+     that the attribute branch was not visited; the attribute context is covered by
+     the harness test, which exercises `hypoMode` false too. The same applies to
+     `render_sff_filter()`: the `toggle` branch has no slider, so a hostile `unit`
+     put there does not reach `data-unit` and the check would pass without covering anything.
 
-43. **`&pm;` resta letterale nell'output.** Il template lo scrive grezzo e il browser
-    lo decodifica, quindi cercare il carattere `±` nel rendering non trova niente e il
-    check va rosso con l'escaping intatto. Cercare `&pm;0` più il valore.
+43. **`&pm;` stays literal in the output.** The template writes it raw and the browser
+     decodes it, so looking for the `±` character in the rendering finds nothing and the
+     check goes red with the escaping intact. Look for `&pm;0` plus the value.
 
-44. **`mysql.connector` ha `autocommit=False` per default, e una connessione di test lunga
-    legge dati vecchi.** La transazione implicita aperta dalla prima SELECT tiene uno
-    snapshot REPEATABLE READ: le SELECT successive vedono il database com'era in quel
-    momento, **non** quello aggiornato dal processo sotto test. In
-    `reindex_batch_continue_check.py` il reindex scriveva 4 righe, la SELECT ne contava 0,
-    e la DELETE sullo stesso prefisso ne cancellava 4: la stessa query con due verità
-    diverse. Non è un bug: le letture con blocco (DELETE, UPDATE, SELECT ... FOR UPDATE)
-    usano sempre l'ultima versione committata, le semplici no. Con `autocommit=True` la
-    contraddizione non è possibile.
+44. **`mysql.connector` has `autocommit=False` by default, and a long-lived test connection
+     reads stale data.** The implicit transaction opened by the first SELECT holds a
+     REPEATABLE READ snapshot: subsequent SELECTs see the database as it was at that
+     moment, **not** the one updated by the process under test. In
+     `reindex_batch_continue_check.py` the reindex was writing 4 rows, the SELECT counted 0,
+     and the DELETE on the same prefix deleted 4: the same query with two different truths.
+     It is not a bug: locking reads (DELETE, UPDATE, SELECT ... FOR UPDATE)
+     always use the last committed version, plain ones do not. With `autocommit=True` the
+     contradiction is impossible.
 
-45. **`os.walk` restituisce le directory nell'ordine del filesystem, quindi quale batch
-    erediti il caso non è un'invariante.** La prima versione del test asseriva che il
-    blocco perso fosse `d0`, quello del file velenoso: è passata, e nella passata
-    successiva il velenoso era finito in `d1` e il check sarebbe andato rosso **sul
-    codice corretto**. Il numero di flush falliti è l'invariante (uno su quattro, sempre);
-    *quale* blocco sparisca è un'informazione. Verificato con due passate su directory
-    temporanee diverse.
+45. **`os.walk` returns directories in filesystem order, so which batch
+     inherits the case is not an invariant.** The first version of the test asserted that the
+     lost block was `d0`, the one of the poisonous file: it passed, and in the next
+     run the poisonous one had ended up in `d1` and the check would have gone red **on
+     correct code**. The number of failed flushes is the invariant (one out of four, always);
+     *which* block disappears is information. Verified with two runs on different temporary
+     directories.
 
-46. **Due connessioni più un `commit` esplicito possono bloccare un database condiviso
-    e tirar giù il sito.** Una sonda ha lasciato aperta una transazione: il `commit` è
-    rimasto appeso 246 secondi, il sito ha risposto 504 e poi ha smesso di rispondere,
-    fino al riavvio di Docker. Non è stato isolata la causa esatta e non viene
-    inventata: cosa è certo è che `executemany` fallito dentro una transazione, un'altra
-    connessione sulla stessa tabella e un `commit` dopo una `SELECT` compongono la
-    combinazione che l'ha fatto accadere. Da allora la sonda usa una connessione sola,
-    `autocommit=True`, `innodb_lock_wait_timeout = 5` (il default è 50 s: la contenzione
-    deve sollevare, non mettere in attesa) e `max_statement_time = 120` — che su MariaDB
-    si chiama così, `max_execution_time` risponde `1193 Unknown system variable`.
-    Ogni sonda che scrive deve inoltre finire con **un controllo che il sito risponde** e
-    con **la verifica che i conteggi siano tornati**: una sonda che lascia il database
-    bloccato può avere tutte le asserzioni verdi.
+46. **Two connections plus an explicit `commit` can lock a shared database
+     and take the site down.** A probe left a transaction open: the `commit`
+     hung for 246 seconds, the site answered 504 and then stopped responding,
+     until Docker was restarted. The exact cause was not isolated and is not
+     invented: what is certain is that a failed `executemany` inside a transaction, another
+     connection on the same table and a `commit` after a `SELECT` compose the
+     combination that made it happen. Since then the probe uses a single connection,
+     `autocommit=True`, `innodb_lock_wait_timeout = 5` (the default is 50 s: contention
+     must raise, not wait) and `max_statement_time = 120` — which on MariaDB
+     is called that way, `max_execution_time` answers `1193 Unknown system variable`.
+     Every probe that writes must also end with **a check that the site answers** and
+     with **the verification that the counts went back**: a probe that leaves the database
+     locked can have all its assertions green.
 
-47. **Il controllo negativo deve dimostrare di essere partito.** La prima esecuzione
-    «pre-fix» ha dato esattamente lo stesso output di quella post-fix — 150 righe, exit 0 —
-    perché avevo editato la sonda per stampare il percorso di `reindex.py` e **non l'avevo
-    copiata nel container**: stava girando ancora la versione precedente, con il path
-    hardcoded. Le due righe di log che dovevano identificare il binario usato erano
-    semplicemente assenti dall'output, ed è quello che ha smascherato la cosa. Lo stesso
-    vale per `docker cp` dopo ogni edit: la trappola #23 vale anche per `/tmp`, non solo
-    per i mount grpcfuse.
+47. **The negative check must prove it started.** The first «pre-fix» run gave exactly
+     the same output as the post-fix one — 150 rows, exit 0 —
+     because I had edited the probe to print the path of `reindex.py` and **had not
+     copied it into the container**: it was still running the previous version, with the path
+     hardcoded. The two log lines that should have identified the binary used were
+     simply absent from the output, and that is what unmasked it. The same
+     applies to `docker cp` after every edit: trap #23 applies to `/tmp` too, not only
+     to the grpcfuse mounts.
 
-48. **`path` è relativo a `fits_root`, quindi va passata la directory *esterna* all'albero
-    di prova.** Passando la sottodirectory che contiene i file, `path` diventava il solo
-    nome del file (`000.fits`) e il prefisso atteso non corrispondeva mai: il reindex
-    riusciva, la SELECT non trovava nulla, e la pulizia non cancellava niente. Le 4 righe
-    rimaste dentro andovano rimosse a mano, individuate per `instrume = 'BATCHPROBE'` e
-    non con un `LIKE` larghissimo che avrebbe toccato l'archivio vero.
+48. **`path` is relative to `fits_root`, so the directory *outside* the test tree
+     must be passed.** Passing the subdirectory containing the files, `path` became just the
+     file name (`000.fits`) and the expected prefix never matched: the reindex
+     succeeded, the SELECT found nothing, and the cleanup deleted nothing. The 4 rows
+     left inside had to be removed by hand, identified by `instrume = 'BATCHPROBE'` and
+     not with a very broad `LIKE` that would have touched the real archive.
 
-49. **Un detector basato su regex produce un falso positivo quando cerca `onerror=` dentro
-    un attributo correttamente escapato** — è la trappola #34, che mi è capitata di
-    ripetere. In `file_cells_escape_check.php` il check
-    `preg_match('#duplicate-badge[^>]*on[a-z]+=#')` segnalava «iniettato» sul badge
-    duplicati, quando il testo `onerror=alert(1)` era semplicemente **dentro** il valore
-    di `data-hash`, con `&lt;` al posto delle parentesi acute. `[^>]*` non attraversa il
-    `>` di chiusura del tag, quindi la regex non stava guardando fuori dagli attributi:
-    stava leggendo il contenuto di uno. L'unico controllo valido è il nome dell'attributo
-    nel DOM parsato.
+49. **A regex-based detector produces a false positive when looking for `onerror=` inside
+     a correctly escaped attribute** — it is trap #34, which happened to me again. In `file_cells_escape_check.php` the check
+     `preg_match('#duplicate-badge[^>]*on[a-z]+=#')` reported «injected» on the
+     duplicates badge, when the text `onerror=alert(1)` was simply **inside** the value
+     of `data-hash`, with `&lt;` in place of the angle brackets. `[^>]*` does not cross the
+     closing `>` of the tag, so the regex was not looking outside the attributes:
+     it was reading the content of one. The only valid check is the attribute name
+     in the parsed DOM.
 
-50. **Sul DOM gli attributi sono già decodificati, quindi cercarci dentro la forma
-    escaped è sbagliato.** `getAttribute('data-hash')` restituisce
-    `XSS<img src=x onerror=alert(1)>…`, non `XSS&lt;img…`. La prima versione del check
-    asseriva `str_starts_with($hash, 'XSS&lt;')` ed è andata rossa con il codice
-    **corretto**, perché stava chiedendo al parser di non aver risolto le entità che per
-    definizione risolve. L'invariante giusto sul DOM è che il valore **torni identico
-    all'originale**: escaping senza perdite, confine dell'attributo integro, payload
-    portato come valore e non come markup. La forma escaped si verifica sul sorgente
-    (`str_contains($html, 'data-hash="XSS&lt;')`), che è l'unico posto dove esiste.
+50. **In the DOM the attributes are already decoded, so looking there for the escaped
+     shape is wrong.** `getAttribute('data-hash')` returns
+     `XSS<img src=x onerror=alert(1)>…`, not `XSS&lt;img…`. The first version of the check
+     asserted `str_starts_with($hash, 'XSS&lt;')` and went red with the **correct**
+     code, because it was asking the parser not to have resolved the entities that by
+     definition it resolves. The right invariant on the DOM is that the value **comes back identical
+     to the original**: escaping without losses, the attribute boundary intact, the payload
+     carried as a value and not as markup. The escaped shape is verified on the source
+     (`str_contains($html, 'data-hash="XSS&lt;')`), which is the only place where it exists.
 
-51. **La lista dei tag consentiti non basta quando il partial scrive `<img>` di proposito.**
-    Negli altri test di escaping l'elenco dei tag che il template non deve mai produrre
-    poteva essere «nessuno»: qui `file_cells.php` disegna legittimamente `<img>` per le
-    miniature, `<div>`, `<span>`, `<a>`, `<td>`, e la lista di divieto vuota segnalava
-    tutta la tabella come iniezione. Qui la lista è di **divieto** (`svg`, `script`,
-    `iframe`, `object`, `embed`, `form`) più «ogni attributo `on*` su qualunque elemento»,
-    e le due `<img>` legittime vengono controllate a parte: il loro `src` deve essere
-    `/image.php?id=<intero>&type=thumb|crop` e non contenere il payload.
+51. **The allow-list of tags is not enough when the partial deliberately writes `<img>`.**
+     In the other escaping tests the list of tags the template must never produce
+     could be «none»: here `file_cells.php` legitimately draws `<img>` for the
+     thumbnails, `<div>`, `<span>`, `<a>`, `<td>`, and the empty deny-list reported
+     the whole table as injection. Here the list is a **deny-list** (`svg`, `script`,
+     `iframe`, `object`, `embed`, `form`) plus «every `on*` attribute on any element»,
+     and the two legitimate `<img>` are checked separately: their `src` must be
+     `/image.php?id=<integer>&type=thumb|crop` and not contain the payload.
 
-52. **`edit` sul repo, `docker cp`, poi eseguire: nell'ordine, sempre.** Dopo una modifica
-    alla sonda l'ho eseguita due volte senza copiarla, e la seconda mostrava l'output
-    identico di un caso precedente. È la trappola #47 applicata a se stessa: la copia nel
-    container è un passo, non un dettaglio.
+52. **`edit` on the repo, `docker cp`, then run: in that order, always.** After a modification
+     to the probe I ran it twice without copying it, and the second one showed the output
+     identical to a previous case. It is trap #47 applied to itself: the copy into the
+     container is a step, not a detail.
 
-53. **Git Bash converte gli argomenti che sembrano path POSIX.** `docker exec -e
-    AWI_PROJECTS_LIB=/opt/scripts ...` lanciato da Git Bash arriva nel container
-    come `C:/Program Files/Git/opt/scripts`, e il test muore di `ModuleNotFoundError`
-    pur avendo la variabile "settata". Da PowerShell non succede. `tests/run.sh`
-    esporta `MSYS_NO_PATHCONV=1` per questo; lanciando i comandi a mano da Git Bash
-    serve la stessa variabile (o il doppio slash `//opt/scripts`).
+53. **Git Bash converts arguments that look like POSIX paths.** `docker exec -e
+     AWI_PROJECTS_LIB=/opt/scripts ...` launched from Git Bash arrives in the container
+     as `C:/Program Files/Git/opt/scripts`, and the test dies of `ModuleNotFoundError`
+     even with the variable "set". From PowerShell it does not happen. `tests/run.sh`
+     exports `MSYS_NO_PATHCONV=1` for this; running the commands by hand from Git Bash
+     needs the same variable (or the double slash `//opt/scripts`).
