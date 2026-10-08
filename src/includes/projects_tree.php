@@ -28,7 +28,7 @@ function linkKey(array $li, string $level, int $node): string
 function diagBox(string $status, string $letter, string $title): string
 {
     $bg = $status === 'green' ? 'bg-green-700' : ($status === 'yellow' ? 'bg-yellow-700' : ($status === 'grey' ? 'bg-gray-600' : 'bg-red-700'));
-    return '<span title="' . htmlspecialchars($title) . '" class="inline-block w-5 text-center text-xs font-bold text-white rounded ' . $bg . '">'
+    return '<span title="' . htmlspecialchars($title) . '" class="inline-block w-5 text-center text-xs font-bold text-white rounded mr-1 ' . $bg . '">'
         . htmlspecialchars($letter) . '</span>';
 }
 
@@ -71,8 +71,8 @@ function rotBadge(?string $state, string $okTitle, string $warnTitle): string
     }
     $ok = $state === 'ok';
     $bg = $ok ? 'bg-green-700' : 'bg-yellow-700';
-    return '<span title="' . htmlspecialchars($ok ? $okTitle : $warnTitle) . '" class="inline-block min-w-5 px-0.5 text-center text-xs font-bold text-white rounded ' . $bg . '">'
-        . ($ok ? 'R✓' : 'R?') . '</span>';
+    return '<span title="' . htmlspecialchars($ok ? $okTitle : $warnTitle) . '" class="inline-block min-w-5 px-0.5 text-center text-xs font-bold text-white rounded mr-1 ' . $bg . '">'
+        . 'R' . '</span>';
 }
 
 /**
@@ -214,7 +214,7 @@ function renderCalRows(array $cals, string $level, int $node, array $moveCtx = [
                     }
                 }
                 ?>
-                <?php if ($gWorstB !== null): ?><?= flatCovBadges(['bias' => $gWorstB, 'dark' => $gWorstD], __('projects_cal_bias'), __('projects_cal_dark'), __('projects_cal_not_needed')) ?> <?php endif; ?><span><?= htmlspecialchars(calGroupTitle($g)) ?></span>
+                <?php if ($gWorstB !== null): ?><?= flatCovBadges(['bias' => $gWorstB, 'dark' => $gWorstD], __('projects_cal_bias'), __('projects_cal_dark'), __('projects_cal_not_needed')) ?><?php endif; ?><span><?= htmlspecialchars(calGroupTitle($g)) ?></span>
             </summary>
             <ul class="flex flex-col gap-0.5 mb-1 px-3">
         <?php foreach ($g['rows'] as $c): ?>
@@ -232,8 +232,7 @@ function renderCalRows(array $cals, string $level, int $node, array $moveCtx = [
                     <input type="checkbox" name="suggestion_ids[]" value="<?= (int)$c['suggestion_id'] ?>" class="sug-check rounded bg-gray-600 border-gray-500">
                 <?php endif; ?>
                 <span class="text-gray-500">[<?= htmlspecialchars($c['imgtype']) ?>]</span>
-                <?php if ($g['kind'] === 'flat' && !$isOff && (!$isPend || $reviewRows) && isset($flatCov[(int)$c['file_id']]) && is_array($flatCov[(int)$c['file_id']])): ?><?= flatCovBadges($flatCov[(int)$c['file_id']], __('projects_cal_bias'), __('projects_cal_dark'), __('projects_cal_not_needed')) ?><?php endif; ?>
-                <span><?= ($isHypoCal || $isNewPend) ? '<span class="text-[10px] font-semibold text-green-300 border border-green-700 rounded px-1 mr-1">' . __('projects_hypo_new') . '</span>' : '' ?><span<?= $cReason !== '' ? ' title="' . htmlspecialchars($cReason) . '"' : '' ?> class="<?= ($isHypoCal || $isNewPend) ? 'text-green-300 font-medium' : '' ?>"><?= htmlspecialchars($c['name']) ?></span>
+                <?php if ($g['kind'] === 'flat' && !$isOff && (!$isPend || $reviewRows) && isset($flatCov[(int)$c['file_id']]) && is_array($flatCov[(int)$c['file_id']])): ?><?= flatCovBadges($flatCov[(int)$c['file_id']], __('projects_cal_bias'), __('projects_cal_dark'), __('projects_cal_not_needed')) ?><?php endif; ?><span><?= ($isHypoCal || $isNewPend) ? '<span class="text-[10px] font-semibold text-green-300 border border-green-700 rounded px-1 mr-1">' . __('projects_hypo_new') . '</span>' : '' ?><span<?= $cReason !== '' ? ' title="' . htmlspecialchars($cReason) . '"' : '' ?> class="<?= ($isHypoCal || $isNewPend) ? 'text-green-300 font-medium' : '' ?>"><?= htmlspecialchars($c['name']) ?></span>
                 <?php if ($isPend && !$isNewPend): ?><span title="<?= __('projects_pending_hypo') ?>">⏳</span><?php endif; ?>
                 <?php if ($isOff): ?><span class="text-gray-500">(<?= __('projects_link_off') ?>)</span><?php endif; ?>
                 <?php if (count($cDup) > 1): ?><span title="<?= htmlspecialchars(__('projects_dup_levels') . ': ' . implode(', ', $cDup)) ?>">⧉×<?= count($cDup) ?></span><?php endif; ?>
@@ -350,7 +349,7 @@ if (empty($projectTree['setups'])): ?>
                                                                             <?php endif; ?>
                                                                             <details open class="flex-1 min-w-0">
                                                 <summary class="cursor-pointer hover:bg-gray-700/40 rounded text-sm font-medium mb-1">
-                                                    <?php if ($worstB === null): ?><?= empty($pendLights) ? '' : '⏳' ?><?php else: ?><?= diagBox($worstB, 'B', __('projects_cal_bias')) ?><?= diagBox($worstD, 'D', __('projects_cal_dark')) ?><?= diagBox($worstF, 'F', __('projects_cal_flat')) ?><?= rotBadge($worstR, __('projects_cal_rot_ok'), __('projects_cal_rot_warn')) ?><?php endif; ?> <?= __('projects_filter') ?> <?= htmlspecialchars($filter['name'] !== '' ? $filter['name'] : '—') ?>
+                                                    <?php if ($worstB === null): ?><?= empty($pendLights) ? '' : '⏳ ' ?><?php else: ?><?= diagBox($worstB, 'B', __('projects_cal_bias')) ?><?= diagBox($worstD, 'D', __('projects_cal_dark')) ?><?= diagBox($worstF, 'F', __('projects_cal_flat')) ?><?= rotBadge($worstR, __('projects_cal_rot_ok'), __('projects_cal_rot_warn')) ?><?php endif; ?><?= __('projects_filter') ?> <?= htmlspecialchars($filter['name'] !== '' ? $filter['name'] : '—') ?>
                                                                                      <span class="ml-2 text-xs font-normal text-gray-400">
                                                                                           <?= htmlspecialchars(__('projects_lights_count', ['count' => count($showLights)])) ?> · <?= htmlspecialchars(fmtExp($realExp)) ?><?php if (!empty($pendLights)): ?><?php if ($reviewMode): ?> · <span class="text-green-300">+<?= count($pendLights) ?> <?= htmlspecialchars(__('projects_hypo_new')) ?></span><?php else: ?> · <?= htmlspecialchars('+' . count($pendLights) . ' ⏳') ?><?php endif; ?><?php endif; ?><?php if (!empty($offLights)): ?> · <?= htmlspecialchars('+' . count($offLights) . ' ' . __('projects_link_off')) ?><?php endif; ?>
                                                                                       </span>

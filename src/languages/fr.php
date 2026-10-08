@@ -341,7 +341,6 @@ return [
     'projects_cal_rot_ok' => 'Rotation du flat vérifiée par rapport à son panneau',
     'projects_cal_rot_warn' => 'Rotation du flat non vérifiée (métadonnées manquantes ou hors tolérance)',
     'projects_legend_rot' => 'Vérification rotation du flat',
-    'projects_legend_darkflat' => 'Darks courts pour les flats (par exposition, comme WBPP)',
     'projects_legend_flatcov' => 'Flat couvert par bias ou dark (gris = inutile)',
     'projects_flat_cov_title' => 'Couverture dark-flat de ce flat',
     'projects_legend' => 'Légende',
