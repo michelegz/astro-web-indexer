@@ -415,6 +415,7 @@ return [
     // Assistant
     'projects_review' => 'Suggestions à réviser ({count})',
     'projects_review_intro' => 'Liens proposés. Acceptez pour les lier au projet, écartez pour ne plus les proposer tant que les tolérances ou les en-têtes ne changent pas. Les fichiers sur disque ne sont pas touchés.',
+    'projects_review_truncated' => 'Affichage des {shown} premières suggestions sur {count} en attente : acceptez-les ou écartez-les pour réviser les autres.',
     'projects_file' => 'Fichier',
     'projects_target' => 'Cible',
     'projects_reason' => 'Motif',

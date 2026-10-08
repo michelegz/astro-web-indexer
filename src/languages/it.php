@@ -415,6 +415,7 @@ return [
     // Wizard
     'projects_review' => 'Suggerimenti da revisionare ({count})',
     'projects_review_intro' => 'Collegamenti proposti. Accetta per collegarli al progetto, scarta per non riproporli finché tolleranze e header non cambiano. I file su disco non vengono toccati.',
+    'projects_review_truncated' => 'Mostrati i primi {shown} di {count} suggerimenti in attesa: accettali o scartali per revisionare i restanti.',
     'projects_file' => 'File',
     'projects_target' => 'Destinazione',
     'projects_reason' => 'Motivo',

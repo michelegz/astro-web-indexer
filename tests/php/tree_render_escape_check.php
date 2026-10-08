@@ -16,18 +16,22 @@
 // questo test puo' girare in qualsiasi momento e resta un test di regressione vero e
 // proprio: basta togliere una delle htmlspecialchars e va rosso.
 //
-// Eseguito in DUE modalita' ( hypoMode ), in due processi separati, perche' i due
-// rami prendono percorsi diversi e il partial dichiara funzioni a livello di file:
-// includerlo due volte nello stesso processo e' un errore fatale.
+// Eseguito in TRE modalita' (hypo 1, albero 0, review 2), in tre processi separati,
+// perche' i rami prendono percorsi diversi e il partial dichiara funzioni a livello
+// di file: includerlo due volte nello stesso processo e' un errore fatale.
 //
 //   hypo=1  quello di project_tree_preview.php: niente checkbox, niente pulsante di
 //           rinomina, gli setup sono gia' aperti
 //   hypo=0  quello di projects.php: compare data-setup-name="" (riga 250), il
 //           contesto attributo, che hypoMode non raggiunge mai
+//   rev =2  quello del modale suggerimenti (sugBulkForm): niente checkbox link_keys[],
+//           niente rename, checkbox suggestion_ids[] a intero sui soli pending con
+//           reason nel tooltip escapato, master di gruppo senza name, aperti solo
+//           i rami con pending
 //
 // Uso:
 //   docker cp tmp/tree_render_escape_check.php awi-php:/tmp/
-//   docker exec awi-php sh -c 'cd /tmp && php tree_render_escape_check.php 1 && php tree_render_escape_check.php 0'
+//   docker exec awi-php sh -c 'cd /tmp && php tree_render_escape_check.php 1 && php tree_render_escape_check.php 0 && php tree_render_escape_check.php 2'
 
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
@@ -89,19 +93,26 @@ function injectedMarkup(string $html): array
 $XSS = 'XSSPAYLOAD<img src=x onerror=alert(1)>"\'<svg onload=alert(2)>';
 $NEEDLE = 'XSSPAYLOAD';
 
-$cal = static function (int $fid) use ($XSS) {
+$arg = (string)($argv[1] ?? '1');
+$review = $arg === '2';
+
+$cal = static function (int $fid) use ($XSS, $review) {
     return [
         'file_id' => $fid, 'name' => $XSS, 'imgtype' => $XSS,
-        'enabled' => 1, 'pending' => 0,
+        'enabled' => 1, 'pending' => $review ? 1 : 0,
+        'suggestion_id' => $fid + 1000, 'reason' => $XSS,
+        'level' => 'setup', 'node_id' => 1,
         'scope_sessions' => [], 'scope_nights' => [$XSS],
         'exptime' => $XSS, 'ccd_temp' => $XSS,
     ];
 };
 
-$light = static function (int $fid) use ($XSS) {
+$light = static function (int $fid) use ($XSS, $review) {
     return [
         'file_id' => $fid, 'name' => $XSS, 'exptime' => $XSS, 'ccd_temp' => 1.0,
-        'enabled' => 1, 'pending' => 0, 'auto_off' => 0,
+        'enabled' => 1, 'pending' => $review ? 1 : 0, 'auto_off' => 0,
+        'suggestion_id' => $fid + 1000, 'reason' => $XSS,
+        'filter' => $XSS,
     ];
 };
 
@@ -130,8 +141,9 @@ $projectDiag = diagnoseProjectTree($projectTree, [], []);
 $dupLinks = indexDuplicateLinks($projectTree);
 $darkRoles = indexDarkRoles($projectTree, []);
 
-$mode = !isset($argv[1]) || (string)$argv[1] === '1';
-$desc = $mode ? 'hypoMode=true  (project_tree_preview.php)' : 'hypoMode=false (projects.php)';
+$mode = !$review && (!isset($argv[1]) || (string)$argv[1] === '1');
+$desc = $review ? 'suggestReviewMode=true (projects.php sugModal)'
+    : ($mode ? 'hypoMode=true  (project_tree_preview.php)' : 'hypoMode=false (projects.php)');
 
 echo "\n=== $desc ===\n";
 
@@ -140,6 +152,7 @@ $calCtxBase = [
     'filterAliases' => [],
     'darkRoles' => $darkRoles,
     'flatCov' => diagnoseFlatCoverage($projectTree, [], $darkRoles),
+    'reviewMode' => $review,
     // Solo in hypoMode il partial legge questo, per il badge verde.
     'hypoLinks' => $mode ? ['101:setup:1' => true, '102:panel:10' => true,
                             '103:session:100' => true, '104:filter:100' => true,
@@ -149,6 +162,8 @@ $calCtxBase = [
 ];
 $hypoMode = $mode;
 $hypoOpen = ['setups' => [], 'panels' => [], 'sessions' => []];
+$suggestReviewMode = $review;
+$suggestOpen = ['setups' => [1 => true], 'panels' => [10 => true], 'sessions' => [100 => true]];
 
 $level = ob_get_level();
 ob_start();
@@ -187,18 +202,43 @@ check('nessun elemento o handler iniettato (parser)', $bad === [],
 // e' attesa, e va affermata: altrimenti il test passerebbe in silenzio su un
 // contesto che non ha visitato.
 $hasAttr = str_contains($html, 'data-setup-name=');
-if ($mode === false) {
+if ($mode === false && !$review) {
     check('il ramo non-hypo renderizza data-setup-name', $hasAttr, '');
     check('  e il suo valore resta chiuso',
         $hasAttr && str_contains($html, 'data-setup-name="' . $NEEDLE . '&lt;'), '');
 } else {
-    check('il ramo hypoMode non renderizza data-setup-name', !$hasAttr,
+    check('i rami hypoMode/review non renderizzano data-setup-name', !$hasAttr,
         $hasAttr ? 'il contesto attributo sarebbe stato visitato due volte' : '');
+}
+
+if ($review) {
+    // La review mostra suggestion_ids[] (interi dal DB) e il reason testuale:
+    // il primo non puo' uscire dal value, il secondo va escapato.
+    preg_match_all('/name="suggestion_ids\[\]" value="([^"]*)"/', $html, $mSug);
+    $sugVals = $mSug[1];
+    $allInt = $sugVals !== [];
+    foreach ($sugVals as $v) {
+        if (!ctype_digit($v)) {
+            $allInt = false;
+            break;
+        }
+    }
+    check('la review ha checkbox sui pending (suggestion_ids[])', $sugVals !== [],
+        count($sugVals) . ' checkbox');
+    check('  i value sono interi puri', $allInt, $allInt ? '' : implode(',', $sugVals));
+    check('la review non ha checkbox link_keys[]', !str_contains($html, 'name="link_keys[]"'), '');
+    // La review ha le master di gruppo come l'albero vero (selezionano i soli
+    // pending), ma senza name: non vengono mai inviate, conta solo sug-check.
+    check('la review ha le master di gruppo', str_contains($html, 'pgroup-check')
+        && str_contains($html, 'cgroup-check'), '');
+    preg_match_all('/<input[^>]*class="[^"]*(?:pgroup-check|cgroup-check)[^"]*"[^>]*>/', $html, $mGrp);
+    $grpNamed = array_filter($mGrp[0], fn($tag) => str_contains($tag, 'name='));
+    check('  e non hanno name (non inviate)', $mGrp[0] !== [] && $grpNamed === [], count($mGrp[0]) . ' master');
 }
 
 // Byte grezzi dei due contesti, cosi' il risultato si giudica a occhio e non dal solo
 // esito del check. Solo nel ramo non-hypo, che e' quello che contiene entrambi.
-if (!$mode) {
+if (!$mode && !$review) {
     echo "\n--- testo (riga 248) e attributo (riga 250), byte grezzi ---\n";
     if (preg_match('#S\d+:\s*' . preg_quote($NEEDLE, '#') . '&lt;[^<]{0,60}#', $html, $m)) {
         echo '  testo     : ' . $m[0] . "\n";
@@ -210,6 +250,6 @@ if (!$mode) {
 
 echo "\nRISULTATO: " . ($failed
     ? 'FALLITI: ' . implode(', ', $failed)
-    : 'projects_tree.php escapa in tutti i contesti, modalita ' . ($mode ? 'hypo' : 'non-hypo'))
+    : 'projects_tree.php escapa in tutti i contesti, modalita ' . ($review ? 'review' : ($mode ? 'hypo' : 'non-hypo')))
     . "\n";
 exit($failed ? 1 : 0);

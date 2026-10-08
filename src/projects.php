@@ -333,8 +333,9 @@ if ($tolExpRaw === '') {
 $filterAliases = $detail !== null ? getProjectFilterAliases($conn, (int)$detail['id']) : [];
 $projectDiag = $projectTree !== null ? diagnoseProjectTree($projectTree, $projectTols, $filterAliases) : [];
 $grouping = $detail !== null ? getProjectGrouping($conn, (int)$detail['id']) : defaultProjectGrouping();
+$detailThresholds = $detail !== null ? getProjectThresholds($conn, (int)$detail['id']) : [];
 $intGroups = $projectTree !== null
-    ? getIntegrationGroups($projectTree, $tolExpRaw, $detail !== null ? getProjectThresholds($conn, (int)$detail['id']) : [], (string)($projectTols['tol_temp'] ?? '2C'), $grouping, $projectTols, $filterAliases)
+    ? getIntegrationGroups($projectTree, $tolExpRaw, $detailThresholds, (string)($projectTols['tol_temp'] ?? '2C'), $grouping, $projectTols, $filterAliases)
     : [];
 // Tile diagnostics: when cross-setup merging is effective, explain the
 // cross-setup panel pairs that did NOT merge (blocking criterion each).
@@ -364,6 +365,35 @@ $calCtxBase = [
         'temp' => (string)($projectTols['tol_temp'] ?? '2C'),
     ],
 ];
+// Suggestion-review modal context: the same pipeline run over the "as if
+// accepted" merge, so badges, counts and exposures match the project the user
+// gets by accepting. Pure in-memory (mergePendingTree), no writes, no
+// transaction: suggestions already carry their final placement.
+$sugMergedTree = ($pendingTree !== null && $detailPending > 0) ? mergePendingTree($pendingTree) : null;
+$sugIntGroups = $sugMergedTree !== null
+    ? getIntegrationGroups($sugMergedTree, $tolExpRaw, $detailThresholds, (string)($projectTols['tol_temp'] ?? '2C'), $grouping, $projectTols, $filterAliases)
+    : [];
+if ($sugMergedTree !== null && !empty($sugIntGroups)) {
+    $sugMergedTree = markTreeAutoOff($sugMergedTree, indexAutoOffLights($sugIntGroups));
+}
+$sugMergedDiag = $sugMergedTree !== null ? diagnoseProjectTree($sugMergedTree, $projectTols, $filterAliases) : [];
+$sugMergedDup = $sugMergedTree !== null ? indexDuplicateLinks($sugMergedTree) : [];
+$sugMergedDark = $sugMergedTree !== null ? indexDarkRoles($sugMergedTree, $projectTols) : [];
+$sugCalCtx = [
+    'dup' => $sugMergedDup,
+    'filterAliases' => $filterAliases,
+    'darkRoles' => $sugMergedDark,
+    'flatCov' => $sugMergedTree !== null ? diagnoseFlatCoverage($sugMergedTree, $projectTols, $sugMergedDark) : [],
+    'reviewMode' => true,
+    'tols' => [
+        'exp' => (string)($projectTols['tol_exp'] ?? '1%'),
+        'temp' => (string)($projectTols['tol_temp'] ?? '2C'),
+    ],
+];
+$sugOpenMap = ($pendingTree !== null && $detailPending > 0)
+    ? suggestReviewOpenMap($pendingTree)
+    : ['setups' => [], 'panels' => [], 'sessions' => [], 'shown' => 0];
+$sugPendingShown = (int)($sugOpenMap['shown'] ?? 0);
 $projectBlocked = $detail !== null && !canAccessProject($conn, (int)$detail['id']);
 if ($projectBlocked) {
     http_response_code(403);
@@ -675,17 +705,40 @@ if ($projectBlocked) {
                     <span class="text-xs text-gray-500 ml-2"><?= __('projects_resuggest_hint') ?></span>
                 </form>
                 <?php endif; ?>
-            <?php if ($detailPending === 0): ?>
+            <?php if ($detailPending === 0 || $sugPendingShown === 0): ?>
                 <p class="text-gray-500 text-sm"><?= __('projects_no_pending') ?></p>
             <?php else: ?>
+            <?php if ($sugPendingShown < $detailPending): ?>
+                <p class="mb-3 p-2 rounded text-xs bg-yellow-900/50 border border-yellow-700 text-yellow-300"><?= htmlspecialchars(__('projects_review_truncated', ['shown' => $sugPendingShown, 'count' => $detailPending])) ?></p>
+            <?php endif; ?>
             <form method="POST" id="sugBulkForm">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <input type="hidden" name="project_id" value="<?= (int)$detail['id'] ?>">
                 <input type="hidden" name="suggestion_ids_csv" id="sugIdsCsv" value="">
                 <div class="mb-3 text-sm">
-                    <label class="text-gray-300 cursor-pointer"><input type="checkbox" onclick="document.querySelectorAll('#sugModal .sug-check').forEach(c => c.checked = this.checked)" class="rounded bg-gray-600 border-gray-500"> <?= __('projects_select_all') ?></label>
+                    <label class="text-gray-300 cursor-pointer"><input type="checkbox" onclick="document.querySelectorAll('#sugModal .sug-check').forEach(c => { c.checked = this.checked; c.dispatchEvent(new Event('change', { bubbles: true })); })" class="rounded bg-gray-600 border-gray-500"> <?= __('projects_select_all') ?></label>
                 </div>
-                <?php include __DIR__ . '/includes/projects_tree_pending.php'; ?>
+                <?php
+                // Full tree as if accepted (step-3 look): swap in the merged
+                // diagnostics for the render, then restore the main-tree ones
+                // used by the section below.
+                $__saveDiag = $projectDiag;
+                $__saveDup = $dupLinks;
+                $__saveCtx = $calCtxBase;
+                $__saveTree = $projectTree;
+                $projectDiag = $sugMergedDiag;
+                $dupLinks = $sugMergedDup;
+                $calCtxBase = $sugCalCtx;
+                $projectTree = $pendingTree;
+                $suggestReviewMode = true;
+                $suggestOpen = $sugOpenMap;
+                include __DIR__ . '/includes/projects_tree.php';
+                $projectDiag = $__saveDiag;
+                $dupLinks = $__saveDup;
+                $calCtxBase = $__saveCtx;
+                $projectTree = $__saveTree;
+                unset($suggestReviewMode, $suggestOpen, $__saveDiag, $__saveDup, $__saveCtx, $__saveTree);
+                ?>
                 <div class="flex justify-end gap-2 mt-4">
                     <button type="submit" name="action" value="dismiss_suggestions"
                             class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors">
@@ -732,6 +785,109 @@ if ($projectBlocked) {
                 const csv = form.querySelector('#sugIdsCsv');
                 if (csv) csv.value = checked.join(',');
                 form.querySelectorAll('.sug-check').forEach(cb => { cb.disabled = true; });
+            });
+        })();
+        // Master group checkboxes for the review tree (same pattern as the
+        // main treeBulkForm, but driving .sug-check only: real rows carry no
+        // checkbox here, so a group box selects just the new files below it).
+        (function () {
+            const form = document.getElementById('sugBulkForm');
+            if (!form) return;
+            function syncGroupBox(scope) {
+                const box = scope.querySelector(':scope > div > .pgroup-check');
+                if (!box) return;
+                const files = scope.querySelectorAll('.sug-check');
+                if (!files.length) {
+                    box.checked = false;
+                    box.indeterminate = false;
+                    return;
+                }
+                const checked = scope.querySelectorAll('.sug-check:checked').length;
+                box.checked = checked === files.length;
+                box.indeterminate = checked > 0 && checked < files.length;
+            }
+            function syncCalGroupBox(group) {
+                const box = group.parentElement?.querySelector(':scope > .cgroup-check');
+                if (!box) return;
+                const files = group.querySelectorAll('.sug-check');
+                if (!files.length) {
+                    box.checked = false;
+                    box.indeterminate = false;
+                    return;
+                }
+                const checked = group.querySelectorAll('.sug-check:checked').length;
+                box.checked = checked === files.length;
+                box.indeterminate = checked > 0 && checked < files.length;
+            }
+            function syncAbove(scope) {
+                let above = scope.parentElement?.closest('.tnode') ?? null;
+                while (above) {
+                    syncGroupBox(above);
+                    above = above.parentElement?.closest('.tnode') ?? null;
+                }
+            }
+            form.addEventListener('change', (e) => {
+                if (e.target.classList.contains('pgroup-check')) {
+                    const scope = e.target.closest('.tnode');
+                    if (!scope) return;
+                    if (!scope.querySelectorAll('.sug-check').length) {
+                        e.target.checked = false;
+                        e.target.indeterminate = false;
+                        return;
+                    }
+                    scope.querySelectorAll('.sug-check').forEach(cb => { cb.checked = e.target.checked; });
+                    scope.querySelectorAll('.pgroup-check').forEach(cb => {
+                        if (cb !== e.target) {
+                            cb.checked = e.target.checked;
+                            cb.indeterminate = false;
+                        }
+                    });
+                    e.target.indeterminate = false;
+                    scope.querySelectorAll('details.cal-group').forEach(syncCalGroupBox);
+                    syncAbove(scope);
+                    return;
+                }
+                if (e.target.classList.contains('cgroup-check')) {
+                    const wrap = e.target.closest('.cal-group-wrap');
+                    if (!wrap) return;
+                    if (!wrap.querySelectorAll('.sug-check').length) {
+                        e.target.checked = false;
+                        e.target.indeterminate = false;
+                        return;
+                    }
+                    const details = wrap.querySelector('details.cal-group');
+                    if (e.target.checked && details) details.open = true;
+                    wrap.querySelectorAll('.sug-check').forEach(cb => { cb.checked = e.target.checked; });
+                    e.target.indeterminate = false;
+                    syncAbove(wrap);
+                    return;
+                }
+                if (e.target.classList.contains('sug-check')) {
+                    const group = e.target.closest('details.cal-group');
+                    if (group) syncCalGroupBox(group);
+                    let scope = e.target.closest('.tnode');
+                    while (scope) {
+                        syncGroupBox(scope);
+                        scope = scope.parentElement?.closest('.tnode') ?? null;
+                    }
+                }
+            });
+            // Shift-click range select on suggestion checkboxes.
+            let lastSugCheck = null;
+            form.addEventListener('click', (e) => {
+                if (!e.target.classList || !e.target.classList.contains('sug-check')) return;
+                const all = Array.from(form.querySelectorAll('.sug-check'));
+                if (e.shiftKey && lastSugCheck && all.includes(lastSugCheck)) {
+                    const a = all.indexOf(lastSugCheck);
+                    const b = all.indexOf(e.target);
+                    const lo = Math.min(a, b);
+                    const hi = Math.max(a, b);
+                    for (let i = lo; i <= hi; i++) {
+                        all[i].checked = e.target.checked;
+                        all[i].dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                }
+                lastSugCheck = e.target;
             });
         })();
         </script>

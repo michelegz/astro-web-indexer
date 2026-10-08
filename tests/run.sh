@@ -13,7 +13,7 @@
 #   per quelli "con albero", un solo percorso, meno modi di sbagliare;
 # - i test Python girano in /tmp dentro awi-python con
 #   AWI_PROJECTS_LIB=/opt/scripts (mai scrivere nei mount: /tmp non e' montato);
-# - tree_render_escape_check.php gira in DUE processi (hypo 1 e 0);
+# - tree_render_escape_check.php gira in TRE processi (hypo 1, 0 e review 2);
 # - hash_parity e' un gate a due meta': php + python + diff;
 # - stale_check.py / stale_resurrect.py sono strumenti manuali (vogliono un
 #   file_id): vengono saltati con nota.
@@ -85,6 +85,8 @@ for f in tests/php/*.php; do
         record "$base hypo=1" $?
         docker exec awi-php sh -c "cd /tmp/harness && php $base.php 0"
         record "$base hypo=0" $?
+        docker exec awi-php sh -c "cd /tmp/harness && php $base.php 2"
+        record "$base review=2" $?
     else
         docker exec awi-php sh -c "cd /tmp/harness && php $base.php"
         record "$base" $?

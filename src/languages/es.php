@@ -415,6 +415,7 @@ return [
     // Asistente
     'projects_review' => 'Sugerencias por revisar ({count})',
     'projects_review_intro' => 'Enlaces propuestos. Acepta para enlazarlos al proyecto, descarta para no proponerlos mientras no cambien las tolerancias o las cabeceras. Los archivos en disco no se tocan.',
+    'projects_review_truncated' => 'Mostrando las primeras {shown} de {count} sugerencias pendientes: acéptalas o descártalas para revisar las demás.',
     'projects_file' => 'Archivo',
     'projects_target' => 'Destino',
     'projects_reason' => 'Motivo',

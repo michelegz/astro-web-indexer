@@ -414,6 +414,7 @@ return [
     // Assistent
     'projects_review' => 'Vorschläge prüfen ({count})',
     'projects_review_intro' => 'Vorgeschlagene Verknüpfungen. Annehmen zum Verlinken, verwerfen um sie nicht mehr vorzuschlagen, bis sich Toleranzen oder Header ändern. Dateien auf der Platte bleiben unberührt.',
+    'projects_review_truncated' => 'Die ersten {shown} von {count} ausstehenden Vorschlägen werden gezeigt: nimm sie an oder verwerfe sie, um den Rest zu prüfen.',
     'projects_file' => 'Datei',
     'projects_target' => 'Ziel',
     'projects_reason' => 'Grund',

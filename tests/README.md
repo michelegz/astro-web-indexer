@@ -81,7 +81,7 @@ I test JS girano in locale con Node.
 | `reindex_batch_continue_check.py` | un record che il DB rifiuta non ferma il resto della passata: 4 blocchi da 50, 150 file committati | scrive righe sintetiche in `files` con prefisso univoco, poi le rimuove; conteggi verificati tornati allo stato iniziale |
 | `file_cells_escape_check.php` | `file_cells.php` escapa testo, attributi e href in entrambi gli ambiti (`main` e `project`): 62 occorrenze del payload, nessuna grezza | nessuna scrittura (riga sintetica) |
 | `table_escape_check.php` | `table.php` escapa in **entrambe le viste**, con due sink di nome distinti verificati per posizione | nessuna scrittura (riga sintetica) |
-| `tree_render_escape_check.php` | `projects_tree.php` escapa testo, attributo e tooltip in **entrambe** le modalità (`hypoMode` 1 e 0) | nessuna scrittura (albero sintetico) |
+| `tree_render_escape_check.php` | `projects_tree.php` escapa testo, attributo e tooltip in **tutte e tre** le modalità (`hypoMode` 1 e 0, review 2 con `suggestion_ids[]` a intero e reason escapato) | nessuna scrittura (albero sintetico) |
 | `sff_filter_escape_check.php` | `sff_filter_template.php` escapa il valore di riferimento in testo, `value=` e `data-unit=` | nessuna scrittura |
 | `tree_preview_escape_check.php` | la catena HTTP reale `project_tree_preview.php` → JSON `html` → `main.js:646` | crea e rimuove 1 utente; nessuna scrittura (la preview annulla la transazione) |
 | `export_regression_probe.php` | un frame di un tipo vive sotto la cartella di quel tipo; nessun `fid` in due cartelle senza essere duplicato dichiarato | nessuna scrittura |
@@ -238,6 +238,7 @@ visibile al container, quindi basta attendere l'opcache.
 sleep 3
 docker exec awi-php sh -c 'cd /tmp && php tree_render_escape_check.php 1; \
   php tree_render_escape_check.php 0; \
+  php tree_render_escape_check.php 2; \
   php sff_filter_escape_check.php; \
   php tree_preview_escape_check.php'
 # 3. ripristinare e ricontrollare che siano tornati verdi
@@ -761,12 +762,12 @@ occorre fare login via `login.php` come fanno `zip_guard_check.php`,
 
 40. **Un partial che dichiara funzioni non si può includere due volte in un processo.**
     `projects_tree.php` definisce `fmtExp()`, `linkKey()`, `diagBox()` e altre a
-    livello di file. Per provarlo nelle due modalità in un solo `include` si ottiene
+    livello di file. Per provarlo nelle tre modalità in un solo `include` si ottiene
     `Cannot redeclare fmtExp()`, un errore fatale che non ha a che fare con
-    l'escaping. Le due modalità sono quindi due processi separati
-    (`php tree_render_escape_check.php 1` e `… 0`), ed è un parametro, non un flag
-    `foreach`: un test che si autodichiara nelle due modalità ma ne esegue una sola
-    lascia metà dei rami non visitati senza dirlo.
+    l'escaping. Le tre modalità sono quindi tre processi separati
+    (`php tree_render_escape_check.php 1`, `… 0` e `… 2`), ed è un parametro, non un flag
+    `foreach`: un test che si autodichiara nelle tre modalità ma ne esegue solo due
+    lascia dei rami non visitati senza dirlo.
 
 41. **Da CLI, `language.php` va preceduto da `language_functions.php`.**
     `language.php` chiama `getBestLanguage()` alla riga 3, quindi caricarlo da solo

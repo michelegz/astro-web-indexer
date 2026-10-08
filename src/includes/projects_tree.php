@@ -137,12 +137,15 @@ function subtreeSummaryCounts(array $node): array
     return $s;
 }
 
-function subtreeSummaryText(array $node): string
+function subtreeSummaryText(array $node, bool $asNew = false): string
 {
     $s = subtreeSummaryCounts($node);
     $t = 'L:' . $s['L'] . ' D:' . $s['D'] . ' F:' . $s['F'] . ' B:' . $s['B'];
     if ($s['pend'] > 0) {
-        $t .= ' (+' . $s['pend'] . ' ⏳)';
+        // Review modal shows no hourglass: pending are "new" files here.
+        $t .= $asNew
+            ? ' (+' . $s['pend'] . ' ' . __('projects_hypo_new') . ')'
+            : ' (+' . $s['pend'] . ' ⏳)';
     }
     if ($s['off'] > 0) {
         $t .= ' (' . $s['off'] . ' ' . __('projects_link_off') . ')';
@@ -160,6 +163,9 @@ function renderCalRows(array $cals, string $level, int $node, array $moveCtx = [
     $flatCov = $moveCtx['flatCov'] ?? [];
     $hypoCalLinks = $moveCtx['hypoLinks'] ?? [];
     $hypoGroups = !empty($moveCtx['hypoMode']);
+    // Suggestion-review modal: pending rows selectable via suggestion_ids[],
+    // real rows without checkbox, diagnostics computed as if accepted.
+    $reviewRows = !empty($moveCtx['reviewMode']);
     $tols = $moveCtx['tols'] ?? ['exp' => '1%', 'temp' => '2C'];
     $groups = groupCalibrations(
         $rows,
@@ -174,9 +180,15 @@ function renderCalRows(array $cals, string $level, int $node, array $moveCtx = [
     <?php foreach ($groups as $g): ?>
         <?php
         $gReal = array_values(array_filter($g['rows'], fn($r) => empty($r['pending'])));
+        // Review groups toggle the pending (selectable) rows; anywhere else
+        // they toggle the real (bulk-actionable) ones. No box when there is
+        // nothing to toggle.
+        $gCheck = $reviewRows
+            ? array_values(array_filter($g['rows'], fn($r) => !empty($r['pending'])))
+            : $gReal;
         ?>
         <div class="cal-group-wrap flex items-start gap-2 ml-4">
-            <?php if ($gReal !== [] && !$hypoGroups): ?>
+            <?php if ($gCheck !== [] && !$hypoGroups): ?>
                 <input type="checkbox" class="cgroup-check mt-2 rounded bg-gray-600 border-gray-500"
                        title="<?= __('projects_select_group') ?>">
             <?php endif; ?>
@@ -187,7 +199,7 @@ function renderCalRows(array $cals, string $level, int $node, array $moveCtx = [
                 $gWorstB = $gWorstD = null;
                 if ($g['kind'] === 'flat') {
                     foreach ($g['rows'] as $gr) {
-                        if (!empty($gr['pending']) || empty($gr['enabled'])) {
+                        if ((!empty($gr['pending']) && !$reviewRows) || empty($gr['enabled'])) {
                             continue;
                         }
                         $gs = $flatCov[(int)$gr['file_id']] ?? null;
@@ -208,13 +220,17 @@ function renderCalRows(array $cals, string $level, int $node, array $moveCtx = [
             <?php $cScope = $c['scope_nights'] ?? []; ?>
             <li class="flex items-center gap-2 text-xs border-b border-gray-700/40 py-0.5<?= ($isPend || $isOff) ? ' opacity-60' : '' ?>">
                 <?php $isHypoCal = !$isPend && !$isOff && isset($hypoCalLinks[linkKey($c, $level, $node)]); ?>
-                <?php if (!$isPend && !$hypoGroups): ?>
+                <?php $isNewPend = $isPend && $reviewRows; ?>
+                <?php $cReason = $isNewPend ? trim((string)($c['reason'] ?? '')) : ''; ?>
+                <?php if (!$isPend && !$hypoGroups && !$reviewRows): ?>
                     <input type="checkbox" name="link_keys[]" value="<?= htmlspecialchars(linkKey($c, $level, $node)) ?>" class="pfl-check rounded bg-gray-600 border-gray-500"<?= !empty($c['scope_sessions']) ? ' data-scope="' . htmlspecialchars(implode(',', $c['scope_sessions'])) . '"' : '' ?><?= isset($moveCtx['setup_id']) ? ' data-setup="' . (int)$moveCtx['setup_id'] . '"' : '' ?>>
+                <?php elseif ($isNewPend && !empty($c['suggestion_id'])): ?>
+                    <input type="checkbox" name="suggestion_ids[]" value="<?= (int)$c['suggestion_id'] ?>" class="sug-check rounded bg-gray-600 border-gray-500">
                 <?php endif; ?>
                 <span class="text-gray-500">[<?= htmlspecialchars($c['imgtype']) ?>]</span>
-                <?php if ($g['kind'] === 'flat' && !$isPend && !$isOff && isset($flatCov[(int)$c['file_id']]) && is_array($flatCov[(int)$c['file_id']])): ?><?= flatCovBadges($flatCov[(int)$c['file_id']], __('projects_cal_bias'), __('projects_cal_dark'), __('projects_cal_not_needed')) ?><?php endif; ?>
-                <span><?= $isHypoCal ? '<span class="text-[10px] font-semibold text-green-300 border border-green-700 rounded px-1 mr-1">' . __('projects_hypo_new') . '</span>' : '' ?><span class="<?= $isHypoCal ? 'text-green-300 font-medium' : '' ?>"><?= htmlspecialchars($c['name']) ?></span>
-                <?php if ($isPend): ?><span title="<?= __('projects_pending_hypo') ?>">⏳</span><?php endif; ?>
+                <?php if ($g['kind'] === 'flat' && !$isOff && (!$isPend || $reviewRows) && isset($flatCov[(int)$c['file_id']]) && is_array($flatCov[(int)$c['file_id']])): ?><?= flatCovBadges($flatCov[(int)$c['file_id']], __('projects_cal_bias'), __('projects_cal_dark'), __('projects_cal_not_needed')) ?><?php endif; ?>
+                <span><?= ($isHypoCal || $isNewPend) ? '<span class="text-[10px] font-semibold text-green-300 border border-green-700 rounded px-1 mr-1">' . __('projects_hypo_new') . '</span>' : '' ?><span<?= $cReason !== '' ? ' title="' . htmlspecialchars($cReason) . '"' : '' ?> class="<?= ($isHypoCal || $isNewPend) ? 'text-green-300 font-medium' : '' ?>"><?= htmlspecialchars($c['name']) ?></span>
+                <?php if ($isPend && !$isNewPend): ?><span title="<?= __('projects_pending_hypo') ?>">⏳</span><?php endif; ?>
                 <?php if ($isOff): ?><span class="text-gray-500">(<?= __('projects_link_off') ?>)</span><?php endif; ?>
                 <?php if (count($cDup) > 1): ?><span title="<?= htmlspecialchars(__('projects_dup_levels') . ': ' . implode(', ', $cDup)) ?>">⧉×<?= count($cDup) ?></span><?php endif; ?>
                 <?php if (!empty($cScope)): ?><span title="<?= htmlspecialchars(__('projects_scope_title') . ': ' . implode(', ', $cScope)) ?>">◈×<?= count($cScope) ?></span><?php endif; ?>
@@ -234,6 +250,15 @@ if (empty($projectTree['setups'])): ?>
     // Hypothetical preview (add-modal step 3): no bulk actions (rolled-back
     // ids), new links green, only hypo paths expanded.
     $hypoMode = !empty($hypoMode);
+    // Suggestion-review modal (projects.php): full tree as if accepted, with
+    // the pending rows selectable via suggestion_ids[] checkboxes. Real rows
+    // carry no checkbox here; diagnostics/counts treat pending as accepted
+    // because projects.php feeds a mergePendingTree() context for them.
+    $reviewMode = !empty($suggestReviewMode);
+    $noBulk = $hypoMode || $reviewMode;
+    if ($reviewMode) {
+        $hypoOpen = $suggestOpen ?? ['setups' => [], 'panels' => [], 'sessions' => []];
+    }
     $hypoLinks = $calCtxBase['hypoLinks'] ?? [];
     $hypoOpen = $hypoOpen ?? ['setups' => [], 'panels' => [], 'sessions' => []];
     ?>
@@ -243,14 +268,14 @@ if (empty($projectTree['setups'])): ?>
                 <?php if (!$hypoMode): ?>
                 <input type="checkbox" class="pgroup-check mt-3 rounded bg-gray-600 border-gray-500" title="<?= __('projects_select_group') ?>">
                 <?php endif; ?>
-                <details<?= (!$hypoMode || !empty($hypoOpen['setups'][(int)$setup['id']])) ? ' open' : '' ?> class="flex-1 min-w-0 border border-gray-700 rounded-lg">
+                <details<?= (!$noBulk || !empty($hypoOpen['setups'][(int)$setup['id']])) ? ' open' : '' ?> class="flex-1 min-w-0 border border-gray-700 rounded-lg">
                     <summary class="cursor-pointer px-4 py-2 bg-gray-700/50 rounded-t-lg font-semibold">
                         <?= __('projects_setup') ?> S<?= (int)($setup['setup_no'] ?? $setup['id']) ?>: <?= htmlspecialchars($setup['label'] !== null && $setup['label'] !== '' ? $setup['label'] : substr((string)$setup['fingerprint'], 0, 48)) ?>
-                        <?php if (!$hypoMode): ?>
+                        <?php if (!$noBulk): ?>
                         <button type="button" class="setup-rename ml-1 text-gray-400 hover:text-white text-sm leading-none align-baseline" title="<?= __('projects_setup_rename') ?>" data-setup-id="<?= (int)$setup['id'] ?>" data-setup-name="<?= htmlspecialchars($setup['label'] ?? '') ?>">✏️</button>
                         <?php endif; ?>
                         <div class="text-xs font-mono font-normal text-gray-500 mt-0.5"><?= htmlspecialchars(renderSetupFingerprint($setup['fingerprint'] ?? '')) ?></div>
-                        <div class="text-xs font-normal text-gray-400 mt-0.5"><?= htmlspecialchars(subtreeSummaryText($setup)) ?></div>
+                        <div class="text-xs font-normal text-gray-400 mt-0.5"><?= htmlspecialchars(subtreeSummaryText($setup, $reviewMode)) ?></div>
                     </summary>
                     <div class="px-4 py-2">
                         <?php renderCalRows($setup['calibrations'], 'setup', (int)$setup['id'], ['setup_id' => (int)$setup['id']] + $calCtxBase); ?>
@@ -268,10 +293,10 @@ if (empty($projectTree['setups'])): ?>
                                     <?php if (!$hypoMode): ?>
                                     <input type="checkbox" class="pgroup-check mt-2 rounded bg-gray-600 border-gray-500" title="<?= __('projects_select_group') ?>">
                                     <?php endif; ?>
-                                    <details<?= (!$hypoMode || !empty($hypoOpen['panels'][(int)$panel['id']])) ? ' open' : '' ?> class="flex-1 min-w-0 border border-gray-700/60 rounded">
+                                    <details<?= (!$noBulk || !empty($hypoOpen['panels'][(int)$panel['id']])) ? ' open' : '' ?> class="flex-1 min-w-0 border border-gray-700/60 rounded">
                                         <summary class="cursor-pointer px-3 py-1.5 hover:bg-gray-700/40 rounded font-medium">
                                             <?= __('projects_panel') ?> <?= htmlspecialchars($plabel) ?>
-                                            <span class="ml-2 text-xs font-normal text-gray-400"><?= htmlspecialchars(subtreeSummaryText($panel)) ?></span>
+                                            <span class="ml-2 text-xs font-normal text-gray-400"><?= htmlspecialchars(subtreeSummaryText($panel, $reviewMode)) ?></span>
                                         </summary>
                                         <div class="px-3 py-2">
                                             <?php renderCalRows($panel['calibrations'], 'panel', (int)$panel['id'], ['setup_id' => (int)$setup['id']] + $calCtxBase); ?>
@@ -281,10 +306,10 @@ if (empty($projectTree['setups'])): ?>
                                                         <?php if (!$hypoMode): ?>
                                                         <input type="checkbox" class="pgroup-check mt-2 rounded bg-gray-600 border-gray-500" title="<?= __('projects_select_group') ?>">
                                                         <?php endif; ?>
-                                                        <details<?= ($hypoMode && !empty($hypoOpen['sessions'][(int)$session['id']])) ? ' open' : '' ?> class="flex-1 min-w-0 border border-gray-700/40 rounded">
+                                                        <details<?= ($noBulk && !empty($hypoOpen['sessions'][(int)$session['id']])) ? ' open' : '' ?> class="flex-1 min-w-0 border border-gray-700/40 rounded">
                                                             <summary class="cursor-pointer px-3 py-1.5 hover:bg-gray-700/40 rounded text-sm">
                                                                 <?= __('projects_session') ?> <?= htmlspecialchars(sessionShortLabel($session)) ?>
-                                                                <span class="ml-2 text-xs text-gray-400"><?= htmlspecialchars(subtreeSummaryText($session)) ?></span>
+                                                                <span class="ml-2 text-xs text-gray-400"><?= htmlspecialchars(subtreeSummaryText($session, $reviewMode)) ?></span>
                                                             </summary>
                                                             <div class="px-3 py-2">
                                                                 <?php renderCalRows($session['calibrations'], 'session', (int)$session['id'], ['setup_id' => (int)$setup['id']] + $calCtxBase); ?>
@@ -293,16 +318,22 @@ if (empty($projectTree['setups'])): ?>
                                             $realLights = array_values(array_filter($filter['lights'], fn($li) => empty($li['pending']) && !empty($li['enabled'])));
                                             $pendLights = array_values(array_filter($filter['lights'], fn($li) => !empty($li['pending'])));
                                             $offLights = array_values(array_filter($filter['lights'], fn($li) => empty($li['pending']) && empty($li['enabled'])));
+                                            // Review mode previews the accepted state: pending rows
+                                            // (enabled by construction) join the display set, so badges,
+                                            // counts and exposures match the post-accept project.
+                                            $showLights = $reviewMode
+                                                ? array_values(array_filter($filter['lights'], fn($li) => !empty($li['enabled'])))
+                                                : $realLights;
                                             $worstB = $worstD = $worstF = null;
-                                            foreach ($realLights as $li) {
+                                            foreach ($showLights as $li) {
                                                 $d = $projectDiag[(int)$li['file_id']] ?? ['dark' => 'red', 'flat' => 'red', 'flat_rot' => null, 'bias' => 'red'];
                                                 $worstB = $worstB === null ? $d['bias'] : diagWorst($worstB, $d['bias']);
                                                 $worstD = $worstD === null ? $d['dark'] : diagWorst($worstD, $d['dark']);
                                                 $worstF = $worstF === null ? $d['flat'] : diagWorst($worstF, $d['flat']);
                                             }
-                                            $worstR = worstRotState($realLights, $projectDiag);
+                                            $worstR = worstRotState($showLights, $projectDiag);
                                                                     $realExp = 0.0;
-                                                                    foreach ($realLights as $li) {
+                                                                    foreach ($showLights as $li) {
                                                                         $realExp += (float)($li['exptime'] ?? 0);
                                                                     }
                                                                     $expGroups = clusterExposures($filter['lights'], $tolExpRaw ?? '1%');
@@ -316,23 +347,26 @@ if (empty($projectTree['setups'])): ?>
                                                 <div class="text-sm font-medium mb-1">
                                                     <?php if ($worstB === null): ?><?= empty($pendLights) ? '' : '⏳' ?><?php else: ?><?= diagBox($worstB, 'B', __('projects_cal_bias')) ?><?= diagBox($worstD, 'D', __('projects_cal_dark')) ?><?= diagBox($worstF, 'F', __('projects_cal_flat')) ?><?= rotBadge($worstR, __('projects_cal_rot_ok'), __('projects_cal_rot_warn')) ?><?php endif; ?> <?= __('projects_filter') ?> <?= htmlspecialchars($filter['name'] !== '' ? $filter['name'] : '—') ?>
                                                                                      <span class="ml-2 text-xs font-normal text-gray-400">
-                                                                                         <?= htmlspecialchars(__('projects_lights_count', ['count' => count($realLights)])) ?> · <?= htmlspecialchars(fmtExp($realExp)) ?><?php if (!empty($pendLights)): ?> · <?= htmlspecialchars('+' . count($pendLights) . ' ⏳') ?><?php endif; ?><?php if (!empty($offLights)): ?> · <?= htmlspecialchars('+' . count($offLights) . ' ' . __('projects_link_off')) ?><?php endif; ?>
+                                                                                          <?= htmlspecialchars(__('projects_lights_count', ['count' => count($showLights)])) ?> · <?= htmlspecialchars(fmtExp($realExp)) ?><?php if (!empty($pendLights)): ?><?php if ($reviewMode): ?> · <span class="text-green-300">+<?= count($pendLights) ?> <?= htmlspecialchars(__('projects_hypo_new')) ?></span><?php else: ?> · <?= htmlspecialchars('+' . count($pendLights) . ' ⏳') ?><?php endif; ?><?php endif; ?><?php if (!empty($offLights)): ?> · <?= htmlspecialchars('+' . count($offLights) . ' ' . __('projects_link_off')) ?><?php endif; ?>
                                                                                      </span>
                                                                                 </div>
                                                                                 <?php renderCalRows($filter['calibrations'], 'filter', (int)$session['id'], $calCtxBase); ?>
                                                                                 <?php foreach ($expGroups as $eg): ?>
                                                                                     <?php
                                                                                     $egReal = array_values(array_filter($eg['lights'], fn($li) => empty($li['pending']) && !empty($li['enabled'])));
+                                                                                    $egShow = $reviewMode
+                                                                                        ? array_values(array_filter($eg['lights'], fn($li) => !empty($li['enabled'])))
+                                                                                        : $egReal;
                                                                                     $egWorstB = $egWorstD = $egWorstF = null;
-                                                                                    foreach ($egReal as $li) {
+                                                                                    foreach ($egShow as $li) {
                                                                                         $d = $projectDiag[(int)$li['file_id']] ?? ['dark' => 'red', 'flat' => 'red', 'flat_rot' => null, 'bias' => 'red'];
                                                                                         $egWorstB = $egWorstB === null ? $d['bias'] : diagWorst($egWorstB, $d['bias']);
                                                                                         $egWorstD = $egWorstD === null ? $d['dark'] : diagWorst($egWorstD, $d['dark']);
                                                                                         $egWorstF = $egWorstF === null ? $d['flat'] : diagWorst($egWorstF, $d['flat']);
                                                                                     }
-                                                                                    $egWorstR = worstRotState($egReal, $projectDiag);
+                                                                                    $egWorstR = worstRotState($egShow, $projectDiag);
                                                                                     $egExp = 0.0;
-                                                                                    foreach ($egReal as $li) {
+                                                                                    foreach ($egShow as $li) {
                                                                                         $egExp += (float)($li['exptime'] ?? 0);
                                                                                     }
                                                                                     ?>
@@ -343,8 +377,8 @@ if (empty($projectTree['setups'])): ?>
                                                                                              <?php endif; ?>
                                                                                              <div class="flex-1 min-w-0">
                                                                                                  <div class="text-xs font-medium text-gray-300 mb-1">
-                                                                                                                                                                                                           <?php if ($egWorstB !== null): ?><?= diagBox($egWorstB, 'B', __('projects_cal_bias')) ?><?= diagBox($egWorstD, 'D', __('projects_cal_dark')) ?><?= diagBox($egWorstF, 'F', __('projects_cal_flat')) ?><?= rotBadge($egWorstR, __('projects_cal_rot_ok'), __('projects_cal_rot_warn')) ?> <?php endif; ?><?= __('projects_exposure') ?> <?= htmlspecialchars(fmtExpShort($eg['exptime'])) ?><?php $egTempMed = projectMedian(array_column($egReal, 'ccd_temp')); ?><?php if ($egTempMed !== null): ?> · <?= htmlspecialchars(repTempDisplay($egTempMed)) ?><?php endif; ?>
-                                                                                                     <span class="ml-2 font-normal text-gray-500"><?= count($egReal) ?> · <?= htmlspecialchars(fmtExp($egExp)) ?></span>
+                                                                                                                                                                                                            <?php if ($egWorstB !== null): ?><?= diagBox($egWorstB, 'B', __('projects_cal_bias')) ?><?= diagBox($egWorstD, 'D', __('projects_cal_dark')) ?><?= diagBox($egWorstF, 'F', __('projects_cal_flat')) ?><?= rotBadge($egWorstR, __('projects_cal_rot_ok'), __('projects_cal_rot_warn')) ?> <?php endif; ?><?= __('projects_exposure') ?> <?= htmlspecialchars(fmtExpShort($eg['exptime'])) ?><?php $egTempMed = projectMedian(array_column($egShow, 'ccd_temp')); ?><?php if ($egTempMed !== null): ?> · <?= htmlspecialchars(repTempDisplay($egTempMed)) ?><?php endif; ?>
+                                                                                                      <span class="ml-2 font-normal text-gray-500"><?= count($egShow) ?> · <?= htmlspecialchars(fmtExp($egExp)) ?></span>
                                                                                                  </div>
                                                                                 <div class="overflow-x-auto">
                                                                                     <table class="w-full text-xs text-left">
@@ -352,18 +386,22 @@ if (empty($projectTree['setups'])): ?>
                                                                                              <?php foreach ($eg['lights'] as $li): ?>
                                                                                                  <?php $isPend = !empty($li['pending']); ?>
                                                                                                  <?php $isOff = !$isPend && empty($li['enabled']); ?>
-                                                                                                  <?php $isAuto = !$isPend && !$isOff && !empty($li['auto_off']); ?>
-                                                                                                  <?php $isHypo = !$isPend && !$isOff && isset($hypoLinks[linkKey($li, 'filter', (int)$session['id'])]); ?>
-                                                                                                 <?php $d = ($isPend || $isOff) ? null : ($projectDiag[(int)$li['file_id']] ?? ['dark' => 'red', 'flat' => 'red', 'flat_rot' => null, 'bias' => 'red']); ?>
-                                                                                                 <tr class="border-b border-gray-700/40<?= ($isPend || $isOff) ? ' opacity-60' : '' ?>">
-                                                                                                     <td class="py-1 px-2<?= $isAuto ? ' text-red-400 font-medium' : '' ?>">
-                                                                                                          <?php if (!$isPend && !$hypoMode): ?>
-                                                                                                             <input type="checkbox" name="link_keys[]" value="<?= htmlspecialchars(linkKey($li, 'filter', (int)$session['id'])) ?>" class="pfl-check rounded bg-gray-600 border-gray-500 mr-1">
-                                                                                                         <?php endif; ?>
-                                                                                                                                                                                                                     <span><?= $isHypo ? '<span class="text-[10px] font-semibold text-green-300 border border-green-700 rounded px-1 mr-1">' . __('projects_hypo_new') . '</span>' : '' ?><span class="<?= $isHypo ? 'text-green-300 font-medium' : '' ?>"><?= htmlspecialchars($li['name']) ?></span></span><?php if ($isPend): ?> <span title="<?= __('projects_pending_hypo') ?>">⏳</span><?php endif; ?><?php if ($isOff): ?> <span class="text-gray-500">(<?= __('projects_link_off') ?>)</span><?php endif; ?><?php if ($isAuto): ?> <span class="text-red-400">(<?= __('projects_auto_off') ?>)</span><?php endif; ?><?php $liDup = ($dupLinks ?? [])[(int)$li['file_id']] ?? []; ?><?php if (count($liDup) > 1): ?> <span title="<?= htmlspecialchars(__('projects_dup_levels') . ': ' . implode(', ', $liDup)) ?>">⧉×<?= count($liDup) ?></span><?php endif; ?>
+                                                                                                   <?php $isAuto = (!$isPend || $reviewMode) && !$isOff && !empty($li['auto_off']); ?>
+                                                                                                   <?php $isHypo = !$isPend && !$isOff && isset($hypoLinks[linkKey($li, 'filter', (int)$session['id'])]); ?>
+                                                                                                  <?php $isNewPend = $isPend && $reviewMode; ?>
+                                                                                                  <?php $liReason = $isNewPend ? trim((string)($li['reason'] ?? '')) : ''; ?>
+                                                                                                  <?php $d = (($isPend && !$reviewMode) || $isOff) ? null : ($projectDiag[(int)$li['file_id']] ?? ['dark' => 'red', 'flat' => 'red', 'flat_rot' => null, 'bias' => 'red']); ?>
+                                                                                                  <tr class="border-b border-gray-700/40<?= ($isPend || $isOff) ? ' opacity-60' : '' ?>">
+                                                                                                      <td class="py-1 px-2<?= $isAuto ? ' text-red-400 font-medium' : '' ?>">
+                                                                                                           <?php if (!$isPend && !$hypoMode && !$reviewMode): ?>
+                                                                                                              <input type="checkbox" name="link_keys[]" value="<?= htmlspecialchars(linkKey($li, 'filter', (int)$session['id'])) ?>" class="pfl-check rounded bg-gray-600 border-gray-500 mr-1">
+                                                                                                          <?php elseif ($isNewPend && !empty($li['suggestion_id'])): ?>
+                                                                                                              <input type="checkbox" name="suggestion_ids[]" value="<?= (int)$li['suggestion_id'] ?>" class="sug-check rounded bg-gray-600 border-gray-500 mr-1">
+                                                                                                          <?php endif; ?>
+                                                                                                                                                                                                                      <span><?= ($isHypo || $isNewPend) ? '<span class="text-[10px] font-semibold text-green-300 border border-green-700 rounded px-1 mr-1">' . __('projects_hypo_new') . '</span>' : '' ?><span<?= $liReason !== '' ? ' title="' . htmlspecialchars($liReason) . '"' : '' ?> class="<?= ($isHypo || $isNewPend) ? 'text-green-300 font-medium' : '' ?>"><?= htmlspecialchars($li['name']) ?></span></span><?php if ($isOff): ?> <span class="text-gray-500">(<?= __('projects_link_off') ?>)</span><?php endif; ?><?php if ($isAuto): ?> <span class="text-red-400">(<?= __('projects_auto_off') ?>)</span><?php endif; ?><?php $liDup = ($dupLinks ?? [])[(int)$li['file_id']] ?? []; ?><?php if (count($liDup) > 1): ?> <span title="<?= htmlspecialchars(__('projects_dup_levels') . ': ' . implode(', ', $liDup)) ?>">⧉×<?= count($liDup) ?></span><?php endif; ?>
                                                                                                     </td>
                                                                                                     <td class="py-1 px-2 text-right text-gray-400"><?= htmlspecialchars((string)($li['exptime'] ?? '')) ?>s</td>
-                                                                                                    <td class="py-1 px-2 whitespace-nowrap"><?= $isPend ? '⏳' : ($isOff ? '—' : '') ?></td>
+                                                                                                     <td class="py-1 px-2 whitespace-nowrap"><?= ($isPend && !$isNewPend) ? '⏳' : ($isOff ? '—' : '') ?></td>
                                                                                                 </tr>
                                                                                             <?php endforeach; ?>
                                                                                         </tbody>

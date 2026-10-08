@@ -415,6 +415,7 @@ return [
     // Wizard
     'projects_review' => 'Review suggestions ({count})',
     'projects_review_intro' => 'Proposed file links. Accept to link them into the project, discard to stop proposing them until tolerances or headers change. Files on disk are never touched.',
+    'projects_review_truncated' => 'Showing the first {shown} of {count} pending suggestions: accept or discard them to review the rest.',
     'projects_file' => 'File',
     'projects_target' => 'Target',
     'projects_reason' => 'Why',

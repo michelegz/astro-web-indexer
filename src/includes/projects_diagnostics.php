@@ -590,6 +590,160 @@ function stripPendingTree(array $tree): array
 }
 
 /**
+ * "As if accepted" copy of a tree built with getProjectTree($includePending).
+ * Pending rows become plain rows so the diagnostic pipeline (badges, counts,
+ * exposures, duplicates, flat coverage, auto-off) returns exactly the values
+ * the project will show once the suggestions are accepted. No writes: the
+ * suggester already stores the final placement, so no new node can appear.
+ *
+ * A pending row duplicating a real link (same file_id:level:node_id, e.g. a
+ * re-proposed file) is dropped instead of merged, mirroring the ON DUPLICATE
+ * KEY UPDATE in acceptSuggestion(). Filter count/exposure are recomputed and
+ * branches left empty by the drop are pruned, like stripPendingTree() does.
+ */
+function mergePendingTree(array $tree): array
+{
+    $realKeys = [];
+    $indexReal = function (array $rows) use (&$realKeys): void {
+        foreach ($rows as $r) {
+            if (!empty($r['pending'])) {
+                continue;
+            }
+            $fid = (int)($r['file_id'] ?? $r['id'] ?? 0);
+            if ($fid > 0) {
+                $realKeys[$fid . ':' . ($r['level'] ?? '') . ':' . (int)($r['node_id'] ?? 0)] = true;
+            }
+        }
+    };
+    $indexReal($tree['project_links'] ?? []);
+    foreach ($tree['setups'] ?? [] as $setup) {
+        $indexReal($setup['calibrations'] ?? []);
+        foreach ($setup['panels'] ?? [] as $panel) {
+            $indexReal($panel['calibrations'] ?? []);
+            foreach ($panel['sessions'] ?? [] as $session) {
+                $indexReal($session['calibrations'] ?? []);
+                foreach ($session['filters'] ?? [] as $filter) {
+                    $indexReal($filter['lights'] ?? []);
+                    $indexReal($filter['calibrations'] ?? []);
+                }
+            }
+        }
+    }
+    $mergeRows = function (array $rows) use (&$realKeys): array {
+        $out = [];
+        foreach ($rows as $r) {
+            if (!empty($r['pending'])) {
+                $fid = (int)($r['file_id'] ?? $r['id'] ?? 0);
+                if ($fid > 0 && isset($realKeys[$fid . ':' . ($r['level'] ?? '') . ':' . (int)($r['node_id'] ?? 0)])) {
+                    continue;
+                }
+                unset($r['pending']);
+            }
+            $out[] = $r;
+        }
+        return $out;
+    };
+    $tree['project_links'] = $mergeRows($tree['project_links'] ?? []);
+    foreach ($tree['setups'] ?? [] as $si => $setup) {
+        $tree['setups'][$si]['calibrations'] = $mergeRows($setup['calibrations'] ?? []);
+        foreach ($setup['panels'] ?? [] as $pi => $panel) {
+            $tree['setups'][$si]['panels'][$pi]['calibrations'] = $mergeRows($panel['calibrations'] ?? []);
+            foreach ($panel['sessions'] ?? [] as $sesi => $session) {
+                $tree['setups'][$si]['panels'][$pi]['sessions'][$sesi]['calibrations'] = $mergeRows($session['calibrations'] ?? []);
+                $filters = [];
+                foreach ($session['filters'] ?? [] as $f) {
+                    $lights = $mergeRows($f['lights'] ?? []);
+                    $cals = $mergeRows($f['calibrations'] ?? []);
+                    if (empty($lights) && empty($cals)) {
+                        continue;
+                    }
+                    $exp = 0.0;
+                    foreach ($lights as $li) {
+                        $exp += (float)($li['exptime'] ?? 0);
+                    }
+                    $f['lights'] = $lights;
+                    $f['calibrations'] = $cals;
+                    $f['count'] = count($lights);
+                    $f['exposure'] = $exp;
+                    $filters[] = $f;
+                }
+                $tree['setups'][$si]['panels'][$pi]['sessions'][$sesi]['filters'] = $filters;
+                if (empty($filters)
+                    && empty($tree['setups'][$si]['panels'][$pi]['sessions'][$sesi]['calibrations'])) {
+                    unset($tree['setups'][$si]['panels'][$pi]['sessions'][$sesi]);
+                }
+            }
+            $tree['setups'][$si]['panels'][$pi]['sessions'] = array_values(
+                $tree['setups'][$si]['panels'][$pi]['sessions'] ?? []
+            );
+            if (empty($tree['setups'][$si]['panels'][$pi]['sessions'])
+                && empty($tree['setups'][$si]['panels'][$pi]['calibrations'])) {
+                unset($tree['setups'][$si]['panels'][$pi]);
+            }
+        }
+        $tree['setups'][$si]['panels'] = array_values($tree['setups'][$si]['panels'] ?? []);
+        if (empty($tree['setups'][$si]['panels']) && empty($tree['setups'][$si]['calibrations'])) {
+            unset($tree['setups'][$si]);
+        }
+    }
+    $tree['setups'] = array_values($tree['setups'] ?? []);
+    return $tree;
+}
+
+/**
+ * Ancestors of pending rows, for the suggestion-review modal: same shape as
+ * the $hypoOpen map built by api/project_tree_preview.php, plus the number
+ * of pending rows actually present in the tree (the pending query is capped,
+ * so this can be lower than getPendingCount()).
+ *
+ * Returns ['setups' => [id => true], 'panels' => [...], 'sessions' => [...],
+ * 'shown' => int].
+ */
+function suggestReviewOpenMap(array $tree): array
+{
+    $open = ['setups' => [], 'panels' => [], 'sessions' => [], 'shown' => 0];
+    $hasPend = function (array $rows) use (&$open): bool {
+        foreach ($rows as $r) {
+            if (!empty($r['pending'])) {
+                $open['shown']++;
+            }
+        }
+        foreach ($rows as $r) {
+            if (!empty($r['pending'])) {
+                return true;
+            }
+        }
+        return false;
+    };
+    foreach ($tree['setups'] ?? [] as $setup) {
+        $setupHit = $hasPend($setup['calibrations'] ?? []);
+        foreach ($setup['panels'] ?? [] as $panel) {
+            $panelHit = $hasPend($panel['calibrations'] ?? []);
+            foreach ($panel['sessions'] ?? [] as $session) {
+                $sessHit = $hasPend($session['calibrations'] ?? []);
+                foreach ($session['filters'] ?? [] as $filter) {
+                    if ($hasPend($filter['lights'] ?? []) || $hasPend($filter['calibrations'] ?? [])) {
+                        $sessHit = true;
+                    }
+                }
+                if ($sessHit) {
+                    $open['sessions'][(int)$session['id']] = true;
+                    $panelHit = true;
+                }
+            }
+            if ($panelHit) {
+                $open['panels'][(int)$panel['id']] = true;
+                $setupHit = true;
+            }
+        }
+        if ($setupHit) {
+            $open['setups'][(int)$setup['id']] = true;
+        }
+    }
+    return $open;
+}
+
+/**
  * Exposure subgroups for a filter's lights (hierarchy level under filter).
  * Sorted ascending; a new group starts when |v - anchor| exceeds the
  * tolerance resolved from $tolExpRaw against the anchor ("10%" = fraction
