@@ -351,7 +351,7 @@ Points that reading alone was not enough to close, and that the test blocks:
 - **`$nameSuffix` (line 230) is the only point that prints without `htmlspecialchars`.** The
   only caller, `igroup_files_table.php:21-26`, passes it fixed markup around a
   translation, so it is not controlled by the archive. The test verifies that invariant
-  («uno span inserito a mano, e il payload non ci passa dentro») instead of taking it for
+  (`$nameSuffix contiene solo il markup e la traduzione del chiamante` / `  e nessun payload ci passa dentro`) instead of taking it for
   granted: it is the kind of argument that holds until someone adds a caller.
 - **`getMoonPhaseMarkup(?float, ?float)`** has the declared type, so a non-numeric string
   becomes a `TypeError` instead of ending up in the HTML: safe, but for a reason that
@@ -370,8 +370,8 @@ for the opcache:
 
 | Break introduced | Expected |
 |---|---|
-| line 229, `name` without `htmlspecialchars` | **red**: `grezze=1`, `<img onerror>` and `<svg onload>` injected, in both scopes |
-| line 71, `data-val` without `htmlspecialchars` | **red in `project` only**: `grezze=20`, `attribute onload su <td>`; in `main` it stays green, because that branch does not carry `data-val` |
+| line 229, `name` without `htmlspecialchars` | **red**: `no raw occurrence` goes red with `raw=1`, plus `element <img>` and `<svg onload>` injected, in both scopes |
+| line 71, `data-val` without `htmlspecialchars` | **red in `project` only**: `raw=20`, `attribute onload su <td>`; in `main` it stays green, because that branch does not carry `data-val` |
 
 The second line is the most informative: an `innerHTML` check or a `main`-only field
 would not have seen it, because the incriminated branch exists only in `project`.

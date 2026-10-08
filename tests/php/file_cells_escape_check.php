@@ -1,33 +1,33 @@
 <?php
-// Verifica — includes/file_cells.php deve scrivere ogni valore controllato dall'archivio
-// con htmlspecialchars.
+// Check — includes/file_cells.php must write every archive-controlled value with
+// htmlspecialchars.
 //
-// Questo partial e' la superficie di XSS piu' grande del progetto e non aveva nessuna
-// copertura con input ostile: disegna TUTTE le righe dell'archivio, e su questa copia ci
-// sono 365 file, ciascuno con nome, object, filter, instrume, cameraid, telescop e una
-// quarantina di altri header FITS. Chi deposita un file nell'archivio li controlla.
+// This partial is the largest XSS surface in the project and had no coverage with
+// hostile input: it draws ALL the rows of the archive, and on this copy there
+// are 365 files, each with name, object, filter, instrume, cameraid, telescop and
+// forty other FITS headers. Whoever deposits a file into the archive controls them.
 //
 //   index.php -> includes/table.php:103 -> renderFileTableCells($f, 'main')
 //   projects.php -> includes/igroup_files_table.php:29 -> renderFileTableCells($li, 'project', $liSuffix)
 //
-// I due ambiti prendono rami diversi: in 'project' ogni cella porta data-col/data-val per
-// l'ordinamento lato client, il badge duplicati e' statico, e i marker (off)/(auto_off)
-// arrivano come $nameSuffix. Vengono esercitati entrambi.
+// The two scopes take different branches: in 'project' every cell carries data-col/data-val for
+// client-side sorting, the duplicates badge is static, and the (off)/(auto_off)
+// markers arrive as $nameSuffix. Both are exercised.
 //
-// Nessuna scrittura: la riga e' sintetica, costruita qui sotto.
+// No writes: the row is synthetic, built below.
 //
-// I tre contesti che il partial scrive, e come sono controllati:
+// The three contexts the partial writes, and how each is controlled:
 //
-//   testo           htmlspecialchars() su ogni colonna stringa
-//   attributo       htmlspecialchars() in fileCellAttrs() (71), sul data-val grezzo
-//   href            rawurlencode() sul path (228): codifica '%' anche, quindi il payload
-//                   compare come XSS%3C e non come XSS<
+//   text          htmlspecialchars() on every string column
+//   attribute     htmlspecialchars() in fileCellAttrs() (71), on the raw data-val
+//   href          rawurlencode() on the path (228): it encodes '%' too, so the payload
+//                 appears as XSS%3C and not as XSS<
 //
-// Sul terzo punto il test conta tre forme invece di una: grezza, entita' HTML e
-// percent-encoded. Se il path finisse nell'href senza codifica, la forma grezza salirebbe
-// da 0 e il test lo direbbe.
+// On the third point the test counts three shapes instead of one: raw, HTML entity and
+// percent-encoded. If the path reached the href without encoding, the raw shape would rise
+// from 0 and the test would say so.
 //
-// Uso:
+// Usage:
 //   docker cp tmp/file_cells_escape_check.php awi-php:/tmp/
 //   docker exec awi-php sh -c 'cd /tmp && php file_cells_escape_check.php'
 
@@ -36,9 +36,9 @@ ini_set('display_errors', '1');
 
 require_once '/var/www/html/includes/config.php';
 
-// __() serve a ogni etichetta. $strings va inizializzato a mano perche' il file di
-// lingua usa HEADER_TITLE, che in CLI non e' definito; language_functions.php va prima di
-// language.php, che lo chiama subito.
+// __() is needed by every label. $strings has to be initialized by hand because the language
+// file uses HEADER_TITLE, which is not defined in the CLI; language_functions.php goes
+// before language.php, which calls it immediately.
 $lang = DEFAULT_LANGUAGE;
 $strings = include '/var/www/html/languages/' . $lang . '.php';
 require_once '/var/www/html/includes/language_functions.php';
@@ -51,27 +51,27 @@ $failed = [];
 
 function check(string $label, bool $cond, string $detail = ''): void
 {
-    printf("  %-56s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FALLITO');
+    printf("  %-56s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FAILED');
     if (!$cond) {
         $GLOBALS['failed'][] = $label;
     }
 }
 
 /**
- * Secondo parere indipendente dai regex: un parser HTML reale cerca (a) un elemento
- * pericoloso che il template non scrive mai e (b) un attributo on* su QUALSIASI elemento.
+ * Second opinion independent of the regexes: a real HTML parser looks for (a) a dangerous
+ * element the template never writes and (b) an on* attribute on ANY element.
  *
- * Nota su (b): qui non si puo' usare la lista dei tag consentiti come negli altri test,
- * perche' questo partial scrive di proposito <img> per le miniature, <div>, <span>, <a>,
- * <td>, <table>, <tbody>, <tr>. La lista di divieto e' quella di cio' che non deve mai
- * arrivare dal payload.
+ * Note on (b): here the allow-list of tags cannot be used as in the other tests,
+ * because this partial deliberately writes <img> for the thumbnails, <div>, <span>, <a>,
+ * <td>, <table>, <tbody>, <tr>. The deny-list is that of what must never
+ * come from the payload.
  *
- * Nota piu' importante, gia' scritta come trappola #34 nel README: cercare la
- * sottostringa `onerror=` per provare che un handler non sia iniettabile e' SBAGLIATO e
- * produce un falso positivo. Il testo `onerror=alert(1)` resta leggibile dentro un
- * attributo correttamente escapato (`data-hash="XSS&lt;img src=x onerror=alert(1)&gt;"`),
- * e una regex che lo cerca li' dice "iniettato". L'unico livello giusto e' il nome
- * dell'attributo nel DOM parsato.
+ * More important note, already written as trap #34 in the README: searching for the
+ * `onerror=` substring to prove that a handler is not injectable is WRONG and
+ * produces a false positive. The text `onerror=alert(1)` stays readable inside a
+ * correctly escaped attribute (`data-hash="XSS&lt;img src=x onerror=alert(1)&gt;"`),
+ * and a regex looking for it there says "injected". The only right level is the
+ * attribute name in the parsed DOM.
  */
 function injectedMarkup(string $html): array
 {
@@ -84,7 +84,7 @@ function injectedMarkup(string $html): array
     foreach ($xp->query('//*') as $el) {
         $tag = strtolower($el->nodeName);
         if (in_array($tag, ['svg', 'script', 'iframe', 'object', 'embed', 'form'], true)) {
-            $bad[] = "element <$tag> non previsto dal template";
+            $bad[] = "element <$tag> not expected by the template";
         }
         foreach ($el->attributes as $attr) {
             if (stripos($attr->nodeName, 'on') === 0) {
@@ -95,7 +95,7 @@ function injectedMarkup(string $html): array
     return array_values(array_unique($bad));
 }
 
-/** Il badge duplicati, visto dal DOM: nessun handler, e data-hash con il testo escaped. */
+/** The duplicates badge, seen from the DOM: no handler, and data-hash with the escaped text. */
 function badgeAudit(string $html): array
 {
     $doc = new DOMDocument();
@@ -116,17 +116,17 @@ function badgeAudit(string $html): array
     return ['found' => true, 'handlers' => $handlers, 'hash' => $node->getAttribute('data-hash')];
 }
 
-// Il payload copre i tre contesti: testo, attributo con doppie apici, attributo con apici
-// singoli. Nessuno slash, cosi' dirname() sul path non lo mangia: il path ne ha uno
-// proprio, perche' serve a far restare il payload dentro la directory.
+// The payload covers the three contexts: text, attribute with double quotes, attribute with
+// single quotes. No slash, so that dirname() on the path does not eat it: the path has one
+// of its own, because it is there to keep the payload inside the directory.
 $XSS = 'XSS<img src=x onerror=alert(1)>"\'<svg onload=alert(2)>';
 $NEEDLE = 'XSS';
 
-// Colonne che il reindexer scrive come numeri. Qui ricevono numeri, non il payload: non
-// sono controllate dall'archivio, e senza cast (resolution, fov_w, fov_h, file_size) un
-// valore non numerico farebbe TypeError invece di iniettare, quindi il test morirebbe
-// senza dirlo. Lo scopo del test e' l'escaping delle stringhe, non la validazione dei
-// numeri.
+// Columns the indexer writes as numbers. Here they get numbers, not the payload: they are
+// not controlled by the archive, and without a cast (resolution, fov_w, fov_h, file_size) a
+// non-numeric value would raise a TypeError instead of injecting, so the test would die
+// without saying so. The scope of the test is the escaping of strings, not the validation of
+// numbers.
 $numeric = [
     'mtime' => 1750000000, 'file_size' => 16980480, 'width' => 9576, 'height' => 6388,
     'resolution' => 2.14, 'fov_w' => 326.7, 'fov_h' => 218.0,
@@ -146,9 +146,9 @@ $numeric = [
 ];
 
 /**
- * Riga sintetica con il payload in ogni colonna stringa che arriva dall'archivio.
- * L'elenco e' quello che la query della tabella principale seleziona da `files`: sono
- * gli header FITS piu' i metadati calcolati.
+ * Synthetic row with the payload in every string column coming from the archive.
+ * The list is the one the main table query selects from `files`: the
+ * FITS headers plus the computed metadata.
  */
 function hostileRow(array $numeric, string $xss, bool $withThumb = false): array
 {
@@ -187,8 +187,8 @@ function hostileRow(array $numeric, string $xss, bool $withThumb = false): array
     return array_merge($row, $numeric);
 }
 
-// Visibilita' forzata: senza hiddenCols vuoto showColFor nasconderebbe quasi tutto e il
-// test passerebbe senza aver renderizzato nessuna delle celle che vuole coprire.
+// Forced visibility: without empty hiddenCols showColFor would hide almost everything and the
+// test would pass without having rendered any of the cells it wants to cover.
 $hiddenCols = [];
 $hiddenColsProjects = [];
 $base = array_keys(getBaseColumns());
@@ -225,9 +225,9 @@ function render(string $scope, array $row, string $suffix = ''): string
 }
 
 /**
- * Il conteggio che rende il test onesto: ogni occorrenza del payload deve essere o
- * escaped come entita' o percent-encoded. Una terza forma significa che il payload e'
- * finito grezzo in una delle due direzioni.
+ * The count that makes the test honest: every occurrence of the payload must be either
+ * escaped as an entity or percent-encoded. A third shape means the payload
+ * ended up raw in one of the two directions.
  */
 function tally(string $html, string $needle): array
 {
@@ -238,100 +238,100 @@ function tally(string $html, string $needle): array
     return ['raw' => $raw, 'ent' => $ent, 'url' => $url, 'total' => $total];
 }
 
-echo "\n=== ambito 'main' (home, tabella principale) ===\n";
+echo "\n=== scope 'main' (home, main table) ===\n";
 $row = hostileRow($numeric, $XSS);
 $html = render('main', $row);
 
-printf("  renderizzati %d byte\n", strlen($html));
+printf("  rendered %d bytes\n", strlen($html));
 $t = tally($html, $NEEDLE);
-printf("  occorrenze di '%s': %d totali = %d escaped + %d percent-encoded\n",
+printf("  occurrences of '%s': %d total = %d escaped + %d percent-encoded\n",
     $NEEDLE, $t['total'], $t['ent'], $t['url']);
 
-// Controllo di positivita': senza payload renderizzato, "nessuna iniezione" sarebbe
-// vero solo perche' la riga era vuota.
-check('il payload e\' arrivato nell\'HTML', $t['total'] > 0,
-    "{$t['total']} occorrenze");
-check('ogni occorrenza e\' escaped o percent-encoded',
+// Positivity check: without a rendered payload, "no injection" would be
+// true only because the row was empty.
+check('the payload reached the HTML', $t['total'] > 0,
+    "{$t['total']} occurrences");
+check('every occurrence is escaped or percent-encoded',
     $t['ent'] + $t['url'] === $t['total'],
-    "entita={$t['ent']} url={$t['url']} grezze={$t['raw']}");
-check('nessuna occorrenza grezza', $t['raw'] === 0, "grezze={$t['raw']}");
+    "entities={$t['ent']} url={$t['url']} raw={$t['raw']}");
+check('no raw occurrence', $t['raw'] === 0, "raw={$t['raw']}");
 
 $liveTag = preg_match('#' . preg_quote($NEEDLE, '#') . '\s*<(img|svg|script)#i', $html, $m1);
-check('nessun tag vivo dopo il payload', !$liveTag, $liveTag ? '>>> ' . $m1[0] : '');
+check('no live tag after the payload', !$liveTag, $liveTag ? '>>> ' . $m1[0] : '');
 
 $bad = injectedMarkup($html);
-check('nessun elemento o handler iniettato (parser)', $bad === [],
+check('no injected element or handler (parser)', $bad === [],
     $bad ? implode('; ', $bad) : '');
 
-// Il contesto attributo di questo ambito: il badge duplicati porta data-hash. Serve un
-// valore > 1 perche' il badge venga renderizzato. Il controllo sul badge e' fatto sul DOM,
-// non con una regex: vedi la nota su badgeAudit().
+// The attribute context of this scope: the duplicates badge carries data-hash. A
+// value > 1 is needed for the badge to be rendered. The check on the badge is done on the DOM,
+// not with a regex: see the note on badgeAudit().
 $htmlDup = render('main', hostileRow(array_merge($numeric, [
     'visible_duplicate_count' => 3, 'total_duplicate_count' => 5]), $XSS));
 $badge = badgeAudit($htmlDup);
-check('il badge duplicati c\'e\'', $badge['found'], $badge['found'] ? '' : 'non trovato');
-// Sul DOM l'attributo torna DECODIFICATO: getAttribute() restituisce
-// 'XSS<img src=x onerror=alert(1)>...', non la forma con &lt;. Cercare la forma escaped
-// qui sarebbe sbagliato perche' e' il parser ad averla gia' risolta. L'invariante giusta
-// e' che il valore torni identico a quello di partenza: prova che il payload e' stato
-// portato come VALORE e non come markup, e che il confine dell'attributo e' integro
-// (se l'escaping avesse mangiato un separatore, il valore sarebbe diverso).
-check('  data-hash torna identico all\'originale (escaping senza perdite)',
+check('the duplicates badge is there', $badge['found'], $badge['found'] ? '' : 'not found');
+// In the DOM the attribute comes back DECODED: getAttribute() returns
+// 'XSS<img src=x onerror=alert(1)>...', not the shape with &lt;. Looking for the escaped
+// shape here would be wrong because it is the parser that already resolved it. The right invariant
+// is that the value comes back identical to the starting one: proof that the payload was
+// carried as a VALUE and not as markup, and that the attribute boundary is intact
+// (if the escaping had eaten a separator, the value would be different).
+check('  data-hash comes back identical to the original (escaping without losses)',
     $badge['hash'] === $XSS,
-    $badge['hash'] === $XSS ? '' : 'valore="' . $badge['hash'] . '"');
-check('  e nel sorgente e\' escaped come entita\'',
+    $badge['hash'] === $XSS ? '' : 'value="' . $badge['hash'] . '"');
+check('  and in the source it is escaped as an entity',
     str_contains($htmlDup, 'data-hash="' . $NEEDLE . '&lt;'), '');
-check('  e non ha attributi on* (controllati sul DOM, non con una regex)',
+check('  and it has no on* attributes (checked on the DOM, not with a regex)',
     $badge['handlers'] === [],
     $badge['handlers'] ? implode(', ', $badge['handlers']) : '');
-check('questo ambito NON porta data-col (solo il project lo fa)',
+check('this scope does NOT carry data-col (only the project one does)',
     !str_contains($html, 'data-col='), '');
 
-echo "\n=== ambito 'project' (pagina progetti, tabelle integration group) ===\n";
+echo "\n=== scope 'project' (projects page, integration group tables) ===\n";
 $suffix = ' <span class="text-gray-500">(' . __('projects_link_off') . ')</span>';
 $htmlP = render('project', $row, $suffix);
-printf("  renderizzati %d byte\n", strlen($htmlP));
+printf("  rendered %d bytes\n", strlen($htmlP));
 $t = tally($htmlP, $NEEDLE);
-printf("  occorrenze di '%s': %d totali = %d escaped + %d percent-encoded\n",
+printf("  occurrences of '%s': %d total = %d escaped + %d percent-encoded\n",
     $NEEDLE, $t['total'], $t['ent'], $t['url']);
-check('il payload e\' arrivato nell\'HTML', $t['total'] > 0, "{$t['total']} occorrenze");
-check('ogni occorrenza e\' escaped o percent-encoded',
+check('the payload reached the HTML', $t['total'] > 0, "{$t['total']} occurrences");
+check('every occurrence is escaped or percent-encoded',
     $t['ent'] + $t['url'] === $t['total'],
-    "entita={$t['ent']} url={$t['url']} grezze={$t['raw']}");
+    "entities={$t['ent']} url={$t['url']} raw={$t['raw']}");
 
 $badP = injectedMarkup($htmlP);
-check('nessun elemento o handler iniettato (parser)', $badP === [],
+check('no injected element or handler (parser)', $badP === [],
     $badP ? implode('; ', $badP) : '');
 
-// Il contesto attributo proprio di questo ambito: fileCellAttrs() mette il valore grezzo
-// della colonna in data-val, quindi riceve stringhe dell'archivio non solo numeri.
-check('l\'ambito project porta data-col', str_contains($htmlP, 'data-col="'), '');
-check('  e il data-val di una colonna testuale e\' escaped',
+// The attribute context proper to this scope: fileCellAttrs() puts the raw
+// column value in data-val, so it receives archive strings and not only numbers.
+check('the project scope carries data-col', str_contains($htmlP, 'data-col="'), '');
+check('  and the data-val of a string column is escaped',
     (bool)preg_match('#data-val="' . preg_quote($NEEDLE, '#') . '&lt;#', $htmlP), '');
-check('  e il data-col non contiene il payload',
+check('  and the data-col does not contain the payload',
     !preg_match('#data-col="[^"]*' . preg_quote($NEEDLE, '#') . '#', $htmlP), '');
 
-// $nameSuffix e' l'unico punto del partial che stampa senza htmlspecialchars (riga 230).
-// Oggi l'unico chiamante ci passa markup fisso attorno a una traduzione, quindi non e'
-// controllato dall'archivio: va verificato, non dato per scontato.
-check('$nameSuffix contiene solo il markup e la traduzione del chiamante',
+// $nameSuffix is the only point of the partial that prints without htmlspecialchars (line 230).
+// Today the only caller passes it fixed markup around a translation, so it is not
+// controlled by the archive: it has to be verified, not taken for granted.
+check('$nameSuffix contains only the markup and the translation of the caller',
     substr_count($htmlP, '<span class="text-gray-500">') === 1
     && str_contains($htmlP, '(' . __('projects_link_off') . ')'),
-    substr_count($htmlP, '<span class="text-gray-500">') . ' span inseriti a mano');
-check('  e nessun payload ci passa dentro',
+    substr_count($htmlP, '<span class="text-gray-500">') . ' hand-inserted spans');
+check('  and no payload gets into it',
     !preg_match('#text-gray-500">[^<]*' . preg_quote($NEEDLE, '#') . '#', $htmlP), '');
 
-echo "\n=== il ramo delle miniature scrive <img> di proposito ===\n";
-// Con thumb valorizzato il partial scrive due <img> verso image.php. Non e' un'iniezione,
-// quindi non puo' finire nella lista di sopra, ma i loro src vono controllati: il
-// parametro e' un id numerico e non deve poter diventare una stringa.
+echo "\n=== the thumbnails branch deliberately writes <img> ===\n";
+// With thumb set the partial writes two <img> pointing to image.php. That is not an injection,
+// so it cannot go in the list above, but their srcs have to be checked: the
+// parameter is a numeric id and must not be able to become a string.
 $htmlT = render('main', hostileRow($numeric, $XSS, true));
 $badT = injectedMarkup($htmlT);
-check('con le miniature non c\'e\' nulla di inatteso', $badT === [],
+check('with the thumbnails there is nothing unexpected', $badT === [],
     $badT ? implode('; ', $badT) : '');
-check('le due <img> puntano a image.php con id numerico',
+check('the two <img> point to image.php with a numeric id',
     substr_count($htmlT, '/image.php?id=424242&type=') === 2,
-    substr_count($htmlT, '/image.php?id=424242&type=') . ' riferimenti');
+    substr_count($htmlT, '/image.php?id=424242&type=') . ' references');
 $doc = new DOMDocument();
 libxml_use_internal_errors(true);
 $doc->loadHTML('<!DOCTYPE html><html><body>' . $htmlT . '</body></html>', LIBXML_NOWARNING);
@@ -341,28 +341,28 @@ $srcs = [];
 foreach ($xp->query('//img') as $el) {
     $srcs[] = $el->getAttribute('src');
 }
-check('  nessuno src contiene il payload',
+check('  no src contains the payload',
     !preg_match('#' . preg_quote($NEEDLE, '#') . '#', implode(' ', $srcs)), implode(' | ', $srcs));
 
-echo "\n--- byte grezzi dei tre contesti ---\n";
-// data-val della colonna *testuale* che contiene il payload: la prima data-val e' quella
-// di 'preview', vuota, quindi va cercata per contenuto e non per posizione.
+echo "\n--- raw bytes of the three contexts ---\n";
+// data-val of the *string* column that contains the payload: the first data-val is the
+// one for 'preview', empty, so it has to be searched by content and not by position.
 if (preg_match('#data-val="[^"]*' . preg_quote($NEEDLE, '#') . '&lt;[^"]{0,40}#', $htmlP, $m)) {
-    echo '  attributo  : ' . $m[0] . "\n";
+    echo '  attribute  : ' . $m[0] . "\n";
 }
 if (preg_match('#href="/fits/[^"]{0,90}#', $html, $m)) {
     echo '  href       : ' . $m[0] . "\n";
 }
-// Il testo del nome sta DOPO il `>` che chiude il tag <a>, e quel tag ha altri attributi
-// dopo l'href (`download class="..."`), quindi serve `[^>]*` per arrivare al confine.
+// The name text comes AFTER the `>` that closes the <a> tag, and that tag has other attributes
+// after the href (`download class="..."`), so `[^>]*` is needed to reach the boundary.
 if (preg_match('#<a href="/fits/[^"]*"[^>]*>([^<]*)</a>#', $html, $m)) {
-    echo '  testo name : ' . trim($m[1]) . "\n";
+    echo '  text name  : ' . trim($m[1]) . "\n";
 }
 if (preg_match('#data-hash="[^"]{0,80}#', $htmlDup, $m)) {
     echo '  data-hash  : ' . $m[0] . "\n";
 }
 
-echo "\nRISULTATO: " . ($failed
-    ? 'FALLITI: ' . implode(', ', $failed)
-    : 'file_cells.php escapa testo, attributi e href in entrambi gli ambiti') . "\n";
+echo "\nRESULT: " . ($failed
+    ? 'FAILED: ' . implode(', ', $failed)
+    : 'file_cells.php escapes text, attributes and href in both scopes') . "\n";
 exit($failed ? 1 : 0);
