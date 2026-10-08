@@ -5,6 +5,26 @@ $conn = connectDB();
 $message = '';
 $messageType = '';
 
+// Bulk selections used to arrive as N input vars (suggestion_ids[],
+// link_keys[]), one checkbox per file. Past ~1000 files PHP discards the
+// tail of $_POST (max_input_vars) before this code even runs, so the forms
+// now pack the selection into a single CSV hidden field via JS. Accept both
+// shapes here so the no-JS fallback keeps working.
+function awiCollectPostList(string $arrKey, string $csvKey): array
+{
+    $out = array_values((array)($_POST[$arrKey] ?? []));
+    $csv = trim((string)($_POST[$csvKey] ?? ''));
+    if ($csv !== '') {
+        foreach (explode(',', $csv) as $part) {
+            $part = trim($part);
+            if ($part !== '') {
+                $out[] = $part;
+            }
+        }
+    }
+    return $out;
+}
+
 // Handle form actions (same CSRF pattern as admin.php / filter_mapping.php)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $csrfToken = $_POST['csrf_token'] ?? '';
@@ -77,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (getProjectAssignMode($target) === 'frozen') {
                     throw new InvalidArgumentException(__('projects_add_frozen'));
                 }
-                $ids = array_values(array_filter(array_map('intval', (array)($_POST['suggestion_ids'] ?? []))));
+                $ids = array_values(array_filter(array_map('intval', awiCollectPostList('suggestion_ids', 'suggestion_ids_csv'))));
                 $done = 0;
                 foreach ($ids as $sid) {
                     if ($action === 'accept_suggestions') {
@@ -120,7 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $messageType = $queued ? 'success' : 'error';
             } elseif ($action === 'remove_links' || $action === 'disable_links' || $action === 'enable_links') {
                 $id = (int)($_POST['project_id'] ?? 0);
-                $keys = array_values((array)($_POST['link_keys'] ?? []));
+                $keys = array_values(array_filter(array_map('strval', awiCollectPostList('link_keys', 'link_keys_csv')), fn($k) => trim($k) !== ''));
                 if ($action === 'remove_links') {
                     $done = removeProjectLinks($conn, $id, $keys);
                     $message = __('projects_links_removed', ['count' => $done]);
@@ -131,7 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $messageType = 'success';
             } elseif ($action === 'promote_links' || $action === 'demote_links') {
                 $id = (int)($_POST['project_id'] ?? 0);
-                $keys = array_values((array)($_POST['link_keys'] ?? []));
+                $keys = array_values(array_filter(array_map('strval', awiCollectPostList('link_keys', 'link_keys_csv')), fn($k) => trim($k) !== ''));
                 $res = $action === 'promote_links'
                     ? promoteCalibLinks($conn, $id, $keys)
                     : demoteCalibLinks($conn, $id, $keys);
@@ -148,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $messageType = 'success';
             } elseif ($action === 'set_scope') {
                 $id = (int)($_POST['project_id'] ?? 0);
-                $keys = array_values((array)($_POST['link_keys'] ?? []));
+                $keys = array_values(array_filter(array_map('strval', awiCollectPostList('link_keys', 'link_keys_csv')), fn($k) => trim($k) !== ''));
                 $sids = array_values(array_filter(array_map('intval', (array)($_POST['scope_sessions'] ?? []))));
                 $res = setProjectCalibScope($conn, $id, $keys, $sids);
                 $message = __('projects_scope_set', ['updated' => $res['updated'], 'skipped' => $res['skipped']]);
@@ -658,9 +678,10 @@ if ($projectBlocked) {
             <?php if ($detailPending === 0): ?>
                 <p class="text-gray-500 text-sm"><?= __('projects_no_pending') ?></p>
             <?php else: ?>
-            <form method="POST">
+            <form method="POST" id="sugBulkForm">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <input type="hidden" name="project_id" value="<?= (int)$detail['id'] ?>">
+                <input type="hidden" name="suggestion_ids_csv" id="sugIdsCsv" value="">
                 <div class="mb-3 text-sm">
                     <label class="text-gray-300 cursor-pointer"><input type="checkbox" onclick="document.querySelectorAll('#sugModal .sug-check').forEach(c => c.checked = this.checked)" class="rounded bg-gray-600 border-gray-500"> <?= __('projects_select_all') ?></label>
                 </div>
@@ -698,6 +719,21 @@ if ($projectBlocked) {
             if (closeBtn) closeBtn.addEventListener('click', close);
             if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
         })();
+        // Pack the checked suggestions into a single hidden field. One input
+        // var per file trips PHP's max_input_vars past ~1000 selections; a
+        // single CSV field has no such ceiling. The individual boxes are
+        // disabled at submit so they are not sent alongside the CSV.
+        (function () {
+            const form = document.getElementById('sugBulkForm');
+            if (!form) return;
+            form.addEventListener('submit', () => {
+                const checked = Array.from(form.querySelectorAll('.sug-check:checked'))
+                    .map(cb => cb.value).filter(Boolean);
+                const csv = form.querySelector('#sugIdsCsv');
+                if (csv) csv.value = checked.join(',');
+                form.querySelectorAll('.sug-check').forEach(cb => { cb.disabled = true; });
+            });
+        })();
         </script>
 
         <section class="bg-gray-800 rounded-lg p-6 mb-6">
@@ -706,6 +742,7 @@ if ($projectBlocked) {
             <form method="POST" id="treeBulkForm">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <input type="hidden" name="project_id" value="<?= (int)$detail['id'] ?>">
+                <input type="hidden" name="link_keys_csv" id="treeKeysCsv" value="">
                 <div class="flex flex-col items-end gap-2 mb-4">
                     <div class="flex flex-wrap justify-end gap-2">
                     <?php $projectExportIds = $projectTree !== null ? getProjectTreeFileIds($projectTree) : []; ?>
@@ -855,6 +892,17 @@ if ($projectBlocked) {
                         }
                     }
                     lastTreeCheck = e.target;
+                });
+                // Same max_input_vars story as the suggestions modal: pack the
+                // checked links into one CSV field and drop the individual
+                // boxes from the submission. scope_sessions[] stays as-is
+                // (a handful of sessions at most).
+                form.addEventListener('submit', () => {
+                    const checked = Array.from(form.querySelectorAll('.pfl-check:checked'))
+                        .map(cb => cb.value).filter(Boolean);
+                    const csv = form.querySelector('#treeKeysCsv');
+                    if (csv) csv.value = checked.join(',');
+                    form.querySelectorAll('.pfl-check').forEach(cb => { cb.disabled = true; });
                 });
             })();
             // Bulk calibration scope modal: session checkboxes are submitted
