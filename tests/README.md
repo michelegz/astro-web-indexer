@@ -485,8 +485,8 @@ nullable database column; the others work on already normalized or checked value
 The fix (`68b4f41`) is one line, and reuses the convention of the three cells below, which
 already print `N/A` for an absent value instead of leaving the cell empty.
 
-`tmp/sff_results_http_escape_check.php` carries the regression: it inserts a LIGHT with
-`date_obs` NULL and verifies that no PHP diagnostic reaches the response and that the
+`tests/php/sff_results_http_escape_check.php` carries the regression: it inserts two LIGHTs, one with
+`date_obs` NULL, and verifies that no PHP diagnostic reaches the response and that the
 absolute path does not appear in the decoded field. Both checks go red
 on the pre-fix code.
 
