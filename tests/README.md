@@ -11,6 +11,14 @@ stays there.
 PHP tests run inside `awi-php`, which has `src/` mounted at `/var/www/html` and
 access to the DB. Python tests run inside `awi-python`.
 
+One section needs a deployment mode: **§13.39** (`security_batch_check.php`) only
+means something when directory permissions are enforced, i.e. with `AUTH_MODE=full`.
+With the default `AUTH_MODE=none`, `isAuthEnabled()` is false, `getAllowedDirs()`
+returns `null` and `buildDirPermissionFilter()` emits no filter on purpose — so a
+user restricted to one root still gets every row, and the check would report a leak
+that cannot exist. The test now skips that section with a note instead of failing.
+Run the stack with `AUTH_MODE=full` to actually cover it.
+
 There are **two ways**, and using the wrong one makes a test fail for a reason
 that has nothing to do with the code:
 

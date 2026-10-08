@@ -276,6 +276,19 @@ check('project_export_preview.php -> valid JSON',
 // ---------------------------------------------------------------- 13.39
 echo "\n=== 13.39: the AstroBin CSV applies the directory permissions ===\n";
 
+// This section is only meaningful when directory permissions are actually enforced.
+// With AUTH_MODE=none isAuthEnabled() is false, getAllowedDirs() returns null and
+// buildDirPermissionFilter() deliberately emits no filter, so a restricted user gets
+// every row: that is the documented behaviour of the 'none' mode, not a defect.
+// Without this guard the check below reports a leak that cannot exist in this
+// deployment, and the run goes red for the wrong reason.
+if (!isAuthEnabled()) {
+    $mode = defined('AUTH_MODE') ? AUTH_MODE : 'unset';
+    echo "  SKIPPED: 13.39 needs AUTH_MODE=full, this deployment has '$mode'.\n";
+    echo "  With permissions off no directory filter is applied by design, so there\n";
+    echo "  is nothing to assert. Re-run with AUTH_MODE=full to cover it.\n";
+} else {
+
 // User with access to one root only. A root other than '/' is needed because
 // the administrator has no restrictions.
 $roots = $conn->query("SELECT DISTINCT SUBSTRING_INDEX(path, '/', 1) AS r FROM files
@@ -356,6 +369,8 @@ if ($allowed === null || $denied === null) {
     @unlink($jar2);
 }
 
+}
+
 // ---------------------------------------------------------------- cleanup
 $conn->prepare('DELETE FROM user_permissions WHERE user_id = :id')->execute([':id' => $uid]);
 $conn->prepare('DELETE FROM users WHERE id = :id')->execute([':id' => $uid]);
@@ -365,3 +380,7 @@ echo "\n(test artifacts and users removed)\n";
 echo 'RESULT: ' . ($failed ? 'FAILED: ' . implode(', ', $failed)
     : 'security batch ok');
 echo "\n";
+// The exit code is what run.sh records. Without it the script falls off the end
+// and returns 0 even with failed checks, so a red check is reported as PASS:
+// a test that cannot fail is not a test.
+exit($failed ? 1 : 0);
