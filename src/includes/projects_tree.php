@@ -343,13 +343,13 @@ if (empty($projectTree['setups'])): ?>
                                                                             <?php if (!$hypoMode): ?>
                                                                             <input type="checkbox" class="pgroup-check mt-1 rounded bg-gray-600 border-gray-500" title="<?= __('projects_select_group') ?>">
                                                                             <?php endif; ?>
-                                                                            <div class="flex-1 min-w-0">
-                                                <div class="text-sm font-medium mb-1">
+                                                                            <details open class="flex-1 min-w-0">
+                                                <summary class="cursor-pointer hover:bg-gray-700/40 rounded text-sm font-medium mb-1">
                                                     <?php if ($worstB === null): ?><?= empty($pendLights) ? '' : '⏳' ?><?php else: ?><?= diagBox($worstB, 'B', __('projects_cal_bias')) ?><?= diagBox($worstD, 'D', __('projects_cal_dark')) ?><?= diagBox($worstF, 'F', __('projects_cal_flat')) ?><?= rotBadge($worstR, __('projects_cal_rot_ok'), __('projects_cal_rot_warn')) ?><?php endif; ?> <?= __('projects_filter') ?> <?= htmlspecialchars($filter['name'] !== '' ? $filter['name'] : '—') ?>
                                                                                      <span class="ml-2 text-xs font-normal text-gray-400">
                                                                                           <?= htmlspecialchars(__('projects_lights_count', ['count' => count($showLights)])) ?> · <?= htmlspecialchars(fmtExp($realExp)) ?><?php if (!empty($pendLights)): ?><?php if ($reviewMode): ?> · <span class="text-green-300">+<?= count($pendLights) ?> <?= htmlspecialchars(__('projects_hypo_new')) ?></span><?php else: ?> · <?= htmlspecialchars('+' . count($pendLights) . ' ⏳') ?><?php endif; ?><?php endif; ?><?php if (!empty($offLights)): ?> · <?= htmlspecialchars('+' . count($offLights) . ' ' . __('projects_link_off')) ?><?php endif; ?>
-                                                                                     </span>
-                                                                                </div>
+                                                                                      </span>
+                                                                                </summary>
                                                                                 <?php renderCalRows($filter['calibrations'], 'filter', (int)$session['id'], $calCtxBase); ?>
                                                                                 <?php foreach ($expGroups as $eg): ?>
                                                                                     <?php
@@ -375,11 +375,11 @@ if (empty($projectTree['setups'])): ?>
                                                                                              <?php if (!$hypoMode): ?>
                                                                                              <input type="checkbox" class="pgroup-check mt-1 rounded bg-gray-600 border-gray-500" title="<?= __('projects_select_group') ?>">
                                                                                              <?php endif; ?>
-                                                                                             <div class="flex-1 min-w-0">
-                                                                                                 <div class="text-xs font-medium text-gray-300 mb-1">
+                                                                                             <details open class="flex-1 min-w-0">
+                                                                                                 <summary class="cursor-pointer hover:bg-gray-700/40 rounded text-xs font-medium text-gray-300 mb-1">
                                                                                                                                                                                                             <?php if ($egWorstB !== null): ?><?= diagBox($egWorstB, 'B', __('projects_cal_bias')) ?><?= diagBox($egWorstD, 'D', __('projects_cal_dark')) ?><?= diagBox($egWorstF, 'F', __('projects_cal_flat')) ?><?= rotBadge($egWorstR, __('projects_cal_rot_ok'), __('projects_cal_rot_warn')) ?> <?php endif; ?><?= __('projects_exposure') ?> <?= htmlspecialchars(fmtExpShort($eg['exptime'])) ?><?php $egTempMed = projectMedian(array_column($egShow, 'ccd_temp')); ?><?php if ($egTempMed !== null): ?> · <?= htmlspecialchars(repTempDisplay($egTempMed)) ?><?php endif; ?>
                                                                                                       <span class="ml-2 font-normal text-gray-500"><?= count($egShow) ?> · <?= htmlspecialchars(fmtExp($egExp)) ?></span>
-                                                                                                 </div>
+                                                                                                 </summary>
                                                                                 <div class="overflow-x-auto">
                                                                                     <table class="w-full text-xs text-left">
                                                                                         <tbody>
@@ -407,11 +407,11 @@ if (empty($projectTree['setups'])): ?>
                                                                                         </tbody>
                                                                                     </table>
                                                                                 </div>
-                                                                                            </div>
+                                                                                            </details>
                                                                                         </div>
                                                                                     </div>
                                                                                 <?php endforeach; ?>
-                                                                            </div>
+                                                                            </details>
                                                                         </div>
                                                                     </div>
                                                                 <?php endforeach; ?>
