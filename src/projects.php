@@ -1537,7 +1537,7 @@ if ($projectBlocked) {
                                                 <button type="button" class="ig-sort text-gray-400 hover:text-white text-xs px-1" data-group="<?= (int)$gi ?>" data-metric="<?= $mk ?>" data-dir="desc" title="<?= __('projects_sort_desc') ?>">▼</button>
                                             </span>
                                         </div>
-                                        <div style="height: 190px"><canvas id="ig-chart-<?= (int)$gi ?>-<?= htmlspecialchars($mk) ?>"></canvas></div>
+                                        <div style="height: 190px"><canvas id="ig-chart-<?= (int)$gi ?>-<?= htmlspecialchars($mk) ?>" title="<?= __('projects_chart_reset_hint') ?>"></canvas></div>
                                     </div>
                                     <?php endforeach; ?>
                                 </div>
@@ -1696,6 +1696,19 @@ if ($projectBlocked) {
                     const cid = 'ig-chart-' + gi + '-' + s.key;
                     const canvas = document.getElementById(cid);
                     if (!canvas) return;
+                    // Right-click clears this chart's threshold (live preview
+                    // refreshes, saving stays explicit via Save). Property
+                    // assignment: igBuildGroup re-runs on every refresh, so a
+                    // listener would stack; this never does. Native event on
+                    // purpose: Chart.js has no contextmenu hook.
+                    canvas.oncontextmenu = (e) => {
+                        e.preventDefault();
+                        const panel = canvas.closest('.igroup')?.querySelector('.igroup-reject');
+                        const inp = panel?.querySelector('input[data-metric="' + s.key + '"]');
+                        if (!inp || inp.value.trim() === '') return;
+                        inp.value = '';
+                        igRefreshPanel(panel);
+                    };
                     if (igCharts[cid]) { igCharts[cid].destroy(); delete igCharts[cid]; }
                     const data = rows.map(r => r.vals[s.key]);
                     if (!data.some(v => v !== null)) return;
