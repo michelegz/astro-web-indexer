@@ -1,67 +1,68 @@
 #!/usr/bin/env python3
-"""End-to-end: un record che il database rifiuta non deve fermare il resto della passata.
+"""End-to-end: a record the database rejects must not stop the rest of the pass.
 
-Questo e' il buco dichiarato nel messaggio di d4ac075: «Not covered by an end-to-end
-test». Lo colma, e per farlo serve scrivere righe sintetiche nella tabella `files` viva,
-perche' awi_user non puo' creare uno schema isolato (1044 su CREATE DATABASE).
+This is the gap declared in the d4ac075 message: «Not covered by an end-to-end
+test». It fills it, and doing so requires writing synthetic rows into the live
+`files` table, because awi_user cannot create an isolated schema (1044 on
+CREATE DATABASE).
 
-Il meccanismo del difetto (l'all-or-nothing di executemany) era gia' provato da
-executemany_atomicity.py. Qui si prova il LOOP REALE di reindex.py contro la tabella
-vera, end to end via HTTP-free ma con il vero script.
+The mechanism of the defect (the all-or-nothing of executemany) was already
+proven by executemany_atomicity.py. Here the REAL LOOP of reindex.py is tested
+against the real table, end to end without HTTP but with the real script.
 
-Perche' 'files' accetta il poison
----------------------------------
-`filter` e' varchar(50) e sql_mode contiene STRICT_TRANS_TABLES, quindi un header FITS
-con FILTER da 80 caratteri fa fallire l'INSERT con 1406 Data too long. Verificato prima
-di scrivere questo test: un record con FILTER da 80 caratteri solleva
-`DataError 1406 (22001): Data too long for column 'filter'`, e un executemany con un
-record buono, uno velenoso e uno buono solleva e non lascia nulla.
+Why 'files' accepts the poison
+------------------------------
+`filter` is varchar(50) and sql_mode contains STRICT_TRANS_TABLES, so a FITS header
+with an 80-character FILTER makes the INSERT fail with 1406 Data too long. Verified before
+writing this test: a record with an 80-character FILTER raises
+`DataError 1406 (22001): Data too long for column 'filter'`, and an executemany with one
+good record, one poisonous and one good raises and leaves nothing.
 
-Perche' 4 sottodirectory da 50 file
------------------------------------
-reindex.py ha `commit_interval = 50` hardcoded e svuota batch_params solo DOPO che il
-flush e' riuscito. Quindi ogni flush copre 50 record. Con 4 sottodirectory da 50 file il
-risultato del worker arriva in blocchi da 50, e il record velenoso sta per costruzione
-in uno di quei blocchi: esattamente UN flush fallisce e gli altri tre passano.
+Why 4 subdirectories of 50 files
+--------------------------------
+reindex.py has `commit_interval = 50` hardcoded and empties batch_params only AFTER the
+flush has succeeded. So every flush covers 50 records. With 4 subdirectories of 50 files the
+worker result arrives in blocks of 50, and the poisonous record is by construction
+in one of those blocks: exactly ONE flush fails and the other three pass.
 
-La forma attesa e quindi deterministica e indipendente dall'ordine con cui os.walk
-restituisce le directory: 3 flush su 4 riescono, 150 dei 199 file buoni finiscono nel
-database, il velenoso no.
+The expected shape is therefore deterministic and independent of the order in which os.walk
+returns the directories: 3 flushes out of 4 succeed, 150 of the 199 good files end up in
+the database, the poisonous one does not.
 
-Il caso pre-fix, che e' la prova che il test distingue:
+The pre-fix case, which is the proof that the test discriminates:
 
-  velenoso in un blocco NON finale -> il flush falliva e la lista NON veniva svuotata,
-  quindi ogni flush successivo ripeteva il record velenoso e falliva uguale: 0 file
-  committati, e la coda finale falliva facendo uscire lo script con codice 1.
+  poisonous record in a NON-final block -> the flush failed and the list was NOT emptied,
+  so every subsequent flush repeated the poisonous record and failed the same way: 0 files
+  committed, and the final tail failed taking the script out with code 1.
 
-  velenoso nell'ULTIMO blocco -> i primi tre flush passavano (150 committati), ma il
-  flush di coda, che e' FUORI dal try, ripeteva il velenoso e propagava: uscita 1.
+  poisonous record in the LAST block -> the first three flushes passed (150 committed), but the
+  tail flush, which is OUTSIDE the try, repeated the poisonous record and propagated: exit 1.
 
-In entrambi i casi pre-fix il test fallisce: sul numero di file, o sul codice di
-uscita. E' per questo che il test asserisce entrambi e non solo il conteggio: il
-conteggio da solo sarebbe ambiguo nell'ordine sfortunato.
+In both pre-fix cases the test fails: on the number of files, or on the exit
+code. That is why the test asserts both and not just the count: the
+count alone would be ambiguous in the unlucky ordering.
 
-Il flush di coda resta senza guardia di proposito (vedi il messaggio di d4ac075): una
-riga cattiva nell'ultimo blocco fallisce rumorosamente *dopo* che tutto il resto e'
-gia' committato. Questo test non prova che venga riparato: prova che il resto regge.
+The tail flush stays unguarded on purpose (see the d4ac075 message): a bad
+record in the last block fails loudly *after* everything else has already been
+committed. This test does not prove that it gets fixed: it proves the rest holds up.
 
-Igiene (imparata perdendo il servizio)
---------------------------------------
-Una versione precedente di questa sonda ha usato DUE connessioni sulla stessa tabella e
-ha lasciato aperta una transazione: il commit e' rimasto appeso 246 secondi e il sito ha
-risposto 504 fino al riavvio. E una versione successiva leggeva 0 righe dopo che il
-reindex ne aveva scritte 4, perche' mysql.connector ha autocommit spento per default e
-la transazione implicita teneva uno snapshot REPEATABLE READ vecchio. Da qui le regole,
-non opzionali:
+Hygiene (learned by losing the service)
+---------------------------------------
+A previous version of this probe used TWO connections on the same table and
+left a transaction open: the commit hung for 246 seconds and the site
+answered 504 until the restart. And a later version read 0 rows after the
+reindex had written 4, because mysql.connector has autocommit off by default and
+the implicit transaction held a stale REPEATABLE READ snapshot. Hence the rules,
+not optional:
 
-  * una sola connessione per tutto il lavoro del test, con autocommit=True
-  * rollback e close SEMPRE nel finally, anche se lo script muore a metta
-  * innodb_lock_wait_timeout basso: la contenzione deve sollevare, non mettere in attesa
-  * prefisso di percorso univoco per passata, e DELETE su quel prefisso esatto
-  * un controllo finale che il sito risponde, e verifica che i conteggi siano tornati
-    allo stato iniziale
+  * a single connection for all the test work, with autocommit=True
+  * rollback and close ALWAYS in the finally, even if the script dies halfway
+  * low innodb_lock_wait_timeout: contention must raise, not wait
+  * a unique path prefix per run, and DELETE on that exact prefix
+  * a final check that the site answers, and verification that the counts went back
+    to the initial state
 
-Uso:
+Usage:
   docker cp tmp/reindex_batch_continue_check.py awi-python:/tmp/
   docker exec -e AWI_PROJECTS_LIB=/opt/scripts awi-python \
     sh -c 'cd /tmp && python reindex_batch_continue_check.py'
@@ -87,7 +88,7 @@ TABLES = ('files', 'project_suggestions', 'project_files', 'project_setups',
 
 
 def check(label, cond, detail=''):
-    print(f"  {label:<56} {detail}{'OK' if cond else '<<< FALLITO'}")
+    print(f"  {label:<56} {detail}{'OK' if cond else '<<< FAILED'}")
     if not cond:
         FAILED.append(label)
 
@@ -103,7 +104,7 @@ def snapshot():
 
 
 def write_fits(path, filt, exptime=60.0, obj='BATCHTARGET'):
-    """Un FITS minimale ma valido, con l'intestazione che process_file_worker legge."""
+    """A minimal but valid FITS, with the header that process_file_worker reads."""
     hdu = fits.PrimaryHDU(data=np.zeros((64, 64), dtype=np.uint16))
     h = hdu.header
     h['OBJECT'] = obj
@@ -126,7 +127,7 @@ def write_fits(path, filt, exptime=60.0, obj='BATCHTARGET'):
 
 
 def build_tree(root, per_dir, dirs):
-    """4 sottodirectory da `per_dir` file. Il velenoso e' il file 0 della prima."""
+    """4 subdirectories of `per_dir` files. The poisonous one is file 0 of the first."""
     poison_rel = None
     total = 0
     for d in range(dirs):
@@ -135,7 +136,7 @@ def build_tree(root, per_dir, dirs):
         for i in range(per_dir):
             total += 1
             is_poison = (d == 0 and i == 0)
-            # FILTER da 80 caratteri: varchar(50) con STRICT_TRANS_TABLES -> 1406.
+            # 80-character FILTER: varchar(50) with STRICT_TRANS_TABLES -> 1406.
             filt = 'P' * 80 if is_poison else 'R'
             name = f"{total:04d}.fits"
             write_fits(os.path.join(sub, name), filt)
@@ -149,12 +150,12 @@ LIB_DIR = os.environ.get('AWI_PROJECTS_LIB', '/opt/scripts')
 
 
 def run_index(root):
-    """Lancia reindex.py come processo separato, con la stessa aria e lo stesso modo di
-    avvio della riga 1 di /opt/scripts, cosi' il `spawn` dei worker e' quello vero.
+    """Runs reindex.py as a separate process, with the same cwd and the same start
+    method as line 1 of /opt/scripts, so that the worker `spawn` is the real one.
 
-    REINDEX_PY e LIB_DIR si possono puntare altrove per provare la versione pre-fix senza
-    scrivere sul mount /opt/scripts: quello e' grpcfuse e una scrittura dentro finisce nel
-    repo (trappola #38).
+    REINDEX_PY and LIB_DIR can point elsewhere to try the pre-fix version without
+    writing on the /opt/scripts mount: that one is grpcfuse and a write inside ends up in
+    the repo (trap #38).
     """
     cmd = [sys.executable, REINDEX_PY, root,
            '--force', '--skip-cleanup', '--workers', '2', '--no-star-metrics']
@@ -166,12 +167,12 @@ def run_index(root):
 
 
 def site_answers():
-    """Il sito risponde? Una sonda che lascia il database bloccato puo' avere tutte le
-    asserzioni verdi e il sito giu', quindi va verificato a parte.
+    """Does the site answer? A probe that leaves the database locked can have all its
+    assertions green and the site down, so it has to be verified separately.
 
-    Nessun `docker exec`: questo script gira DENTRO awi-python, dove il docker CLI non
-    esiste. `http://nginx` si risolve pero' dalla rete Docker, quindi la richiesta si
-    fa da qui con urllib.
+    No `docker exec`: this script runs INSIDE awi-python, where the docker CLI does not
+    exist. `http://nginx` does resolve from the Docker network, so the request is
+    made from here with urllib.
     """
     try:
         req = urllib.request.Request('http://nginx/projects.php', method='GET')
@@ -179,16 +180,16 @@ def site_answers():
             with urllib.request.urlopen(req, timeout=30) as r:
                 return str(r.status)
         except urllib.error.HTTPError as e:
-            # 302 seguito dal login, 401/403: sono risposte, non guasti. 5xx no: quello
-            # e' il sintomo del database bloccato.
+            # 302 followed by the login, 401/403: those are responses, not failures. 5xx no:
+            # that one is the symptom of a locked database.
             return str(e.code)
     except Exception as e:
-        return f'errore: {type(e).__name__}'
+        return f'error: {type(e).__name__}'
 
 
 def cleanup(root_prefix):
-    """DELETE per prefisso esatto di percorso. `path` e' UNIQUE, quindi il prefisso
-    produce un range lock sull'indice e non una scansione."""
+    """DELETE by exact path prefix. `path` is UNIQUE, so the prefix
+    produces a range lock on the index and not a scan."""
     cur = CONN.cursor()
     try:
         cur.execute(
@@ -213,46 +214,46 @@ def main():
         user=os.environ.get('DB_USER', 'awi_user'),
         password=os.environ.get('DB_PASSWORD', 'awi_password'),
         database=os.environ.get('DB_NAME', 'awi_db'),
-        # autocommit=True NON e' il default di mysql.connector (che e' False), ed e' la
-        # ragione per cui questa versione del test leggeva 0 righe dopo che il reindex
-        # ne aveva scritte 4. Con autocommit spento la transazione implicita aperta dalla
-        # prima SELECT tiene uno snapshot REPEATABLE READ: le SELECT successive vedono il
-        # database com'era a quel momento, non quello aggiornato dal processo sotto test.
-        # Una DELETE invece le vede aggiornate, perche' le letture con blocco usano sempre
-        # l'ultima versione committata: quindi la stessa query di prefisso contava 0 e
-        # cancellava 4, che e' il genere di contraddizione che fa impazzire una diagnosi.
-        # In autocommit ogni affermazione e' subito visibile a tutti, e la pulizia non
-        # puo' dimenticare un commit.
+        # autocommit=True is NOT the mysql.connector default (which is False), and it is the
+        # reason why this version of the test read 0 rows after the reindex
+        # had written 4. With autocommit off, the implicit transaction opened by the
+        # first SELECT holds a REPEATABLE READ snapshot: subsequent SELECTs see the
+        # database as it was at that moment, not the one updated by the process under test.
+        # A DELETE instead sees them updated, because locking reads always use
+        # the last committed version: so the same prefix query counted 0 and
+        # deleted 4, which is the kind of contradiction that makes a diagnosis go crazy.
+        # With autocommit every statement is immediately visible to everyone, and the cleanup
+        # cannot forget a commit.
         autocommit=True)
 
-    # Timeout bassi di proposito. Il default di InnoDB e' 50 secondi: se per errore
-    # questo script toccasse righe contese, un'attesa lunga bloccherebbe anche il sito
-    # invece di far fallire la prova. Meglio un'eccezione che un servizio giu'.
+    # Low timeouts on purpose. The InnoDB default is 50 seconds: if by mistake
+    # this script touched contended rows, a long wait would block the site too
+    # instead of failing the test. An exception is better than a service down.
     cur = CONN.cursor()
     cur.execute("SET SESSION innodb_lock_wait_timeout = 5")
-    # max_statement_time, non max_execution_time: sono lo stesso concetto con nomi
-    # diversi, e `max_execution_time` su MariaDB risponde
-    # "1193 Unknown system variable". In secondi.
+    # max_statement_time, not max_execution_time: they are the same concept with
+    # different names, and `max_execution_time` on MariaDB answers
+    # "1193 Unknown system variable". In seconds.
     cur.execute("SET SESSION max_statement_time = 120")
     cur.close()
 
     before = snapshot()
-    print("=== stato iniziale ===")
+    print("=== initial state ===")
     for t in TABLES:
         print(f"  {t:<20} {before[t]}")
 
     code_before = site_answers()
-    check('il sito risponde prima di iniziare', code_before in ('302', '200'),
+    check('the site answers before starting', code_before in ('302', '200'),
           f'HTTP {code_before} ')
 
     root = tempfile.mkdtemp(prefix='batchprobe_')
-    # `fits_root` e' la radice a cui i path sono relativi, quindi va passata la radice
-    # ESTERNA e i file vanno tenuti in una sottodirectory: e' quella sottodirectory che
-    # compare nel campo `path`, ed e' il prefisso che le query di pulizia devono usare.
-    # Passando invece la sottodirectory, `path` sarebbe stato il solo nome del file e il
-    # prefisso atteso non avrebbe mai corrisposto: la pulizia avrebbe lasciato tutto
-    # dentro e il conteggio finale sarebbe fallito (l'ho scoperto con una smoke da 4
-    # file, che ha anche depositato 4 righe spurie da ripulire a mano).
+    # `fits_root` is the root the paths are relative to, so the OUTER root must be
+    # passed and the files kept in a subdirectory: it is that subdirectory that
+    # appears in the `path` field, and it is the prefix the cleanup queries must use.
+    # Passing the subdirectory instead, `path` would have been just the file name and the
+    # expected prefix would never have matched: the cleanup would have left everything
+    # inside and the final count would have failed (I found out with a 4-file smoke,
+    # which also deposited 4 spurious rows to clean up by hand).
     tree_root = os.path.join(root, 'archive')
     os.makedirs(tree_root, exist_ok=True)
     rel_prefix = 'archive'
@@ -262,14 +263,14 @@ def main():
         total, poison_rel = build_tree(tree_root, 50, 4)
         good = total - 1
         n_disk = len(glob.glob(os.path.join(tree_root, '**', '*.fits'), recursive=True))
-        print("\n=== albero di prova ===")
-        check('i file su disco sono quelli attesi', n_disk == total,
-              f'{n_disk} file, attesi {total}')
-        check('il velenoso esiste ed e\' un FILTER overlong',
+        print("\n=== test tree ===")
+        check('the files on disk are the expected ones', n_disk == total,
+              f'{n_disk} files, expected {total}')
+        check('the poisonous one exists and is an overlong FILTER',
               os.path.exists(os.path.join(tree_root, poison_rel)),
               poison_rel)
 
-        print("\n=== reindex.py sul albero di prova ===")
+        print("\n=== reindex.py on the test tree ===")
         code, out = run_index(fits_root)
         tail = [ln for ln in out.splitlines() if 'Progress' in ln or 'Error' in ln
                 or 'Complete' in ln or 'errors' in ln.lower()][-6:]
@@ -286,74 +287,74 @@ def main():
         n_good = sum(1 for p in indexed if not p.endswith(poison_rel))
         poison_present = any(p.endswith(poison_rel) for p in indexed)
 
-        print("\n=== cosa e' finito nel database ===")
-        check('il run termina senza eccezioni', code == 0, f'exit {code}')
-        check('il file velenoso NON e\' stato inserito', not poison_present,
-              f'presente={poison_present}')
-        check('esattamente 3 flush su 4 hanno committato', n_present == 150,
-              f'{n_present} righe, attese 150 (3 blocchi da 50)')
-        check('tutte le righe presenti sono file buoni', n_good == n_present,
-              f'{n_good} buoni su {n_present}')
-        # I 50 record del blocco perso sono 49 buoni e il velenoso: gli assenti fra i
-        # buoni sono quindi 49, non 50. Dire 50 sarebbe stato un falsorosso, e la
-        # versione di questo check che diceva 50 e' stata quello che falliva.
+        print("\n=== what ended up in the database ===")
+        check('the run ends without exceptions', code == 0, f'exit {code}')
+        check('the poisonous file was NOT inserted', not poison_present,
+              f'present={poison_present}')
+        check('exactly 3 flushes out of 4 committed', n_present == 150,
+              f'{n_present} rows, expected 150 (3 blocks of 50)')
+        check('all present rows are good files', n_good == n_present,
+              f'{n_good} good out of {n_present}')
+        # The 50 records of the lost block are 49 good ones and the poisonous one: the
+        # absent among the good ones are therefore 49, not 50. Saying 50 would have been
+        # a false positive, and the version of this check that said 50 was the one that failed.
         absent_good = good - n_good
-        check('il blocco perso contiene 49 buoni piu\' il velenoso',
+        check('the lost block contains 49 good ones plus the poisonous one',
               absent_good == 49 and absent_good + 1 == 50,
-              f'{absent_good} buoni assenti, +1 velenoso = {absent_good + 1} record persi')
-        check('nessun buono manca fuori dal blocco perso',
+              f'{absent_good} good absent, +1 poisonous = {absent_good + 1} records lost')
+        check('no good one is missing outside the lost block',
               absent_good == 49,
-              f'assenti {absent_good} buoni, tutti nel blocco perso')
+              f'{absent_good} good absent, all in the lost block')
 
-        # La forma conta piu' del numero: i 50 assenti devono stare tutti in UNA
-        # sottodirectory, e non sparire a casaccio in tutto l'albero.
+        # The shape matters more than the number: the 50 absent ones must all sit in ONE
+        # subdirectory, and not disappear at random across the whole tree.
         #
-        # Il QUALE blocco viene perso NON e' un'invariante: `os.walk` restituisce le
-        # directory nell'ordine del filesystem, che cambia da una directory temporanea
-        # all'altra, quindi il velenoso puo' cadere in d0 in una passata e in d1 nella
-        # successiva. Una versione di questo check asseriva `lost == [0]` ed e' passata
-        # perche' nella passata di allora il caso era d0: e' un'affermazione vera solo per
-        # caso, quindi va riportata come informazione e non verificata. Le invarianti
-        # stabili sono i numeri: un solo flush fallisce, tre passano, e il blocco perso
-        # sparisca per intero.
+        # WHICH block gets lost is NOT an invariant: `os.walk` returns the
+        # directories in filesystem order, which changes from one temporary directory
+        # to the next, so the poisonous one can land in d0 in one run and in d1 in the
+        # next. A version of this check asserted `lost == [0]` and passed
+        # because in that run the case was d0: it is a statement true only by
+        # chance, so it is reported as information and not verified. The stable
+        # invariants are the numbers: only one flush fails, three pass, and the lost block
+        # disappears entirely.
         per_dir_present = {
             d: sum(1 for p in indexed if p.startswith(f'archive/d{d}/'))
             for d in range(4)
         }
         intact = [d for d, n in per_dir_present.items() if n == 50]
         lost = [d for d, n in per_dir_present.items() if n == 0]
-        check('un solo blocco perso, gli altri tre sono interi',
+        check('only one block lost, the other three are intact',
               len(intact) == 3 and len(lost) == 1,
-              f'intatti={intact}, perso={lost}, per blocco={per_dir_present}')
-        check('nessun blocco e\' a meta\'',
+              f'intact={intact}, lost={lost}, per block={per_dir_present}')
+        check('no block is half done',
               all(n in (0, 50) for n in per_dir_present.values()),
-              f'per blocco={per_dir_present}')
-        print(f"  nota: blocchi persi = {lost} (il velenoso era in uno solo di questi). "
-              f"Su 4 flush quello del velenoso fallisce e basta; gia' sul pre-fix se ne "
-              f"perdevano due, perche' la lista non veniva svuotata.")
+              f'per block={per_dir_present}')
+        print(f"  note: lost blocks = {lost} (the poisonous one was in just one of these). "
+              f"Out of 4 flushes the one with the poisonous record fails and that is all; "
+              f"on the pre-fix two were lost, because the list was not emptied.")
 
     finally:
-        print("\n=== pulizia ===")
+        print("\n=== cleanup ===")
         try:
             n_files, n_sugg = cleanup(rel_prefix)
-            print(f"  rimosse {n_files} righe files, {n_sugg} righe project_suggestions")
+            print(f"  removed {n_files} files rows, {n_sugg} project_suggestions rows")
         except Exception as e:
-            print(f"  PULIZIA FALLITA: {type(e).__name__}: {e}")
-            FAILED.append('pulizia')
+            print(f"  CLEANUP FAILED: {type(e).__name__}: {e}")
+            FAILED.append('cleanup')
         shutil.rmtree(root, ignore_errors=True)
 
         after = snapshot()
-        print("\n=== i conteggi devono essere tornati ===")
+        print("\n=== the counts must have gone back ===")
         for t in TABLES:
-            check(f'  {t} invariato ({before[t]})', after[t] == before[t],
-                  '' if after[t] == before[t] else f'ora {after[t]}')
+            check(f'  {t} unchanged ({before[t]})', after[t] == before[t],
+                  '' if after[t] == before[t] else f'now {after[t]}')
 
         code_after = site_answers()
-        check('il sito risponde anche dopo', code_after in ('302', '200'),
+        check('the site answers afterwards too', code_after in ('302', '200'),
               f'HTTP {code_after}')
 
-    print('\nRISULTATO: ' + ('FALLITI: ' + ', '.join(FAILED)
-          if FAILED else 'un record rifiutato dal DB non ferma il resto della passata'))
+    print('\nRESULT: ' + ('FAILED: ' + ', '.join(FAILED)
+          if FAILED else 'a record rejected by the DB does not stop the rest of the pass'))
     return 1 if FAILED else 0
 
 
