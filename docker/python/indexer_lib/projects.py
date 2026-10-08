@@ -588,23 +588,80 @@ def _insert_link(dcur, file_id, level, node_id, filter_name, role, is_light):
     )
 
 
-def find_setup_session(dcur, setup_id, night):
-    """First session id of an astro-night anywhere in the setup.
+def get_project_filter_aliases(dcur, project_id):
+    """Per-project filter alias map: {lowercase alias: canonical name}.
 
-    Panel-agnostic on purpose: flats belong to the night, not the target
-    (they are rarely shot pointing at the subject). Deterministic: lowest
-    panel_no, then lowest session id. None when absent — never creates rows:
-    flats must not sprout panels or orphan sessions.
+    Mirrors getProjectFilterAliases() in projects_functions.php: trimmed,
+    empty entries dropped. Callers load it once per project and thread it
+    through canon_filter_name().
     """
     dcur.execute(
-        "SELECT ss.id FROM project_sessions ss "
-        "JOIN project_panels pp ON pp.id = ss.panel_id "
-        "WHERE pp.setup_id = %s AND ss.astro_night = %s "
-        "ORDER BY pp.panel_no ASC, pp.id ASC, ss.id ASC LIMIT 1",
-        (setup_id, night),
+        "SELECT alias, canonical FROM project_filter_aliases WHERE project_id = %s",
+        (project_id,),
     )
-    row = dcur.fetchone()
-    return row['id'] if row else None
+    out = {}
+    for row in dcur.fetchall():
+        alias = str(row.get('alias') or '').strip()
+        canon = str(row.get('canonical') or '').strip()
+        if alias and canon:
+            out[alias.lower()] = canon
+    return out
+
+
+def canon_filter_name(alias_map, name):
+    """Canonical filter name for identity: trimmed raw name unless an alias
+    maps it (case-insensitive) to a canonical name. Empty stays empty (the
+    "no filter" group). Mirrors canonFilterName() in projects_functions.php:
+    without an alias the comparison is case-sensitive on purpose, so the
+    suggester agrees with the tree grouping byte-identically.
+    """
+    trimmed = str(name or '').strip()
+    if not trimmed:
+        return ''
+    return alias_map.get(trimmed.lower(), trimmed)
+
+
+def find_light_session(dcur, project_id, setup_id, night, filt=None, aliases=None):
+    """First session of an astro-night in the setup that already holds lights
+    of the flat's filter.
+
+    Panel-agnostic like the old first-session-of-night lookup (flats belong
+    to the night, not the target), but gated on light content: a session
+    counts when the project has linked lights of the same canonical filter
+    there (project_files.is_light) or pending light suggestions for it. This
+    is what keeps setup-wide flats from being proposed: every flat sharing
+    the setup used to be suggested, regardless of whether the project has
+    any light that night. Empty filter matches only unfiltered lights (the
+    tree's "no filter" group), never a named one.
+    Deterministic: lowest panel_no, then lowest session id. None when
+    absent — the flat is then not suggested at all, never fallen back to
+    setup level. Skipped files leave no row, so the next backfill pass
+    reconsiders them once lights are in.
+    """
+    aliases = aliases if aliases is not None else {}
+    want = canon_filter_name(aliases, filt)
+    dcur.execute(
+        "SELECT ss.id, pp.panel_no, pp.id AS panel_id, pf.filter_name AS fname "
+        "FROM project_sessions ss "
+        "JOIN project_panels pp ON pp.id = ss.panel_id "
+        "JOIN project_files pf ON pf.level IN ('filter', 'session') "
+        "AND pf.node_id = ss.id AND pf.is_light = 1 "
+        "WHERE pp.setup_id = %s AND ss.astro_night = %s "
+        "UNION "
+        "SELECT ss.id, pp.panel_no, pp.id, sg.filter_name "
+        "FROM project_sessions ss "
+        "JOIN project_panels pp ON pp.id = ss.panel_id "
+        "JOIN project_suggestions sg ON sg.project_id = %s AND sg.status = 'pending' "
+        "AND sg.level IN ('filter', 'session') AND sg.node_id = ss.id "
+        "JOIN files f ON f.id = sg.file_id AND f.imgtype = 'LIGHT' "
+        "WHERE pp.setup_id = %s AND ss.astro_night = %s "
+        "ORDER BY panel_no ASC, panel_id ASC, id ASC",
+        (setup_id, night, project_id, setup_id, night),
+    )
+    for row in dcur.fetchall():
+        if canon_filter_name(aliases, row.get('fname')) == want:
+            return row['id']
+    return None
 
 
 def suggest_file(dcur, project, globals_, meta, file_id):
@@ -639,20 +696,32 @@ def suggest_file(dcur, project, globals_, meta, file_id):
 
     if imgtype == 'FLAT':
         # Flats skip panel matching entirely: no RA/DEC/FoV/OBJECT check, and
-        # never create panels or sessions. Night session anywhere in the
-        # setup (first by panel_no), else setup level with the filter kept.
-        if night is not None:
-            flat_session = find_setup_session(dcur, setup_id, night)
-            if flat_session is not None:
-                level, node_id = 'session', flat_session
-            else:
-                level, node_id = 'setup', setup_id
-        else:
-            level, node_id = 'setup', setup_id
+        # never create panels or sessions. They are proposed only into a
+        # session of their own night that already holds project lights of
+        # the same filter (linked or pending, alias-aware): without that
+        # gate every flat sharing the setup was suggested. Dateless flats
+        # and nights with no matching session are skipped, not fallen back
+        # to setup level; skipped files leave no row and are reconsidered
+        # by the next backfill pass.
+        if night is None:
+            logger.debug(f"FLAT {meta.get('path')} has no night: not suggested.")
+            return 'skipped'
+        if project.get('aliases') is None:
+            project['aliases'] = get_project_filter_aliases(dcur, project['id'])
+        flat_session = find_light_session(dcur, project['id'], setup_id, night,
+                                           filt, project['aliases'])
+        if flat_session is None:
+            logger.debug(f"FLAT {meta.get('path')} shares no session with project "
+                         f"lights of the same filter in project '{project['name']}' "
+                         f"(night {night}): not suggested.")
+            return 'skipped'
+        level, node_id = 'session', flat_session
         config_hash = _suggest_config_hash(project, globals_)
-        reason = (f"{setup_note}; night {night if night is not None else '?'} "
-                  f"(flat session-agnostic); rule FLAT→{level}"
-                  + (f" filter {filt}" if filt else "")
+        canon = canon_filter_name(project['aliases'], filt)
+        reason = (f"{setup_note}; night {night} shares session {flat_session} "
+                  f"with project lights; rule FLAT→{level}"
+                  + (f" filter {filt}" + (f"↔{canon}" if canon != (filt or '').strip() else "")
+                     if filt else " filter —")
                   + f"; cfg:{config_hash[:8]}")
         if mode == 'auto':
             _insert_link(dcur, file_id, level, node_id, filt, 'sub', False)
@@ -745,6 +814,16 @@ FILE_COLUMNS = ("id, path, imgtype, `filter`, exptime, date_obs, instrume, teles
                 "cameraid, xbinning, ybinning, gain, `offset`, xpixsz, ccd_temp, ra, `dec`, "
                 "objctra, objctdec, `object`, fov_w, fov_h, objctrot, rotator_angle, readoutm")
 
+# Suggest order within one pass: lights (and darks/bias) before flats, so a
+# flat gated on light-bearing sessions sees the lights suggested earlier in
+# the same pass. Stable: intake order is kept inside each class.
+_SUGGEST_IMG_ORDER = {'LIGHT': 0, 'DARK': 1, 'BIAS': 1, 'FLAT': 2}
+
+
+def _suggest_pass_order(metas):
+    return sorted(metas, key=lambda m: _SUGGEST_IMG_ORDER.get(
+        str((m.get('imgtype') if isinstance(m, dict) else None) or '').upper(), 3))
+
 
 def suggest_projects_for_files(conn, metas):
     """Entry point for freshly indexed files.
@@ -759,7 +838,7 @@ def suggest_projects_for_files(conn, metas):
             return {'suggested': 0, 'linked': 0, 'skipped': 0}
         globals_ = get_globals(dcur)
         counts = {'suggested': 0, 'linked': 0, 'skipped': 0}
-        for meta in metas:
+        for meta in _suggest_pass_order(metas):
             file_id = meta.get('db_id')
             if file_id is None:
                 dcur.execute("SELECT id FROM files WHERE path = %s", (meta.get('path'),))
@@ -809,7 +888,7 @@ def suggest_projects_backfill(conn, project_id=None):
         globals_ = get_globals(dcur)
         if projects is None:
             projects = [p for p in get_projects(dcur) if p['mode'] not in ('manual', 'frozen')]
-        for meta in metas:
+        for meta in _suggest_pass_order(metas):
             for project in projects:
                 try:
                     outcome = suggest_file(dcur, project, globals_, meta, meta['id'])

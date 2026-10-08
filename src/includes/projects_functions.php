@@ -1779,8 +1779,10 @@ function projectRenumberSessionsByNight(PDO $conn, int $projectId): void
 /**
  * First session id of an astro-night anywhere in a setup (panel-agnostic).
  * Null when absent. Read-only: never creates rows (flats must not sprout
- * panels or orphan sessions). Mirrors find_setup_session() in
- * docker/python/indexer_lib/projects.py.
+ * panels or orphan sessions). Used by the manual add wizard, which keeps
+ * placing flats in the night's first session; the suggester instead uses
+ * find_light_session() (docker/python/indexer_lib/projects.py) and only
+ * proposes flats into sessions that already hold project lights.
  */
 function projectFindSetupSession(PDO $conn, int $setupId, string $night): ?int
 {

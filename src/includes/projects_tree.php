@@ -4,6 +4,10 @@
 // bulk form in projects.php; group checkboxes sit OUTSIDE <summary> elements
 // (clicks inside <summary> are swallowed by the details toggle in browsers)
 // inside a .tnode wrapper that scopes their subtree.
+//
+// projects.php includes this partial twice per request (review modal + main
+// tree), so the shared helpers are defined only once.
+if (!function_exists('fmtExp')) {
 function fmtExp(float $seconds): string
 {
     if ($seconds >= 3600) {
@@ -242,6 +246,7 @@ function renderCalRows(array $cals, string $level, int $node, array $moveCtx = [
     <?php endforeach; ?>
     <?php
 }
+} // if (!function_exists('fmtExp'))
 
 if (empty($projectTree['setups'])): ?>
     <p class="text-sm text-gray-500"><?= __('projects_no_tree') ?></p>
