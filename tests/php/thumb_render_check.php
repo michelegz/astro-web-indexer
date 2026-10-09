@@ -1,11 +1,11 @@
 <?php
-// Verifica 13.16 — sostituire i blob con OCTET_LENGTH non deve cambiare il
-// rendering: file_cells.php decide se mostrare la miniatura testando
-// !empty($f['thumb']), quindi il valore deve restare falsy/truthy esattamente
-// come prima.
+// Check 13.16 — replacing the blobs with OCTET_LENGTH must not change the
+// rendering: file_cells.php decides whether to show the thumbnail by testing
+// !empty($f['thumb']), so the value must stay falsy/truthy exactly
+// as before.
 //
-// Uso:  docker cp tmp/thumb_render_check.php awi-php:/tmp/
-//       docker exec awi-php sh -c 'cd /tmp && php thumb_render_check.php'
+// Usage:  docker cp tmp/thumb_render_check.php awi-php:/tmp/
+//         docker exec awi-php sh -c 'cd /tmp && php thumb_render_check.php'
 
 require_once '/var/www/html/includes/config.php';
 require_once '/var/www/html/includes/db_functions.php';
@@ -22,7 +22,7 @@ require_once '/var/www/html/includes/projects_tree.php';
 $_SESSION = ['user_id' => 1, 'username' => 'admin', 'is_admin' => 1,
     'can_download' => 1, 'allowed_dirs' => ['/']];
 
-// le colonne visibili del progetto servono ai renderer
+// the project's visible columns are needed by the renderers
 global $columnGroups, $hiddenCols, $hiddenColsProjects, $showStarMetrics;
 $columnGroups = getColumnGroups();
 $toggleable = [];
@@ -52,9 +52,9 @@ $pid = (int)$conn = null;
 $conn = connectDB();
 $pid = (int)$conn->query('SELECT id FROM projects ORDER BY id LIMIT 1')->fetchColumn();
 $tree = getProjectTree($conn, $pid, false);
-echo "progetto $pid\n";
+echo "project $pid\n";
 
-// Conta le righe con miniatura, a livello di dati, non di markup.
+// Count the rows with a thumbnail, at the data level, not the markup level.
 $stats = ['rows' => 0, 'withThumb' => 0, 'withThumbCrop' => 0, 'nonEmptyValues' => 0];
 $walk = function (array $rows) use (&$walk, &$stats): void {
     foreach ($rows as $r) {
@@ -86,12 +86,12 @@ foreach ($tree['setups'] ?? [] as $su) {
         }
     }
 }
-echo "  righe file nell'albero: {$stats['rows']}\n";
-echo "  con miniatura:           {$stats['withThumb']}\n";
-echo "  con crop:                {$stats['withThumbCrop']}\n";
+echo "  file rows in the tree: {$stats['rows']}\n";
+echo "  with thumbnail:         {$stats['withThumb']}\n";
+echo "  with crop:              {$stats['withThumbCrop']}\n";
 
-// Il valore deve essere truthy solo se il blob esiste davvero: confronto con
-// una query diretta che legge il blob vero.
+// The value must be truthy only if the blob really exists: compare with
+// a direct query that reads the real blob.
 $st = $conn->prepare("SELECT id FROM files WHERE deleted_at IS NULL AND thumb IS NOT NULL
                       AND OCTET_LENGTH(thumb) > 0");
 $st->execute();
@@ -100,10 +100,10 @@ $treeThumbs = 0;
 foreach ($reallyHasThumb as $id) {
     $treeThumbs++;
 }
-printf("  file con thumbnail reale nel DB: %d (su %d)\n", $treeThumbs, $stats['rows']);
+printf("  files with a real thumbnail in the DB: %d (over %d)\n", $treeThumbs, $stats['rows']);
 
-// Rendering: si esercita renderFileTableCells() su una riga reale dell'albero,
-// che e' il punto esatto in cui thumb/thumb_crop decidono se mostrare la miniatura.
+// Rendering: renderFileTableCells() is exercised on a real row of the tree,
+// which is the exact point where thumb/thumb_crop decide whether to show the thumbnail.
 $sample = null;
 $find = function (array $rows) use (&$find, &$sample): void {
     foreach ($rows as $r) {
@@ -124,7 +124,7 @@ foreach ($tree['setups'] ?? [] as $su) {
     }
 }
 if ($sample === null) {
-    echo "\nRISULTATO: nessuna riga di campione, test non eseguibile\n";
+    echo "\nRESULT: no sample row, the test cannot run\n";
     exit(1);
 }
 ob_start();
@@ -132,20 +132,23 @@ renderFileTableCells($sample, 'project');
 $rowHtml = (string)ob_get_clean();
 $thumbImgs = substr_count($rowHtml, 'type=thumb');
 $cropImgs = substr_count($rowHtml, 'type=crop');
-printf("  riga campione file_id=%s: thumb truthy=%s crop truthy=%s\n",
-    $sample['file_id'], !empty($sample['thumb']) ? 'si' : 'no',
-    !empty($sample['thumb_crop']) ? 'si' : 'no');
-printf("  <img> in cella: thumb=%d crop=%d\n", $thumbImgs, $cropImgs);
+printf("  sample row file_id=%s: thumb truthy=%s crop truthy=%s\n",
+    $sample['file_id'], !empty($sample['thumb']) ? 'yes' : 'no',
+    !empty($sample['thumb_crop']) ? 'yes' : 'no');
+printf("  <img> in the cell: thumb=%d crop=%d\n", $thumbImgs, $cropImgs);
 
-// coerenza con il DB: il file deve avere davvero una miniatura non vuota
+// consistency with the DB: the file must really have a non-empty thumbnail
 $st = $conn->prepare("SELECT OCTET_LENGTH(thumb) a, OCTET_LENGTH(thumb_crop) b FROM files WHERE id = ?");
 $st->execute([(int)$sample['file_id']]);
 $real = $st->fetch();
-printf("  OCTET_LENGTH nel DB: thumb=%s crop=%s\n",
+printf("  OCTET_LENGTH in the DB: thumb=%s crop=%s\n",
     var_export($real['a'], true), var_export($real['b'], true));
 
 $ok = $thumbImgs === 1 && $cropImgs === 1
     && ((int)$real['a'] > 0) === (!empty($sample['thumb']));
-echo "\nRISULTATO: " . ($ok
-    ? 'il valore trasmesso conserva esattamente la semantica empty()'
-    : 'le miniature NON vengono piu\' rilevate <<< BUG');
+echo "\nRESULT: " . ($ok
+    ? 'the transmitted value keeps exactly the empty() semantics'
+    : 'thumbnails are NO LONGER detected <<< BUG') . "\n";
+// The exit code is what run.sh records. Without it the script falls off the end and
+// returns 0 even when it printed the failure verdict.
+exit($ok ? 0 : 1);

@@ -1,18 +1,18 @@
 <?php
-// Verifica §6 — la modalita' "frozen" deve bloccare le scritture.
+// Check §6 — the "frozen" mode must block the writes.
 //
-// Esercita projectAddPrepare() + projectAddFiles() esattamente come fa
-// src/api/project_add.php (transazione compresa) e confronta lo stato del
-// progetto prima/dopo. Non passa da HTTP: $_SESSION e' popolata in-process,
-// perche' da CLI /tmp non e' scrivibile e session_start() fallirebbe.
+// It exercises projectAddPrepare() + projectAddFiles() exactly as
+// src/api/project_add.php does (transaction included) and compares the state of the
+// project before/after. It does not go through HTTP: $_SESSION is populated in-process,
+// because from the CLI /tmp is not writable and session_start() would fail.
 //
-// Copre il caso del piano: progetto frozen + override "new:<nome>", che prima
-// scriveva project_setups e setup_overrides e poi rispondeva "added 0".
+// It covers the reported case: frozen project + "new:<name>" override, which
+// used to write project_setups and setup_overrides and then answer "added 0".
 //
-// Uso:  docker cp tmp/frozen_check.php awi-php:/var/www/html/
-//       docker exec awi-php php /var/www/html/frozen_check.php
+// Usage:  docker cp tmp/frozen_check.php awi-php:/var/www/html/
+//         docker exec awi-php php /var/www/html/frozen_check.php
 //
-// Crea e poi rimuove due progetti di prova.
+// It creates and then removes two test projects.
 
 require_once '/var/www/html/includes/config.php';
 require_once '/var/www/html/includes/db_functions.php';
@@ -21,7 +21,7 @@ require_once '/var/www/html/includes/language_functions.php';
 require_once '/var/www/html/includes/language.php';
 require_once '/var/www/html/includes/projects_functions.php';
 
-// isLoggedIn()/canDownload() leggono $_SESSION: basta popolarla.
+// isLoggedIn()/canDownload() read $_SESSION: populating it is enough.
 $_SESSION = ['user_id' => 1, 'username' => 'admin', 'is_admin' => 1,
     'can_download' => 1, 'allowed_dirs' => ['/']];
 
@@ -30,12 +30,12 @@ $conn = connectDB();
 $fid = (int)$conn->query("SELECT id FROM files WHERE deleted_at IS NULL AND imgtype = 'LIGHT' "
     . 'AND date_obs IS NOT NULL ORDER BY id LIMIT 1')->fetchColumn();
 if (!$fid) {
-    echo "nessun file LIGHT con data: test non eseguibile\n";
+    echo "no LIGHT file with a date: the test cannot run\n";
     exit(1);
 }
 
-// project_files e' chiazzato (file_id, level, node_id): non esiste
-// project_files.setup_id, e i light finiscono a livello 'filter', non 'setup'.
+// project_files is keyed by (file_id, level, node_id): there is no
+// project_files.setup_id, and the lights end up at level 'filter', not 'setup'.
 function snapshot(PDO $conn, int $pid): array
 {
     $q = fn(string $sql) => (int)$conn->query($sql)->fetchColumn();
@@ -84,8 +84,8 @@ function purge(PDO $conn, int $pid): void
     $conn->prepare('DELETE FROM projects WHERE id = :p')->execute([':p' => $pid]);
 }
 
-// replica di project_add.php. Gli override passano da parseProjectAddRequest,
-// cosi' "new:<nome>" viene trasformato in customSetups come in produzione.
+// replica of project_add.php. The overrides go through parseProjectAddRequest,
+// so "new:<name>" is turned into customSetups as in production.
 function doAdd(PDO $conn, int $pid, array $ids, array $overrides): array
 {
     $req = parseProjectAddRequest([
@@ -106,64 +106,67 @@ function doAdd(PDO $conn, int $pid, array $ids, array $overrides): array
     return ['outcome' => 'added', 'added' => $result['added']];
 }
 
-echo "file di prova: $fid\n\n";
+echo "test file: $fid\n\n";
 $fail = false;
 
-// A) frozen + add semplice
+// A) frozen + simple add
 $pid = createProject($conn, 'frozentest_' . bin2hex(random_bytes(4)), '§6');
 $conn->prepare("UPDATE projects SET assign_mode='frozen' WHERE id=:id")->execute([':id' => $pid]);
 $before = snapshot($conn, $pid);
 $r = doAdd($conn, $pid, [$fid], []);
 $after = snapshot($conn, $pid);
-echo "A) frozen + add semplice\n";
-echo "   esito: {$r['outcome']}, added={$r['added']}\n";
-echo '   prima: ' . json_encode($before) . "\n";
-echo '   dopo : ' . json_encode($after) . "\n";
+echo "A) frozen + simple add\n";
+echo "   outcome: {$r['outcome']}, added={$r['added']}\n";
+echo '   before: ' . json_encode($before) . "\n";
+echo '   after : ' . json_encode($after) . "\n";
 $okA = $before === $after;
-echo '   ' . ($okA ? 'INVARIATO (corretto)' : 'MUTATO <<< BUG') . "\n\n";
+echo '   ' . ($okA ? 'UNCHANGED (correct)' : 'CHANGED <<< BUG') . "\n\n";
 $fail = $fail || !$okA;
 
-// B) frozen + setup custom (il caso che prima scriveva)
+// B) frozen + custom setup (the case that used to write)
 $before = snapshot($conn, $pid);
 $r = doAdd($conn, $pid, [$fid], [(string)$fid => 'new:My Rig']);
 $after = snapshot($conn, $pid);
-echo "B) frozen + setup custom\n";
-echo "   esito: {$r['outcome']}, added={$r['added']}\n";
-echo '   prima: ' . json_encode($before) . "\n";
-echo '   dopo : ' . json_encode($after) . "\n";
+echo "B) frozen + custom setup\n";
+echo "   outcome: {$r['outcome']}, added={$r['added']}\n";
+echo '   before: ' . json_encode($before) . "\n";
+echo '   after : ' . json_encode($after) . "\n";
 $okB = $before === $after;
-echo '   ' . ($okB ? 'INVARIATO (corretto)' : 'MUTATO <<< BUG') . "\n\n";
+echo '   ' . ($okB ? 'UNCHANGED (correct)' : 'CHANGED <<< BUG') . "\n\n";
 $fail = $fail || !$okB;
 
-// C) controllo: stesso add su progetto NON frozen
+// C) control: the same add on a NOT frozen project
 $pid2 = createProject($conn, 'opentest_' . bin2hex(random_bytes(4)), '§6');
 $before2 = snapshot($conn, $pid2);
 $r = doAdd($conn, $pid2, [$fid], []);
 $after2 = snapshot($conn, $pid2);
-echo "C) controllo: non frozen\n";
-echo "   esito: {$r['outcome']}, added={$r['added']}\n";
-echo '   prima: ' . json_encode($before2) . "\n";
-echo '   dopo : ' . json_encode($after2) . "\n";
+echo "C) control: not frozen\n";
+echo "   outcome: {$r['outcome']}, added={$r['added']}\n";
+echo '   before: ' . json_encode($before2) . "\n";
+echo '   after : ' . json_encode($after2) . "\n";
 $okC = $after2['links'] > $before2['links'];
-echo '   ' . ($okC ? 'ha aggiunto (corretto)' : 'NON ha aggiunto <<< il guard blocca tutto') . "\n\n";
+echo '   ' . ($okC ? 'it added (correct)' : 'it did NOT add <<< the guard blocks everything') . "\n\n";
 $fail = $fail || !$okC;
 
-// D) controllo: setup custom su progetto NON frozen.
-// Serve un file diverso: in C lo stesso file e' gia' linkato (dedupe).
+// D) control: custom setup on a NOT frozen project.
+// It needs a different file: in C the same file is already linked (dedupe).
 $fid2 = (int)$conn->query("SELECT id FROM files WHERE deleted_at IS NULL AND imgtype = 'LIGHT' "
     . "AND date_obs IS NOT NULL AND id <> $fid ORDER BY id LIMIT 1")->fetchColumn();
 $before3 = snapshot($conn, $pid2);
 $r = doAdd($conn, $pid2, [$fid2], [(string)$fid2 => 'new:Other Rig']);
 $after3 = snapshot($conn, $pid2);
-echo "D) controllo: non frozen + setup custom\n";
-echo "   esito: {$r['outcome']}, added={$r['added']}\n";
-echo '   prima: ' . json_encode($before3) . "\n";
-echo '   dopo : ' . json_encode($after3) . "\n";
+echo "D) control: not frozen + custom setup\n";
+echo "   outcome: {$r['outcome']}, added={$r['added']}\n";
+echo '   before: ' . json_encode($before3) . "\n";
+echo '   after : ' . json_encode($after3) . "\n";
 $okD = $after3['setups'] > $before3['setups'];
-echo '   ' . ($okD ? 'setup creato (corretto)' : 'setup NON creato <<<') . "\n\n";
+echo '   ' . ($okD ? 'setup created (correct)' : 'setup NOT created <<<') . "\n\n";
 $fail = $fail || !$okD;
 
 purge($conn, $pid);
 purge($conn, $pid2);
-echo "(progetti di prova rimossi)\n\n";
-echo 'RISULTATO: ' . ($fail ? 'FALLITI' : 'tutti i casi corretti');
+echo "(test projects removed)\n\n";
+echo 'RESULT: ' . ($fail ? 'FAILED' : 'all cases correct') . "\n";
+// The exit code is what run.sh records. Without it the script falls off the end and
+// returns 0 even when it printed the failure verdict.
+exit($fail ? 1 : 0);

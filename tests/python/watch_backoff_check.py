@@ -1,16 +1,16 @@
-# Verifica §10 — il watcher non deve riprovare il reindex ogni secondo.
+# Check §10 — the watcher must not retry the reindex every second.
 #
-# Prima del fix last_reindex veniva aggiornato solo on success, quindi con un
-# reindex fallito la condizione di cooldown era sempre vera e ogni secondo
-# partiva una scansione completa dell'archivio + DB: proprio quando il DB è giù.
-# Inoltre solo CalledProcessError era catturato, quindi uno script mancante o un
-# timeout terminavano il processo watcher.
+# Before the fix last_reindex was only updated on success, so with a
+# failed reindex the cooldown condition was always true and every second
+# a full archive + DB scan started: exactly when the DB is down.
+# Also only CalledProcessError was caught, so a missing script or a
+# timeout terminated the watcher process.
 #
-# Il test sostituisce subprocess.run con uno stub, così non serve un DB rotto e
-# non parte nessun processo reale.
+# The test replaces subprocess.run with a stub, so no broken DB is needed and
+# no real process is started.
 #
-# Uso:  docker cp tmp/watch_backoff_check.py awi-python:/tmp/
-#       docker exec awi-python sh -c 'cd /tmp && python watch_backoff_check.py'
+# Usage:  docker cp tmp/watch_backoff_check.py awi-python:/tmp/
+#         docker exec awi-python sh -c 'cd /tmp && python watch_backoff_check.py'
 
 import importlib.util
 import os
@@ -26,7 +26,7 @@ failed = []
 
 
 def check(label, cond, detail=""):
-    print(f"  {label:<38} {detail}  {'OK' if cond else '<<< FALLITO'}")
+    print(f"  {label:<38} {detail}  {'OK' if cond else '<<< FAILED'}")
     if not cond:
         failed.append(label)
 
@@ -51,7 +51,7 @@ def make_handler():
     return h
 
 
-# stub globale: conta i tentativi e solleva l'eccezione configurata
+# global stub: counts the attempts and raises the configured exception
 state = {"n": 0, "exc": subprocess.CalledProcessError(1, "reindex.py")}
 _real_run = watch_fs.subprocess.run
 
@@ -65,12 +65,12 @@ def stub_run(cmd, check=False, **kw):
 
 watch_fs.subprocess.run = stub_run
 
-# clock finto: il cooldown si misura in secondi di tempo, non di iterazioni
+# fake clock: the cooldown is measured in seconds of time, not in iterations
 clock = {"t": 1000.0}
 watch_fs.time.time = lambda: clock["t"]
 
 # ---------------------------------------------------------------------------
-# 1. reindex che esce non-zero: quanti tentativi in 60 secondi?
+# 1. reindex exiting non-zero: how many attempts in 60 seconds?
 # ---------------------------------------------------------------------------
 h = make_handler()
 state["n"] = 0
@@ -81,30 +81,30 @@ for _ in range(60):
     per_second.append(state["n"])
 
 attempts = state["n"]
-print(f"  fallimenti consecutivi: {h.reindex_failures}")
-print(f"  cooldown corrente: {h.cooldown}s")
-print(f"  tentativi in 60 secondi: {attempts}")
-check("non riprova ogni secondo", attempts <= 12, f"{attempts} tentativi in 60s")
-check("backoff cresciuto", h.cooldown > 10, f"cooldown={h.cooldown}s")
-check("cooldown sotto il tetto", h.cooldown <= h.cooldown_max,
+print(f"  consecutive failures: {h.reindex_failures}")
+print(f"  current cooldown: {h.cooldown}s")
+print(f"  attempts in 60 seconds: {attempts}")
+check("does not retry every second", attempts <= 12, f"{attempts} attempts in 60s")
+check("backoff grew", h.cooldown > 10, f"cooldown={h.cooldown}s")
+check("cooldown under the cap", h.cooldown <= h.cooldown_max,
       f"{h.cooldown} <= {h.cooldown_max}")
-check("pending_reindex resta True", h.pending_reindex is True,
-      "il lavoro non e' perso: verra' ritentato")
+check("pending_reindex stays True", h.pending_reindex is True,
+      "the work is not lost: it will be retried")
 
 # ---------------------------------------------------------------------------
-# 2. dopo il backoff, un reindex riuscito resetta tutto
+# 2. after the backoff, a successful reindex resets everything
 # ---------------------------------------------------------------------------
 state["exc"] = None
 before = state["n"]
 clock["t"] += h.cooldown + 1
 h.check_and_reindex()
-check("tentativo riuscito", state["n"] == before + 1, f"tentativi={state['n']}")
-check("reset su successo",
+check("successful attempt", state["n"] == before + 1, f"attempts={state['n']}")
+check("reset on success",
       h.reindex_failures == 0 and h.cooldown == 10 and h.pending_reindex is False,
       f"failures={h.reindex_failures} cooldown={h.cooldown} pending={h.pending_reindex}")
 
 # ---------------------------------------------------------------------------
-# 3. eccezioni che prima non erano catturate non devono propagare
+# 3. exceptions that were not caught before must not propagate
 # ---------------------------------------------------------------------------
 for name, exc in [("FileNotFoundError", FileNotFoundError("reindex.py")),
                   ("PermissionError", PermissionError("denied")),
@@ -116,21 +116,21 @@ for name, exc in [("FileNotFoundError", FileNotFoundError("reindex.py")),
         h2.check_and_reindex()
         ok, why = True, ""
     except Exception as e:
-        ok, why = False, f"propagata {type(e).__name__}"
-    check(f"{name} gestita", ok, why or "catturata e registrata")
+        ok, why = False, f"propagated {type(e).__name__}"
+    check(f"{name} handled", ok, why or "caught and recorded")
 
 # ---------------------------------------------------------------------------
-# 4. il tetto di 300s regge anche con fallimenti ripetuti
+# 4. the 300s cap holds even with repeated failures
 # ---------------------------------------------------------------------------
 h3 = make_handler()
 state["exc"] = subprocess.CalledProcessError(1, "reindex.py")
 for _ in range(40):
     clock["t"] += 10000
     h3.check_and_reindex()
-check("backoff limitato", h3.cooldown == h3.cooldown_max,
-      f"cooldown={h3.cooldown}s dopo {h3.reindex_failures} fallimenti")
+check("backoff capped", h3.cooldown == h3.cooldown_max,
+      f"cooldown={h3.cooldown}s after {h3.reindex_failures} failures")
 
 watch_fs.subprocess.run = _real_run
-print("\nRISULTATO: " + ("tutti i controlli superati" if not failed
-                         else f"FALLITI: {failed}"))
+print("\nRESULT: " + ("all checks passed" if not failed
+                      else f"FAILED: {failed}"))
 sys.exit(0 if not failed else 1)

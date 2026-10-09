@@ -1,11 +1,11 @@
-# Verifica 13.6 — la normalizzazione SQL della migration deve coincidere con
-# normalize_imgtype() di Python, termine per termine e per ordine di test.
+# Check 13.6 — the migration's SQL normalization must agree with
+# Python's normalize_imgtype(), term by term and by test order.
 #
-# Non è una simmetrica vaga: la migration riscrive in SQL le regole di Python, e
-# un disaccordo farebbe divergere i due ingressi (ingest futuro vs dati esistenti).
+# This is not a vague symmetry: the migration rewrites Python's rules in SQL, and a
+# disagreement would make the two inputs diverge (future ingest vs existing data).
 #
-# Uso:  docker cp tmp/imgtype_parity_check.py awi-python:/tmp/
-#       docker exec awi-python sh -c 'cd /tmp && python imgtype_parity_check.py'
+# Usage:  docker cp tmp/imgtype_parity_check.py awi-python:/tmp/
+#         docker exec awi-python sh -c 'cd /tmp && python imgtype_parity_check.py'
 
 import os
 import sys
@@ -18,12 +18,12 @@ failed = []
 
 
 def check(label, cond, detail=""):
-    print(f"  {label:<34} {detail:<34} {'OK' if cond else '<<< FALLITO'}")
+    print(f"  {label:<34} {detail:<34} {'OK' if cond else '<<< FAILED'}")
     if not cond:
         failed.append(label)
 
 
-# La stessa espressione usata dalla migration 20261021120000.
+# The same expression used by migration 20261021120000.
 SQL_EXPR = (
     "REPLACE(REPLACE(REPLACE(UPPER(TRIM({v})), ' ', ''), '_', ''), '-', '')"
 )
@@ -40,13 +40,13 @@ conn = mysql.connector.connect(
     user=os.environ.get("DB_USER", "awi_user"), password=os.environ.get("DB_PASSWORD", ""))
 cur = conn.cursor()
 
-print("  caso".ljust(34), "python".ljust(12), "sql".ljust(12), "esito")
+print("  case".ljust(34), "python".ljust(12), "sql".ljust(12), "verdict")
 print("  " + "-" * 66)
 
 mismatch = 0
 for raw in CASES:
     expected = normalize_imgtype(raw)
-    # La CASE della migration, applicata al valore derivato.
+    # The migration's CASE, applied to the derived value.
     cur.execute(
         "SELECT CASE "
         "WHEN t = '' THEN 'UNKNOWN' "
@@ -61,15 +61,15 @@ for raw in CASES:
     ok = got == expected
     if not ok:
         mismatch += 1
-    print(f"  {raw!r:<32} {expected:<12} {got:<12} {'ok' if ok else '<<< DIVERGE'}")
+    print(f"  {raw!r:<32} {expected:<12} {got:<12} {'ok' if ok else '<<< DIVERGES'}")
 
 print()
-check("SQL e Python coincidono", mismatch == 0, f"{mismatch} divergenze su {len(CASES)} casi")
-check("Casi critici risolti",
+check("SQL and Python agree", mismatch == 0, f"{mismatch} divergences over {len(CASES)} cases")
+check("critical cases resolved",
       normalize_imgtype('DarkFlat') == 'DARK' and normalize_imgtype('DARKFLAT') == 'DARK',
-      "DARKFLAT -> DARK (ordine dei test: DARK prima di FLAT)")
+      "DARKFLAT -> DARK (test order: DARK before FLAT)")
 
 conn.close()
-print("\nRISULTATO: " + ("la migration puo' essere applicata"
-                        if not failed else f"FALLITI: {failed}"))
+print("\nRESULT: " + ("the migration can be applied"
+                      if not failed else f"FAILED: {failed}"))
 sys.exit(0 if not failed else 1)

@@ -1,7 +1,7 @@
 <?php
-// Smoke test §11 sul percorso reale: buildProjectExportMap su un progetto vero,
-// per verificare che i basename sanificati non rompano la mappa e che il
-// validateExportTokens accetti ancora tutto.
+// Smoke test §11 on the real path: buildProjectExportMap on a real project,
+// to verify that the sanitized basenames do not break the map and that
+// validateExportTokens still accepts everything.
 require_once '/var/www/html/includes/config.php';
 require_once '/var/www/html/includes/db_functions.php';
 require_once '/var/www/html/includes/auth.php';
@@ -17,24 +17,24 @@ $_SESSION = ['user_id' => 1, 'username' => 'admin', 'is_admin' => 1,
 $conn = connectDB();
 $pid = (int)$conn->query("SELECT id FROM projects ORDER BY id LIMIT 1")->fetchColumn();
 if (!$pid) {
-    echo "nessun progetto: skip\n";
+    echo "no project: skipped\n";
     exit(0);
 }
 $name = $conn->query("SELECT name FROM projects WHERE id = $pid")->fetchColumn();
-echo "progetto $pid ($name)\n";
+echo "project $pid ($name)\n";
 
 $map = buildProjectExportMap($conn, $pid);
 $entries = $map['entries'];
-printf("  voci emesse: %d, cartelle distinte: %d, saltate: %d, duplicati: %d\n",
+printf("  emitted entries: %d, distinct folders: %d, skipped: %d, duplicates: %d\n",
     count($entries),
     count(array_unique(array_map(fn($e) => dirname($e['zip_path']), $entries))),
     count($map['skipped']), count($map['duplicated_files']));
 
-// il validatore deve accettare la mappa
+// the validator must accept the map
 validateExportTokens($entries);
 echo "  validateExportTokens: OK\n";
 
-// nessun basename pericoloso
+// no dangerous basename
 $bad = [];
 foreach ($entries as $e) {
     $b = basename($e['zip_path']);
@@ -43,19 +43,22 @@ foreach ($entries as $e) {
         $bad[] = $b;
     }
 }
-printf("  basename non sicuri: %d%s\n", count($bad),
+printf("  unsafe basenames: %d%s\n", count($bad),
     $bad ? ' (' . implode(', ', array_slice($bad, 0, 3)) . ')' : '');
 
-// nessuna sovrascrittura all'estrazione: i path devono essere unici case-folded
+// no overwrite at extraction: the paths must be unique case-folded
 $folded = array_map(fn($p) => mb_strtolower($p), array_column($entries, 'zip_path'));
 $dupes = array_filter(array_count_values($folded), fn($c) => $c > 1);
-printf("  path duplicati (case-folded): %d\n", count($dupes));
+printf("  duplicate paths (case-folded): %d\n", count($dupes));
 
-// un estratto dei nomi, per controllo visivo
-echo "  estratto:\n";
+// a sample of the names, for visual inspection
+echo "  sample:\n";
 foreach (array_slice($entries, 0, 5) as $e) {
     echo '    ' . $e['zip_path'] . "\n";
 }
 
 $ok = count($bad) === 0 && count($dupes) === 0;
-echo "\nRISULTATO: " . ($ok ? 'percorso reale intatto' : 'CI SONO PROBLEMI');
+echo "\nRESULT: " . ($ok ? 'real path intact' : 'THERE ARE PROBLEMS') . "\n";
+// The exit code is what run.sh records. Without it the script falls off the end and
+// returns 0 even when it printed the failure verdict.
+exit($ok ? 0 : 1);
