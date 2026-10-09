@@ -19,26 +19,13 @@ require_once __DIR__ . '/includes/projects_functions.php';
 require_once __DIR__ . '/includes/projects_diagnostics.php';
 require_once __DIR__ . '/includes/project_export.php';
 require_once __DIR__ . '/_old_export_probe.php';
+require_once __DIR__ . '/_export_fixture.php';
 
 while (ob_get_level() > 0) {
     ob_end_clean();
 }
 
 $conn = connectDB();
-
-// A project that still has setups, and a BIAS frame to share between them. Both were
-// hardcoded and both had aged out.
-$PROJECT = (int)$conn->query(
-    'SELECT project_id FROM project_setups GROUP BY project_id ORDER BY COUNT(*) DESC, project_id LIMIT 1'
-)->fetchColumn();
-$SHARED_FID = (int)$conn->query(
-    "SELECT id FROM files WHERE imgtype LIKE 'BIAS%' AND deleted_at IS NULL ORDER BY id LIMIT 1"
-)->fetchColumn();
-if ($PROJECT <= 0 || $SHARED_FID <= 0) {
-    echo "  FAIL nessun progetto con setup, o nessun frame BIAS\n";
-    echo "FAILURES: 1\n";
-    exit(1);
-}
 $fail = 0;
 $check = function (bool $ok, string $msg) use (&$fail): void {
     echo ($ok ? '  ok   ' : '  FAIL ') . $msg . "\n";
@@ -49,12 +36,33 @@ $check = function (bool $ok, string $msg) use (&$fail): void {
 
 $conn->beginTransaction();
 try {
+    // A project that still has setups, and a BIAS frame to share between them. Both used
+    // to be hardcoded and both had aged out. The BIAS is created inside this transaction
+    // when the archive has none, so the scenario is exercised instead of skipped: without
+    // it the test stops testing the duplicate export altogether.
+    $PROJECT = (int)$conn->query(
+        'SELECT project_id FROM project_setups GROUP BY project_id ORDER BY COUNT(*) DESC, project_id LIMIT 1'
+    )->fetchColumn();
+    $SHARED_FID = (int)$conn->query(
+        "SELECT id FROM files WHERE imgtype LIKE 'BIAS%' AND deleted_at IS NULL ORDER BY id LIMIT 1"
+    )->fetchColumn();
+    if ($PROJECT <= 0) {
+        echo "  FAIL nessun progetto con setup\n";
+        $check(false, 'a project with setups exists');
+        return;
+    }
+    if ($SHARED_FID <= 0) {
+        $SHARED_FID = exportFixtureFrame($conn, 'BIAS', ['exptime' => 1.0, 'filter' => '']);
+        echo "  (no BIAS in the archive: synthetic frame id=$SHARED_FID created in-transaction)\n";
+    }
+
     $s = $conn->prepare("SELECT id, setup_no FROM project_setups WHERE project_id = :p ORDER BY setup_no LIMIT 1");
     $s->execute([':p' => $PROJECT]);
     $setupA = $s->fetch();
     if ($setupA === false) {
         echo "no setup in project $PROJECT\n";
-        exit(1);
+        $check(false, 'the project has a setup');
+        return;
     }
     $ins = $conn->prepare(
         "INSERT INTO project_setups (project_id, fingerprint, label, setup_no) "

@@ -28,6 +28,7 @@ require_once __DIR__ . '/includes/projects_functions.php';
 require_once __DIR__ . '/includes/projects_diagnostics.php';
 require_once __DIR__ . '/includes/project_export.php';
 require_once __DIR__ . '/_old_export_probe.php';
+require_once __DIR__ . '/_export_fixture.php';
 
 while (ob_get_level() > 0) {
     ob_end_clean();
@@ -43,15 +44,35 @@ $LEAF_OF_KIND = [
 ];
 
 $conn = connectDB();
-$rows = $conn->query("SELECT id, name FROM projects ORDER BY id")->fetchAll();
-if (!$rows) {
-    // Not a silent pass: with nothing to build the map for, this probe proves nothing,
-    // which is the same verdict as the old builder not violating the invariant below.
-    echo "no projects in DB: this probe has nothing to check\n";
-    exit(1);
-}
 
-$fail = 0;
+// The probe is only worth running if the OLD builder actually breaks the leaf invariant
+// (see the bottom of this file). The frozen bug needs a bias group, and groupCalibrations()
+// emits darks before bias, so a node holding both makes the stale $leaf observable. This
+// archive has neither DARK nor BIAS, so the pair is created here, inside the transaction.
+$conn->beginTransaction();
+try {
+    $fixtureProject = (int)$conn->query(
+        'SELECT project_id FROM project_setups GROUP BY project_id ORDER BY COUNT(*) DESC, project_id LIMIT 1'
+    )->fetchColumn();
+    $fixtureMade = [];
+    if ($fixtureProject > 0) {
+        $fixtureMade = exportFixtureDarkAndBias($conn, $fixtureProject);
+        if ($fixtureMade !== []) {
+            echo "fixture: project $fixtureProject got a synthetic DARK ({$fixtureMade['dark']}) "
+                . "and BIAS ({$fixtureMade['bias']}) at setup {$fixtureMade['setup']}\n";
+        }
+    }
+
+    $rows = $conn->query("SELECT id, name FROM projects ORDER BY id")->fetchAll();
+    if (!$rows) {
+        // Not a silent pass: with nothing to build the map for, this probe proves nothing,
+        // which is the same verdict as the old builder not violating the invariant below.
+        echo "no projects in DB: this probe has nothing to check\n";
+        $fail = 1;
+        return;
+    }
+
+    $fail = 0;
 
 /**
  * Checks one builder's output. $label is only used in the messages.
@@ -157,9 +178,13 @@ if ($oldLeaf === 0) {
     echo "NOTA: il builder vecchio NON viola piu' l'invariante: il confronto pre-fix non dimostra nulla\n";
     $fail++;
 } else {
-    echo "pre-fix: il builder vecchio viola l'invariante su $oldLeaf entry (bug del ramo bias vuoto)\n";
+    echo "pre-fix: the old builder violates the invariant on $oldLeaf entries "
+        . "(empty bias branch bug)\n";
 }
-
+} finally {
+    $conn->rollBack();
+    echo "\nrolled back\n";
+}
 echo $fail === 0 ? "REGRESSION OK\n" : "FAILURES: $fail\n";
 // The exit code is what run.sh records. Without it the script falls off the end and
 // returns 0 even when it printed FAILURES.

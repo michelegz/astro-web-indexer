@@ -70,9 +70,9 @@ JS tests run locally with Node.
 | `duplicates_handler_check.php` | §13.44, §13.45 — a single script block, a true `escapeHTML` | creates and removes 1 user |
 | `docblock_owner_check.php` | §13.21 — every docblock documents the function that follows, and its claims are true | no writes |
 | `export_smoke_check.php` | §11 — `buildProjectExportMap` on a real project, sanitized basenames do not break the map | no writes |
-| `resuggest_check.php` | §13 — `resuggestDismissed()` and `getDismissedCount()` on the real path, only dismissed rows are touched | rolled-back transaction |
+| `resuggest_check.php` | §13 — `resuggestDismissed()` and `getDismissedCount()` on the real path, only dismissed rows are touched | rolled-back transaction (synthetic project when every project has suggestions) |
 | `stale_check.py` | §13 — consistency of the suggestion payloads between PHP and Python | no writes |
-| `calib_suggest_check.py` | §7 — DARK/BIAS linked to a setup, no orphan sessions | rolled-back transactions |
+| `calib_suggest_check.py` | §7 — DARK/BIAS linked to a setup, no orphan sessions | rolled-back transactions (synthetic DARK/BIAS when the archive has none) |
 | `session_numbering_check.py` | §8 — `session_no` follows the night on the Python side | rolled-back transaction |
 | `watch_backoff_check.py` | §10 — the watcher does not retry every second | no writes (subprocess stub) |
 | `imgtype_parity_check.py` | §13.6 — the migration SQL matches Python | no writes |
@@ -93,8 +93,8 @@ JS tests run locally with Node.
 | `tree_render_escape_check.php` | `projects_tree.php` escapes text, attribute and tooltip in **all three** modes (`hypoMode` 1 and 0, review 2 with `suggestion_ids[]` as an integer and the reason escaped) | no writes (synthetic tree) |
 | `sff_filter_escape_check.php` | `sff_filter_template.php` escapes the reference value in text, `value=` and `data-unit=` | no writes |
 | `tree_preview_escape_check.php` | the real HTTP chain `project_tree_preview.php` → JSON `html` → `main.js:646` | creates and removes 1 user; no writes (the preview rolls back the transaction) |
-| `export_regression_probe.php` | a frame of one type lives under that type's folder; no `fid` in two folders without being a declared duplicate. **Needs at least one BIAS frame**, and the old builder must violate the invariant, or it reports that it proves nothing | no writes |
-| `export_dup_scenario.php` | a calibration linked to two setups: the new builder emits both copies and declares them. **Needs a BIAS frame and a setup** | rolled-back transaction |
+| `export_regression_probe.php` | a frame of one type lives under that type's folder; no `fid` in two folders without being a declared duplicate, and the old builder must violate the invariant or the probe reports that it proves nothing | rolled-back transaction (synthetic DARK + BIAS) |
+| `export_dup_scenario.php` | a calibration linked to two setups: the new builder emits both copies and declares them | rolled-back transaction (synthetic BIAS) |
 | `hash_parity.php` + `hash_parity.py` + `hash_parity_diff.py` | **PHP<->Python parity gate**: `config_hash` and `match_inputs` must match, or every dismissal goes stale on every pass | no writes |
 | `stale_check.py`, `stale_resurrect.py` | manual diagnostic tools, require `<file_id>` | rolled-back transaction |
 
@@ -207,29 +207,44 @@ docker exec -e AWI_PROJECTS_LIB=/opt/scripts awi-python sh -c 'cd /tmp && python
 `cols_alignment_check.php`, `frozen_check.php` and `calib_suggest_check.py` also
 verify the behavior *before* the fix.
 
-### The two export probes need a BIAS frame, and go red without one
+### The export probes get their DARK and BIAS frames from a fixture
 
 `export_regression_probe.php` and `export_dup_scenario.php` both compare the shipped
 builder against `php/_old_export_probe.php`, the frozen pre-fix copy whose bug is a
-**duplicated, empty** `elseif ($kind === 'bias')` branch: a bias group following a dark
-group inherits `$leaf` from the previous iteration, and its frames land under
-`DARK/EXPS_600_TEMPC_0/` instead of `BIAS/`.
+**duplicated, empty** `elseif ($kind === 'bias')` branch: `$leaf` keeps the value left by
+the previous group, and `groupCalibrations()` always emits darks before bias — so a node
+holding both a DARK and a BIAS makes the bias frames land under `DARK/EXPS_600_TEMPC_m10/`
+instead of `BIAS/`.
 
-That branch is only reachable when there is a bias group at all, so **both probes need
-at least one BIAS frame in the archive**:
+That branch is unreachable without a bias group, and this archive has FLAT and LIGHT
+frames only: no DARK, no BIAS. Both probes used to refuse to run, or skip their case,
+reporting PASS while testing nothing. They now build the frames themselves through
+`php/_export_fixture.php`, inside the transaction that was already there:
 
-- `export_regression_probe.php` goes red with
-  `NOTA: il builder vecchio NON viola piu' l'invariante: il confronto pre-fix non dimostra nulla`
-  when the old builder stops violating the leaf invariant. On an archive with no bias
-  frames it can never violate it, and the probe says so rather than passing quietly —
-  that is the intended behaviour, not a defect.
-- `export_dup_scenario.php` exits 1 on `FAIL nessun progetto con setup, o nessun frame BIAS`.
+- `exportFixtureDarkAndBias()` adds one DARK and one BIAS at the project's first setup,
+  linked so the builder picks them up. The **pair** is deliberate — a BIAS alone either
+  lands under an unrelated leaf or, as the first group of the node, leaves `$leaf`
+  undefined (`SETUP_Sn//frame.fits`, visible as a `Warning`).
+- `export_dup_scenario.php` only needs a BIAS to share between two setups, so it calls
+  `exportFixtureFrame('BIAS', ...)` directly.
 
-Neither should be turned into a skip: a probe that proves nothing must be loud. To cover
-them, archive at least one bias frame and a setup carrying it.
+Measured with the fixture in place, the old builder now emits
+`SETUP_S1/DARK/EXPS_600_TEMPC_m10/frame_1.fits` for a `kind=bias` entry and the probe says
+`pre-fix: the old builder violates the invariant on 1 entries`. That is the failure the
+comparison exists to detect, so it is worth checking it still appears: a probe whose
+pre-fix side stops breaking proves nothing.
 
-Both also had **no terminal `exit()`**, so a real assertion failure still returned 0 and
-`run.sh` recorded PASS. `export_regression_probe.php` additionally did `exit(0)` on an
+`calib_suggest_check.py` and `resuggest_check.php` had the same shape of gap and were
+fixed the same way: a synthetic DARK and BIAS for the branch the §7 fix is about, and a
+throwaway project when every project in the archive already carries suggestions. Both
+create their fixture inside the transaction the test already rolled back, so nothing
+survives. When the archive does provide the rows, they are used as they are.
+
+The lesson is trap #32 applied to fixtures: **a probe that cannot reach the broken code
+must fail, not pass.** Creating the input is what turns these three gates back into tests.
+
+Both export probes had **no terminal `exit()`**, so a real assertion failure still returned
+0 and `run.sh` recorded PASS. `export_regression_probe.php` additionally did `exit(0)` on an
 empty archive, which is the same silent pass by another route. Both now exit on the
 failure count.
 

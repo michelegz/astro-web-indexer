@@ -96,6 +96,34 @@ def add_panel(setup_id, row):
     return cur.lastrowid, ra, dec
 
 
+def synth_frame(kind, like, tag):
+    """A synthetic calibration frame, created inside the rolled-back transaction.
+
+    Used when the archive holds no frame of that kind, so the branch is exercised
+    instead of skipped. `like` supplies the setup identity so the synthetic frame
+    matches an existing setup and `build_setup_fingerprint` has something to
+    compare. Nothing here survives the rollback.
+
+    `path` is UNIQUE, so the tag must be too.
+    """
+    cur.execute(
+        "INSERT INTO files (path, name, imgtype, `object`, instrume, telescop, cameraid, "
+        "`filter`, exptime, ccd_temp, xbinning, ybinning, gain, `offset`, xpixsz, "
+        "date_obs, objctra, objctdec, fov_w, fov_h, objctrot, rotator_angle, "
+        "file_hash, mtime, file_size) "
+        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+        (f"{tag}/{kind}/synth.fits", "synth.fits", kind,
+         like.get("object") or "SYNTHTARGET",
+         like.get("instrume"), like.get("telescop"), like.get("cameraid"),
+         like.get("filter"), like.get("exptime"), like.get("ccd_temp"),
+         like.get("xbinning"), like.get("ybinning"), like.get("gain"), like.get("offset"),
+         like.get("xpixsz"), like.get("date_obs"),
+         like.get("objctra"), like.get("objctdec"),
+         like.get("fov_w"), like.get("fov_h"), like.get("objctrot"), like.get("rotator_angle"),
+         os.urandom(8).hex(), 1750000000, 1024))
+    return {"id": cur.lastrowid}
+
+
 globals_ = get_globals(cur)
 
 # ============================================================ LIGHT / FLAT
@@ -220,55 +248,68 @@ dark_row = one("SELECT id FROM files WHERE deleted_at IS NULL AND imgtype='DARK'
 dark_id = dark_row["id"] if dark_row else None
 pidD = None
 if dark_id is None:
-    print("  (no DARK in the dataset: section skipped)")
+    # This archive has FLAT and LIGHT frames but no DARK, so the branch that the fix is
+    # about would be skipped entirely. A synthetic DARK is created inside the transaction
+    # instead, inheriting the LIGHT's setup identity and sky-coordinate fields so that
+    # build_setup_fingerprint() and add_panel() see a realistic row. The panel position
+    # still resolves to None here, exactly as the real-LIGHT panel above does: HEADERS
+    # carries no ra/dec, so position_of() falls back to OBJCTRA/OBJCTDEC. The assertions
+    # below do not depend on the position — they check the link level and the absence of
+    # new sessions.
+    dark_row = synth_frame("DARK", lrow, f"synthdark_{os.urandom(3).hex()}")
+    dark_id = dark_row["id"]
+    print(f"  (no DARK in the dataset: synthetic frame id={dark_id} created in-transaction)")
 else:
-    drow = load(dark_id)
+    print("  (using a real DARK from the dataset)")
+drow = load(dark_id)
 
-    pidD = make_project("dark")
-    setupD = add_setup(pidD, drow, drow["instrume"])
-    # panel at real coordinates, taken from a panel-like of the same object: this way
-    # find_panel has a panel to attach to and the test distinguishes "missing coordinates"
-    # from "no panel".
-    panelD, raD, _ = add_panel(setupD, drow)
-    projD = {"id": pidD, "name": "dark", "overrides": {}, "mode": "suggest"}
-    proj_of[pidD] = projD
-    print(f"  project {pidD}  setup {setupD}  panel {panelD}  ra={raD}")
+pidD = make_project("dark")
+setupD = add_setup(pidD, drow, drow["instrume"])
+# panel at real coordinates, taken from a panel-like of the same object: this way
+# find_panel has a panel to attach to and the test distinguishes "missing coordinates"
+# from "no panel".
+panelD, raD, _ = add_panel(setupD, drow)
+projD = {"id": pidD, "name": "dark", "overrides": {}, "mode": "suggest"}
+proj_of[pidD] = projD
+print(f"  project {pidD}  setup {setupD}  panel {panelD}  ra={raD}")
 
-    # The dataset has only one DARK for this tuple, so the same file is
-    # reused by clearing the suggestion row between one probe and the next (all inside the
-    # transaction, which will be rolled back).
-    def reset_suggestions(pid):
-        cur.execute("DELETE FROM project_suggestions WHERE project_id = %s", (pid,))
+# The dataset has only one DARK for this tuple, so the same file is
+# reused by clearing the suggestion row between one probe and the next (all inside the
+# transaction, which will be rolled back).
+def reset_suggestions(pid):
+    cur.execute("DELETE FROM project_suggestions WHERE project_id = %s", (pid,))
 
-    # DARK without coordinates: this is the case the gate discarded
-    reset_suggestions(pidD)
-    res2, sug2, b2, a2 = probe(pidD, dark_id, no_coords(drow))
-    check("DARK without coords -> setup", res2 == "suggested" and sug2
-          and sug2["level"] == "setup" and sug2["node_id"] == setupD,
-          f"outcome={res2} level={sug2['level'] if sug2 else '-'}")
-    check("DARK does not create sessions", a2 == b2, f"sessions {b2} -> {a2}")
+# DARK without coordinates: this is the case the gate discarded
+reset_suggestions(pidD)
+res2, sug2, b2, a2 = probe(pidD, dark_id, no_coords(drow))
+check("DARK without coords -> setup", res2 == "suggested" and sug2
+      and sug2["level"] == "setup" and sug2["node_id"] == setupD,
+      f"outcome={res2} level={sug2['level'] if sug2 else '-'}")
+check("DARK does not create sessions", a2 == b2, f"sessions {b2} -> {a2}")
 
-    # DARK with coordinates: this must link to setup too, without creating sessions
-    reset_suggestions(pidD)
-    res, sug, b, a = probe(pidD, dark_id, dict(drow))
-    check("DARK with coords -> setup", res == "suggested" and sug and sug["level"] == "setup"
-          and sug["node_id"] == setupD, f"outcome={res} level={sug['level'] if sug else '-'}")
-    check("DARK(coords) does not create sessions", a == b, f"sessions {b} -> {a}")
+# DARK with coordinates: this must link to setup too, without creating sessions
+reset_suggestions(pidD)
+res, sug, b, a = probe(pidD, dark_id, dict(drow))
+check("DARK with coords -> setup", res == "suggested" and sug and sug["level"] == "setup"
+      and sug["node_id"] == setupD, f"outcome={res} level={sug['level'] if sug else '-'}")
+check("DARK(coords) does not create sessions", a == b, f"sessions {b} -> {a}")
 
-    # Same NB as the FLAT lookup: no match on xpixsz (FLOAT, `<=>` unreliable).
-    bias_id = one("SELECT id FROM files WHERE deleted_at IS NULL AND imgtype='BIAS' "
-                  "AND instrume <=> %s AND telescop <=> %s "
-                  "AND date_obs IS NOT NULL ORDER BY id LIMIT 1",
-                  (drow["instrume"], drow["telescop"]))
-    if bias_id is None:
-        print("  (no BIAS for this setup: case skipped)")
-    else:
-        brow = load(bias_id["id"])
-        res, sug, b, a = probe(pidD, bias_id["id"], no_coords(brow))
-        check("BIAS without coords -> setup", res == "suggested" and sug
-              and sug["level"] == "setup" and sug["node_id"] == setupD,
-              f"outcome={res} level={sug['level'] if sug else '-'}")
-        check("BIAS does not create sessions", a == b, f"sessions {b} -> {a}")
+# Same NB as the FLAT lookup: no match on xpixsz (FLOAT, `<=>` unreliable).
+bias_id = one("SELECT id FROM files WHERE deleted_at IS NULL AND imgtype='BIAS' "
+              "AND instrume <=> %s AND telescop <=> %s "
+              "AND date_obs IS NOT NULL ORDER BY id LIMIT 1",
+              (drow["instrume"], drow["telescop"]))
+if bias_id is None:
+    # Same reason as the DARK: a synthetic BIAS matching the dark's setup, so this
+    # branch is exercised on an archive that has none.
+    bias_id = synth_frame("BIAS", drow, f"synthbias_{os.urandom(3).hex()}")
+    print(f"  (no BIAS for this setup: synthetic frame id={bias_id['id']} created in-transaction)")
+brow = load(bias_id["id"])
+res, sug, b, a = probe(pidD, bias_id["id"], no_coords(brow))
+check("BIAS without coords -> setup", res == "suggested" and sug
+      and sug["level"] == "setup" and sug["node_id"] == setupD,
+      f"outcome={res} level={sug['level'] if sug else '-'}")
+check("BIAS does not create sessions", a == b, f"sessions {b} -> {a}")
 
 # no session without link nor suggestion (in suggest mode the links do not
 # exist yet: project_suggestions pending/accepted count too)

@@ -30,33 +30,53 @@ $check = function (bool $ok, string $msg) use (&$fail): void {
     }
 };
 
-// A project that exists and has no suggestions, so the baseline counts are predictable.
-$PROJECT = (int)$conn->query(
-    'SELECT p.id FROM projects p
-     LEFT JOIN project_suggestions s ON s.project_id = p.id
-     GROUP BY p.id HAVING COUNT(s.project_id) = 0 ORDER BY p.id LIMIT 1'
-)->fetchColumn();
-if ($PROJECT <= 0) {
-    echo "  FAIL nessun progetto senza suggerimenti: non posso stabilire un baseline noto\n";
-    echo "FAILURES: 1\n";
-    exit(1);
-}
-
-// Real file ids, for project_suggestions_ibfk_2 (file_id -> files.id). The four old ids
-// still exist, but pinning them again would only postpone the same failure.
-$FIDS = array_map(
-    'intval',
-    $conn->query('SELECT id FROM files WHERE deleted_at IS NULL ORDER BY id LIMIT 4')->fetchAll(PDO::FETCH_COLUMN)
-);
-if (count($FIDS) < 4) {
-    echo "  FAIL servono 4 file esistenti, trovati " . count($FIDS) . "\n";
-    echo "FAILURES: 1\n";
-    exit(1);
-}
-echo "progetto $PROJECT, file " . implode(', ', $FIDS) . "\n";
-
+// The fixture is created inside the transaction, so the rollback below also removes it.
+// Starting the transaction before choosing the project is what makes that possible: a
+// project created here has to disappear with everything else.
 $conn->beginTransaction();
 try {
+    // A project that exists and has no suggestions, so the baseline counts are predictable.
+    $PROJECT = (int)$conn->query(
+        'SELECT p.id FROM projects p
+         LEFT JOIN project_suggestions s ON s.project_id = p.id
+         GROUP BY p.id HAVING COUNT(s.project_id) = 0 ORDER BY p.id LIMIT 1'
+    )->fetchColumn();
+    if ($PROJECT <= 0) {
+        // This archive has suggestions on every project, so the baseline cannot be
+        // established and the test would refuse to run. Create a throwaway project
+        // instead: it has no suggestions by construction, and it is rolled back with the
+        // transaction, so nothing is left behind.
+        $ins = $conn->prepare(
+            'INSERT INTO projects (name, notes, tolerances, assign_mode) '
+            . "VALUES (:n, '', '{}', 'suggest')"
+        );
+        $ins->execute([':n' => 'resuggestprobe_' . bin2hex(random_bytes(3))]);
+        $PROJECT = (int)$conn->lastInsertId();
+        $setup = $conn->prepare(
+            'INSERT INTO project_setups (project_id, fingerprint, setup_no, label) '
+            . 'VALUES (:p, :fp, 1, :l)'
+        );
+        $setup->execute([
+            ':p' => $PROJECT,
+            ':fp' => 'RESUGGESTPROBE-' . bin2hex(random_bytes(4)),
+            ':l' => 'probe setup',
+        ]);
+        echo "every project here has suggestions: synthetic project $PROJECT created in-transaction\n";
+    }
+
+    // Real file ids, for project_suggestions_ibfk_2 (file_id -> files.id). The four old ids
+    // still exist, but pinning them again would only postpone the same failure.
+    $FIDS = array_map(
+        'intval',
+        $conn->query('SELECT id FROM files WHERE deleted_at IS NULL ORDER BY id LIMIT 4')->fetchAll(PDO::FETCH_COLUMN)
+    );
+    if (count($FIDS) < 4) {
+        echo "  FAIL servono 4 file esistenti, trovati " . count($FIDS) . "\n";
+        $check(false, 'four existing files are needed');
+        return;
+    }
+    echo "progetto $PROJECT, file " . implode(', ', $FIDS) . "\n";
+
     $node = (int)$conn->query("SELECT id FROM project_setups WHERE project_id = $PROJECT ORDER BY setup_no LIMIT 1")->fetchColumn();
     $ins = $conn->prepare(
         "INSERT INTO project_suggestions (project_id, file_id, level, node_id, role, reason, status, config_hash) "
@@ -90,3 +110,6 @@ try {
     echo "\nrolled back\n";
 }
 echo $fail === [] ? "BUTTON OK\n" : "FAILURES: " . count($fail) . "\n";
+// The exit code is what run.sh records. Without it the script falls off the end and
+// returns 0 even when it printed FAILURES.
+exit($fail === [] ? 0 : 1);
