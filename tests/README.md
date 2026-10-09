@@ -467,116 +467,6 @@ The pre-fix case, by removing a single `htmlspecialchars`:
 | Break introduced | Expected |
 |---|---|
 | line 38, `value=` without `htmlspecialchars` | **red**: `grezze=3` on `XSS` and `grezze=1` on `Z9`, `attribute onload su <input>`, `il value= nascosto e' escaped` |
-
-53. **A check on the raw response body can be vacuous, because `json_encode`
-    escapes slashes into `\/`.** «No absolute server path exposed» checked
-    `str_contains($body, '/var/www/html/')` on the HTTP body: that sequence can never
-    be there, not even when the diagnostic containing it is present. The check
-    passed even on broken code, and I left it as it was for a while because it passed.
-    The **decoded** field must be checked, which is what the browser sees. It is the
-    same family as #33: a test that cannot fail is not a test.
-
-54. **The positivity check must be done BEFORE inserting the test data.** With
-    `filters` empty the SFF search has `imgtype = 'LIGHT'` as its only WHERE, so it
-    returns **the whole** archive. The first version inserted the hostile rows and then
-    asked for the check on a "real" LIGHT: that check also reported the rows
-    just created, and the test flagged as a defect that its own payload had
-    arrived in the response. The order of operations is part of the invariant.
-
-55. **`preg_match` wants the third argument by reference.** The `<img>` check
-    passed `'#'` as the matches argument:
-    `Error: preg_match(): Argument #3 ($matches) could not be passed by reference`.
-    The check **died** instead of verifying, and the next line never reached
-    the output, so it looked like the test was simply silent.
-
-56. **Putting the payload only in `name` is not enough to cover the contexts.** `path` is
-    the column that ends up in the checkbox `value=` and in the `/fits/` `href`, and it is the only
-    one of the two that goes through `rawurlencode` instead of `htmlspecialchars`. With a clean
-    `path` those two checks failed **for absence of payload**, not because of a defect: a test
-    that reports «there is no payload» when the payload was never put there.
-
-### `sff_results_table.php`: a real defect, found by the escaping check
-
-The escaping audit produced here a defect that is not about escaping.
-
-`sff_results_table.php:58` did `substr($file['date_obs'], 0, 10)` without checking for
-NULL. In PHP 8.1+ `substr(null)` is deprecated, and **`reindex.py` writes `date_obs = NULL`
-when DATE-OBS is not parseable**, so the branch is reachable from the archive: a
-FITS with a malformed DATE-OBS is enough.
-
-The diagnostic was printed while the buffer wrapping the partial was open, so it
-ended up in the `html` JSON field instead of breaking the response — the JSON stayed
-valid, and that is why it had never been seen as a client-side error. But `sff.js:152`
-assigns that field to `sffResultsPanel.innerHTML`, so the user read, in the middle of the table:
-
-```
-Deprecated: substr(): Passing null to parameter #1 ($string) of type string is
-deprecated in /var/www/html/includes/sff_results_table.php on line 58
-```
-
-A line that looks broken and **disclosure of the server's absolute path with the line
-number**. Measured before the fix: once inside `html`, at byte 1523 of a 338 KB
-response.
-
-On this copy the defect was **latent**: all 236 LIGHTs have `date_obs`. And
-`grep` over all the `substr()` in `src/` confirms this was the only one applied to a
-nullable database column; the others work on already normalized or checked values.
-
-The fix (`68b4f41`) is one line, and reuses the convention of the three cells below, which
-already print `N/A` for an absent value instead of leaving the cell empty.
-
-`tests/php/sff_results_http_escape_check.php` carries the regression: it inserts two LIGHTs, one with
-`date_obs` NULL, and verifies that no PHP diagnostic reaches the response and that the
-absolute path does not appear in the decoded field. Both checks go red
-on the pre-fix code.
-
-57. **A partial that deliberately writes `<script>`, `onclick` and `<svg>` cannot be verified
-    with a flat deny-list.** `table.php` contains a `<script>` block (the duplicates handler),
-    `template_functions.php:55` puts `onclick="sortTable(...)"` on the
-    headings that sort, and the list/thumbnail toggle buttons carry an `<svg>` icon each.
-    Banning them produced three false positives on correct code.
-    The invariant is not «no handler» — which here would be false — but «no handler that
-    the template does not write itself»: `onclick` on `<th>` is tolerated and the rest
-    is banned.
-    `<svg>` needed the same treatment for the same reason, and the fix is the same shape:
-    the two icons are tolerated **inside the containers the template owns**
-    (`#list-view-btn`, `#thumbnail-view-btn`) and an `<svg>` anywhere else is still flagged.
-    A blanket ban is replaced by a precise one, never removed — an `<svg onload>` planted
-    inside a legitimate container is still caught by the `on*` rule. The seven cases of this
-    refinement are checked as a negative control, so the narrowing cannot have silently
-    cost a detection.
-    Note that if the template ever gains another icon the check goes **red** until its id is
-    added: a new icon prompts the update instead of passing silently.
-    And it is checked that the payload did not end up **inside** the `<script>`, because there
-    escaping would protect nothing: an injected `<script>` executes even with everything
-    else escaped.
-
-58. **In the DOM the payload *always* appears in the text, even when escaped.** The parser
-    returns the values **decoded**, and `XSS&lt;img` arrives as text `XSS<img`. A
-    check «the payload does not appear in the text of the nodes» is therefore only true for
-    broken code: the exact opposite of a test. It is trap #50 in a different outfit, and I
-    ran into it twice in the same session. The only place where comparing the
-    content makes sense is inside `<script>`, because its content is raw text and the
-    parser does **not** resolve entities there. Elsewhere the proof that the payload was carried
-    as a value and not as markup is the raw/entity count on the source, plus the absence of
-    new elements and handlers in the DOM.
-
-59. **`thumb-title>` does not exist: there is an extra quote.** The test pattern of the
-    cards block was `#thumb-title>\s*<a[^>]*>\s*…#`, and it found nothing **on correct
-    code**. In the HTML there is `class="thumb-title">`: the closing quote of the
-    attribute sits between the word and the angle bracket. The right pattern hooks
-    `class="thumb-title">`. Verified with five incremental patterns instead of
-    guessing: `#thumb-title>#` gives 0 matches, `#<a[^>]*>\s*XSS&lt;#s` gives 1 — i.e. the
-    code was correct and the pattern was not.
-
-60. **An `include` inside a function sees the local scope, not `$GLOBALS`.** In the first
-    attempt `render($mode)` put `$files` only in `$GLOBALS['files']` and then included
-    `table.php`: inside the function `$files` was *undefined*, the partial drew
-    no rows, and the result was zero payload occurrences — which the test could
-    have read as «clean». The real test passes `$files` as a parameter, and it is the
-    parameter that makes it visible. If a harness «finds nothing», first check that it is
-    drawing something: it is trap #3 in a new form.
-
 ### `table.php`: two views, two distinct sinks
 
 `table.php` is the shell of the main table and contains **two** renderings of the same
@@ -936,7 +826,116 @@ you must log in via `login.php` the way `zip_guard_check.php`,
     exports `MSYS_NO_PATHCONV=1` for this; running the commands by hand from Git Bash
     needs the same variable (or the double slash `//opt/scripts`).
 
-61. **A PHP diagnostic must be recognized by its shape, not by a bare keyword.**
+54. **A check on the raw response body can be vacuous, because `json_encode`
+    escapes slashes into `\/`.** «No absolute server path exposed» checked
+    `str_contains($body, '/var/www/html/')` on the HTTP body: that sequence can never
+    be there, not even when the diagnostic containing it is present. The check
+    passed even on broken code, and I left it as it was for a while because it passed.
+    The **decoded** field must be checked, which is what the browser sees. It is the
+    same family as #33: a test that cannot fail is not a test.
+
+55. **The positivity check must be done BEFORE inserting the test data.** With
+    `filters` empty the SFF search has `imgtype = 'LIGHT'` as its only WHERE, so it
+    returns **the whole** archive. The first version inserted the hostile rows and then
+    asked for the check on a "real" LIGHT: that check also reported the rows
+    just created, and the test flagged as a defect that its own payload had
+    arrived in the response. The order of operations is part of the invariant.
+
+56. **`preg_match` wants the third argument by reference.** The `<img>` check
+    passed `'#'` as the matches argument:
+    `Error: preg_match(): Argument #3 ($matches) could not be passed by reference`.
+    The check **died** instead of verifying, and the next line never reached
+    the output, so it looked like the test was simply silent.
+
+57. **Putting the payload only in `name` is not enough to cover the contexts.** `path` is
+    the column that ends up in the checkbox `value=` and in the `/fits/` `href`, and it is the only
+    one of the two that goes through `rawurlencode` instead of `htmlspecialchars`. With a clean
+    `path` those two checks failed **for absence of payload**, not because of a defect: a test
+    that reports «there is no payload» when the payload was never put there.
+
+### `sff_results_table.php`: a real defect, found by the escaping check
+
+The escaping audit produced here a defect that is not about escaping.
+
+`sff_results_table.php:58` did `substr($file['date_obs'], 0, 10)` without checking for
+NULL. In PHP 8.1+ `substr(null)` is deprecated, and **`reindex.py` writes `date_obs = NULL`
+when DATE-OBS is not parseable**, so the branch is reachable from the archive: a
+FITS with a malformed DATE-OBS is enough.
+
+The diagnostic was printed while the buffer wrapping the partial was open, so it
+ended up in the `html` JSON field instead of breaking the response — the JSON stayed
+valid, and that is why it had never been seen as a client-side error. But `sff.js:152`
+assigns that field to `sffResultsPanel.innerHTML`, so the user read, in the middle of the table:
+
+```
+Deprecated: substr(): Passing null to parameter #1 ($string) of type string is
+deprecated in /var/www/html/includes/sff_results_table.php on line 58
+```
+
+A line that looks broken and **disclosure of the server's absolute path with the line
+number**. Measured before the fix: once inside `html`, at byte 1523 of a 338 KB
+response.
+
+On this copy the defect was **latent**: all 236 LIGHTs have `date_obs`. And
+`grep` over all the `substr()` in `src/` confirms this was the only one applied to a
+nullable database column; the others work on already normalized or checked values.
+
+The fix (`68b4f41`) is one line, and reuses the convention of the three cells below, which
+already print `N/A` for an absent value instead of leaving the cell empty.
+
+`tests/php/sff_results_http_escape_check.php` carries the regression: it inserts two LIGHTs, one with
+`date_obs` NULL, and verifies that no PHP diagnostic reaches the response and that the
+absolute path does not appear in the decoded field. Both checks go red
+on the pre-fix code.
+
+58. **A partial that deliberately writes `<script>`, `onclick` and `<svg>` cannot be verified
+    with a flat deny-list.** `table.php` contains a `<script>` block (the duplicates handler),
+    `template_functions.php:55` puts `onclick="sortTable(...)"` on the
+    headings that sort, and the list/thumbnail toggle buttons carry an `<svg>` icon each.
+    Banning them produced three false positives on correct code.
+    The invariant is not «no handler» — which here would be false — but «no handler that
+    the template does not write itself»: `onclick` on `<th>` is tolerated and the rest
+    is banned.
+    `<svg>` needed the same treatment for the same reason, and the fix is the same shape:
+    the two icons are tolerated **inside the containers the template owns**
+    (`#list-view-btn`, `#thumbnail-view-btn`) and an `<svg>` anywhere else is still flagged.
+    A blanket ban is replaced by a precise one, never removed — an `<svg onload>` planted
+    inside a legitimate container is still caught by the `on*` rule. The seven cases of this
+    refinement are checked as a negative control, so the narrowing cannot have silently
+    cost a detection.
+    Note that if the template ever gains another icon the check goes **red** until its id is
+    added: a new icon prompts the update instead of passing silently.
+    And it is checked that the payload did not end up **inside** the `<script>`, because there
+    escaping would protect nothing: an injected `<script>` executes even with everything
+    else escaped.
+
+59. **In the DOM the payload *always* appears in the text, even when escaped.** The parser
+    returns the values **decoded**, and `XSS&lt;img` arrives as text `XSS<img`. A
+    check «the payload does not appear in the text of the nodes» is therefore only true for
+    broken code: the exact opposite of a test. It is trap #50 in a different outfit, and I
+    ran into it twice in the same session. The only place where comparing the
+    content makes sense is inside `<script>`, because its content is raw text and the
+    parser does **not** resolve entities there. Elsewhere the proof that the payload was carried
+    as a value and not as markup is the raw/entity count on the source, plus the absence of
+    new elements and handlers in the DOM.
+
+60. **`thumb-title>` does not exist: there is an extra quote.** The test pattern of the
+    cards block was `#thumb-title>\s*<a[^>]*>\s*…#`, and it found nothing **on correct
+    code**. In the HTML there is `class="thumb-title">`: the closing quote of the
+    attribute sits between the word and the angle bracket. The right pattern hooks
+    `class="thumb-title">`. Verified with five incremental patterns instead of
+    guessing: `#thumb-title>#` gives 0 matches, `#<a[^>]*>\s*XSS&lt;#s` gives 1 — i.e. the
+    code was correct and the pattern was not.
+
+61. **An `include` inside a function sees the local scope, not `$GLOBALS`.** In the first
+    attempt `render($mode)` put `$files` only in `$GLOBALS['files']` and then included
+    `table.php`: inside the function `$files` was *undefined*, the partial drew
+    no rows, and the result was zero payload occurrences — which the test could
+    have read as «clean». The real test passes `$files` as a parameter, and it is the
+    parameter that makes it visible. If a harness «finds nothing», first check that it is
+    drawing something: it is trap #3 in a new form.
+
+62. **A PHP diagnostic must be recognized by its shape, not by a bare keyword.**
     `table_escape_check.php` renders `table.php` in a synthetic context with
     `display_errors=1`, so any diagnostic lands inside the HTML it then parses. The first
     version of the new check looked for `#(Warning|Notice|Deprecated|Fatal error|Parse
