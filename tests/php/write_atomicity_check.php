@@ -1,28 +1,28 @@
 <?php
-// Verifica 13.3, 13.4, 13.32 — atomicita' delle scritture e gestione degli Error.
+// Check 13.3, 13.4, 13.32 — write atomicity and Error handling.
 //
-//  13.3 saveProjectFilterAliases scriveva coppia per coppia eValidava/rilasciava in
-//       piu' statement: un ciclo scoperto alla quarta coppia lasciava le prime tre
-//       committate, e il messaggio d'errore diceva all'utente che era andato tutto
-//       bene. Piu' la finestra in cui un alias rimosso non era ancora reinserito.
-//  13.4 enqueueSuggestRequest era un read-then-write: due scrittori potevano passare
-//       entrambi il SELECT e accodare due righe pending, quindi due backfill Python.
-//  13.32 in project_tree_preview il buffer aperto intorno all'include del tree non
-//       veniva chiuso in caso di errore, e i catch erano su Exception: in PHP 8
-//       TypeError e ParseError sono Error e non venivano presi, lasciando anche la
-//       transazione aperta.
+//  13.3 saveProjectFilterAliases wrote pair by pair and validated/committed in
+//       more than one statement: a loop blowing up on the fourth pair left the first three
+//       committed, and the error message told the user everything had gone
+//       well. Plus the window in which a removed alias had not been reinserted yet.
+//  13.4 enqueueSuggestRequest was a read-then-write: two writers could both
+//       pass the SELECT and queue two pending rows, hence two Python backfills.
+//  13.32 in project_tree_preview the buffer opened around the tree include was not
+//       closed on error, and the catches were on Exception: in PHP 8
+//       TypeError and ParseError are Error and were not caught, also leaving the
+//       transaction open.
 //
-// Uso:  docker cp tmp/write_atomicity_check.php awi-php:/tmp/
-//       docker exec awi-php sh -c 'cd /tmp && php write_atomicity_check.php'
+// Usage:  docker cp tmp/write_atomicity_check.php awi-php:/tmp/
+//         docker exec awi-php sh -c 'cd /tmp && php write_atomicity_check.php'
 
 require_once '/var/www/html/includes/config.php';
 require_once '/var/www/html/includes/db_functions.php';
 require_once '/var/www/html/includes/auth.php';
 require_once '/var/www/html/includes/projects_functions.php';
 
-// saveProjectFilterAliases usa __() per il messaggio del ciclo. language.php vuole
-// una sessione (che da CLI non parte), e qui si verifica solo che il ramo lanci:
-// basta la chiave, non il testo tradotto.
+// saveProjectFilterAliases uses __() for the loop's message. language.php wants
+// a session (which does not start from the CLI), and here only the throwing branch is
+// checked: the key is enough, not the translated text.
 if (!function_exists('__')) {
     function __(string $key, array $replace = []): string
     {
@@ -35,21 +35,21 @@ $failed = [];
 
 function check(string $label, bool $cond, string $detail = ''): void
 {
-    printf("  %-58s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FALLITO');
+    printf("  %-58s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FAILED');
     if (!$cond) {
         $GLOBALS['failed'][] = $label;
     }
 }
 
 $pid = (int)$conn->query('SELECT MIN(id) FROM projects')->fetchColumn();
-check('progetto di prova trovato', $pid > 0, "id=$pid");
+check('test project found', $pid > 0, "id=$pid");
 
 // =====================================================================
-// 13.3 — alias filtro: nessuna applicazione parziale
+// 13.3 — filter aliases: no partial application
 // =====================================================================
-echo "\n=== 13.3: un ciclo non deve lasciare indietro le coppie precedenti ===\n";
+echo "\n=== 13.3: a loop must not leave the earlier pairs behind ===\n";
 
-// Stato di partenza noto: nessun alias per questo progetto.
+// Known starting state: no alias for this project.
 $conn->beginTransaction();
 try {
     foreach (getProjectFilterAliases($conn, $pid) as $a => $c) {
@@ -57,79 +57,79 @@ try {
             ->execute([$pid, $c === null ? '' : $a]);
     }
 
-    // Prima coppia valida, seconda che crea un ciclo con la prima (il canonico
-    // 'Ha' e' gia' un alias). La validazione deve rifiutare TUTTO.
+    // First pair valid, second creating a cycle with the first (the canonical
+    // 'Ha' is already an alias). The validation must reject EVERYTHING.
     $threw = null;
     try {
         saveProjectFilterAliases($conn, $pid, [
-            'H-ALPHA' => 'Ha',   // valida
-            'OIII-3nm' => 'H-ALPHA', // ciclo: 'H-ALPHA' e' gia' un alias
+            'H-ALPHA' => 'Ha',   // valid
+            'OIII-3nm' => 'H-ALPHA', // cycle: 'H-ALPHA' is already an alias
         ]);
     } catch (InvalidArgumentException $e) {
         $threw = $e->getMessage();
     }
-    check('il ciclo viene rifiutato', $threw !== null, $threw === null ? 'NON rifiutato' : '');
+    check('the cycle is rejected', $threw !== null, $threw === null ? 'NOT rejected' : '');
 
     $left = getProjectFilterAliases($conn, $pid);
-    check('nessuna coppia applicata parzialmente', $left === [],
-        $left === [] ? '' : 'residui: ' . implode(', ', array_map(
+    check('no pair partially applied', $left === [],
+        $left === [] ? '' : 'leftovers: ' . implode(', ', array_map(
             fn($a, $c) => "$a=>$c", array_keys($left), $left)));
 } finally {
     $conn->rollBack();
 }
 
-echo "\n=== 13.3: un insieme valido si applica per intero ===\n";
+echo "\n=== 13.3: a valid set is applied whole ===\n";
 $conn->beginTransaction();
 try {
     saveProjectFilterAliases($conn, $pid, ['H-ALPHA' => 'Ha', 'OIII-3nm' => 'OIII']);
     $got = getProjectFilterAliases($conn, $pid);
-    check('entrambe le coppie scritte',
+    check('both pairs written',
         ($got['h-alpha'] ?? null) === 'Ha' && ($got['oiii-3nm'] ?? null) === 'OIII',
         json_encode($got));
 
-    // Sovrascrivere non deve creare una seconda riga per lo stesso alias.
+    // Overwriting must not create a second row for the same alias.
     saveProjectFilterAliases($conn, $pid, ['H-ALPHA' => 'H-alpha2']);
     $n = (int)$conn->query("SELECT COUNT(*) FROM project_filter_aliases WHERE project_id = " . $pid
         . " AND LOWER(alias) = 'h-alpha'")->fetchColumn();
-    check('la riscrittura non duplica la riga', $n === 1, 'righe=' . $n);
+    check('the rewrite does not duplicate the row', $n === 1, 'rows=' . $n);
 
-    // La cancellazione con canonical vuota.
+    // Deletion with an empty canonical.
     saveProjectFilterAliases($conn, $pid, ['OIII-3nm' => '']);
     $got = getProjectFilterAliases($conn, $pid);
-    check('canonical vuota rimuove la coppia', !isset($got['oiii-3nm']), json_encode($got));
+    check('empty canonical removes the pair', !isset($got['oiii-3nm']), json_encode($got));
 } finally {
     $conn->rollBack();
 }
 
-echo "\n=== 13.3: scritture dentro una transazione piu' esterna ===\n";
-// Se il chiamante ha gia' una transazione, la funzione non deve committare: il
-// rollback del chiamante deve annullare tutto. E' il caso di project_add.php.
-// PDO non ha transazioni annidate, quindi qui si simula aprendo una sola
-// transazione e chiamando la funzione dentro.
+echo "\n=== 13.3: writes inside an outer transaction ===\n";
+// If the caller already has a transaction, the function must not commit: the
+// caller's rollback must undo everything. This is the case of project_add.php.
+// PDO has no nested transactions, so this is simulated by opening a single
+// transaction and calling the function inside it.
 $conn->beginTransaction();
-check('transazione del chiamante aperta', $conn->inTransaction());
-saveProjectFilterAliases($conn, $pid, ['L' => 'L-Prova']);
+check('caller transaction open', $conn->inTransaction());
+saveProjectFilterAliases($conn, $pid, ['L' => 'L-Test']);
 $stillInside = (int)$conn->query('SELECT COUNT(*) FROM project_filter_aliases WHERE project_id = '
     . $pid . " AND alias = 'L'")->fetchColumn();
 $conn->rollBack();
 $afterRollback = (int)$conn->query('SELECT COUNT(*) FROM project_filter_aliases WHERE project_id = '
     . $pid . " AND alias = 'L'")->fetchColumn();
-check('la funzione non ha committato da sola (rollback annulla tutto)',
+check('the function did not commit on its own (rollback undoes everything)',
     $stillInside === 1 && $afterRollback === 0,
-    "dentro=$stillInside dopo rollback=$afterRollback");
+    "inside=$stillInside after rollback=$afterRollback");
 
 // =====================================================================
-// 13.4 — una sola richiesta pending per progetto
+// 13.4 — one pending request per project
 // =====================================================================
-echo "\n=== 13.4: il vincolo respinge il secondo pending ===\n";
+echo "\n=== 13.4: the constraint rejects the second pending ===\n";
 
 $conn->beginTransaction();
 try {
-    // Pulizia: nessuna richiesta pendente per questo progetto.
+    // Cleanup: no pending request for this project.
     $conn->exec("UPDATE suggest_requests SET status = 'done' WHERE project_id = {$pid}"
         . " AND status = 'pending'");
 
-    // Due insert diretti, come farebbero due scrittori concorrenti.
+    // Two direct inserts, as two concurrent writers would do.
     $first = $conn->exec("INSERT INTO suggest_requests (project_id, reason, status) "
         . "VALUES ({$pid}, 'manual', 'pending')");
     $secondRejected = false;
@@ -139,11 +139,11 @@ try {
     } catch (PDOException $e) {
         $secondRejected = ($e->getCode() === '23000') || str_contains($e->getMessage(), '1062');
     }
-    check('il secondo pending e\' respinto dal DB',
+    check('the second pending is rejected by the DB',
         $first === 1 && $secondRejected,
-        $secondRejected ? '1062' : 'ACCETTATO: due pending per lo stesso progetto');
+        $secondRejected ? '1062' : 'ACCEPTED: two pending for the same project');
 
-    // Lo stato non-pending resta libero: il vincolo copre solo la coda.
+    // The non-pending state stays free: the constraint covers only the queue.
     $conn->exec("UPDATE suggest_requests SET status = 'done' WHERE project_id = {$pid}"
         . " AND status = 'pending'");
     $ok = 0;
@@ -152,56 +152,56 @@ try {
             . "VALUES ({$pid}, 'manual', 'done')");
         $ok++;
     }
-    check('le righe chiuse non sono limitate a una', $ok === 3, "inserite=$ok");
+    check('closed rows are not limited to one', $ok === 3, "inserted=$ok");
 
-    // enqueueSuggestRequest deve coalescere: due chiamate, una sola riga pending.
+    // enqueueSuggestRequest must coalesce: two calls, a single pending row.
     $conn->exec("UPDATE suggest_requests SET status = 'done' WHERE project_id = {$pid}"
         . " AND status = 'pending'");
     $r1 = enqueueSuggestRequest($conn, $pid, 'manual');
     $r2 = enqueueSuggestRequest($conn, $pid, 'manual');
     $pend = (int)$conn->query("SELECT COUNT(*) FROM suggest_requests WHERE project_id = {$pid}"
         . " AND status = 'pending'")->fetchColumn();
-    check('enqueueSuggestRequest coalesce due chiamate',
+    check('enqueueSuggestRequest coalesces two calls',
         $r1 === true && $r2 === true && $pend === 1,
-        "prima={$r1} seconda={$r2} pending={$pend}");
+        "first={$r1} second={$r2} pending={$pend}");
 } finally {
     $conn->rollBack();
 }
 
-echo "\n=== 13.4: l'errore vero non viene più nascosto ===\n";
-// Il catch finale deve registrare l'errore invece di restituire false in silenzio:
-// altrimenti la coda smette di accodare e nessuno lo vede.
+echo "\n=== 13.4: the real error is no longer hidden ===\n";
+// The final catch must record the error instead of returning false silently:
+// otherwise the queue stops enqueuing and nobody notices.
 $src = (string)file_get_contents('/var/www/html/includes/projects_functions.php');
 $fn = preg_match('/function enqueueSuggestRequest\b[^{]*\{(.*)\n\}/s', $src, $fm) ? $fm[1] : '';
-check('enqueueSuggestRequest registra gli errori non attesi',
+check('enqueueSuggestRequest records unexpected errors',
     str_contains($fn, "error_log(") && str_contains($fn, '1062'),
-    str_contains($fn, "error_log(") ? '' : 'nessun error_log');
+    str_contains($fn, "error_log(") ? '' : 'no error_log');
 
 // =====================================================================
-// 13.32 — il tree preview non puo' emettere HTML prima del JSON
+// 13.32 — the tree preview must not emit HTML before the JSON
 // =====================================================================
-echo "\n=== 13.32: buffer e catch nei quattro endpoint JSON ===\n";
+echo "\n=== 13.32: buffer and catch in the four JSON endpoints ===\n";
 
 foreach (['project_add.php', 'project_preview.php', 'project_tree_preview.php',
     'project_export_preview.php'] as $ep) {
     $srcEp = (string)file_get_contents('/var/www/html/api/' . $ep);
-    // Nessun catch su Exception: in PHP 8 non copre Error, quindi un TypeError
-    // sfuggirebbe come fatal e lascerebbe la transazione aperta.
+    // No catch on Exception: in PHP 8 it does not cover Error, so a TypeError
+    // would escape as fatal and leave the transaction open.
     $bareException = (bool)preg_match('/catch\s*\(\s*Exception\b/', $srcEp);
-    check("$ep: nessun catch (Exception)", !$bareException,
-        $bareException ? 'ANCORA su Exception' : '');
+    check("$ep: no catch (Exception)", !$bareException,
+        $bareException ? 'STILL on Exception' : '');
 }
 
-// Il punto delicato: il buffer intorno all'include deve chiudersi anche in caso di
-// errore, altrimenti l'HTML parziale precede il JSON e nessuno dei due e' parsabile.
+// The delicate part: the buffer around the include must be closed on error too,
+// otherwise the partial HTML precedes the JSON and neither is parseable.
 $tree = (string)file_get_contents('/var/www/html/api/project_tree_preview.php');
-check('il buffer del tree si chiude in finally',
+check('the tree buffer is closed in finally',
     str_contains($tree, '} finally {') && str_contains($tree, 'ob_get_level()'),
     '');
-check('il rollback e\' in finally, non solo nel catch',
+check('the rollback is in finally, not only in the catch',
     (bool)preg_match('/} finally \{.*?rollBack.*?\}/s', $tree), '');
 
-// E l'endpoint deve ancora rispondere bene sul percorso felice.
+// And the endpoint must still answer properly on the happy path.
 $base = 'http://nginx';
 function httpGet(string $url, string $jar): array
 {
@@ -214,9 +214,9 @@ function httpGet(string $url, string $jar): array
     return [$st, $b];
 }
 /**
- * $form = true invia urlencoded (login.php e i form), altrimenti JSON come fanno i
- * quattro endpoint. Non si deduce dal tipo: gli endpoint hanno payload array, che da
- * soli farebbero passare per un form.
+ * $form = true sends urlencoded (login.php and the forms), otherwise JSON like the
+ * four endpoints do. Not inferred from the type: the endpoints have array payloads, which
+ * on their own would pass for a form.
  */
 function httpPost(string $url, string $jar, $payload, bool $form = false): array
 {
@@ -248,26 +248,29 @@ httpPost("$base/login.php", $jar, ['username' => $tag, 'password' => $plain,
 [$st, $b] = httpPost("$base/api/project_tree_preview.php", $jar,
     ['ids' => [$fid], 'project_id' => $pid, 'overrides' => []]);
 $j = json_decode($b, true);
-check('tree preview: 200 con JSON pulito',
+check('tree preview: 200 with clean JSON',
     $st === 200 && is_array($j) && isset($j['html']) && strlen($j['html']) > 0,
-    'HTTP ' . $st . ', html ' . strlen($j['html'] ?? '') . ' byte');
-check('tree preview: nessun HTML prima del JSON',
+    'HTTP ' . $st . ', html ' . strlen($j['html'] ?? '') . ' bytes');
+check('tree preview: no HTML before the JSON',
     !str_contains(substr($b, 0, 40), '<div'), substr(trim($b), 0, 40));
 
-// E il rollback del tree preview non deve lasciare tracce: il progetto deve avere
-// esattamente le righe che aveva prima.
+// And the tree preview rollback must leave no trace: the project must have
+// exactly the rows it had before.
 $before = (int)$conn->query('SELECT COUNT(*) FROM project_files WHERE node_id = '
     . $pid . " AND level = 'project'")->fetchColumn();
 [$st2, $b2] = httpPost("$base/api/project_tree_preview.php", $jar,
     ['ids' => [$fid], 'project_id' => $pid, 'overrides' => []]);
 $after = (int)$conn->query('SELECT COUNT(*) FROM project_files WHERE node_id = '
     . $pid . " AND level = 'project'")->fetchColumn();
-check('due preview non lasciano link ipotetici', $before === $after,
-    "prima={$before} dopo={$after}");
+check('two previews leave no hypothetical links', $before === $after,
+    "before={$before} after={$after}");
 
 $conn->prepare('DELETE FROM user_permissions WHERE user_id = :id')->execute([':id' => $uid]);
 $conn->prepare('DELETE FROM users WHERE id = :id')->execute([':id' => $uid]);
 @unlink($jar);
-echo "\n(prove e utente di prova rimossi)\n";
-echo 'RISULTATO: ' . ($failed ? 'FALLITI: ' . implode(', ', $failed)
-    : 'scritture atomiche e gestione degli Error') . "\n";
+echo "\n(test artifacts and user removed)\n";
+echo 'RESULT: ' . ($failed ? 'FAILED: ' . implode(', ', $failed)
+    : 'atomic writes and Error handling') . "\n";
+// The exit code is what run.sh records. Without it the script falls off the end and
+// returns 0 even when it printed FAILURES.
+exit($failed ? 1 : 0);
