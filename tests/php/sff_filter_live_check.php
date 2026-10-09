@@ -1,15 +1,15 @@
 <?php
-// Verifica COMPORTAMENTALE della ricerca calibrazioni con filtri.
+// BEHAVIOURAL check of the calibration search with filters.
 //
-// Questo e' il test che mancava. calib_filter_id_check.php controllava la whitelist con
-// una regex sul sorgente e passava, mentre find_calibration_files.php moriva con
+// This is the test that was missing. calib_filter_id_check.php checked the whitelist with
+// a regex on the source and passed, while find_calibration_files.php died with
 // "Uncaught TypeError: array_keys(): Argument #1 ($array) must be of type array, null
-// given" su ogni ricerca con almeno un filtro, che e' il percorso normale della modale
-// SFF. $allFilters era un riferimento pendente: la forma del codice era corretta, la
-// variabile non esisteva. Solo una richiesta vera lo rivela.
+// given" on every search with at least one filter, which is the normal path of the SFF
+// modal. $allFilters was a dangling reference: the shape of the code was correct, the
+// variable did not exist. Only a real request reveals it.
 //
-// Uso:  docker cp tmp/sff_filter_live_check.php awi-php:/tmp/
-//       docker exec awi-php php /tmp/sff_filter_live_check.php
+// Usage:  docker cp tmp/sff_filter_live_check.php awi-php:/tmp/
+//         docker exec awi-php php /tmp/sff_filter_live_check.php
 
 require_once '/var/www/html/includes/config.php';
 require_once '/var/www/html/includes/db_functions.php';
@@ -68,52 +68,55 @@ function search(string $jar, int $id, string $type, array $filters): array
     return [$st, $b, json_decode($b, true)];
 }
 
-echo "\n=== il percorso della modale: ricerca con almeno un filtro ===\n";
-// Il payload che sff.js costruisce davanti: filtri con id, type, ref_value, tolerance.
+echo "\n=== the modal's path: a search with at least one filter ===\n";
+// The payload sff.js really builds: filters with id, type, ref_value, tolerance.
 [$st, $b, $j] = search($jar, (int)$ref['id'], 'lights',
     [['id' => 'xbinning', 'type' => '=', 'ref_value' => $ref['xbinning'], 'tolerance' => '1']]);
 
-check('la risposta e\' JSON valido, non una pagina di errore PHP', $j !== null,
+check('the response is valid JSON, not a PHP error page', $j !== null,
     $j === null ? substr(preg_replace('/\s+/', ' ', $b), 0, 90) . '...' : '');
-check('  e risponde 200', $st === 200, 'HTTP ' . $st);
-check('  con le chiavi attese', is_array($j) && isset($j['html'], $j['count']),
+check('  and it answers 200', $st === 200, 'HTTP ' . $st);
+check('  with the expected keys', is_array($j) && isset($j['html'], $j['count']),
     is_array($j) ? implode(', ', array_keys($j)) : '');
 if (is_array($j) && isset($j['html'])) {
-    check('  e l\'html contiene i riferimenti a image.php',
-        str_contains($j['html'], '/image.php?id='), substr_count($j['html'], '/image.php?id=') . ' riferimenti');
-    check('  e nessun data: URI', !str_contains($j['html'], 'data:image'), '');
+    check('  and the html contains the references to image.php',
+        str_contains($j['html'], '/image.php?id='), substr_count($j['html'], '/image.php?id=') . ' references');
+    check('  and no data: URI', !str_contains($j['html'], 'data:image'), '');
 }
-check('il corpo non contiene tracce di PHP', !preg_match('/<(br|b) ?\/?>|Fatal error|Warning:|Uncaught/',
+check('the body contains no PHP traces', !preg_match('/<(br|b) ?\/?>|Fatal error|Warning:|Uncaught/',
     $b), '');
 
-echo "\n=== piu' filtri insieme, come li manda la modale ===\n";
+echo "\n=== several filters together, as the modal sends them ===\n";
 [$st2, , $j2] = search($jar, (int)$ref['id'], 'lights', [
     ['id' => 'xbinning', 'type' => '=', 'ref_value' => $ref['xbinning'], 'tolerance' => '1'],
     ['id' => 'ccd_temp', 'type' => '=', 'ref_value' => '-10', 'tolerance' => '2'],
 ]);
-check('due filtri insieme rispondono 200 e JSON', $st2 === 200 && $j2 !== null,
-    'HTTP ' . $st2 . ($j2 === null ? ', non JSON' : ''));
+check('two filters together answer 200 and JSON', $st2 === 200 && $j2 !== null,
+    'HTTP ' . $st2 . ($j2 === null ? ', not JSON' : ''));
 
-echo "\n=== la whitelist deve ancora respingere, con JSON pulito ===\n";
+echo "\n=== the whitelist must still reject, with clean JSON ===\n";
 foreach (['bogus_column', '', 'xbinning` OR 1=1 -- '] as $bad) {
     [$st3, $b3, $j3] = search($jar, (int)$ref['id'], 'lights',
         [['id' => $bad, 'type' => '=', 'ref_value' => '1', 'tolerance' => '1']]);
     $clean = $j3 !== null && isset($j3['error']);
-    check('id "' . $bad . '" respinto', $st3 === 400 && $clean,
-        'HTTP ' . $st3 . ($clean ? ' con errore JSON' : ' RISPOSTA NON JSON'));
+    check('id "' . $bad . '" rejected', $st3 === 400 && $clean,
+        'HTTP ' . $st3 . ($clean ? ' with a JSON error' : ' NOT A JSON RESPONSE'));
 }
 [$st4, , $j4] = search($jar, (int)$ref['id'], 'lights',
     [['id' => 'nope', 'type' => '=', 'ref_value' => '1', 'tolerance' => '1']]);
-check('la risposta di errore elenca gli id validi', isset($j4['valid']) && is_array($j4['valid'])
-    && in_array('xbinning', $j4['valid'], true), isset($j4['valid']) ? count($j4['valid']) . ' id' : '');
+check('the error response lists the valid ids', isset($j4['valid']) && is_array($j4['valid'])
+    && in_array('xbinning', $j4['valid'], true), isset($j4['valid']) ? count($j4['valid']) . ' ids' : '');
 
-echo "\n=== anche il ramo senza filtri continua a funzionare ===\n";
+echo "\n=== the branch without filters keeps working too ===\n";
 [$st5, , $j5] = search($jar, (int)$ref['id'], 'lights', []);
-check('filters vuoto risponde 200 e JSON', $st5 === 200 && $j5 !== null, 'HTTP ' . $st5);
+check('empty filters answers 200 and JSON', $st5 === 200 && $j5 !== null, 'HTTP ' . $st5);
 
 $conn->prepare('DELETE FROM user_permissions WHERE user_id=:id')->execute([':id' => $uid]);
 $conn->prepare('DELETE FROM users WHERE id=:id')->execute([':id' => $uid]);
 @unlink($jar);
-echo "\n(prova e utente di prova rimossi)\n";
-echo 'RISULTATO: ' . ($failed ? 'FALLITI: ' . implode(', ', $failed)
-    : 'la ricerca con filtri risponde, e la whitelist respinge') . "\n";
+echo "\n(fixture and test user removed)\n";
+echo 'RESULT: ' . ($failed ? 'FAILED: ' . implode(', ', $failed)
+    : 'the filtered search answers, and the whitelist rejects') . "\n";
+// The exit code is what run.sh records. Without it the script falls off the end and
+// returns 0 even when it printed FAILURES.
+exit($failed ? 1 : 0);

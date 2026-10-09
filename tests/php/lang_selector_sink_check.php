@@ -26,7 +26,7 @@ while (ob_get_level() > 0) {
 
 $failed = [];
 $check = function (string $label, bool $cond, string $detail = '') use (&$failed): void {
-    printf("  %-52s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FALLITO');
+    printf("  %-52s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FAILED');
     if (!$cond) {
         $failed[] = $label;
     }
@@ -46,11 +46,11 @@ ob_start();
 include '/var/www/html/includes/language_selector.php';
 $html = (string)ob_get_clean();
 
-echo "=== il markup emesso non contiene il payload iniettato ===\n";
+echo "=== the emitted markup does not contain the injected payload ===\n";
 printf("  payload: %s\n", $payload);
-printf("  byte emessi: %d\n", strlen($html));
+printf("  bytes emitted: %d\n", strlen($html));
 
-$check('il payload grezzo non compare', !str_contains($html, $payload), '');
+$check('the raw payload does not appear', !str_contains($html, $payload), '');
 
 // Every attribute value must still be closed by the template: the only quotes in the
 // markup are the ones the template itself emitted. Parse instead of counting, so a
@@ -65,7 +65,7 @@ foreach ($doc->getElementsByTagName('select') as $sel) {
         $attrs[strtolower($a->name)] = $a->value;
     }
 }
-$check('il select e\' stato parsato', $attrs !== [], count($attrs) . ' attributi');
+$check('the select was parsed', $attrs !== [], count($attrs) . ' attributes');
 
 // Assert on the parsed attribute NAMES, not on substrings. 'onmouseover' does appear in
 // the output, but only percent-encoded inside data-return, which is inert data; grepping
@@ -77,45 +77,48 @@ $eventAttrs = array_keys(array_filter(
 ));
 // onchange belongs to the template. The invariant is that it is the ONLY event handler:
 // a payload that could add one would show up here as an extra name.
-$check('onchange e\' l\'unico gestore eventi', $eventAttrs === ['onchange'],
+$check('onchange is the only event handler', $eventAttrs === ['onchange'],
     implode(',', $eventAttrs));
-$check('nessun elemento script iniettato', $doc->getElementsByTagName('script')->length === 0, '');
-$check('nessun elemento extra nel select',
+$check('no script element injected', $doc->getElementsByTagName('script')->length === 0, '');
+$check('no extra element in the select',
     $doc->getElementsByTagName('select')->length === 1
     && $doc->getElementsByTagName('option')->length > 0,
     $doc->getElementsByTagName('select')->length . ' select, '
     . $doc->getElementsByTagName('option')->length . ' option');
 
-echo "\n=== data-return trasporta la query string intatta ===\n";
+echo "\n=== data-return carries the query string intact ===\n";
 if (isset($attrs['data-return'])) {
     $decoded = html_entity_decode($attrs['data-return'], ENT_QUOTES, 'UTF-8');
-    printf("  data-return grezzo : %s\n", $attrs['data-return']);
-    printf("  data-return decodificato: %s\n", $decoded);
+    printf("  data-return raw      : %s\n", $attrs['data-return']);
+    printf("  data-return decoded  : %s\n", $decoded);
     $expected = http_build_query(['q' => $payload, 'page' => '3']);
-    $check('il valore decodificato e\' la query string attesa', $decoded === $expected,
-        $decoded === $expected ? '' : 'attesa ' . $expected);
-    $check('non contiene apici o virgolette', !str_contains($decoded, $quote) && !str_contains($decoded, $dquote), '');
+    $check('the decoded value is the expected query string', $decoded === $expected,
+        $decoded === $expected ? '' : 'expected ' . $expected);
+    $check('it contains no quotes', !str_contains($decoded, $quote) && !str_contains($decoded, $dquote), '');
 } else {
-    echo "  data-return assente: il template non usa questa forma\n";
+    echo "  data-return absent: the template does not use this form\n";
 }
 
-echo "\n=== il template non interpola input grezzo in uno script ===\n";
+echo "\n=== the template does not interpolate raw input into a script ===\n";
 // Behavioural: the switch must not carry the raw query string into a JS literal. It may
 // be absent (data-return) or encoded, but never raw.
 $onchange = $attrs['onchange'] ?? '';
-$check('onchange non contiene il payload', !str_contains($onchange, $payload), '');
-$check('onchange codifica il valore della lingua', str_contains($onchange, 'encodeURIComponent'), '');
+$check('onchange does not contain the payload', !str_contains($onchange, $payload), '');
+$check('onchange encodes the language value', str_contains($onchange, 'encodeURIComponent'), '');
 
-echo "\n=== controllo negativo: perche\' la codifica conta ===\n";
+echo "\n=== negative control: why the encoding matters ===\n";
 // Builds the pre-fix shape directly and shows it WOULD have been injectable had the query
 // string not been percent-encoded. This documents that the guarantee is behavioural, not
 // incidental, without grepping the source for a template that no longer exists.
 $raw = 'q=' . $payload;
 $oldShape = 'onchange=' . $dquote . 'window.location.href=' . $quote . '?lang=' . $quote
     . ' + this.value + ' . $quote . $raw . $quote . $dquote;
-$check('la forma pre-fix, non codificata, chiuderebbe l\'attributo',
+$check('the pre-fix, unencoded form would close the attribute',
     substr_count($oldShape, $dquote) > 2,
-    substr_count($oldShape, $dquote) . ' doppie virgolette');
+    substr_count($oldShape, $dquote) . ' double quotes');
 
-echo "\nRISULTATO: " . ($failed ? 'FALLITI: ' . implode(', ', $failed)
-    : 'il markup emesso non e\' iniettabile, e la query string resta intatta') . "\n";
+echo "\nRESULT: " . ($failed ? 'FAILED: ' . implode(', ', $failed)
+    : 'the emitted markup is not injectable, and the query string stays intact') . "\n";
+// The exit code is what run.sh records. Without it the script falls off the end and
+// returns 0 even when it printed FAILURES.
+exit($failed ? 1 : 0);
