@@ -306,7 +306,7 @@ The three cases tried, with the expected verdict, so the check is repeatable:
 | Break introduced | Test to run | Expected |
 |---|---|---|
 | `projects_tree.php:250` — `data-setup-name` without `htmlspecialchars` | `tree_render_escape_check.php 1` | **green**: the attribute is in the `!$hypoMode` branch, the preview does not reach it |
-| same, same file | `tree_render_escape_check.php 0` | **red**: `grezze=1`, `attribute onload su <button>`, `il suo valore resta chiuso` |
+| same, same file | `tree_render_escape_check.php 0` | **red**: `every occurrence has '<' as an entity` with `1 raw`, `attribute onload on <button>`, `and its value stays closed` |
 | `projects_tree.php:252` — `renderSetupFingerprint` without `htmlspecialchars` | `tree_preview_escape_check.php` | **red**: occurrences 1/2 escaped, `<img>` and `<svg onload>` injected, HTML 22 bytes shorter |
 | `sff_filter_template.php:38` — `value=` without `htmlspecialchars` | `sff_filter_escape_check.php` | **red**: 4 checks, among which `il valore e' escaped in value= (riga 38)` |
 | `sff_filter_template.php:37` — text without `htmlspecialchars` | `sff_filter_escape_check.php` | **red**: `element <img>`, `attribute onerror su <img>` |

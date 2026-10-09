@@ -1,35 +1,35 @@
 <?php
-// Verifica — includes/projects_tree.php deve scrivere ogni valore controllato dal
-// database come testo o attributo con htmlspecialchars.
+// Check — includes/projects_tree.php must write every database-controlled value
+// as text or attribute with htmlspecialchars.
 //
-// Il partial produce l'HTML che finisce in due sink:
+// The partial produces the HTML that ends up in two sinks:
 //
 //   api/project_tree_preview.php  -> JSON 'html' -> main.js:646 projectTreePreview.innerHTML
-//   projects.php:803              -> direttamente nel documento
+//   projects.php:803              -> straight into the document
 //
-// I valori che lo attraversano vengono dal database: getProjectTree() seleziona f.* su
-// ogni riga di collegamento, quindi files.name (nome del file FITS) e i label di
-// progetto_sessions / project_panels / project_setups. Chi puo' depositare un FITS
-// nell'archivio controlla quella stringa.
+// The values crossing it come from the database: getProjectTree() selects f.* on
+// every link row, so files.name (the FITS file name) and the labels of
+// project_sessions / project_panels / project_setups. Whoever can deposit an FITS
+// in the archive controls that string.
 //
-// Qui non serve scrivere nulla: l'albero e' sintetico, costruito qui sotto. Quindi
-// questo test puo' girare in qualsiasi momento e resta un test di regressione vero e
-// proprio: basta togliere una delle htmlspecialchars e va rosso.
+// Nothing needs to be written here: the tree is synthetic, built below. So
+// this test can run at any time and stays a real regression test:
+// remove one of the htmlspecialchars and it goes red.
 //
-// Eseguito in TRE modalita' (hypo 1, albero 0, review 2), in tre processi separati,
-// perche' i rami prendono percorsi diversi e il partial dichiara funzioni a livello
-// di file: includerlo due volte nello stesso processo e' un errore fatale.
+// Run in THREE modes (hypo 1, tree 0, review 2), in three separate processes,
+// because the branches take different paths and the partial declares functions at
+// file level: including it twice in the same process is a fatal error.
 //
-//   hypo=1  quello di project_tree_preview.php: niente checkbox, niente pulsante di
-//           rinomina, gli setup sono gia' aperti
-//   hypo=0  quello di projects.php: compare data-setup-name="" (riga 250), il
-//           contesto attributo, che hypoMode non raggiunge mai
-//   rev =2  quello del modale suggerimenti (sugBulkForm): niente checkbox link_keys[],
-//           niente rename, checkbox suggestion_ids[] a intero sui soli pending con
-//           reason nel tooltip escapato, master di gruppo senza name, aperti solo
-//           i rami con pending
+//   hypo=1  the one of project_tree_preview.php: no checkboxes, no rename button,
+//           the setups are already open
+//   hypo=0  the one of projects.php: data-setup-name="" appears (line 250), the
+//           attribute context that hypoMode never reaches
+//   rev =2  the one of the suggestions modal (sugBulkForm): no link_keys[] checkboxes,
+//           no rename, integer suggestion_ids[] checkboxes on the pending ones only with
+//           the reason in an escaped tooltip, group masters without a name, only the
+//           branches with pending ones open
 //
-// Uso:
+// Usage:
 //   docker cp tmp/tree_render_escape_check.php awi-php:/tmp/
 //   docker exec awi-php sh -c 'cd /tmp && php tree_render_escape_check.php 1 && php tree_render_escape_check.php 0 && php tree_render_escape_check.php 2'
 
@@ -40,10 +40,10 @@ require_once '/var/www/html/includes/config.php';
 require_once '/var/www/html/includes/projects_functions.php';
 require_once '/var/www/html/includes/projects_diagnostics.php';
 
-// language.php definisce __(), che il partial chiama a ogni riga. $strings va
-// inizializzato a mano perche' il file di lingua lo leggerebbe altrimenti con
-// HEADER_TITLE gia' definito sopra. getBestLanguage() sta in language_functions.php
-// e va caricato prima di language.php, che lo chiama subito.
+// language.php defines __(), which the partial calls on every line. $strings has to be
+// initialized by hand because the language file would otherwise read it with
+// HEADER_TITLE already defined above. getBestLanguage() lives in language_functions.php
+// and has to be loaded before language.php, which calls it immediately.
 $lang = DEFAULT_LANGUAGE;
 $strings = include '/var/www/html/languages/' . $lang . '.php';
 require_once '/var/www/html/includes/language_functions.php';
@@ -53,17 +53,17 @@ $failed = [];
 
 function check(string $label, bool $cond, string $detail = ''): void
 {
-    printf("  %-56s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FALLITO');
+    printf("  %-56s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FAILED');
     if (!$cond) {
         $GLOBALS['failed'][] = $label;
     }
 }
 
 /**
- * Secondo parere indipendente dai regex: si chiede a un parser HTML reale se esiste
- * un elemento o un attributo che il template non ha mai scritto. Nel controllo
- * negativo questo e' stato il controllo che ha beccato la rottura del contesto
- * attributo, dove la mia espressione regolare guardava il carattere sbagliato.
+ * Second opinion independent of the regexes: a real HTML parser is asked whether there
+ * is an element or an attribute the template never wrote. In the negative
+ * check this is the one that caught the break of the attribute
+ * context, where my regular expression watched the wrong character.
  */
 function injectedMarkup(string $html): array
 {
@@ -80,16 +80,16 @@ function injectedMarkup(string $html): array
         }
         foreach ($el->attributes as $attr) {
             if (stripos($attr->nodeName, 'on') === 0) {
-                $bad[] = "attribute {$attr->nodeName} su <$tag>";
+                $bad[] = "attribute {$attr->nodeName} on <$tag>";
             }
         }
     }
     return array_values(array_unique($bad));
 }
 
-// Il payload copre i tre contesti in cui il partial scrive: testo, attributo con
-// doppie apici, e attributo con apici singoli. parseProjectAddRequest tronca a 64
-// caratteri solo il nome del custom setup, quindi qui la lunghezza non e' un limite.
+// The payload covers the three contexts in which the partial writes: text, attribute with
+// double quotes, and attribute with single quotes. parseProjectAddRequest truncates to 64
+// characters only the custom setup name, so the length is not a limit here.
 $XSS = 'XSSPAYLOAD<img src=x onerror=alert(1)>"\'<svg onload=alert(2)>';
 $NEEDLE = 'XSSPAYLOAD';
 
@@ -153,7 +153,7 @@ $calCtxBase = [
     'darkRoles' => $darkRoles,
     'flatCov' => diagnoseFlatCoverage($projectTree, [], $darkRoles),
     'reviewMode' => $review,
-    // Solo in hypoMode il partial legge questo, per il badge verde.
+    // Only in hypoMode does the partial read this, for the green badge.
     'hypoLinks' => $mode ? ['101:setup:1' => true, '102:panel:10' => true,
                             '103:session:100' => true, '104:filter:100' => true,
                             '201:filter:100' => true] : [],
@@ -176,44 +176,44 @@ try {
     }
 }
 
-    printf("  renderizzati %d byte\n", strlen($html));
+    printf("  rendered %d bytes\n", strlen($html));
 if (!$mode) {
-    // Salvato solo per mostrare i byte grezzi dei due contesti in coda all'output.
+    // Saved only to show the raw bytes of the two contexts at the end of the output.
     file_put_contents('/tmp/tree_render_last.html', $html);
 }
 
-// Controllo di positivita'. Se il payload non arrivasse nell'HTML, 'nessuna
-// iniezione' sarebbe vero solo perche' la pagina era vuota.
+// Positivity check. If the payload did not reach the HTML, «no
+// injection» would be true only because the page was empty.
 $occ = substr_count($html, $NEEDLE);
 $esc = substr_count($html, $NEEDLE . '&lt;');
-check('il payload e\' arrivato nell\'HTML', $occ > 0, "$occ occorrenze");
-printf("  occorrenze: totali=%d  con '<' come entita=%d\n", $occ, $esc);
-check('  ogni occorrenza ha \'<\' come entita', $esc === $occ,
-    $esc === $occ ? '' : ($occ - $esc) . ' grezze');
+check('the payload reached the HTML', $occ > 0, "$occ occurrences");
+printf("  occurrences: total=%d  with '<' as entity=%d\n", $occ, $esc);
+check('  every occurrence has \'<\' as an entity', $esc === $occ,
+    $esc === $occ ? '' : ($occ - $esc) . ' raw');
 
 $liveTag = preg_match('#' . preg_quote($NEEDLE, '#') . '\s*<(img|svg|script)#i', $html, $m1);
-check('nessun tag vivo dopo il payload', !$liveTag, $liveTag ? '>>> ' . $m1[0] : '');
+check('no live tag after the payload', !$liveTag, $liveTag ? '>>> ' . $m1[0] : '');
 
 $bad = injectedMarkup($html);
-check('nessun elemento o handler iniettato (parser)', $bad === [],
+check('no injected element or handler (parser)', $bad === [],
     $bad ? implode('; ', $bad) : '');
 
-// Il contesto attributo esiste solo nel ramo non-hypo. La sua assenza in hypoMode
-// e' attesa, e va affermata: altrimenti il test passerebbe in silenzio su un
-// contesto che non ha visitato.
+// The attribute context exists only in the non-hypo branch. Its absence in hypoMode
+// is expected, and is asserted: otherwise the test would pass silently on a
+// context it never visited.
 $hasAttr = str_contains($html, 'data-setup-name=');
 if ($mode === false && !$review) {
-    check('il ramo non-hypo renderizza data-setup-name', $hasAttr, '');
-    check('  e il suo valore resta chiuso',
+    check('the non-hypo branch renders data-setup-name', $hasAttr, '');
+    check('  and its value stays closed',
         $hasAttr && str_contains($html, 'data-setup-name="' . $NEEDLE . '&lt;'), '');
 } else {
-    check('i rami hypoMode/review non renderizzano data-setup-name', !$hasAttr,
-        $hasAttr ? 'il contesto attributo sarebbe stato visitato due volte' : '');
+    check('the hypoMode/review branches do not render data-setup-name', !$hasAttr,
+        $hasAttr ? 'the attribute context would have been visited twice' : '');
 }
 
 if ($review) {
-    // La review mostra suggestion_ids[] (interi dal DB) e il reason testuale:
-    // il primo non puo' uscire dal value, il secondo va escapato.
+    // The review shows suggestion_ids[] (integers from the DB) and the textual reason:
+    // the first cannot escape from the value, the second has to be escaped.
     preg_match_all('/name="suggestion_ids\[\]" value="([^"]*)"/', $html, $mSug);
     $sugVals = $mSug[1];
     $allInt = $sugVals !== [];
@@ -223,33 +223,33 @@ if ($review) {
             break;
         }
     }
-    check('la review ha checkbox sui pending (suggestion_ids[])', $sugVals !== [],
-        count($sugVals) . ' checkbox');
-    check('  i value sono interi puri', $allInt, $allInt ? '' : implode(',', $sugVals));
-    check('la review non ha checkbox link_keys[]', !str_contains($html, 'name="link_keys[]"'), '');
-    // La review ha le master di gruppo come l'albero vero (selezionano i soli
-    // pending), ma senza name: non vengono mai inviate, conta solo sug-check.
-    check('la review ha le master di gruppo', str_contains($html, 'pgroup-check')
+    check('the review has checkboxes on the pending ones (suggestion_ids[])', $sugVals !== [],
+        count($sugVals) . ' checkboxes');
+    check('  the values are plain integers', $allInt, $allInt ? '' : implode(',', $sugVals));
+    check('the review has no link_keys[] checkboxes', !str_contains($html, 'name="link_keys[]"'), '');
+    // The review has the group masters like the real tree (they select the pending
+    // ones only), but without a name: they are never sent, only sug-check counts.
+    check('the review has the group masters', str_contains($html, 'pgroup-check')
         && str_contains($html, 'cgroup-check'), '');
     preg_match_all('/<input[^>]*class="[^"]*(?:pgroup-check|cgroup-check)[^"]*"[^>]*>/', $html, $mGrp);
     $grpNamed = array_filter($mGrp[0], fn($tag) => str_contains($tag, 'name='));
-    check('  e non hanno name (non inviate)', $mGrp[0] !== [] && $grpNamed === [], count($mGrp[0]) . ' master');
+    check('  and they have no name (never sent)', $mGrp[0] !== [] && $grpNamed === [], count($mGrp[0]) . ' masters');
 }
 
-// Byte grezzi dei due contesti, cosi' il risultato si giudica a occhio e non dal solo
-// esito del check. Solo nel ramo non-hypo, che e' quello che contiene entrambi.
+// Raw bytes of the two contexts, so the result can be judged by eye and not only from the
+// check outcome. Only in the non-hypo branch, which is the one containing both.
 if (!$mode && !$review) {
-    echo "\n--- testo (riga 248) e attributo (riga 250), byte grezzi ---\n";
+    echo "\n--- text (line 248) and attribute (line 250), raw bytes ---\n";
     if (preg_match('#S\d+:\s*' . preg_quote($NEEDLE, '#') . '&lt;[^<]{0,60}#', $html, $m)) {
-        echo '  testo     : ' . $m[0] . "\n";
+        echo '  text      : ' . $m[0] . "\n";
     }
     if (preg_match('#data-setup-name="[^"]{0,80}#', $html, $m)) {
-        echo '  attributo : ' . $m[0] . "\n";
+        echo '  attribute : ' . $m[0] . "\n";
     }
 }
 
-echo "\nRISULTATO: " . ($failed
-    ? 'FALLITI: ' . implode(', ', $failed)
-    : 'projects_tree.php escapa in tutti i contesti, modalita ' . ($review ? 'review' : ($mode ? 'hypo' : 'non-hypo')))
+echo "\nRESULT: " . ($failed
+    ? 'FAILED: ' . implode(', ', $failed)
+    : 'projects_tree.php escapes in every context, mode ' . ($review ? 'review' : ($mode ? 'hypo' : 'non-hypo')))
     . "\n";
 exit($failed ? 1 : 0);

@@ -1,19 +1,19 @@
 <?php
-// Verifica 13.9, 13.11, 13.13, 13.18 — riscontro all'utente e markup.
+// Check 13.9, 13.11, 13.13, 13.18 — user feedback and markup.
 //
-//  13.9  gli errori di save/rename erano mostrati con $e->getMessage() su un
-//        catch(Exception): un TypeError sfuggiva come fatal e un PDOException
-//        mostrava all'utente la query che era fallita.
-//  13.11 il troncamento a 2000 file era invisibile: una preview dei primi 2000
-//        sembrava una risposta completa.
-//  13.13 con la colonna nascosta non veniva renderizzato alcun <td>, quindi il
-//        chart leggeva tutti null e saltava il disegno, lasciando un riquadro
-//        vuoto che sembrava rotto.
-//  13.18 il template i18n finiva con ": " e il JS aggiungeva " (nome1, nome2)":
-//        due spazi.
+//  13.9  the save/rename errors were shown with $e->getMessage() on a
+//        catch(Exception): a TypeError escaped as fatal and a PDOException
+//        showed the user the query that had failed.
+//  13.11 the truncation at 2000 files was invisible: a preview of the first 2000
+//        looked like a complete answer.
+//  13.13 with the column hidden no <td> was rendered at all, so the
+//        chart read all null and skipped drawing, leaving an empty box
+//        that looked broken.
+//  13.18 the i18n template ended with ": " and the JS added " (name1, name2)":
+//        two spaces.
 //
-// Uso:  docker cp tmp/ux_feedback_check.php awi-php:/tmp/
-//       docker exec awi-php sh -c 'cd /tmp && php ux_feedback_check.php'
+// Usage:  docker cp tmp/ux_feedback_check.php awi-php:/tmp/
+//         docker exec awi-php sh -c 'cd /tmp && php ux_feedback_check.php'
 
 require_once '/var/www/html/includes/config.php';
 require_once '/var/www/html/includes/db_functions.php';
@@ -38,7 +38,7 @@ $failed = [];
 
 function check(string $label, bool $cond, string $detail = ''): void
 {
-    printf("  %-58s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FALLITO');
+    printf("  %-58s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FAILED');
     if (!$cond) {
         $GLOBALS['failed'][] = $label;
     }
@@ -73,47 +73,47 @@ function httpPost(string $url, string $jar, array $payload, bool $form = false):
 }
 
 // =====================================================================
-// 13.18 — niente doppio spazio
+// 13.18 — no double space
 // =====================================================================
-echo "\n=== 13.18: il template non deve finire con uno spazio ===\n";
+echo "\n=== 13.18: the template must not end with a space ===\n";
 
 $doubleSpace = [];
 foreach (glob('/var/www/html/languages/*.php') as $lf) {
     $arr = require $lf;
     $v = (string)($arr['filter_mapping_unmapped'] ?? '');
-    // Il JS aggiunge " (" + nomi + ")": uno spazio finale nel template ne fa due.
+    // The JS adds " (" + names + ")": a trailing space in the template makes two.
     if ($v !== '' && str_ends_with($v, ' ')) {
         $doubleSpace[] = basename($lf, '.php');
     }
 }
-check('nessuna lingua fa finire il template con uno spazio',
+check('no language makes the template end with a space',
     $doubleSpace === [],
-    $doubleSpace === [] ? '5 lingue' : 'con spazio: ' . implode(', ', $doubleSpace));
+    $doubleSpace === [] ? '5 languages' : 'with a space: ' . implode(', ', $doubleSpace));
 
 $itArr = require '/var/www/html/languages/it.php';
 $tmpl = (string)$itArr['filter_mapping_unmapped'];
 $rendered = str_replace('{count}', 2, $tmpl) . ' (Ha, OIII)';
-check('la riga finale non ha due spazi', !str_contains($rendered, ':  ('),
+check('the final line does not have two spaces', !str_contains($rendered, ':  ('),
     '"' . $rendered . '"');
 
 // =====================================================================
-// 13.13 — chart e colonne nascoste
+// 13.13 — charts and hidden columns
 // =====================================================================
-echo "\n=== 13.13: il chart dice quando la sua colonna e' spenta ===\n";
+echo "\n=== 13.13: the chart says when its column is off ===\n";
 
 $pid = (int)$conn->query('SELECT id FROM projects ORDER BY id LIMIT 1')->fetchColumn();
-check('progetto di prova', $pid > 0, "id=$pid");
+check('test project', $pid > 0, "id=$pid");
 
 $src = (string)file_get_contents('/var/www/html/projects.php');
-check('il render del chart conosce le colonne nascoste',
+check('the chart render knows about hidden columns',
     str_contains($src, 'in_array($mk, $hiddenColsProjects, true)'), '');
-check('  e non emette il canvas per una metrica nascosta',
+check('  and does not emit the canvas for a hidden metric',
     (bool)preg_match(
         '/in_array\(\$mk, \$hiddenColsProjects, true\).*?continue;.*?<canvas/s', $src), '');
-check('  e spiega il motivo all\'utente',
+check('  and explains the reason to the user',
     str_contains($src, "__('projects_chart_column_hidden')"), '');
 
-// La chiave deve esistere in tutte le lingue, altrimenti nel 200 vuota.
+// The key must exist in every language, otherwise the 200 leaves it empty.
 $bad = [];
 foreach (glob('/var/www/html/languages/*.php') as $lf) {
     $arr = require $lf;
@@ -121,11 +121,11 @@ foreach (glob('/var/www/html/languages/*.php') as $lf) {
         $bad[] = basename($lf, '.php');
     }
 }
-check('projects_chart_column_hidden in tutte le lingue', $bad === [],
-    $bad === [] ? '5 lingue' : 'manca in: ' . implode(', ', $bad));
+check('projects_chart_column_hidden in all languages', $bad === [],
+    $bad === [] ? '5 languages' : 'missing in: ' . implode(', ', $bad));
 
-// E la pagina deve rendersi senza warning e mostrare il grafico quando la colonna
-// e' visibile (il caso normale), senza che il fix lo abbia spento del tutto.
+// And the page must render without warnings and show the chart when the column
+// is visible (the normal case), without the fix having turned it off entirely.
 $tag = 'uxfb_' . bin2hex(random_bytes(3));
 $plain = 'pw' . bin2hex(random_bytes(6));
 $uid = createUser($conn, $tag, $plain, false, true, ['/']);
@@ -146,20 +146,20 @@ foreach (['Warning', 'Notice', 'Deprecated', 'Fatal error'] as $lvl) {
         $noise[] = $lvl;
     }
 }
-check('la pagina projects si rende senza warning PHP', $noise === [],
-    'HTTP ' . $st . ', ' . strlen($page) . ' byte' . ($noise ? ': ' . implode('/', $noise) : ''));
+check('the projects page renders without PHP warnings', $noise === [],
+    'HTTP ' . $st . ', ' . strlen($page) . ' bytes' . ($noise ? ': ' . implode('/', $noise) : ''));
 
 // =====================================================================
-// 13.11 — il troncamento a 2000 è dichiarato
+// 13.11 — the truncation at 2000 is declared
 // =====================================================================
-echo "\n=== 13.11: il troncamento a 2000 file viene dichiarato ===\n";
+echo "\n=== 13.11: the truncation at 2000 files is declared ===\n";
 
 $prevSrc = (string)file_get_contents('/var/www/html/api/project_preview.php');
-check('project_preview conta gli id scartati',
+check('project_preview counts the discarded ids',
     str_contains($prevSrc, '$truncated = count($selectedIds) - count($ids);'), '');
-check('  e lo espone nella risposta',
+check('  and exposes it in the response',
     str_contains($prevSrc, "'truncated' => \$truncated"), '');
-check('  e aggiunge una riga agli skipped',
+check('  and adds a row to the skipped ones',
     str_contains($prevSrc, "__('projects_truncated'"), '');
 
 $bad = [];
@@ -169,15 +169,15 @@ foreach (glob('/var/www/html/languages/*.php') as $lf) {
         $bad[] = basename($lf, '.php');
     }
 }
-check('projects_truncated in tutte le lingue', $bad === [],
-    $bad === [] ? '5 lingue' : 'manca in: ' . implode(', ', $bad));
+check('projects_truncated in all languages', $bad === [],
+    $bad === [] ? '5 languages' : 'missing in: ' . implode(', ', $bad));
 
-// Il conteggio deve essere reale: 2001 id di cui 2000 analizzati.
+// The count must be real: 2001 ids of which 2000 are analysed.
 $fakeIds = range(1, 2001);
 [$st, $b] = httpPost("$base/api/project_preview.php", $jar,
     ['ids' => $fakeIds, 'project_id' => $pid, 'overrides' => []]);
 $j = json_decode($b, true);
-check('la risposta dichiara il troncamento',
+check('the response declares the truncation',
     $st === 200 && is_array($j) && ($j['truncated'] ?? null) === 1,
     'HTTP ' . $st . ', truncated=' . var_export($j['truncated'] ?? null, true));
 $mentioned = false;
@@ -186,25 +186,25 @@ foreach ((array)($j['skipped'] ?? []) as $s) {
         $mentioned = true;
     }
 }
-check('  e lo dice anche fra gli skipped', $mentioned, '');
+check('  and says so in the skipped ones too', $mentioned, '');
 
-// Sotto il limite non deve inventare un troncamento.
+// Below the limit it must not invent a truncation.
 [$st, $b] = httpPost("$base/api/project_preview.php", $jar,
     ['ids' => [1, 2, 3], 'project_id' => $pid, 'overrides' => []]);
 $j = json_decode($b, true);
-check('sotto il limite -> truncated 0', $st === 200 && ($j['truncated'] ?? null) === 0,
+check('below the limit -> truncated 0', $st === 200 && ($j['truncated'] ?? null) === 0,
     'truncated=' . var_export($j['truncated'] ?? null, true));
 
 // =====================================================================
-// 13.9 — gli errori sono visibili senza perdere dettagli
+// 13.9 — errors are visible without losing detail
 // =====================================================================
-echo "\n=== 13.9: gli errori di azione non sono invisibili ne' pericolosi ===\n";
+echo "\n=== 13.9: action errors are neither invisible nor dangerous ===\n";
 
-check('projects.php cattura Throwable, non Exception',
+check('projects.php catches Throwable, not Exception',
     (bool)preg_match('/\}\s*catch\s*\(\s*Throwable\s+\$e\s*\)\s*\{/', $src), '');
-check('un InvalidArgumentException mostra il suo messaggio',
+check('an InvalidArgumentException shows its message',
     str_contains($src, '$e instanceof InvalidArgumentException'), '');
-check('un errore generico non mostra la query',
+check('a generic error does not show the query',
     str_contains($src, "__('projects_error_generic')") && str_contains($src, 'error_log('), '');
 
 $bad = [];
@@ -214,12 +214,12 @@ foreach (glob('/var/www/html/languages/*.php') as $lf) {
         $bad[] = basename($lf, '.php');
     }
 }
-check('projects_error_generic in tutte le lingue', $bad === [],
-    $bad === [] ? '5 lingue' : 'manca in: ' . implode(', ', $bad));
+check('projects_error_generic in all languages', $bad === [],
+    $bad === [] ? '5 languages' : 'missing in: ' . implode(', ', $bad));
 
-// Un'azione che fallisce davvero deve mostrare qualcosa all'utente. rename_setup
-// con un id inesistente solleva InvalidArgumentException, quindi il messaggio
-// specifico deve arrivare a pagina.
+// An action that really fails must show the user something. rename_setup
+// with a nonexistent id raises InvalidArgumentException, so the specific
+// message must reach the page.
 $csrf = null;
 preg_match('/name="csrf_token" value="([a-f0-9]+)"/', $page, $cm);
 $csrf = $cm[1] ?? ($m[1] ?? '');
@@ -230,18 +230,21 @@ $csrf = $cm[1] ?? ($m[1] ?? '');
     'name' => 'x',
     'csrf_token' => $csrf,
 ], true);
-// L'errore deve arrivare all'utente come testo reso, non come chiave: cercare la
-// chiave sarebbe un falso pass perche' la chiave non finisce mai nell'HTML.
+// The error must reach the user as rendered text, not as a key: looking for
+// the key would be a false pass because the key never ends up in the HTML.
 $enArr = require '/var/www/html/languages/en.php';
 $errText = (string)($enArr['projects_error_name'] ?? '');
 $hasErr = $errText !== '' && str_contains($out, $errText);
-check('un\'azione fallita mostra il messaggio all\'utente',
+check('a failed action shows the message to the user',
     $hasErr, 'HTTP ' . $st . ($redir !== '' ? ' -> ' . $redir : '') . ', '
-    . strlen($out) . ' byte, cercato "' . $errText . '"');
+    . strlen($out) . ' bytes, looked for "' . $errText . '"');
 
 $conn->prepare('DELETE FROM user_permissions WHERE user_id = :id')->execute([':id' => $uid]);
 $conn->prepare('DELETE FROM users WHERE id = :id')->execute([':id' => $uid]);
 @unlink($jar);
-echo "\n(prove e utente di prova rimossi)\n";
-echo 'RISULTATO: ' . ($failed ? 'FALLITI: ' . implode(', ', $failed)
-    : 'riscontro all\'utente e markup corretti') . "\n";
+echo "\n(test artifacts and user removed)\n";
+echo 'RESULT: ' . ($failed ? 'FAILED: ' . implode(', ', $failed)
+    : 'user feedback and markup correct') . "\n";
+// The exit code is what run.sh records. Without it the script falls off the end and
+// returns 0 even when it printed FAILURES.
+exit($failed ? 1 : 0);
