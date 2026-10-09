@@ -308,8 +308,8 @@ The three cases tried, with the expected verdict, so the check is repeatable:
 | `projects_tree.php:250` — `data-setup-name` without `htmlspecialchars` | `tree_render_escape_check.php 1` | **green**: the attribute is in the `!$hypoMode` branch, the preview does not reach it |
 | same, same file | `tree_render_escape_check.php 0` | **red**: `every occurrence has '<' as an entity` with `1 raw`, `attribute onload on <button>`, `and its value stays closed` |
 | `projects_tree.php:252` — `renderSetupFingerprint` without `htmlspecialchars` | `tree_preview_escape_check.php` | **red**: occurrences 1/2 escaped, `<img>` and `<svg onload>` injected, HTML 22 bytes shorter |
-| `sff_filter_template.php:38` — `value=` without `htmlspecialchars` | `sff_filter_escape_check.php` | **red**: 4 checks, among which `il valore e' escaped in value= (riga 38)` |
-| `sff_filter_template.php:37` — text without `htmlspecialchars` | `sff_filter_escape_check.php` | **red**: `element <img>`, `attribute onerror su <img>` |
+| `sff_filter_template.php:38` — `value=` without `htmlspecialchars` | `sff_filter_escape_check.php` | **red**: 4 checks, among which `the value is escaped in value= (line 38)` |
+| `sff_filter_template.php:37` — text without `htmlspecialchars` | `sff_filter_escape_check.php` | **red**: `element <img>`, `attribute onerror on <img>` |
 
 The three tests share three things that make them credible, and they must be kept
 if one of them is modified:
@@ -426,7 +426,7 @@ for the opcache:
 | Break introduced | Expected |
 |---|---|
 | line 229, `name` without `htmlspecialchars` | **red**: `no raw occurrence` goes red with `raw=1`, plus `element <img>` and `<svg onload>` injected, in both scopes |
-| line 71, `data-val` without `htmlspecialchars` | **red in `project` only**: `raw=20`, `attribute onload su <td>`; in `main` it stays green, because that branch does not carry `data-val` |
+| line 71, `data-val` without `htmlspecialchars` | **red in `project` only**: `raw=20`, `attribute onload on <td>`; in `main` it stays green, because that branch does not carry `data-val` |
 
 The second line is the most informative: an `innerHTML` check or a `main`-only field
 would not have seen it, because the incriminated branch exists only in `project`.
@@ -481,7 +481,7 @@ The pre-fix case, by removing a single `htmlspecialchars`:
 
 | Break introduced | Expected |
 |---|---|
-| line 38, `value=` without `htmlspecialchars` | **red**: `grezze=3` on `XSS` and `grezze=1` on `Z9`, `attribute onload su <input>`, `il value= nascosto e' escaped` |
+| line 38, `value=` without `htmlspecialchars` | **red**: `raw=3` on `XSS` and `raw=1` on `Z9`, `attribute onload on <input>`, `the hidden value= is escaped (line 38 of the template)` |
 ### `table.php`: two views, two distinct sinks
 
 `table.php` is the shell of the main table and contains **two** renderings of the same

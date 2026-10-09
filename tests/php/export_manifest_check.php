@@ -346,3 +346,6 @@ check('  and it rebuilds folders, sets and total_size',
 
 echo "\nRESULT: " . ($failed ? 'FAILED: ' . implode(', ', $failed)
     : 'rotation and manifest correct') . "\n";
+// The exit code is what run.sh records. Without it the script falls off the end and
+// returns 0 even when it printed FAILURES.
+exit($failed ? 1 : 0);

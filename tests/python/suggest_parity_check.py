@@ -180,3 +180,6 @@ check('  no mute "except Exception: out = {}"',
       'except Exception:\n        out = {}' not in fn, '')
 
 print('\nRESULT: ' + ('FAILED: ' + ', '.join(FAILED) if FAILED else 'suggester aligned with PHP'))
+# The exit code is what run.sh records. Without it the script falls off the end and
+# returns 0 even when it printed FAILURES.
+sys.exit(1 if FAILED else 0)

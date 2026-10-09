@@ -211,3 +211,6 @@ if ($tilesOn) {
 
 echo "\nRESULT: " . ($failed ? 'FAILED: ' . implode(', ', $failed)
     : 'the groups are a partition, the total is correct') . "\n";
+// The exit code is what run.sh records. Without it the script falls off the end and
+// returns 0 even when it printed FAILURES.
+exit($failed ? 1 : 0);
