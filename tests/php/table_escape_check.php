@@ -1,23 +1,23 @@
 <?php
-// Verifica — includes/table.php deve scrivere con htmlspecialchars i valori dell'archivio
-// in ENTRAMBE le viste.
+// Check — includes/table.php must write the archive values with htmlspecialchars in
+// BOTH views.
 //
-// table.php e' il guscio della tabella principale e contiene un secondo rendering dei
-// stessi dati: oltre alla vista a elenco (che delega le celle a renderFileTableCells, gia'
-// coperta da file_cells_escape_check.php) c'e' la vista a schede, che riscrive da capo
-// nome, path, object, filter, exptime, imgtype e date_obs. E' un percorso distinto: una
-// correzione alla vista a elenco non toccherebbe quello.
+// table.php is the shell of the main table and contains a second rendering of the
+// same data: besides the list view (which delegates the cells to renderFileTableCells,
+// already covered by file_cells_escape_check.php) there is the cards view, which
+// rewrites from scratch name, path, object, filter, exptime, imgtype and date_obs.
+// It is a distinct path: a fix to the list view would not touch it.
 //
-//   index.php -> includes/table.php   (vista elenco + vista schede, via cookie viewMode)
+//   index.php -> includes/table.php   (list view + cards view, via the viewMode cookie)
 //
-// Nessuna scrittura: le righe sono sintetiche. Il progetto in $projectList resta vuoto,
-// perche' richiederebbe un inserimento: i nomi dei progetti sono coperti dal
-// htmlspecialchars di riga 36, verificabile a occhio ma non provato qui.
+// No writes: the rows are synthetic. The project in $projectList stays empty,
+// because it would require an insert: the project names are covered by the
+// htmlspecialchars on line 36, verifiable by eye but not proven here.
 //
-// I dati sono controllati dall'archivio esattamente come in file_cells.php: name e path
-// sono stringhe, il resto sono numeri.
+// The data is archive-controlled exactly as in file_cells.php: name and path
+// are strings, the rest are numbers.
 //
-// Uso:
+// Usage:
 //   docker cp tmp/table_escape_check.php awi-php:/tmp/
 //   docker exec awi-php sh -c 'cd /tmp && php table_escape_check.php'
 
@@ -40,26 +40,26 @@ $failed = [];
 
 function check(string $label, bool $cond, string $detail = ''): void
 {
-    printf("  %-54s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FALLITO');
+    printf("  %-54s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FAILED');
     if (!$cond) {
         $GLOBALS['failed'][] = $label;
     }
 }
 
 /**
- * Secondo parere indipendente dai regex, sul DOM parsato.
+ * Second opinion independent of the regexes, on the parsed DOM.
  *
- * Qui, a differenza degli altri test, il partial scrive di proposito cose che la lista di
- * divieto degli altri test vieta: un blocco <script> (il gestore dei duplicati) e
- * `onclick="sortTable(...)"` sulle intestazioni che ordinano (template_functions.php:55).
- * Vietarli produrrebbe due falsi positivi su codice corretto, che e' il modo peggiore di
- * far fallire un test: il segnale si perde e nessuno guarda piu' sotto.
+ * Here, unlike in the other tests, the partial deliberately writes things the deny-list of
+ * the other tests forbids: a <script> block (the duplicates handler) and
+ * `onclick="sortTable(...)"` on the headings that sort (template_functions.php:55).
+ * Banning them would produce two false positives on correct code, which is the worst way
+ * to make a test fail: the signal gets lost and nobody looks further.
  *
- * Quindi l'invariante non e' «nessun handler», che sarebbe falso qui, ma «nessun handler
- * che il template non scrive di suo»: si tollera `onclick` su <th> e si vieta tutto il
- * resto. E si controlla che il payload non sia finito dentro lo <script>, che e' l'unico
- * posto dove questa forma di controllo non proteggerebbe nulla: uno <script> iniettato
- * esegue anche con tutto il resto escapato.
+ * So the invariant is not «no handler», which would be false here, but «no handler
+ * that the template does not write itself»: `onclick` on <th> is tolerated and everything
+ * else is banned. And it is checked that the payload did not end up inside the <script>,
+ * which is the only place where this form of check would protect nothing: an injected
+ * <script> executes even with everything else escaped.
  */
 function injectedMarkup(string $html, string $needle = ''): array
 {
@@ -71,28 +71,29 @@ function injectedMarkup(string $html, string $needle = ''): array
     $bad = [];
     foreach ($xp->query('//*') as $el) {
         $tag = strtolower($el->nodeName);
-        // <img> e' legittimo (le miniature), <script> e' il gestore dei duplicati.
+        // <img> is legitimate (the thumbnails), <script> is the duplicates handler.
         if (in_array($tag, ['svg', 'iframe', 'object', 'embed', 'form'], true)) {
-            $bad[] = "element <$tag> non previsto dal template";
+            $bad[] = "element <$tag> not expected by the template";
         }
         foreach ($el->attributes as $attr) {
             $an = strtolower($attr->nodeName);
             if (str_starts_with($an, 'on') && !($an === 'onclick' && $tag === 'th')) {
-                $bad[] = "attributo {$attr->nodeName} su <$tag>";
+                $bad[] = "attribute {$attr->nodeName} on <$tag>";
             }
         }
     }
-    // Solo lo <script> si controlla nel contenuto, e perche' li' il confronto ha senso:
-    // il contenuto di uno <script> e' testo grezzo, il parser NON risolve le entita' dentro,
-    // quindi la ricerca del payload e' informativa. Sui nodi normali non lo e': il DOM
-    // restituisce i valori DECODIFICATI, e `XSS&lt;img` arriva li' come testo `XSS<img`.
-    // Un controllo «il payload non compare nel testo» sarebbe quindi vero solo per codice
-    // rotto, e falso su tutto il resto — l'esatto opposto di un test (trappola #50).
-    // La prova che il payload sia stato portato come valore e non come markup e' gia' la
-    // conta grezza/entita' fatta sopra, piu' l'assenza di elementi e handler nuovi qui.
+    // Only the <script> is checked in its content, and that is because there the comparison
+    // makes sense: the content of a <script> is raw text, the parser does NOT resolve
+    // entities inside it, so searching the payload there is informative. Not on normal
+    // nodes: the DOM returns the values DECODED, and `XSS&lt;img` arrives there as text
+    // `XSS<img`. A check «the payload does not appear in the text» would therefore be true
+    // only for broken code, and false on everything else — the exact opposite of a test
+    // (trap #50). The proof that the payload was carried as a value and not as markup is
+    // already the raw/entity count done above, plus the absence of new elements and
+    // handlers here.
     foreach ($xp->query('//script') as $el) {
         if ($needle !== '' && str_contains($el->textContent, $needle)) {
-            $bad[] = 'il payload e\' dentro un <script>';
+            $bad[] = 'the payload is inside a <script>';
         }
     }
     return array_values(array_unique($bad));
@@ -101,9 +102,9 @@ function injectedMarkup(string $html, string $needle = ''): array
 $XSS = 'XSS<img src=x onerror=alert(1)>"\'<svg onload=alert(2)>';
 $NEEDLE = 'XSS';
 
-// Numeri, non il payload: sono i valori che il reindexer scrive come numeri, e senza cast
-// (resolution, fov_w, fov_h, file_size) una stringa qui farebbe TypeError invece di
-// iniettare. Lo scopo di questo test e' l'escaping delle stringhe.
+// Numbers, not the payload: they are the values the indexer writes as numbers, and without
+// a cast (resolution, fov_w, fov_h, file_size) a string here would raise a TypeError
+// instead of injecting. The scope of this test is the escaping of strings.
 $numeric = [
     'id' => 424243, 'mtime' => 1750000000, 'file_size' => 16980480,
     'width' => 9576, 'height' => 6388, 'resolution' => 2.14, 'fov_w' => 326.7, 'fov_h' => 218.0,
@@ -125,16 +126,16 @@ function hostileRow(array $numeric, string $xss): array
         'imgtype' => $xss,
         'date_obs' => '2026-03-04 05:06:07',
         'file_hash' => $xss,
-        // Le due viste usano due nomi diversi per lo stesso segnaposto: la vista schede
-        // guarda $f['thumb'], quella a elenco delegata guarda $f['thumb']. Entrambe
-        // coperte, perche' i due rami di table.php sono diversi.
+        // The two views use two different names for the same placeholder: the cards view
+        // looks at $f['thumb'], the delegated list view looks at $f['thumb']. Both
+        // covered, because the two branches of table.php are different.
         'thumb' => "\x89PNG\r\n\x1a\n",
         'thumb_crop' => "\x89PNG\r\n\x1a\n",
     ]);
 }
 
-// Visibilita' forzata: senza hiddenCols vuoto showColFor nasconderebbe quasi tutto e il
-// test passerebbe senza aver renderizzato le celle che vuole coprire.
+// Forced visibility: without empty hiddenCols showColFor would hide almost everything and the
+// test would pass without having rendered the cells it wants to cover.
 $hiddenCols = [];
 $hiddenColsProjects = [];
 $base = array_keys(getBaseColumns());
@@ -160,15 +161,15 @@ $sortBy = 'date_obs';
 $sortOrder = 'desc';
 
 /**
- * Renderizza table.php.
+ * Renders table.php.
  *
- * Attenzione a quello che il cookie NON fa: `viewMode` non sceglie quale dei due rami
- * venga renderizzato, cambia solo la classe `hidden` di un contenitore. Il partial stampa
- * SEMPRE elenco e schede, quindi le due esecuzioni qui sotto producono lo stesso byte per
- * byte (40111 byte in entrambe, misurato). Non sono due rendering separati: sono due
- * controlli che il cookie non peggiora nulla. E' la schede a avere un proprio sink del
- * nome (`htmlspecialchars($f['name'])` alla riga 146), distinto da quello di
- * renderFileTableCells, ed e' quello che il check posizionale seguente mira.
+ * Note what the cookie does NOT do: `viewMode` does not choose which of the two branches
+ * gets rendered, it only changes the `hidden` class of a container. The partial ALWAYS
+ * prints list and cards, so the two executions below produce the same byte for
+ * byte (40111 bytes in both, measured). They are not two separate renderings: they are two
+ * checks that the cookie makes nothing worse. The cards view is the one with its own name
+ * sink (`htmlspecialchars($f['name'])` at line 146), distinct from the one of
+ * renderFileTableCells, and that is what the positional check below targets.
  */
 function renderTable(string $viewMode, array $files): string
 {
@@ -176,8 +177,8 @@ function renderTable(string $viewMode, array $files): string
     $_COOKIE['thumbSize'] = '3';
     $GLOBALS['files'] = $files;
     $GLOBALS['tableColspan'] = 12;
-    // $conn assente: table.php fa isset($conn) ? getProjects($conn) : [], quindi la lista
-    // progetti resta vuota e il test non tocca il database.
+    // $conn absent: table.php does isset($conn) ? getProjects($conn) : [], so the project
+    // list stays empty and the test does not touch the database.
     unset($GLOBALS['conn']);
     $level = ob_get_level();
     ob_start();
@@ -199,81 +200,81 @@ $baselineHtml = null;
 foreach (['list' => 'viewMode=list', 'thumbnail' => 'viewMode=thumbnail'] as $mode => $desc) {
     echo "\n=== $desc ===\n";
     $html = renderTable($mode, $files);
-    printf("  renderizzati %d byte\n", strlen($html));
+    printf("  rendered %d bytes\n", strlen($html));
 
-    // Controllo di positivita': il payload deve essere arrivato.
+    // Positivity check: the payload must have arrived.
     $total = substr_count($html, $NEEDLE);
     $raw = substr_count($html, $NEEDLE . '<');
     $ent = substr_count($html, $NEEDLE . '&lt;');
     $url = substr_count($html, $NEEDLE . '%3C');
 
-    // Il cookie cambia l'output, ma solo le classi `hidden`: i due rami sono SEMPRE
-    // stampati, quindi l'invariante non e' «stessi byte» bensi «stesse occorrenze del
-    // payload, e tutte escaped». La versione precedente confrontava i byte e falliva sul
-    // codice corretto, perche' `list-view hidden` e' piu' lungo di `list-view `.
+    // The cookie changes the output, but only the `hidden` classes: the two branches are
+    // ALWAYS printed, so the invariant is not «same bytes» but «same payload occurrences,
+    // and all escaped». The previous version compared the bytes and failed on
+    // correct code, because `list-view hidden` is longer than `list-view `.
     $baselineHtml ??= $html;
     if ($baseline !== null) {
         $counts = [$total, $raw, $ent, $url];
-        check('  il cookie di vista non cambia quante volte il payload compare',
+        check('  the view cookie does not change how many times the payload appears',
             $counts === $baseline,
-            $total . ' occorrenze, stesse della passata precedente');
+            $total . ' occurrences, same as the previous pass');
     } else {
-        echo "  (prima passata: nessun confronto col cookie)\n";
+        echo "  (first pass: no comparison with the cookie)\n";
     }
     $baseline = [$total, $raw, $ent, $url];
-    printf("  occorrenze di '%s': %d totali = %d escaped + %d percent-encoded\n",
+    printf("  occurrences of '%s': %d total = %d escaped + %d percent-encoded\n",
         $NEEDLE, $total, $ent, $url);
-    check('il payload e\' arrivato nell\'HTML', $total > 0, "$total occorrenze");
-    check('ogni occorrenza e\' escaped o percent-encoded',
+    check('the payload reached the HTML', $total > 0, "$total occurrences");
+    check('every occurrence is escaped or percent-encoded',
         $ent + $url === $total && $raw === 0,
-        "entita={$ent} url={$url} grezze={$raw}");
+        "entities={$ent} url={$url} raw={$raw}");
 
     $liveTag = preg_match('#' . preg_quote($NEEDLE, '#') . '\s*<(img|svg|script)#i', $html, $m1);
-    check('nessun tag vivo dopo il payload', !$liveTag, $liveTag ? '>>> ' . $m1[0] : '');
+    check('no live tag after the payload', !$liveTag, $liveTag ? '>>> ' . $m1[0] : '');
 
     $bad = injectedMarkup($html, $NEEDLE);
-    check('nessun elemento, handler o payload iniettato (parser)', $bad === [],
+    check('no injected element, handler or payload (parser)', $bad === [],
         $bad ? implode('; ', $bad) : '');
-    check('  e lo <script> del partial non contiene il payload',
+    check('  and the partial\'s <script> does not contain the payload',
         !preg_match('#<script[^>]*>[^<]*' . preg_quote($NEEDLE, '#') . '#', $html), '');
 
-    // Entrambi i rami di tabella devono aver disegnato la riga, altrimenti «zero
-    // occorrenze» potrebbe voler dire «zero righe».
-    check('la riga e\' stata disegnata', substr_count($html, 'selectable-item') > 0,
-        substr_count($html, 'selectable-item') . ' elementi selectable-item');
-    check('  e le checkbox dei file ci sono', substr_count($html, 'file-checkbox') > 0,
-        substr_count($html, 'file-checkbox') . ' checkbox');
+    // Both table branches must have drawn the row, otherwise «zero
+    // occurrences» could mean «zero rows».
+    check('the row has been drawn', substr_count($html, 'selectable-item') > 0,
+        substr_count($html, 'selectable-item') . ' selectable-item elements');
+    check('  and the file checkboxes are there', substr_count($html, 'file-checkbox') > 0,
+        substr_count($html, 'file-checkbox') . ' checkboxes');
 }
 
-// I due sink di nome sono distinti e vanno verificati per posizione: quello della vista a
-// schede e' proprio di table.php (riga 146), l'altro arriva da renderFileTableCells e
-// coperto da file_cells_escape_check.php. Senza questi due check un test globale passerebbe
-// anche se solo uno dei due fosse scoperto.
-echo "\n=== i due sink di nome, per posizione ===\n";
+// The two named sinks are distinct and have to be verified by position: the one of the
+// cards view is proper to table.php (line 146), the other arrives from
+// renderFileTableCells and is covered by file_cells_escape_check.php. Without these two
+// checks a global test would pass even if only one of the two were uncovered.
+echo "\n=== the two named sinks, by position ===\n";
 $html = $baselineHtml;
-// Vista a schede: dentro thumb-title. Il pattern aggancia `class="thumb-title"` e NON la
-// parola `thumb-title>`: nell'HTML c'e' la virgoletta di chiusura dell'attributo prima
-// dell'angolo, quindi `thumb-title>` non compare mai e la prima versione del check non
-// trovava nulla su codice corretto.
+// Cards view: inside thumb-title. The pattern hooks `class="thumb-title"` and NOT the
+// word `thumb-title>`: in the HTML the closing quote of the attribute comes before
+// the angle bracket, so `thumb-title>` never appears and the first version of the check
+// found nothing on correct code.
 $cardOk = (bool)preg_match('#class="thumb-title">\s*<a[^>]*>\s*'
     . preg_quote($NEEDLE, '#') . '&lt;#s', $html);
-check('vista schede: il nome e\' escaped nel proprio <a>', $cardOk,
-    $cardOk ? '' : 'il blocco thumb-title non contiene il nome escaped');
-// Vista a elenco: dentro la cella delegata a renderFileTableCells.
+check('cards view: the name is escaped in its own <a>', $cardOk,
+    $cardOk ? '' : 'the thumb-title block does not contain the escaped name');
+// List view: inside the cell delegated to renderFileTableCells.
 $listOk = (bool)preg_match('#class="p-3"[^>]*>\s*<a href="/fits/[^"]*"[^>]*>\s*'
     . preg_quote($NEEDLE, '#') . '&lt;#s', $html);
-check('vista elenco: il nome e\' escaped nelle celle delegate', $listOk, '');
-// Entrambi i checkbox dei due rami, con il path escapato.
-check('i checkbox di entrambi i rami hanno il path escaped',
+check('list view: the name is escaped in the delegated cells', $listOk, '');
+// The checkboxes of both branches, with the escaped path.
+check('the checkboxes of both branches have the escaped path',
     substr_count($html, 'value="' . 'DIR/' . $NEEDLE . '&lt;') === 2,
-    substr_count($html, 'value="DIR/' . $NEEDLE . '&lt;') . ' checkbox con path escaped');
-check('  e nessuno dei due href lascia il path grezzo',
+    substr_count($html, 'value="DIR/' . $NEEDLE . '&lt;') . ' checkboxes with escaped path');
+check('  and neither of the two hrefs leaves the path raw',
     substr_count($html, 'href="/fits/' . 'DIR%2F' . $NEEDLE . '%3C') === 2,
-    substr_count($html, 'href="/fits/DIR%2F' . $NEEDLE . '%3C') . ' href percent-encoded');
+    substr_count($html, 'href="/fits/DIR%2F' . $NEEDLE . '%3C') . ' percent-encoded hrefs');
 
-// La vista schede ha due <img> per riga (miniatura e ritaglio), quella a elenco altre due.
-// Entrambe devono puntare a image.php con id intero e nessun src puo' contenere il payload.
-echo "\n=== le <img> delle miniature ===\n";
+// The cards view has two <img> per row (thumbnail and crop), the list view two more.
+// Both must point to image.php with an integer id and no src can contain the payload.
+echo "\n=== the thumbnail <img> ===\n";
 foreach (['list', 'thumbnail'] as $mode) {
     $html = renderTable($mode, $files);
     $doc = new DOMDocument();
@@ -290,12 +291,12 @@ foreach (['list', 'thumbnail'] as $mode) {
             $bad[] = $src;
         }
     }
-    check("viewMode=$mode: le <img> sono solo /image.php con id intero",
+    check("viewMode=$mode: the <img> are only /image.php with an integer id",
         $n > 0 && $bad === [],
-        $bad ? implode(' | ', $bad) : "$n immagini conformi");
+        $bad ? implode(' | ', $bad) : "$n conforming images");
 }
 
-echo "\n--- byte grezzi, vista a schede ---\n";
+echo "\n--- raw bytes, cards view ---\n";
 $html = renderTable('thumbnail', $files);
 if (preg_match('#class="file-checkbox[^"]*" value="[^"]{0,80}#', $html, $m)) {
     echo '  value= : ' . $m[0] . "\n";
@@ -304,10 +305,10 @@ if (preg_match('#href="/fits/[^"]{0,80}#', $html, $m)) {
     echo '  href   : ' . $m[0] . "\n";
 }
 if (preg_match('#thumb-title>\s*<a[^>]*>\s*[^<]{0,70}#s', $html, $m)) {
-    echo '  nome   : ' . trim(strip_tags($m[0])) . "\n";
+    echo '  name   : ' . trim(strip_tags($m[0])) . "\n";
 }
 
-echo "\nRISULTATO: " . ($failed
-    ? 'FALLITI: ' . implode(', ', $failed)
-    : 'table.php escapa in entrambe le viste') . "\n";
+echo "\nRESULT: " . ($failed
+    ? 'FAILED: ' . implode(', ', $failed)
+    : 'table.php escapes in both views') . "\n";
 exit($failed ? 1 : 0);

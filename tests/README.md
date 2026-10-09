@@ -552,7 +552,7 @@ The pre-fix case, by removing the `htmlspecialchars` of the name in the cards vi
 
 | Break introduced | Expected |
 |---|---|
-| `htmlspecialchars($f['name'])` → `$f['name']` in the cards view | **red**: `grezze=1`, `<img onerror>` and `<svg onload>` injected, and `vista schede: il nome e' escaped` goes red with the detail «the thumb-title block does not contain the escaped name» |
+| `htmlspecialchars($f['name'])` → `$f['name']` in the cards view | **red**: `every occurrence is escaped or percent-encoded` goes red with `raw=1`, `<img onerror>` and `<svg onload>` injected, and `cards view: the name is escaped in its own <a>` goes red with the detail «the thumb-title block does not contain the escaped name» |
 
 One thing the test discovers and that is easy to take for granted: **the `viewMode` cookie does not
 choose which view gets rendered**, it only changes the `hidden` class of a
