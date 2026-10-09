@@ -72,6 +72,13 @@ for f in tests/php/*.php; do
     base=$(basename "$f" .php)
     case "$base" in
         hash_parity) continue ;; # two-halves gate, below
+        _*)
+            # Helper, not a test: export_regression_probe.php and
+            # export_dup_scenario.php require it, so the harness still needs it, but
+            # running it would record a green gate over a file with no assertions.
+            docker cp "$f" awi-php:/tmp/harness/ > /dev/null
+            continue
+            ;;
     esac
     if ! match "$base" "$@"; then
         continue

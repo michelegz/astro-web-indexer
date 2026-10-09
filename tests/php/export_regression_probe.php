@@ -45,8 +45,10 @@ $LEAF_OF_KIND = [
 $conn = connectDB();
 $rows = $conn->query("SELECT id, name FROM projects ORDER BY id")->fetchAll();
 if (!$rows) {
-    echo "no projects in DB\n";
-    exit(0);
+    // Not a silent pass: with nothing to build the map for, this probe proves nothing,
+    // which is the same verdict as the old builder not violating the invariant below.
+    echo "no projects in DB: this probe has nothing to check\n";
+    exit(1);
 }
 
 $fail = 0;
@@ -159,3 +161,6 @@ if ($oldLeaf === 0) {
 }
 
 echo $fail === 0 ? "REGRESSION OK\n" : "FAILURES: $fail\n";
+// The exit code is what run.sh records. Without it the script falls off the end and
+// returns 0 even when it printed FAILURES.
+exit($fail === 0 ? 0 : 1);

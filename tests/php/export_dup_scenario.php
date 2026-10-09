@@ -160,3 +160,6 @@ try {
     echo "\nrolled back\n";
 }
 echo $fail === 0 ? "SCENARIO OK\n" : "FAILURES: $fail\n";
+// The exit code is what run.sh records. The fixture guards above exit 1 on their own,
+// but a real assertion failure reaching this point used to return 0.
+exit($fail === 0 ? 0 : 1);

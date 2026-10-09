@@ -37,7 +37,7 @@ The scripts with a tree are the ones loading `config.php` / `db_functions.php` /
 docker exec awi-php sh -c 'rm -rf /tmp/harness && mkdir -p /tmp/harness && \
   cp -r /var/www/html/api /var/www/html/includes /var/www/html/assets \
         /var/www/html/languages /tmp/harness/ && cp /var/www/html/*.php /tmp/harness/'
-docker cp tests/php/<s>.php tmp/_old_export_probe.php awi-php:/tmp/harness/
+docker cp tests/php/<s>.php tests/php/_old_export_probe.php awi-php:/tmp/harness/
 docker exec awi-php sh -c 'cd /tmp/harness && php <s>.php'
 ```
 
@@ -93,8 +93,8 @@ JS tests run locally with Node.
 | `tree_render_escape_check.php` | `projects_tree.php` escapes text, attribute and tooltip in **all three** modes (`hypoMode` 1 and 0, review 2 with `suggestion_ids[]` as an integer and the reason escaped) | no writes (synthetic tree) |
 | `sff_filter_escape_check.php` | `sff_filter_template.php` escapes the reference value in text, `value=` and `data-unit=` | no writes |
 | `tree_preview_escape_check.php` | the real HTTP chain `project_tree_preview.php` → JSON `html` → `main.js:646` | creates and removes 1 user; no writes (the preview rolls back the transaction) |
-| `export_regression_probe.php` | a frame of one type lives under that type's folder; no `fid` in two folders without being a declared duplicate | no writes |
-| `export_dup_scenario.php` | a calibration linked to two setups: the new builder emits both copies and declares them | rolled-back transaction |
+| `export_regression_probe.php` | a frame of one type lives under that type's folder; no `fid` in two folders without being a declared duplicate. **Needs at least one BIAS frame**, and the old builder must violate the invariant, or it reports that it proves nothing | no writes |
+| `export_dup_scenario.php` | a calibration linked to two setups: the new builder emits both copies and declares them. **Needs a BIAS frame and a setup** | rolled-back transaction |
 | `hash_parity.php` + `hash_parity.py` + `hash_parity_diff.py` | **PHP<->Python parity gate**: `config_hash` and `match_inputs` must match, or every dismissal goes stale on every pass | no writes |
 | `stale_check.py`, `stale_resurrect.py` | manual diagnostic tools, require `<file_id>` | rolled-back transaction |
 
@@ -137,8 +137,14 @@ distinction is already covered by `check_escattr.mjs`.
 ### What in `tests/` is not a test
 `tests/` contains other things too, and not all of them should run in the suite:
 
-- **helper**: `_old_export_probe.php` is the frozen pre-fix builder (functions with
-  an `OLD_` prefix so they do not collide), used as a comparison baseline.
+- **helper**: `php/_old_export_probe.php` is the frozen pre-fix builder (functions with
+  an `OLD_` prefix so they do not collide, plus `buildProjectExportMapOld()`), used as a
+  comparison baseline. It is **versioned**: it used to live in `tmp/`, which is gitignored,
+  so on a fresh checkout it was simply absent and both export probes died on the missing
+  `require` — a test that cannot run is not a test. `run.sh` copies every `tests/php/*.php`
+  into the harness, so placing it there makes the dependency travel with the suite; the
+  runner skips `_`-prefixed files so the helper is not recorded as a green gate over a file
+  with no assertions.
 - **diagnostic probes** (`imgtype_probe.php`, `schema_probe.php`, `phinxlog_probe.php`,
   `snr_diag.py`, `frame_smoke.py`): they print tables, they have no verdict.
 - **throwaway** (`usa-e-getta`): `dbg.php`, `dupdebug.php`, `cksec.php`, `srrender2.php`,
@@ -200,6 +206,32 @@ docker exec -e AWI_PROJECTS_LIB=/opt/scripts awi-python sh -c 'cd /tmp && python
 
 `cols_alignment_check.php`, `frozen_check.php` and `calib_suggest_check.py` also
 verify the behavior *before* the fix.
+
+### The two export probes need a BIAS frame, and go red without one
+
+`export_regression_probe.php` and `export_dup_scenario.php` both compare the shipped
+builder against `php/_old_export_probe.php`, the frozen pre-fix copy whose bug is a
+**duplicated, empty** `elseif ($kind === 'bias')` branch: a bias group following a dark
+group inherits `$leaf` from the previous iteration, and its frames land under
+`DARK/EXPS_600_TEMPC_0/` instead of `BIAS/`.
+
+That branch is only reachable when there is a bias group at all, so **both probes need
+at least one BIAS frame in the archive**:
+
+- `export_regression_probe.php` goes red with
+  `NOTA: il builder vecchio NON viola piu' l'invariante: il confronto pre-fix non dimostra nulla`
+  when the old builder stops violating the leaf invariant. On an archive with no bias
+  frames it can never violate it, and the probe says so rather than passing quietly —
+  that is the intended behaviour, not a defect.
+- `export_dup_scenario.php` exits 1 on `FAIL nessun progetto con setup, o nessun frame BIAS`.
+
+Neither should be turned into a skip: a probe that proves nothing must be loud. To cover
+them, archive at least one bias frame and a setup carrying it.
+
+Both also had **no terminal `exit()`**, so a real assertion failure still returned 0 and
+`run.sh` recorded PASS. `export_regression_probe.php` additionally did `exit(0)` on an
+empty archive, which is the same silent pass by another route. Both now exit on the
+failure count.
 
 ```bash
 # §4: remove the star gate in file_cells.php
