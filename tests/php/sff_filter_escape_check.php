@@ -1,27 +1,27 @@
 <?php
-// Verifica — includes/sff_filter_template.php deve scrivere il valore di riferimento
-// con htmlspecialchars.
+// Check — includes/sff_filter_template.php must write the reference value
+// with htmlspecialchars.
 //
-// L'HTML prodotto qui e' quello che api/sff_get_filters.php fa echo e che
-// sff.js:53 mette in sffFiltersPanel.innerHTML:
+// The HTML produced here is what api/sff_get_filters.php echoes and what
+// sff.js:53 puts into sffFiltersPanel.innerHTML:
 //
 //   sff.js:53  sffFiltersPanel.innerHTML = html
 //     <- fetch /api/sff_get_filters.php?id=<file>&type=<searchType>
 //       <- render_sff_filter($config, $referenceFile[$key])
 //
-// Il valore di riferimento e' files.<colonna> di un frame LIGHT, cioe' l'header FITS
-// di un file dell'archivio: chi deposita un file lo controlla.
+// The reference value is files.<column> of a LIGHT frame, i.e. the FITS header
+// of an archive file: whoever deposits a file controls it.
 //
-// Qui non serve scrivere nulla: il valore di riferimento e' sintetico, passato come
-// argomento. Quindi il test e' un vero test di regressione — togliere una delle due
-// htmlspecialchars e va rosso.
+// Nothing needs to be written here: the reference value is synthetic, passed as an
+// argument. So the test is a real regression test — remove one of the two
+// htmlspecialchars and it goes red.
 //
-// Nota sul percorso HTTP: l'endpoint legge il valore dal database e non dalla
-// richiesta, quindi non esiste modo di renderlo controllabile dal client senza
-// scrivere una riga in files. tree_preview_escape_check.php copre invece il percorso
-// HTTP reale di project_tree_preview.php, dove il nome arriva dalla richiesta.
+// Note on the HTTP path: the endpoint reads the value from the database and not from the
+// request, so there is no way to render a client-controlled one without
+// writing a row into files. tree_preview_escape_check.php covers instead the real
+// HTTP path of project_tree_preview.php, where the name comes from the request.
 //
-// Uso:
+// Usage:
 //   docker cp tmp/sff_filter_escape_check.php awi-php:/tmp/
 //   docker exec awi-php sh -c 'cd /tmp && php sff_filter_escape_check.php'
 
@@ -30,10 +30,10 @@ ini_set('display_errors', '1');
 
 require_once '/var/www/html/includes/config.php';
 
-// language.php definisce __(), che il template chiama nel ramo toggle. $strings va
-// inizializzato a mano perche' il file di lingua lo leggerebbe altrimenti con
-// HEADER_TITLE gia' definito sopra. getBestLanguage() sta in language_functions.php
-// e va caricato prima di language.php, che lo chiama subito.
+// language.php defines __(), which the template calls in the toggle branch. $strings must
+// be initialized by hand because the language file would otherwise read it with
+// HEADER_TITLE already defined above. getBestLanguage() lives in language_functions.php
+// and must be loaded before language.php, which calls it right away.
 $lang = DEFAULT_LANGUAGE;
 $strings = include '/var/www/html/languages/' . $lang . '.php';
 require_once '/var/www/html/includes/language_functions.php';
@@ -83,14 +83,14 @@ $NEEDLE = 'XSSPAYLOAD';
 
 echo "\n=== render_sff_filter() with a hostile reference value ===\n";
 
-// Un filtro per ogni tipo, cosi' sono coperti sia il ramo toggle (che non ha slider)
-// sia i tre tipi di slider, che aggiungono data-type, value= e data-unit=.
+// One filter per type, so both the toggle branch (which has no slider)
+// and the three slider types, which add data-type, value= and data-unit=, are covered.
 //
-// Il lato ATTACCO e' solo $referenceValue: arriva dal database, quindi e' controllato
-// da chi deposita il file. I campi di configurazione vengono invece da sff_all_filters(),
-// un catalogo scritto a mano: non sono dati d'archivio. Qui ricevono comunque il
-// payload come difesa in profondita', e il ramo toggle porta un'unita' ostile per
-// coprire anche l'etichetta testuale della riga 52.
+// The ATTACK side is only $referenceValue: it comes from the database, so it is controlled
+// by whoever deposits the file. The configuration fields come instead from
+// sff_all_filters(), a hand-written catalog: they are not archive data. Here they
+// receive the payload anyway as defence in depth, and the toggle branch carries a
+// hostile unit to also cover the text label on line 52.
 $configs = [
     ['id' => 'object', 'label' => $XSS, 'type' => 'toggle', 'default_on' => true, 'unit' => $XSS],
     ['id' => 'filter', 'label' => 'Filter', 'type' => 'slider_percent', 'default_on' => true,
@@ -127,15 +127,15 @@ $bad = injectedMarkup($html);
 check('no injected element or handler (parser)', $bad === [],
     $bad ? implode('; ', $bad) : '');
 
-// I due contesti vanno verificati per posizione, non solo globalmente: altrimenti
-// un test che copre solo il testo passerebbe anche senza proteggere l'attributo.
+// The two contexts must be checked by position, not just globally: otherwise
+// a test covering only the text would pass even without protecting the attribute.
 check('the value is escaped in the text (line 37)',
     str_contains($html, 'text-gray-300">' . $NEEDLE . '&lt;'), '');
 check('the value is escaped in value= (line 38)',
     str_contains($html, 'class="sff-reference-value" value="' . $NEEDLE . '&lt;'), '');
-// L'etichetta della riga 51-52 usa $filterConfig['unit']: un doppio apice li'
-// chiuderebbe data-unit e inietterebbe un handler. Il campo e' del catalogo, non
-// dell'archivio, quindi e' difesa in profondita'.
+// The label on line 51-52 uses $filterConfig['unit']: a double quote would
+// close data-unit and inject a handler. The field is from the catalog, not
+// from the archive, so this is defence in depth.
 check('the unit is escaped in data-unit (line 51)',
     str_contains($html, 'data-unit="' . $NEEDLE . '&lt;'), '');
 check('  and the text label next to it (line 52)',
