@@ -1,26 +1,26 @@
 <?php
-// Verifica end-to-end — il pannello filtri che sff.js:53 mette in innerHTML non deve
-// eseguire un header FITS.
+// End-to-end check — the filter panel that sff.js:53 assigns to innerHTML must not
+// execute a FITS header.
 //
-// Il buco che questo chiude: il valore di riferimento di render_sff_filter() viene da
-// files.<colonna>, cioe' dall'header FITS di un file dell'archivio. Non esiste un modo per
-// renderlo controllabile dal client senza scrivere una riga in `files`, quindi fino ad ora
-// la verifica era solo a harness (sff_filter_escape_check.php, che guida la funzione con
-// un valore sintetico). Qui la stessa affermazione e' provata sul percorso vero:
+// The gap this closes: the reference value of render_sff_filter() comes from
+// files.<column>, i.e. from the FITS header of a file in the archive. There is no way to
+// render it controllable by the client without writing a row into `files`, so until now
+// the check only existed at harness level (sff_filter_escape_check.php, which drives the
+// function with a synthetic value). Here the same claim is proven on the real path:
 //
 //   GET /api/sff_get_filters.php?id=<id>&type=lights
 //     -> SELECT * FROM files WHERE id = :id AND imgtype = 'LIGHT'
-//     -> render_sff_filter($config, $referenceFile[$key])   per ogni chiave attiva
-//     -> echo, con Content-Type: text/html
+//     -> render_sff_filter($config, $referenceFile[$key])   for each active key
+//     -> echo, with Content-Type: text/html
 //     -> sff.js:53  sffFiltersPanel.innerHTML = html
 //
-// Il file di prova NON viene messo su disco: solo una riga in `files`, che poi viene
-// cancellata per id. Nessun reindex, nessun file nell'archivio, nessun'altra riga toccata.
+// The test file is NOT written to disk: only a row in `files`, which is then
+// deleted by id. No reindex, no file in the archive, no other row touched.
 //
-// Igiene (trappole #44, #46): una sola connessione, autocommit, lock wait basso, DELETE per
-// id esatto, e controllo che il sito risponda prima e dopo.
+// Hygiene (traps #44, #46): a single connection, autocommit, low lock wait, DELETE by
+// exact id, and a check that the site answers before and after.
 //
-// Uso:
+// Usage:
 //   docker cp tmp/sff_filter_http_escape_check.php awi-php:/tmp/
 //   docker exec awi-php sh -c 'cd /tmp && php sff_filter_http_escape_check.php'
 
@@ -38,24 +38,25 @@ $jar = '/tmp/sffesc_' . bin2hex(random_bytes(4));
 
 function check(string $label, bool $cond, string $detail = ''): void
 {
-    printf("  %-54s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FALLITO');
+    printf("  %-54s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FAILED');
     if (!$cond) {
         $GLOBALS['failed'][] = $label;
     }
 }
 
 /**
- * Il payload nei tre contesti che il template scrive: testo, attributo con doppie apici,
- * attributo con apici singoli.
+ * The payload in the three contexts the template writes: text, attribute with double
+ * quotes, attribute with single quotes.
  */
 $XSS = 'XSS<img src=x onerror=alert(1)>"\'<svg onload=alert(2)>';
 $NEEDLE = 'XSS';
 
-// La colonna `filter` e' varchar(50) e sql_mode ha STRICT_TRANS_TABLES, quindi la copia
-// corta DEVE stare in 50 caratteri: con una stringa piu' lunga l'INSERT muore con
-// `1406 Data too long` e il test misurerebbe il vincolo del database invece
-// dell'escaping. Per questo ha un marcatore proprio (Z9): senza, non si distinguerebbe
-// dalle altre tre copie, che i conteggi qui sotto contano solo per $NEEDLE.
+// The `filter` column is varchar(50) and sql_mode has STRICT_TRANS_TABLES, so the short
+// copy MUST fit in 50 characters: with a longer string the INSERT dies with
+// `1406 Data too long` and the test would measure the database constraint instead
+// of the escaping. That is why it has its own marker (Z9): without it, it would be
+// indistinguishable from the other three copies, which the counts below only tally by
+// $NEEDLE.
 $XSS_F = 'Z9<img onerror=alert(1)>"\'<svg onload=alert(2)>';
 
 function httpGet(string $url, string $jar): array
@@ -71,8 +72,8 @@ function httpGet(string $url, string $jar): array
 
 function httpPost(string $url, string $jar, $payload, bool $form = false): array
 {
-    // login.php legge da $_POST urlencoded: con un array e CURLOPT_POSTFIELDS verrebbe
-    // multipart e il login fallirebbe in silenzio (trappola #7 e #16).
+    // login.php reads from $_POST urlencoded: with an array and CURLOPT_POSTFIELDS it would
+    // be multipart and the login would fail silently (traps #7 and #16).
     $body = $form ? http_build_query((array)$payload) : json_encode($payload);
     $ch = curl_init($url);
     curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $body,
@@ -87,9 +88,9 @@ function httpPost(string $url, string $jar, $payload, bool $form = false): array
 }
 
 /**
- * Secondo parere indipendente dai regex: nel DOM parsato nessun elemento pericoloso e
- * nessun attributo on*. Qui il template scrive solo <div>, <label>, <span>, <input>, quindi
- * l'elenco di divieto basta; e unlike su file_cells, qui nessun <img> e' legittimo.
+ * Second opinion independent of the regexes: in the parsed DOM no dangerous element and
+ * no on* attribute. Here the template only writes <div>, <label>, <span>, <input>, so the
+ * deny-list is enough; and unlike file_cells, here no <img> is legitimate.
  */
 function injectedMarkup(string $html): array
 {
@@ -102,11 +103,11 @@ function injectedMarkup(string $html): array
     foreach ($xp->query('//*') as $el) {
         $tag = strtolower($el->nodeName);
         if (in_array($tag, ['svg', 'script', 'iframe', 'object', 'embed', 'form'], true)) {
-            $bad[] = "element <$tag> non previsto dal template";
+            $bad[] = "element <$tag> not expected by the template";
         }
         foreach ($el->attributes as $attr) {
             if (stripos($attr->nodeName, 'on') === 0) {
-                $bad[] = "attributo {$attr->nodeName} su <$tag>";
+                $bad[] = "attribute {$attr->nodeName} on <$tag>";
             }
         }
     }
@@ -114,30 +115,30 @@ function injectedMarkup(string $html): array
 }
 
 $conn = connectDB();
-// PDO su MySQL ha autocommit attivo per default, quindi qui non si soffre dello snapshot
-// REPEATABLE READ che morde mysql.connector (trappola #44): quello e' un problema del
-// driver Python, non di questo. Il lock wait basso resta, pero': se questa sonda toccasse
-// righe contese, il default di 50 secondi bloccherebbe anche il sito invece di far fallire
-// la prova.
+// PDO on MySQL has autocommit on by default, so the REPEATABLE READ snapshot that bites
+// mysql.connector (trap #44) is not a problem here: that one is a Python driver issue,
+// not this one. The low lock wait stays, though: if this probe touched
+// contended rows, the 50-second default would block the site too instead of failing
+// the test.
 $conn->exec("SET SESSION innodb_lock_wait_timeout = 5");
 
 $filesBefore = (int)$conn->query('SELECT COUNT(*) FROM files')->fetchColumn();
 [$sHome0, $home0] = httpGet("$base/projects.php", $jar);
-echo "=== prima ===\n";
-echo "  files in tabella: $filesBefore\n";
-// Una risposta che non sia 5xx: il sito e' su, e non e' bloccato dal database.
-check('il sito risponde prima di iniziare', !str_starts_with((string)$sHome0, '5'),
+echo "=== before ===\n";
+echo "  rows in the files table: $filesBefore\n";
+// Any response that is not 5xx: the site is up, and not blocked by the database.
+check('the site answers before starting', !str_starts_with((string)$sHome0, '5'),
     "HTTP $sHome0");
 
 try {
     // ---------------------------------------------------------------
-    // Riga di prova. `path` e `name` sono NOT NULL; `imgtype` deve essere esattamente
-    // 'LIGHT', altrimenti la WHERE dell'endpoint non la trova e il test misurerebbe un
-    // 404 invece dell'escaping (stessa lezione della trappola #31: verificare la colonna
-    // e il valore reali, non desumerli).
+    // Test row. `path` and `name` are NOT NULL; `imgtype` must be exactly
+    // 'LIGHT', otherwise the endpoint's WHERE does not find it and the test would measure a
+    // 404 instead of the escaping (same lesson as trap #31: check the real column
+    // and the real value, do not infer them).
     // ---------------------------------------------------------------
-    check('il payload breve sta in filter varchar(50)', strlen($XSS_F) <= 50,
-        strlen($XSS_F) . ' caratteri');
+    check('the short payload fits in filter varchar(50)', strlen($XSS_F) <= 50,
+        strlen($XSS_F) . ' characters');
     $marker = 'sffesc_' . bin2hex(random_bytes(4));
     $st = $conn->prepare(
         'INSERT INTO files (path, name, imgtype, object, `filter`, instrume, cameraid, '
@@ -163,11 +164,11 @@ try {
         ':size' => 1024,
     ]);
     $rowId = (int)$conn->lastInsertId();
-    echo "\n=== riga di prova inserita ===\n";
-    check('riga inserita con imgtype=LIGHT', $rowId > 0, "id=$rowId");
+    echo "\n=== test row inserted ===\n";
+    check('row inserted with imgtype=LIGHT', $rowId > 0, "id=$rowId");
 
     // ---------------------------------------------------------------
-    // Sessione reale: login con utente di prova e token CSRF.
+    // Real session: login with a test user and the CSRF token.
     // ---------------------------------------------------------------
     $uid = (int)createUser($conn, $userTag, $plain, false, true, ['/']);
     [$s, $loginHtml] = httpGet("$base/login.php", $jar);
@@ -175,113 +176,113 @@ try {
     [$sLogin,] = httpPost("$base/login.php", $jar, ['username' => $userTag,
         'password' => $plain, 'csrf_token' => $m[1] ?? ''], true);
 
-    // Controllo di sessione (trappola #3): projects.php risponde 302 anche senza
-    // sessione, quindi il segnale e' il form di login dentro il corpo, non lo status.
+    // Session check (trap #3): projects.php answers 302 even without a
+    // session, so the signal is the login form inside the body, not the status.
     [$sHome, $home] = httpGet("$base/projects.php", $jar);
-    check('sessione stabilita', !str_contains($home, 'name="password"'),
+    check('session established', !str_contains($home, 'name="password"'),
         "login HTTP $sLogin, projects.php HTTP $sHome");
 
     // ---------------------------------------------------------------
-    // Controllo di positività: lo stesso endpoint, sul PRIMO file LIGHT vero dell'archivio,
-    // deve rispondere 200 con HTML non vuoto. Senza questo, «il payload non è iniettato»
-    // sarebbe vero anche se l'endpoint non avesse restituito niente.
+    // Positivity check: the same endpoint, on the FIRST real LIGHT file of the archive,
+    // must answer 200 with non-empty HTML. Without this, «the payload is not injected»
+    // would be true even if the endpoint had returned nothing.
     // ---------------------------------------------------------------
     $realId = (int)$conn->query("SELECT id FROM files WHERE imgtype = 'LIGHT'
         AND deleted_at IS NULL ORDER BY id LIMIT 1")->fetchColumn();
     [$sOk, $okBody] = httpGet("$base/api/sff_get_filters.php?id=$realId&type=lights", $jar);
-    check('un LIGHT vero dà 200 con HTML non vuoto (controllo di positività)',
+    check('a real LIGHT gives 200 with non-empty HTML (positivity check)',
         $sOk === 200 && strlen($okBody) > 0,
-        "HTTP $sOk, " . strlen($okBody) . ' byte');
-    check('  e il suo pannello non contiene il payload',
+        "HTTP $sOk, " . strlen($okBody) . ' bytes');
+    check('  and its panel does not contain the payload',
         !str_contains($okBody, $NEEDLE), '');
 
     // ---------------------------------------------------------------
-    // Il caso vero.
+    // The real case.
     // ---------------------------------------------------------------
-    echo "\n=== richiesta ostile ===\n";
+    echo "\n=== hostile request ===\n";
     [$sHostile, $body] = httpGet("$base/api/sff_get_filters.php?id=$rowId&type=lights", $jar);
-    printf("  HTTP %d, %d byte\n", $sHostile, strlen($body));
-    check('la riga di prova dà 200', $sHostile === 200, "HTTP $sHostile");
+    printf("  HTTP %d, %d bytes\n", $sHostile, strlen($body));
+    check('the test row gives 200', $sHostile === 200, "HTTP $sHostile");
 
-    // Occorrenze del payload: devono essere tutte entita'. Qui non c'e' nessun href con
-    // rawurlencode, quindi le forme sono due: grezza ed entita'.
+    // Payload occurrences: they must all be entities. There is no href with
+    // rawurlencode here, so the shapes are two: raw and entity.
     $raw = substr_count($body, $NEEDLE . '<');
     $ent = substr_count($body, $NEEDLE . '&lt;');
     $total = substr_count($body, $NEEDLE);
-    printf("  occorrenze di '%s': %d totali = %d escaped + %d grezze\n",
+    printf("  occurrences of '%s': %d total = %d escaped + %d raw\n",
         $NEEDLE, $total, $ent, $raw);
-    check('il payload e\' arrivato nell\'HTML', $total > 0, "$total occorrenze");
-    check('ogni occorrenza e\' escaped come entita\'', $ent === $total && $raw === 0,
-        "entita={$ent} grezze={$raw}");
+    check('the payload reached the HTML', $total > 0, "$total occurrences");
+    check('every occurrence is escaped as an entity', $ent === $total && $raw === 0,
+        "entities={$ent} raw={$raw}");
 
     $liveTag = preg_match('#' . preg_quote($NEEDLE, '#') . '\s*<(img|svg|script)#i', $body, $m1);
-    check('nessun tag vivo dopo il payload', !$liveTag, $liveTag ? '>>> ' . $m1[0] : '');
+    check('no live tag after the payload', !$liveTag, $liveTag ? '>>> ' . $m1[0] : '');
 
     $bad = injectedMarkup($body);
-    check('nessun elemento o handler iniettato (parser)', $bad === [],
+    check('no injected element or handler (parser)', $bad === [],
         $bad ? implode('; ', $bad) : '');
 
-    // Verifica posizionale dei due contesti, non solo globale (trappola #34/#50).
-    check('il testo del riferimento e\' escaped (riga 37 del template)',
+    // Positional check of the two contexts, not just a global one (trap #34/#50).
+    check('the reference text is escaped (line 37 of the template)',
         str_contains($body, 'text-gray-300">' . $NEEDLE . '&lt;'), '');
-    check('il value= nascosto e\' escaped (riga 38 del template)',
+    check('the hidden value= is escaped (line 38 of the template)',
         str_contains($body, 'class="sff-reference-value" value="' . $NEEDLE . '&lt;'), '');
-    // Il ramo slider deve essere stato renderizzato, altrimenti le due verifiche sopra
-    // coprirebbero solo toggle e il test passerebbe anche senza il resto del template.
-    check('il ramo slider e\' stato renderizzato',
+    // The slider branch must have been rendered, otherwise the two checks above
+    // would only cover the toggle and the test would pass without the rest of the template.
+    check('the slider branch was rendered',
         substr_count($body, 'sff-filter-slider') > 0,
-        substr_count($body, 'sff-filter-slider') . ' slider');
+        substr_count($body, 'sff-filter-slider') . ' sliders');
 
-    // La riga short, quella che sta in filter varchar(50): ha un marcatore proprio (Z9),
-    // quindi si controlla per intero e non tramite $NEEDLE, che non la conterrebbe.
+    // The short one, the row that sits in filter varchar(50): it has its own marker (Z9),
+    // so it is checked whole and not through $NEEDLE, which would not contain it.
     $rawF = substr_count($body, 'Z9<');
     $entF = substr_count($body, 'Z9&lt;');
-    printf("  occorrenze di 'Z9' (colonna filter): %d totali = %d escaped + %d grezze\n",
+    printf("  occurrences of 'Z9' (filter column): %d total = %d escaped + %d raw\n",
         $rawF + $entF, $entF, $rawF);
-    check('il payload breve (colonna filter) e\' arrivato nell\'HTML', ($rawF + $entF) > 0,
-        ($rawF + $entF) . ' occorrenze');
-    check('  ed e\' escaped come entita\'', $entF === $rawF + $entF && $rawF === 0,
-        "entita={$entF} grezze={$rawF}");
+    check('the short payload (filter column) reached the HTML', ($rawF + $entF) > 0,
+        ($rawF + $entF) . ' occurrences');
+    check('  and it is escaped as an entity', $entF === $rawF + $entF && $rawF === 0,
+        "entities={$entF} raw={$rawF}");
 
-    echo "\n--- byte grezzi dei due contesti ---\n";
+    echo "\n--- raw bytes of the two contexts ---\n";
     if (preg_match('#text-gray-300">[^<]{0,90}#', $body, $m)) {
-        echo '  testo     : ' . $m[0] . "\n";
+        echo '  text      : ' . $m[0] . "\n";
     }
     if (preg_match('#class="sff-reference-value" value="[^"]{0,90}#', $body, $m)) {
-        echo '  attributo : ' . $m[0] . "\n";
+        echo '  attribute : ' . $m[0] . "\n";
     }
 
 } catch (Throwable $e) {
-    printf("  ECCEZIONE %s: %s\n", get_class($e), $e->getMessage());
-    $failed[] = 'eccezione';
+    printf("  EXCEPTION %s: %s\n", get_class($e), $e->getMessage());
+    $failed[] = 'exception';
 } finally {
-    echo "\n=== pulizia ===\n";
-    // Per id esatto, non con un LIKE larghissimo: il WHERE dell'endpoint usa l'id, quindi
-    // la stessa identita' del record che ho creato.
+    echo "\n=== cleanup ===\n";
+    // By exact id, not with a very broad LIKE: the endpoint's WHERE uses the id, so
+    // it is the same identity as the record I created.
     if ($rowId !== null) {
         $conn->prepare('DELETE FROM files WHERE id = :id')->execute([':id' => $rowId]);
-        printf("  rimossa la riga files id=%d (%d righe)\n", $rowId, $conn->query('SELECT ROW_COUNT()')->fetchColumn());
+        printf("  removed the files row id=%d (%d rows)\n", $rowId, $conn->query('SELECT ROW_COUNT()')->fetchColumn());
     }
     if ($uid !== null) {
         $conn->prepare('DELETE FROM user_permissions WHERE user_id = :id')->execute([':id' => $uid]);
         $conn->prepare('DELETE FROM users WHERE id = :id')->execute([':id' => $uid]);
-        echo "  rimosso l'utente di prova\n";
+        echo "  removed the test user\n";
     }
     @unlink($jar);
 
     $filesAfter = (int)$conn->query('SELECT COUNT(*) FROM files')->fetchColumn();
-    check('files tornato al conteggio iniziale', $filesAfter === $filesBefore,
-        $filesAfter === $filesBefore ? '' : "prima $filesBefore, ora $filesAfter");
+    check('files back to the initial count', $filesAfter === $filesBefore,
+        $filesAfter === $filesBefore ? '' : "before $filesBefore, now $filesAfter");
     $left = (int)$conn->query("SELECT COUNT(*) FROM files WHERE object LIKE '%onerror=%'
         OR instrume LIKE '%onerror=%'")->fetchColumn();
-    check('nessun residuo con il payload', $left === 0, "residui: $left");
+    check('no leftover with the payload', $left === 0, "leftovers: $left");
 
     [$sHome2, ] = httpGet("$base/projects.php", $jar);
-    check('il sito risponde anche dopo', !str_starts_with((string)$sHome2, '5'),
+    check('the site answers afterwards too', !str_starts_with((string)$sHome2, '5'),
         "HTTP $sHome2");
 }
 
-echo "\nRISULTATO: " . ($failed
-    ? 'FALLITI: ' . implode(', ', $failed)
-    : 'un header FITS non può eseguire codice nel pannello filtri, su HTTP reale') . "\n";
+echo "\nRESULT: " . ($failed
+    ? 'FAILED: ' . implode(', ', $failed)
+    : 'a FITS header cannot execute code in the filter panel, on real HTTP') . "\n";
 exit($failed ? 1 : 0);
