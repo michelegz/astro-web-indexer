@@ -1,18 +1,17 @@
 <?php
-// Verifica 13.24, 13.40 — rotazione e manifest dell'archivio.
+// Check 13.24, 13.40 — archive rotation and manifest.
 //
-//  13.24 projectRotDist() faceva (float)$r1 su un valore non numerico, che dà 0.0 in
-//         silenzio: un file con metadato di rotazione spazzatura risultava allineato a
-//         un pannello a 0 gradi, non veniva scartato dalla tolleranza e il badge
-//         diceva "ok" invece di "unknown". Il gemello Python rotation_distance() lo
-//         segnalava gia' come unknown.
-//  13.40 MANIFEST.json dentro l'archivio era costruito dalla mappa completa, quindi
-//         elencava cartelle, set di calibrazione e dimensioni di file che il controllo
-//         su disco aveva appena scartato. L'inventario contraddiceva il contenuto, e un
-//         set i cui file mancavano tutti non produceva nemmeno la cartella.
+//  13.24 projectRotDist() did (float)$r1 on a non-numeric value, which silently gives 0.0:
+//         a file with junk rotation metadata came out aligned to a 0-degree panel, was
+//         not discarded by the tolerance, and the badge said "ok" instead of "unknown".
+//         The Python twin rotation_distance() already reported it as unknown.
+//  13.40 MANIFEST.json inside the archive was built from the complete map, so it listed
+//         folders, calibration sets and file sizes that the on-disk check had just
+//         discarded. The inventory contradicted the contents, and a set whose files were
+//         all missing did not even produce the folder.
 //
-// Uso:  docker cp tmp/export_manifest_check.php awi-php:/tmp/
-//       docker exec awi-php sh -c 'cd /tmp && php export_manifest_check.php'
+// Usage:  docker cp tmp/export_manifest_check.php awi-php:/tmp/
+//         docker exec awi-php sh -c 'cd /tmp && php export_manifest_check.php'
 
 require_once '/var/www/html/includes/config.php';
 require_once '/var/www/html/includes/db_functions.php';
@@ -34,7 +33,7 @@ $failed = [];
 
 function check(string $label, bool $cond, string $detail = ''): void
 {
-    printf("  %-58s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FALLITO');
+    printf("  %-58s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FAILED');
     if (!$cond) {
         $GLOBALS['failed'][] = $label;
     }
@@ -43,75 +42,75 @@ function check(string $label, bool $cond, string $detail = ''): void
 // =====================================================================
 // 13.24 — projectRotDist
 // =====================================================================
-echo "\n=== 13.24: una rotazione non numerica resta 'unknown' ===\n";
+echo "\n=== 13.24: a non-numeric rotation stays 'unknown' ===\n";
 
-//Casi validi: distanza calcolata, unknown = false.
+// Valid cases: distance computed, unknown = false.
 [$d, $unk] = projectRotDist(10.0, 20.0);
-check('10 e 20 gradi -> 10 gradi, noto', abs($d - 10.0) < 1e-9 && $unk === false, "d=$d");
+check('10 and 20 degrees -> 10 degrees, known', abs($d - 10.0) < 1e-9 && $unk === false, "d=$d");
 [$d, $unk] = projectRotDist(350.0, 10.0);
-check('attraverso il zero -> 20 gradi', abs($d - 20.0) < 1e-9 && $unk === false, "d=$d");
+check('across zero -> 20 degrees', abs($d - 20.0) < 1e-9 && $unk === false, "d=$d");
 
-//Casi non numerici: devono restare unknown. Prima (float)'N/A' dava 0.0 con
-// unknown = false, cioe' "identico a un pannello a 0 gradi".
-foreach (['N/A' => 'N/A', 'spazzatura' => '   ', 'data' => '12:34:56'] as $label => $val) {
+// Non-numeric cases: they must stay unknown. Before, (float)'N/A' gave 0.0 with
+// unknown = false, i.e. "identical to a 0-degree panel".
+foreach (['N/A' => 'N/A', 'junk' => '   ', 'date' => '12:34:56'] as $label => $val) {
     [$d, $unk] = projectRotDist($val, 0.0);
     check("$label -> unknown", $unk === true, "d=$d unknown=" . var_export($unk, true));
 }
 [$d, $unk] = projectRotDist(12.0, 'N/A');
-check('lato destro non numerico -> unknown', $unk === true, "unknown=" . var_export($unk, true));
+check('non-numeric right side -> unknown', $unk === true, "unknown=" . var_export($unk, true));
 
-// Null e stringa vuota: gia' gestiti, ma non devono regredire.
+// Null and empty string: already handled, but they must not regress.
 foreach ([null => 'null', '' => 'vuoto'] as $val => $label) {
     [$d, $unk] = projectRotDist($val, 5.0);
     check("$label -> unknown", $unk === true, "d=$d");
 }
 
-// Un valore numerico in forma stringa continua a valere: i dati vengono dal DB come
-// numeri, ma la funzione e' pubblica e non deve rifiutare '10'.
+// A numeric value in string form still counts: the data comes from the DB as
+// numbers, but the function is public and must not reject '10'.
 [$d, $unk] = projectRotDist('10', '20');
-check('numeri in forma stringa -> noti', abs($d - 10.0) < 1e-9 && $unk === false, "d=$d");
+check('numbers in string form -> known', abs($d - 10.0) < 1e-9 && $unk === false, "d=$d");
 
-// Il gemello Python rotation_distance() deve dare la stessa risposta. Il confronto
-// cross-container non e' possibile (dal container non c'e' il docker CLI), quindi i due
-// test sono ancorati agli stessi valori attesi, calcolati dai primi principi: se uno
-// dei due implementa diversi, la sua metà di questa verifica fallisce.
+// The Python twin rotation_distance() must give the same answer. A cross-container
+// comparison is not possible (there is no docker CLI inside the container), so the two
+// tests are anchored to the same expected values, computed from first principles: if one
+// of the two implements it differently, its half of this check fails.
 [$pyDistExpect, ] = projectRotDist(10.0, 20.0);
-check('stessa distanza che il test Python attende', abs($pyDistExpect - 10.0) < 1e-9,
-    'atteso anche in suggest_parity_check.py: 10.0');
+check('the same distance the Python test expects', abs($pyDistExpect - 10.0) < 1e-9,
+    'also expected in suggest_parity_check.py: 10.0');
 [, $phpUnknown] = projectRotDist('N/A', 0.0);
-check("stessa risposta 'unknown' che il test Python attende",
+check("the same 'unknown' answer the Python test expects",
     $phpUnknown === true, 'rotation_distance("N/A", 0.0) -> True');
 
 // =====================================================================
-// 13.26 (meta' PHP) — stessi ingressi del test Python
+// 13.26 (PHP half) — same inputs as the Python test
 // =====================================================================
-echo "\n=== 13.26 meta' PHP: i marcatori maiuscoli come nel gemello Python ===\n";
+echo "\n=== 13.26 PHP half: the uppercase markers as in the Python twin ===\n";
 
 $expectedRa = fmod((12 + 34 / 60.0 + 56 / 3600.0) * 15.0, 360.0);
 $expectedDec = -(12 + 34 / 60.0 + 56 / 3600.0);
-check('RA "12H34M56S" -> stessa del Python',
+check('RA "12H34M56S" -> same as Python',
     projectParseRa('12H34M56S') !== null && abs(projectParseRa('12H34M56S') - $expectedRa) < 1e-9,
     sprintf('%.6f', (float)projectParseRa('12H34M56S')));
-check('Dec "-12D34M56S" -> stessa del Python',
+check('Dec "-12D34M56S" -> same as Python',
     projectParseDec('-12D34M56S') !== null && abs(projectParseDec('-12D34M56S') - $expectedDec) < 1e-9,
     sprintf('%.6f', (float)projectParseDec('-12D34M56S')));
 
 // =====================================================================
-// 13.25 (meta' PHP) — projectNumPrefix rifiuta il segno come il gemello Python
+// 13.25 (PHP half) — projectNumPrefix rejects the sign like the Python twin
 // =====================================================================
-echo "\n=== 13.25 meta' PHP: tolleranze con unita' e senza segno ===\n";
+echo "\n=== 13.25 PHP half: tolerances with units and without a sign ===\n";
 
 foreach (['10%' => 10.0, '2C' => 2.0, '3deg' => 3.0, '0.2' => 0.2, '  5 arcmin' => 5.0] as $text => $want) {
     check(sprintf('%-12s -> %-5s', $text, $want),
         abs(projectNumPrefix((string)$text, 3.0) - $want) < 1e-12,
         (string)projectNumPrefix((string)$text, 3.0));
 }
-check('"-5" -> default, come _num_prefix in Python',
+check('"-5" -> default, like _num_prefix in Python',
     abs(projectNumPrefix('-5', 3.0) - 3.0) < 1e-12, (string)projectNumPrefix('-5', 3.0));
-check('"-.5" -> default, come _num_prefix in Python',
+check('"-.5" -> default, like _num_prefix in Python',
     abs(projectNumPrefix('-.5', 3.0) - 3.0) < 1e-12, (string)projectNumPrefix('-.5', 3.0));
 
-// E il salvataggio deve rifiutare il negativo alla fonte, non solo alla lettura.
+// And saving must reject the negative at the source, not only on read.
 $pidTol = (int)$conn->query('SELECT MIN(id) FROM projects')->fetchColumn();
 $before = (string)$conn->query('SELECT tolerances FROM projects WHERE id = ' . $pidTol)->fetchColumn();
 $threw = false;
@@ -121,12 +120,12 @@ try {
     $threw = true;
 }
 $after = (string)$conn->query('SELECT tolerances FROM projects WHERE id = ' . $pidTol)->fetchColumn();
-check('salvare una tolleranza negativa viene rifiutato', $threw, '');
-check('  e non scrive nulla', $before === $after, 'tolerances invariato');
+check('saving a negative tolerance is rejected', $threw, '');
+check('  and it writes nothing', $before === $after, 'tolerances unchanged');
 
-// I valori legittimi con unita' devono restare accettati: e' il rischio della mia
-// prima versione della validazione, che rifiutava ogni valore non strettamente numerico
-// e avrebbe rotto la feature (i default sono '1%', '2C', '3deg', '10%').
+// Legitimate values with units must stay accepted: that is the risk of my
+// first version of the validation, which rejected every non-strictly-numeric value
+// and would have broken the feature (the defaults are '1%', '2C', '3deg', '10%').
 $saved = false;
 try {
     saveProjectTolerances($conn, $pidTol, ['tol_rot' => '3deg', 'tol_exp' => '1%']);
@@ -135,25 +134,25 @@ try {
     $saved = false;
 }
 $now = json_decode((string)$conn->query('SELECT tolerances FROM projects WHERE id = ' . $pidTol)->fetchColumn(), true);
-check('i valori con unita\' vengono accettati', $saved && ($now['tol_rot'] ?? null) === '3deg',
+check('values with units are accepted', $saved && ($now['tol_rot'] ?? null) === '3deg',
     json_encode($now));
-// Ripristina.
+// Restore.
 $conn->prepare('UPDATE projects SET tolerances = :t WHERE id = :id')
     ->execute([':t' => $before !== '' ? $before : null, ':id' => $pidTol]);
 
 // =====================================================================
-// 13.40 — il manifest descrive l'archivio, non la mappa
+// 13.40 — the manifest describes the archive, not the map
 // =====================================================================
-echo "\n=== 13.40: il manifest elenca solo cio' che c'e' nell'archivio ===\n";
+echo "\n=== 13.40: the manifest lists only what is in the archive ===\n";
 
 $pid = (int)$conn->query('SELECT id FROM projects ORDER BY id LIMIT 1')->fetchColumn();
 $map = buildProjectExportMap($conn, $pid);
-check('mappa di esportazione costruita',
+check('export map built',
     is_array($map) && isset($map['entries']) && $map['entries'] !== [],
     'entries=' . count($map['entries'] ?? []));
 
-// Il blocco che il fix introduce: stessa logica del ciclo in export_project_zip.php,
-// applicata agli stessi dati, senza scaricare l'archivio.
+// The block the fix introduces: the same logic as the loop in export_project_zip.php,
+// applied to the same data, without downloading the archive.
 $fitsRoot = FITS_ROOT;
 $realRoot = realpath($fitsRoot);
 $validFiles = [];
@@ -210,17 +209,17 @@ if ($missing !== []) {
     $manifest['missing'] = $missing;
 }
 
-// Ogni file elencato nelle cartelle del manifest deve esistere davvero.
+// Every file listed in the manifest folders must really exist.
 $listed = 0;
 foreach ($manifest['folders'] as $dir => $info) {
     $listed += count($info['files'] ?? []);
 }
-check('i file elencati nelle cartelle sono quelli presenti',
+check('the files listed in the folders are the ones present',
     $listed === count($validFiles),
-    "manifest={$listed} presenti=" . count($validFiles));
+    "manifest={$listed} present=" . count($validFiles));
 
-// Ogni set dichiarato deve avere almeno un file: un set vuoto non produce nemmeno la
-// cartella, quindi dichiararlo e' falso.
+// Every declared set must have at least one file: an empty set does not even produce
+// the folder, so declaring it is false.
 $emptySets = [];
 foreach ($manifest['sets'] as $name => $s) {
     $has = false;
@@ -234,43 +233,43 @@ foreach ($manifest['sets'] as $name => $s) {
         $emptySets[] = $name;
     }
 }
-check('nessun set dichiarato senza file', $emptySets === [],
-    $emptySets === [] ? '' : 'vuoti: ' . implode(', ', $emptySets));
+check('no set declared without files', $emptySets === [],
+    $emptySets === [] ? '' : 'empty: ' . implode(', ', $emptySets));
 
-// E il manifest deve concordare con la mappa solo per cio' che esiste: il confronto
-// con la mappa non filtrata e' quello che il fix evita.
-check('il manifest non porta la mappa grezza',
+// And the manifest must agree with the map only for what exists: the comparison
+// with the unfiltered map is exactly what the fix avoids.
+check('the manifest does not carry the raw map',
     $manifest['folders'] !== $map['manifest']['folders']
     || $missing === [],
-    'differenza su folders');
+    'difference on folders');
 
-// La dimensione deve essere quella dei file presenti, non la stima dal DB.
+// The size must be that of the files present, not the estimate from the DB.
 $dbEstimate = (int)($map['manifest']['total_size'] ?? 0);
-check('total_size ricalcolato sui file presenti',
+check('total_size recomputed on the files present',
     $manifest['total_size'] === $archiveSize,
-    "manifesto={$manifest['total_size']} somma file reali={$archiveSize} stima DB={$dbEstimate}");
+    "manifest={$manifest['total_size']} sum of real files={$archiveSize} DB estimate={$dbEstimate}");
 
-// Il manifest deve essere codificabile e valido: e' un file che l'utente apre.
+// The manifest must be encodable and valid: it is a file the user opens.
 $json = awiJsonString($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 $decoded = json_decode($json, true);
-check('il manifest si codifica in JSON valido',
+check('the manifest encodes to valid JSON',
     is_string($json) && is_array($decoded) && isset($decoded['files']),
-    strlen($json) . ' byte');
+    strlen($json) . ' bytes');
 
 if ($missing !== []) {
-    check('i file mancanti sono dichiarati, non taciuti',
+    check('the missing files are declared, not hidden',
         isset($decoded['missing']) && count($decoded['missing']) === count($missing),
         'missing=' . count($missing));
 } else {
-    check('nessun file mancante su questo progetto', true, '');
+    check('no missing file on this project', true, '');
 }
 
-echo "\n=== 13.40: il ramo con i file presenti (caso sintetico) ===\n";
+echo "\n=== 13.40: the branch with present files (synthetic case) ===\n";
 
-// Su questo stack nessun file e' raggiungibile (FITS_ROOT=/var/fits e'vuoto), quindi il
-// caso reale qui esercita solo "zero file". Il ramo opposto e' copero a parte, con
-// liste sintetiche che passano dalla stessa logica: un file presente deve comparire
-// nelle cartelle, un set senza file sopravvissuti non deve essere dichiarato.
+// On this stack no file is reachable (FITS_ROOT=/var/fits is empty), so the
+// real case here only exercises "zero files". The opposite branch is covered separately,
+// with synthetic lists that go through the same logic: a present file must appear
+// in the folders, a set without surviving files must not be declared.
 $probe = '/tmp/awi_manifest_probe';
 @mkdir($probe, 0777, true);
 file_put_contents($probe . '/a.fits', str_repeat('x', 1234));
@@ -321,29 +320,29 @@ $synListed = 0;
 foreach ($synFolders as $di => $info) {
     $synListed += count($info['files'] ?? []);
 }
-check('i file presenti compaiono nelle cartelle', $synListed === 2,
-    'cartelle=' . implode('/', array_keys($synFolders)) . ' file=' . $synListed);
-check('il set con i file sopravvissuti e\' dichiarato', isset($synSets['FLATSET_S1']),
+check('the present files appear in the folders', $synListed === 2,
+    'folders=' . implode('/', array_keys($synFolders)) . ' files=' . $synListed);
+check('the set with the surviving files is declared', isset($synSets['FLATSET_S1']),
     implode(',', array_keys($synSets)));
-check('il set senza file non e\' dichiarato', !isset($synSets['BIASSET_S1']),
-    'BIASSET_S1 assente');
-check('total_size e\' la somma reale', $synSize === 1311, "atteso 1311, ottenuto $synSize");
-check('il percorso del set e\' un segmento, non un prefisso',
+check('the set without files is not declared', !isset($synSets['BIASSET_S1']),
+    'BIASSET_S1 absent');
+check('total_size is the real sum', $synSize === 1311, "expected 1311, got $synSize");
+check('the set path is a segment, not a prefix',
     str_contains('/SETUP_S1/FLATSET_S1/a.fits/', '/FLATSET_S1/')
     && !str_contains('/SETUP_S1/FLATSET_S1X/a.fits/', '/FLATSET_S1/'), '');
 exec('rm -rf ' . escapeshellarg($probe));
 
-// Il codice dell'endpoint non deve piu' riusare la mappa grezza per il manifest.
+// The endpoint code must no longer reuse the raw map for the manifest.
 $zipSrc = (string)file_get_contents('/var/www/html/api/export_project_zip.php');
 $reusesRawManifest = (bool)preg_match(
     '/awiJsonString\(\s*\$map\[.manifest.\]/', $zipSrc);
-check('export_project_zip.php non riusa il manifest grezzo',
+check('export_project_zip.php does not reuse the raw manifest',
     !$reusesRawManifest,
-    $reusesRawManifest ? 'ANCORA $map[manifest]' : '');
-check('  e ricostruisce folders, sets e total_size',
+    $reusesRawManifest ? 'STILL $map[manifest]' : '');
+check('  and it rebuilds folders, sets and total_size',
     str_contains($zipSrc, "\$manifest['folders']")
     && str_contains($zipSrc, "\$manifest['sets']")
     && str_contains($zipSrc, "\$manifest['total_size']"), '');
 
-echo "\nRISULTATO: " . ($failed ? 'FALLITI: ' . implode(', ', $failed)
-    : 'rotazione e manifest corretti') . "\n";
+echo "\nRESULT: " . ($failed ? 'FAILED: ' . implode(', ', $failed)
+    : 'rotation and manifest correct') . "\n";
