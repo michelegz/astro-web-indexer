@@ -1,42 +1,42 @@
-# Verifica §7 — DARK/BIAS non devono passare da find_panel, e non devono creare
-# sessioni orfane.
+# Check §7 — DARK/BIAS must not go through find_panel, and must not create
+# orphan sessions.
 #
-# Prima del fix i darks/bias attraversavano find_panel (inutile: il link va a
-# livello setup e panel_id non era usato) e find_or_create_session (che creava
-# una riga project_sessions non referenziata da nessun link e non raggiungibile
-# dalla potatura). Un dark da libreria di calibrazione non ha RA/DEC: il gate
-# find_panel allora richiedeva un panel a coordinate NULL con lo stesso bucket
-# OBJECT, condizione quasi mai vera, e il file veniva scartato in silenzio.
+# Before the fix darks/bias went through find_panel (useless: the link goes to
+# setup level and panel_id was not used) and find_or_create_session (which created
+# a project_sessions row referenced by no link and unreachable from pruning). A dark
+# from a calibration library has no RA/DEC: the find_panel gate then required a panel
+# with NULL coordinates in the same OBJECT bucket, a condition almost never true, and
+# the file was discarded silently.
 #
-# Stesso spirito per i FLAT (§7b): ogni flat che condivideva il setup veniva
-# proposto (sessione della notte o setup). Ora il flat e' proposto solo nella
-# sessione della propria notte se quella sessione ha gia' light del progetto
-# (linkati o pending), altrimenti e' scartato senza fallback a setup.
+# Same spirit for the FLATs (§7b): every flat that shared the setup was
+# proposed (the night session or the setup). Now the flat is proposed only in
+# the session of its own night if that session already has project lights
+# (linked or pending), otherwise it is discarded with no fallback to setup.
 #
-# Nel dataset i darks/bias appartengono a un telescopio diverso dai light (il
-# fingerprint del setup include TELESCOP), quindi il test usa due progetti di
-# prova: uno ancorato a un LIGHT, uno ancorato a un DARK.
+# In the dataset darks/bias belong to a different telescope than the lights (the
+# setup fingerprint includes TELESCOP), so the test uses two test projects:
+# one anchored to a LIGHT, one anchored to a DARK.
 #
-# Uso:  docker cp tmp/calib_suggest_check.py awi-python:/opt/scripts/
-#       docker exec awi-python python /opt/scripts/calib_suggest_check.py
+# Usage:  docker cp tmp/calib_suggest_check.py awi-python:/opt/scripts/
+#         docker exec awi-python python /opt/scripts/calib_suggest_check.py
 #
-# Tutto dentro transazioni annullate: nessun dato reale viene toccato.
+# Everything inside rolled-back transactions: no real data is touched.
 
 import os
 import sys
 import json
 from datetime import timedelta
 
-# La libreria da usare. Per la prova di regressione si punta a una copia
-# separata che contiene la versione PRE-fix: /opt/scripts/indexer_lib e' un bind
-# mount della directory di lavoro, quindi sovrascriverlo da dentro il container
-# modifica anche il file locale.
+# The library to use. For the regression run it points to a separate
+# copy containing the PRE-fix version: /opt/scripts/indexer_lib is a bind
+# mount of the working directory, so overwriting it from inside the container
+# modifies the local file too.
 LIB = os.environ.get("AWI_PROJECTS_LIB", "/opt/scripts")
 sys.path.insert(0, LIB)
 import mysql.connector
 from indexer_lib.projects import build_setup_fingerprint, suggest_file, get_globals, position_of
 
-print(f"libreria sotto test: {LIB}")
+print(f"library under test: {LIB}")
 
 conn = mysql.connector.connect(
     host=os.environ.get("DB_HOST", "mariadb"),
@@ -62,13 +62,13 @@ def load(file_id):
 
 
 def check(label, cond, detail=""):
-    print(f"  {label:<30} {detail}  {'OK' if cond else '<<< FALLITO'}")
+    print(f"  {label:<30} {detail}  {'OK' if cond else '<<< FAILED'}")
     if not cond:
         failed.append(label)
 
 
 def no_coords(row):
-    """Header come arriva da una libreria di calibrazione: niente RA/DEC."""
+    """Header as it arrives from a calibration library: no RA/DEC."""
     m = dict(row)
     m["objctra"] = None
     m["objctdec"] = None
@@ -78,7 +78,7 @@ def no_coords(row):
 def make_project(name):
     cur.execute("INSERT INTO projects (name, notes, tolerances, assign_mode) "
                 "VALUES (%s, %s, %s, 'suggest')",
-                (f"calibtest_{name}_{os.urandom(3).hex()}", "verifica 7", json.dumps({})))
+                (f"calibtest_{name}_{os.urandom(3).hex()}", "check 7", json.dumps({})))
     return cur.lastrowid
 
 
@@ -99,10 +99,10 @@ def add_panel(setup_id, row):
 globals_ = get_globals(cur)
 
 # ============================================================ LIGHT / FLAT
-# Il LIGHT crea sessione + pending; il FLAT e' proposto solo se condivide
-# una sessione con i light (stessa notte, sessione con light linkati o
-# pending), mai a livello setup e mai senza data.
-print("=== ramo LIGHT + gate FLAT ===")
+# The LIGHT creates session + pending; the FLAT is proposed only if it shares
+# a session with the lights (same night, session with linked or
+# pending lights), never at setup level and never without a date.
+print("=== LIGHT + FLAT gate branch ===")
 light_id = one("SELECT id FROM files WHERE deleted_at IS NULL AND imgtype='LIGHT' "
                "AND date_obs IS NOT NULL AND objctra IS NOT NULL AND objctdec IS NOT NULL "
                "AND instrume IS NOT NULL AND xpixsz IS NOT NULL ORDER BY id LIMIT 1")["id"]
@@ -112,7 +112,7 @@ pidL = make_project("light")
 setupL = add_setup(pidL, lrow, lrow["instrume"])
 panelL, raL, _ = add_panel(setupL, lrow)
 projL = {"id": pidL, "name": "light", "overrides": {}, "mode": "suggest"}
-print(f"  progetto {pidL}  setup {setupL}  panel {panelL}  ra={raL}")
+print(f"  project {pidL}  setup {setupL}  panel {panelL}  ra={raL}")
 
 
 def probe(pid, file_id, meta):
@@ -133,146 +133,145 @@ proj_of = {pidL: projL}
 res, sug, b, a = probe(pidL, light_id, dict(lrow))
 check("LIGHT -> filter/session", res == "suggested" and sug and sug["level"] == "filter"
       and b == 0 and a == 1,
-      f"esito={res} level={sug['level'] if sug else '-'} sessioni {b}->{a}")
+      f"outcome={res} level={sug['level'] if sug else '-'} sessions {b}->{a}")
 
-# NB: niente match su xpixsz: e' FLOAT e `5.4 <=> 5.4` e' falso in MySQL
-# (5.40000009 vs 5.4). Il vero match di setup lo fa il fingerprint, che
-# confronta stringhe formattate; qui basta stesso strumento/telescopio.
+# NB: no match on xpixsz: it is FLOAT and `5.4 <=> 5.4` is false in MySQL
+# (5.40000009 vs 5.4). The real setup match is done by the fingerprint, which
+# compares formatted strings; here the same instrument/telescope is enough.
 flat_id = one("SELECT id FROM files WHERE deleted_at IS NULL AND imgtype='FLAT' "
               "AND instrume <=> %s AND telescop <=> %s "
               "AND date_obs IS NOT NULL ORDER BY id LIMIT 1",
               (lrow["instrume"], lrow["telescop"]))
 if flat_id is None:
-    print("  (nessun FLAT per questo setup: sezione saltata)")
+    print("  (no FLAT for this setup: section skipped)")
 if flat_id:
-    light_sess = sug["node_id"]  # il LIGHT e' a filter/session: il nodo e' la sessione
+    light_sess = sug["node_id"]  # the LIGHT is at filter/session: the node is the session
     lfil = (lrow["filter"] or "").strip()
 
     def reset_flat():
         cur.execute("DELETE FROM project_suggestions WHERE project_id = %s AND file_id = %s",
                     (pidL, flat_id["id"]))
 
-    # Stessa notte del light, stesso filtro: il flat condivide la sessione
-    # con i light -> suggerito li'. (UPDATE dentro la transazione annullata.)
+    # Same night as the light, same filter: the flat shares the session
+    # with the lights -> suggested there. (UPDATE inside the rolled-back transaction.)
     cur.execute("UPDATE files SET date_obs = %s, `filter` = %s WHERE id = %s",
                 (lrow["date_obs"], lrow["filter"], flat_id["id"]))
     frow = load(flat_id["id"])
     res, sug, b, a = probe(pidL, flat_id["id"], dict(frow))
-    check("FLAT stessa notte+stesso filtro -> session", res == "suggested" and sug
+    check("FLAT same night+same filter -> session", res == "suggested" and sug
           and sug["level"] == "session" and sug["node_id"] == light_sess,
-          f"esito={res} level={sug['level'] if sug else '-'} "
-          f"node={sug['node_id'] if sug else '-'} atteso={light_sess}")
-    # Stesso setup e notte ma filtro diverso (e senza alias): scartato.
+          f"outcome={res} level={sug['level'] if sug else '-'} "
+          f"node={sug['node_id'] if sug else '-'} expected={light_sess}")
+    # Same setup and night but a different filter (and no alias): discarded.
     reset_flat()
     cur.execute("UPDATE files SET date_obs = %s, `filter` = 'ZZZ_T01' WHERE id = %s",
                 (lrow["date_obs"], flat_id["id"]))
     frow = load(flat_id["id"])
     res, sug, b, a = probe(pidL, flat_id["id"], dict(frow))
-    check("FLAT filtro diverso -> scartato", res == "skipped" and sug is None,
-          f"esito={res} sug={'si' if sug else 'no'}")
+    check("FLAT different filter -> discarded", res == "skipped" and sug is None,
+          f"outcome={res} sug={'yes' if sug else 'no'}")
     if lfil != "":
-        # Con l'alias ZZZ_T01 -> filtro del light, lo stesso flat passa.
+        # With the alias ZZZ_T01 -> the light's filter, the same flat passes.
         cur.execute("INSERT INTO project_filter_aliases (project_id, alias, canonical) "
                     "VALUES (%s, %s, %s)", (pidL, "zzz_t01", lfil))
-        projL.pop("aliases", None)  # cache lazy: ricaricala con l'alias nuovo
+        projL.pop("aliases", None)  # lazy cache: recompute with the new alias
         frow = load(flat_id["id"])
         res, sug, b, a = probe(pidL, flat_id["id"], dict(frow))
-        check("FLAT con alias -> session", res == "suggested" and sug
+        check("FLAT with alias -> session", res == "suggested" and sug
               and sug["level"] == "session" and sug["node_id"] == light_sess,
-              f"esito={res} level={sug['level'] if sug else '-'}")
+              f"outcome={res} level={sug['level'] if sug else '-'}")
         cur.execute("DELETE FROM project_filter_aliases WHERE project_id = %s", (pidL,))
         projL.pop("aliases", None)
         reset_flat()
-    # Flat senza filtro: solo con light senza filtro (regola uniforme).
+    # Flat without filter: only with lights without a filter (uniform rule).
     reset_flat()
     cur.execute("UPDATE files SET date_obs = %s, `filter` = NULL WHERE id = %s",
                 (lrow["date_obs"], flat_id["id"]))
     frow = load(flat_id["id"])
     res, sug, b, a = probe(pidL, flat_id["id"], dict(frow))
     if lfil == "":
-        check("FLAT senza filtro + light senza filtro -> session",
+        check("FLAT without filter + light without filter -> session",
               res == "suggested" and sug and sug["level"] == "session",
-              f"esito={res}")
+              f"outcome={res}")
     else:
-        check("FLAT senza filtro + light con filtro -> scartato",
-              res == "skipped" and sug is None, f"esito={res}")
-    # Altra notte senza light: scartato, senza lasciare righe. Il DELETE e'
-    # sul solo flat: la pending del LIGHT deve restare (anti-orfani sotto).
+        check("FLAT without filter + light with filter -> discarded",
+              res == "skipped" and sug is None, f"outcome={res}")
+    # Another night without lights: discarded, leaving no rows. The DELETE is
+    # on the flat only: the LIGHT pending must stay (orphans check below).
     reset_flat()
     cur.execute("UPDATE files SET date_obs = %s WHERE id = %s",
                 (lrow["date_obs"] - timedelta(days=20), flat_id["id"]))
     frow = load(flat_id["id"])
     res, sug, b, a = probe(pidL, flat_id["id"], dict(frow))
-    check("FLAT altra notte -> scartato", res == "skipped" and sug is None,
-          f"esito={res} sug={'si' if sug else 'no'}")
-    # Senza data: scartato (niente fallback a setup).
+    check("FLAT another night -> discarded", res == "skipped" and sug is None,
+          f"outcome={res} sug={'yes' if sug else 'no'}")
+    # Without a date: discarded (no fallback to setup).
     cur.execute("UPDATE files SET date_obs = NULL WHERE id = %s", (flat_id["id"],))
     frow = load(flat_id["id"])
     res, sug, b, a = probe(pidL, flat_id["id"], dict(frow))
-    check("FLAT senza data -> scartato", res == "skipped" and sug is None,
-          f"esito={res} sug={'si' if sug else 'no'}")
+    check("FLAT without a date -> discarded", res == "skipped" and sug is None,
+          f"outcome={res} sug={'yes' if sug else 'no'}")
 
 # ============================================================ DARK / BIAS
-print("\n=== ramo DARK/BIAS (il fix) ===")
+print("\n=== DARK/BIAS branch (the fix) ===")
 dark_row = one("SELECT id FROM files WHERE deleted_at IS NULL AND imgtype='DARK' "
                "AND date_obs IS NOT NULL AND instrume IS NOT NULL AND xpixsz IS NOT NULL "
                "ORDER BY id LIMIT 1")
 dark_id = dark_row["id"] if dark_row else None
 pidD = None
 if dark_id is None:
-    print("  (nessun DARK nel dataset: sezione saltata)")
+    print("  (no DARK in the dataset: section skipped)")
 else:
     drow = load(dark_id)
 
     pidD = make_project("dark")
     setupD = add_setup(pidD, drow, drow["instrume"])
-    # panel a coordinate reali, prese da un panel-like dello stesso oggetto: cosi'
-    # find_panel ha un panel da agganciare e il test distingue "coordinate mancanti"
-    # da "panel assente".
+    # panel at real coordinates, taken from a panel-like of the same object: this way
+    # find_panel has a panel to attach to and the test distinguishes "missing coordinates"
+    # from "no panel".
     panelD, raD, _ = add_panel(setupD, drow)
     projD = {"id": pidD, "name": "dark", "overrides": {}, "mode": "suggest"}
     proj_of[pidD] = projD
-    print(f"  progetto {pidD}  setup {setupD}  panel {panelD}  ra={raD}")
+    print(f"  project {pidD}  setup {setupD}  panel {panelD}  ra={raD}")
 
-    # Il dataset ha un solo DARK per questa tupla, quindi si riusa lo stesso file
-    # azzerando la riga di suggestion fra una sonda e l'altra (tutto dentro la
-    # transazione, che verrà annullata).
+    # The dataset has only one DARK for this tuple, so the same file is
+    # reused by clearing the suggestion row between one probe and the next (all inside the
+    # transaction, which will be rolled back).
     def reset_suggestions(pid):
         cur.execute("DELETE FROM project_suggestions WHERE project_id = %s", (pid,))
 
-
-    # DARK senza coordinate: questo e' il caso che il gate scartava
+    # DARK without coordinates: this is the case the gate discarded
     reset_suggestions(pidD)
     res2, sug2, b2, a2 = probe(pidD, dark_id, no_coords(drow))
-    check("DARK senza coord -> setup", res2 == "suggested" and sug2
+    check("DARK without coords -> setup", res2 == "suggested" and sug2
           and sug2["level"] == "setup" and sug2["node_id"] == setupD,
-          f"esito={res2} level={sug2['level'] if sug2 else '-'}")
-    check("DARK non crea sessioni", a2 == b2, f"sessioni {b2} -> {a2}")
+          f"outcome={res2} level={sug2['level'] if sug2 else '-'}")
+    check("DARK does not create sessions", a2 == b2, f"sessions {b2} -> {a2}")
 
-    # DARK con coordinate: anche questo deve linkare a setup, senza creare sessioni
+    # DARK with coordinates: this must link to setup too, without creating sessions
     reset_suggestions(pidD)
     res, sug, b, a = probe(pidD, dark_id, dict(drow))
-    check("DARK con coord -> setup", res == "suggested" and sug and sug["level"] == "setup"
-          and sug["node_id"] == setupD, f"esito={res} level={sug['level'] if sug else '-'}")
-    check("DARK(coord) non crea sessioni", a == b, f"sessioni {b} -> {a}")
+    check("DARK with coords -> setup", res == "suggested" and sug and sug["level"] == "setup"
+          and sug["node_id"] == setupD, f"outcome={res} level={sug['level'] if sug else '-'}")
+    check("DARK(coords) does not create sessions", a == b, f"sessions {b} -> {a}")
 
-    # Stesso NB del lookup FLAT: niente match su xpixsz (FLOAT, `<=>` inaffidabile).
+    # Same NB as the FLAT lookup: no match on xpixsz (FLOAT, `<=>` unreliable).
     bias_id = one("SELECT id FROM files WHERE deleted_at IS NULL AND imgtype='BIAS' "
                   "AND instrume <=> %s AND telescop <=> %s "
                   "AND date_obs IS NOT NULL ORDER BY id LIMIT 1",
                   (drow["instrume"], drow["telescop"]))
     if bias_id is None:
-        print("  (nessun BIAS per questo setup: caso saltato)")
+        print("  (no BIAS for this setup: case skipped)")
     else:
         brow = load(bias_id["id"])
         res, sug, b, a = probe(pidD, bias_id["id"], no_coords(brow))
-        check("BIAS senza coord -> setup", res == "suggested" and sug
+        check("BIAS without coords -> setup", res == "suggested" and sug
               and sug["level"] == "setup" and sug["node_id"] == setupD,
-              f"esito={res} level={sug['level'] if sug else '-'}")
-        check("BIAS non crea sessioni", a == b, f"sessioni {b} -> {a}")
+              f"outcome={res} level={sug['level'] if sug else '-'}")
+        check("BIAS does not create sessions", a == b, f"sessions {b} -> {a}")
 
-# nessuna sessione senza link né suggerimento (in suggest mode i link non
-# esistono ancora: conta anche project_suggestions pending/accepted)
+# no session without link nor suggestion (in suggest mode the links do not
+# exist yet: project_suggestions pending/accepted count too)
 pids = [pidL] + ([pidD] if pidD else [])
 inh = ",".join(["%s"] * len(pids))
 orphans = one(
@@ -284,9 +283,9 @@ orphans = one(
     "AND sg.status IN ('pending','accepted') "
     f"WHERE ps.project_id IN ({inh}) AND pf.file_id IS NULL AND sg.id IS NULL",
     pids)["c"]
-check("nessuna sessione orfana", orphans == 0, f"orfane={orphans}")
+check("no orphan session", orphans == 0, f"orphans={orphans}")
 
-# idempotenza
+# idempotency
 n1 = one(f"SELECT COUNT(*) c FROM project_suggestions WHERE project_id IN ({inh})",
          pids)["c"]
 suggest_file(cur, projL, globals_, dict(lrow), light_id)
@@ -294,10 +293,10 @@ if pidD:
     suggest_file(cur, projD, globals_, no_coords(drow), dark_id)
 n2 = one(f"SELECT COUNT(*) c FROM project_suggestions WHERE project_id IN ({inh})",
          pids)["c"]
-check("idempotente", n1 == n2, f"suggerimenti {n1} -> {n2}")
+check("idempotent", n1 == n2, f"suggestions {n1} -> {n2}")
 
 conn.rollback()
-print("\n(transazioni annullate: nessun dato reale toccato)")
-print("RISULTATO: " + ("tutti i controlli superati" if not failed
-                      else f"FALLITI: {failed}"))
+print("\n(rolled-back transactions: no real data touched)")
+print("RESULT: " + ("all checks passed" if not failed
+                   else f"FAILED: {failed}"))
 sys.exit(0 if not failed else 1)
