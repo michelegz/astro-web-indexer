@@ -210,6 +210,16 @@ function renderTable(string $viewMode, array $files): string
     // $conn absent: table.php does isset($conn) ? getProjects($conn) : [], so the project
     // list stays empty and the test does not touch the database.
     unset($GLOBALS['conn']);
+    // table.php includes pagination.php unconditionally (line 46), and pagination.php
+    // reads these five. init.php sets all of them in the real flow (lines 40, 41, 82, 83,
+    // 93), so here, inside a function, they would be undefined and the partial would print
+    // 15 diagnostics into the very HTML this test parses. The values do not matter: the row
+    // is synthetic and the pagination markup is not what this test is about.
+    $page = 1;
+    $totalPages = 1;
+    $totalRecords = 1;
+    $totalExposure = 0.0;
+    $perPage = 25;
     $level = ob_get_level();
     ob_start();
     try {
@@ -261,6 +271,22 @@ foreach (['list' => 'viewMode=list', 'thumbnail' => 'viewMode=thumbnail'] as $mo
 
     $liveTag = preg_match('#' . preg_quote($NEEDLE, '#') . '\s*<(img|svg|script)#i', $html, $m1);
     check('no live tag after the payload', !$liveTag, $liveTag ? '>>> ' . $m1[0] : '');
+
+    // A PHP diagnostic printed into the HTML is not harmless here, because the parser
+    // reads it as markup: the text of "Undefined variable $perPage ... on line 14" becomes
+    // attributes on the surrounding <option>, and the word "on" in "on line 14" is then
+    // reported as an injected handler. The diagnostics are therefore checked here, where
+    // they are still legible, instead of being left to be reinterpreted by the DOM check
+    // below — otherwise the next fixture gap shows up as a phantom security alert.
+    //
+    // The pattern requires both the "Kind:" prefix and the trailing "on line N", because
+    // the bare words occur in the template's own markup: `astrobinMappingWarningText` is an
+    // element id, and a first version of this check matched it and went red on correct code.
+    $diag = preg_match('#\b(Warning|Notice|Deprecated|Fatal error|Parse error)\b\s*:[^\n]{0,240}?\bon line \d+#i',
+        $html, $dm, PREG_OFFSET_CAPTURE);
+    check('no PHP diagnostic in the rendered HTML', !$diag,
+        $diag ? '>>> ' . preg_replace('/\s+/', ' ',
+            substr($html, max(0, $dm[0][1]), 140)) : '');
 
     $bad = injectedMarkup($html, $NEEDLE);
     check('no injected element, handler or payload (parser)', $bad === [],

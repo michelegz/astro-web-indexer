@@ -89,7 +89,7 @@ JS tests run locally with Node.
 | `lang_selector_sink_check.php` | renders the real `language_selector.php` with a hostile `$_GET` and checks the parsed DOM | no writes |
 | `reindex_batch_continue_check.py` | a record the DB rejects does not stop the rest of the pass: 4 blocks of 50, 150 files committed | writes synthetic rows into `files` with a unique prefix, then removes them; counts verified back to the initial state |
 | `file_cells_escape_check.php` | `file_cells.php` escapes text, attributes and href in both scopes (`main` and `project`): 62 payload occurrences, none raw | no writes (synthetic row) |
-| `table_escape_check.php` | `table.php` escapes in **both views**, with two distinct named sinks verified by position | no writes (synthetic row) |
+| `table_escape_check.php` | `table.php` escapes in **both views**, with two distinct named sinks verified by position, and no PHP diagnostic reaches the HTML it parses | no writes (synthetic row) |
 | `tree_render_escape_check.php` | `projects_tree.php` escapes text, attribute and tooltip in **all three** modes (`hypoMode` 1 and 0, review 2 with `suggestion_ids[]` as an integer and the reason escaped) | no writes (synthetic tree) |
 | `sff_filter_escape_check.php` | `sff_filter_template.php` escapes the reference value in text, `value=` and `data-unit=` | no writes |
 | `tree_preview_escape_check.php` | the real HTTP chain `project_tree_preview.php` → JSON `html` → `main.js:646` | creates and removes 1 user; no writes (the preview rolls back the transaction) |
@@ -898,8 +898,34 @@ you must log in via `login.php` the way `zip_guard_check.php`,
      container is a step, not a detail.
 
 53. **Git Bash converts arguments that look like POSIX paths.** `docker exec -e
-     AWI_PROJECTS_LIB=/opt/scripts ...` launched from Git Bash arrives in the container
-     as `C:/Program Files/Git/opt/scripts`, and the test dies of `ModuleNotFoundError`
-     even with the variable "set". From PowerShell it does not happen. `tests/run.sh`
-     exports `MSYS_NO_PATHCONV=1` for this; running the commands by hand from Git Bash
-     needs the same variable (or the double slash `//opt/scripts`).
+    AWI_PROJECTS_LIB=/opt/scripts ...` launched from Git Bash arrives in the container
+    as `C:/Program Files/Git/opt/scripts`, and the test dies of `ModuleNotFoundError`
+    even with the variable "set". From PowerShell it does not happen. `tests/run.sh`
+    exports `MSYS_NO_PATHCONV=1` for this; running the commands by hand from Git Bash
+    needs the same variable (or the double slash `//opt/scripts`).
+
+61. **A PHP diagnostic must be recognized by its shape, not by a bare keyword.**
+    `table_escape_check.php` renders `table.php` in a synthetic context with
+    `display_errors=1`, so any diagnostic lands inside the HTML it then parses. The first
+    version of the new check looked for `#(Warning|Notice|Deprecated|Fatal error|Parse
+    error)#i` and went **red on correct code**: the template legitimately contains
+    `astrobinMappingWarningText`, an element id, and the word "Warning" matched inside
+    it. A diagnostic has a recognisable shape — `Kind: <text> in <file> on line <N>` —
+    and requiring both ends of it fixes the false positive without losing a true one.
+    Checked against five cases: two real diagnostics match, and three pieces of ordinary
+    markup (`astrobinMappingWarningText`, prose containing "Notice:", a class named
+    `NoticeBoard`) do not.
+
+    The reason this matters more than a plain false positive: this diagnostic check
+    exists precisely because the *absence* of a check was the bug. With the warning
+    printed into the HTML, the DOM parser reads the text of "…on line 14" as attributes
+    on the surrounding `<option>`, and the word `on` in "on line 14" was then reported as
+    an **injected handler** — a security alarm caused by a missing fixture variable. The
+    same family as #50: a check that cannot distinguish the two cases reports one of them
+    as the other.
+
+    The fixture variables the check depends on are the five that `init.php` sets for the
+    real flow (`$page` 40, `$perPage` 41, `$totalRecords` 82, `$totalExposure` 83,
+    `$totalPages` 93): `table.php` includes `pagination.php` unconditionally, so inside
+    `renderTable()` all five were undefined and produced 15 diagnostics. Their values are
+    irrelevant, but their absence is not.
