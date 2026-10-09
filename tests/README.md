@@ -498,13 +498,23 @@ already print `N/A` for an absent value instead of leaving the cell empty.
 absolute path does not appear in the decoded field. Both checks go red
 on the pre-fix code.
 
-57. **A partial that deliberately writes `<script>` and `onclick` cannot be verified with a
-    flat deny-list.** `table.php` contains a `<script>` block (the duplicates handler)
-    and `template_functions.php:55` puts `onclick="sortTable(...)"` on the
-    headings that sort. Banning them produced two false positives on correct code.
+57. **A partial that deliberately writes `<script>`, `onclick` and `<svg>` cannot be verified
+    with a flat deny-list.** `table.php` contains a `<script>` block (the duplicates handler),
+    `template_functions.php:55` puts `onclick="sortTable(...)"` on the
+    headings that sort, and the list/thumbnail toggle buttons carry an `<svg>` icon each.
+    Banning them produced three false positives on correct code.
     The invariant is not «no handler» — which here would be false — but «no handler that
     the template does not write itself»: `onclick` on `<th>` is tolerated and the rest
     is banned.
+    `<svg>` needed the same treatment for the same reason, and the fix is the same shape:
+    the two icons are tolerated **inside the containers the template owns**
+    (`#list-view-btn`, `#thumbnail-view-btn`) and an `<svg>` anywhere else is still flagged.
+    A blanket ban is replaced by a precise one, never removed — an `<svg onload>` planted
+    inside a legitimate container is still caught by the `on*` rule. The seven cases of this
+    refinement are checked as a negative control, so the narrowing cannot have silently
+    cost a detection.
+    Note that if the template ever gains another icon the check goes **red** until its id is
+    added: a new icon prompts the update instead of passing silently.
     And it is checked that the payload did not end up **inside** the `<script>`, because there
     escaping would protect nothing: an injected `<script>` executes even with everything
     else escaped.

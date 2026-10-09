@@ -47,19 +47,36 @@ function check(string $label, bool $cond, string $detail = ''): void
 }
 
 /**
+ * The id of the closest ancestor carrying one, '' when there is none.
+ */
+function svgOwnerId(DOMElement $el): string
+{
+    for ($p = $el->parentNode; $p instanceof DOMElement; $p = $p->parentNode) {
+        $id = trim($p->getAttribute('id'));
+        if ($id !== '') {
+            return $id;
+        }
+    }
+    return '';
+}
+
+/**
  * Second opinion independent of the regexes, on the parsed DOM.
  *
  * Here, unlike in the other tests, the partial deliberately writes things the deny-list of
- * the other tests forbids: a <script> block (the duplicates handler) and
- * `onclick="sortTable(...)"` on the headings that sort (template_functions.php:55).
- * Banning them would produce two false positives on correct code, which is the worst way
- * to make a test fail: the signal gets lost and nobody looks further.
+ * the other tests forbids: a <script> block (the duplicates handler),
+ * `onclick="sortTable(...)"` on the headings that sort (template_functions.php:55), and
+ * two <svg> icons for the list/thumbnail toggle buttons. Banning them would produce false
+ * positives on correct code, which is the worst way to make a test fail: the signal gets
+ * lost and nobody looks further.
  *
- * So the invariant is not «no handler», which would be false here, but «no handler
- * that the template does not write itself»: `onclick` on <th> is tolerated and everything
- * else is banned. And it is checked that the payload did not end up inside the <script>,
- * which is the only place where this form of check would protect nothing: an injected
- * <script> executes even with everything else escaped.
+ * So the invariant is not «no handler», which would be false here, but «no handler that
+ * the template does not write itself»: `onclick` on <th> is tolerated and everything else
+ * is banned. The same applies to <svg>: it is tolerated only inside the containers the
+ * template owns, and flagged anywhere else — so a blanket ban is replaced by a precise
+ * one rather than removed. And it is checked that the payload did not end up inside the
+ * <script>, which is the only place where this form of check would protect nothing: an
+ * injected <script> executes even with everything else escaped.
  */
 function injectedMarkup(string $html, string $needle = ''): array
 {
@@ -68,11 +85,24 @@ function injectedMarkup(string $html, string $needle = ''): array
     $doc->loadHTML('<!DOCTYPE html><html><body>' . $html . '</body></html>', LIBXML_NOWARNING);
     libxml_clear_errors();
     $xp = new DOMXPath($doc);
+    // Tags the template never writes, denied outright wherever they appear.
+    $neverWrites = ['iframe', 'object', 'embed', 'form'];
+    // <svg> is different: table.php draws it on purpose for the two view-toggle icons,
+    // so a flat ban reports correct code as a defect. It is tolerated only inside the
+    // containers the template owns.
+    // If the template ever gains another icon, this check goes RED until its id is added
+    // here. That is the wanted direction: a new icon prompts the update, instead of
+    // passing silently behind a blanket ban.
+    $svgOwners = ['list-view-btn', 'thumbnail-view-btn'];
     $bad = [];
     foreach ($xp->query('//*') as $el) {
         $tag = strtolower($el->nodeName);
         // <img> is legitimate (the thumbnails), <script> is the duplicates handler.
-        if (in_array($tag, ['svg', 'iframe', 'object', 'embed', 'form'], true)) {
+        if ($tag === 'svg') {
+            if (!in_array(svgOwnerId($el), $svgOwners, true)) {
+                $bad[] = "element <svg> outside the template's icon containers";
+            }
+        } elseif (in_array($tag, $neverWrites, true)) {
             $bad[] = "element <$tag> not expected by the template";
         }
         foreach ($el->attributes as $attr) {
