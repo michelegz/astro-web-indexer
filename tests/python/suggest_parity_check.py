@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""Verifica 13.25, 13.26, 13.27 — la parte Python del suggeritore.
+"""Check 13.25, 13.26, 13.27 — the Python side of the suggester.
 
-  13.27 get_globals() trasformava in silenzio qualsiasi errore di lettura in un
-         dizionario vuoto, poi nei default. Non e' innocuo: globals_ finisce in
-         _suggest_config_hash(), quindi un errore transitorio cambiava l'hash e ogni
-         dismiss salvato con l'hash precedente veniva cancellato. Ora solo una tabella
-         mancante degrada ai default, tutto il resto si propaga.
-  13.26 parse_ra_to_deg()/parse_dec_to_deg() non facevano lower(), quindi "12H34M56S"
-         finiva nel bucket OBJECT mentre il gemello PHP projectParseRa() lo converte:
-         i pannelli creati dalla web non venivano riconosciuti dal watcher.
-  13.25 _num_prefix() accettava il segno '-' e un '.' iniziale, il gemello PHP no.
-         Una tolleranza negativa e' degenerata: `dist > tol_rot` e' sempre vero e
-         nessun pannello viene mai abbinato.
+  13.27 get_globals() silently turned any read error into an
+         empty dictionary, then into the defaults. That is not harmless: globals_ ends up in
+         _suggest_config_hash(), so a transient error changed the hash and every
+         dismissal saved with the previous hash was deleted. Now only a missing
+         table degrades to the defaults, everything else propagates.
+  13.26 parse_ra_to_deg()/parse_dec_to_deg() did not lower(), so "12H34M56S"
+         ended up in the OBJECT bucket while the PHP twin projectParseRa() converts it:
+         the panels created from the web were not recognized by the watcher.
+  13.25 _num_prefix() accepted a '-' sign and a leading '.', the PHP twin does not.
+         A negative tolerance is degenerate: `dist > tol_rot` is always true and
+         no panel is ever matched.
 
-Uso:  docker cp tmp/suggest_parity_check.py awi-python:/tmp/
-      docker exec awi-python sh -c 'cd /tmp && python3 suggest_parity_check.py'
+Usage:  docker cp tmp/suggest_parity_check.py awi-python:/tmp/
+        docker exec awi-python sh -c 'cd /tmp && python3 suggest_parity_check.py'
 """
 
 import sys
@@ -28,19 +28,19 @@ FAILED = []
 
 
 def check(label, cond, detail=''):
-    suffix = 'OK' if cond else '<<< FALLITO'
+    suffix = 'OK' if cond else '<<< FAILED'
     print('  %-56s %s%s' % (label, detail, suffix))
     if not cond:
         FAILED.append(label)
 
 
 def close(a, b, tol=1e-9):
-    """Confronto che tollera i None.
+    """Comparison that tolerates None.
 
-    Senza questo il test moriva sul primo fallimento invece di elencarlo: se una delle
-    due meta' restituisce None, un confronto aritmetico solleva TypeError e il processo
-    muore, quindi di tutto il resto non si vede piu' nulla. Un test che si ferma al
-    primo difetto informa meno di uno che li elenca.
+    Without this the test died on the first failure instead of listing them: if one of
+    the two halves returns None, an arithmetic comparison raises TypeError and the process
+    dies, so nothing else is visible any more. A test that stops at the
+    first defect informs less than one that lists them.
     """
     if a is None or b is None:
         return False
@@ -51,57 +51,57 @@ def close(a, b, tol=1e-9):
 
 
 def fmt(value):
-    """Etichetta numerica che regge None."""
+    """Numeric label that holds up with None."""
     return 'None' if value is None else ('%.6f' % value)
 
 
 # ---------------------------------------------------------------- 13.26
-print('\n=== 13.26: i marcatori maiuscoli devono essere riconosciuti ===')
+print('\n=== 13.26: the uppercase markers must be recognized ===')
 
-# Lo stesso valore in tre forme. Le prime due devono dare lo stesso identico risultato.
+# The same value in three forms. All three must give exactly the same result.
 ra_lower = P.parse_ra_to_deg('12:34:56')
 ra_upper = P.parse_ra_to_deg('12H34M56S')
 ra_mixed = P.parse_ra_to_deg('12h34m56s')
 expected = (12 + 34 / 60.0 + 56 / 3600.0) * 15.0 % 360.0
-check('RA "12H34M56S" convertita', ra_upper is not None, fmt(ra_upper))
-check('RA maiuscola = minuscola = colons',
+check('RA "12H34M56S" converted', ra_upper is not None, fmt(ra_upper))
+check('RA uppercase = lowercase = colons',
       close(ra_upper, ra_lower) and close(ra_mixed, ra_lower),
       'lower=%s upper=%s' % (fmt(ra_lower), fmt(ra_upper)))
-check('RA valore atteso', close(ra_upper, expected),
-      'atteso %s' % fmt(expected))
+check('RA expected value', close(ra_upper, expected),
+      'expected %s' % fmt(expected))
 
 dec_lower = P.parse_dec_to_deg('-12:34:56')
 dec_upper = P.parse_dec_to_deg('-12D34M56S')
 dec_expected = -(12 + 34 / 60.0 + 56 / 3600.0)
-check('Dec "-12D34M56S" convertita', dec_upper is not None, fmt(dec_upper))
-check('Dec maiuscola = minuscola',
+check('Dec "-12D34M56S" converted', dec_upper is not None, fmt(dec_upper))
+check('Dec uppercase = lowercase',
       close(dec_upper, dec_lower),
       'lower=%s upper=%s' % (fmt(dec_lower), fmt(dec_upper)))
-check('Dec valore atteso', close(dec_upper, dec_expected),
-      'atteso %s' % fmt(dec_expected))
-check('Dec col segno +', P.parse_dec_to_deg('+12:34:56') is not None
+check('Dec expected value', close(dec_upper, dec_expected),
+      'expected %s' % fmt(dec_expected))
+check('Dec with the + sign', P.parse_dec_to_deg('+12:34:56') is not None
       and abs(P.parse_dec_to_deg('+12:34:56') - abs(dec_expected)) < 1e-9, '')
 
-# I gradi decimali devono continuare a funzionare: ci passa l'obiettivo numerico.
-check('RA in gradi decimali', P.parse_ra_to_deg('185.75') is not None
+# Decimal degrees must keep working: the numeric target goes through there.
+check('RA in decimal degrees', P.parse_ra_to_deg('185.75') is not None
       and abs(P.parse_ra_to_deg('185.75') - 185.75) < 1e-9, '')
-check('Dec in gradi decimali', P.parse_dec_to_deg('-12.5') is not None
+check('Dec in decimal degrees', P.parse_dec_to_deg('-12.5') is not None
       and abs(P.parse_dec_to_deg('-12.5') + 12.5) < 1e-9, '')
-check('None resta None', P.parse_ra_to_deg(None) is None and P.parse_dec_to_deg(None) is None, '')
-check('spazzatura resta None', P.parse_ra_to_deg('N/A') is None and P.parse_dec_to_deg('---') is None, '')
+check('None stays None', P.parse_ra_to_deg(None) is None and P.parse_dec_to_deg(None) is None, '')
+check('junk stays None', P.parse_ra_to_deg('N/A') is None and P.parse_dec_to_deg('---') is None, '')
 
 # ---------------------------------------------------------------- 13.25
-print('\n=== 13.25: _num_prefix deve concordare con projectNumPrefix() ===')
+print('\n=== 13.25: _num_prefix must agree with projectNumPrefix() ===')
 
 cases = [
-    # (valore, default atteso con la regex PHP /^\s*([0-9]+(?:\.[0-9]+)?)/)
+    # (value, default expected with the PHP regex /^\s*([0-9]+(?:\.[0-9]+)?)/)
     ('10%', 10.0),
     ('2C', 2.0),
     ('3deg', 3.0),
     ('0.2', 0.2),
     ('  5 arcmin', 5.0),
-    ('-5', 3.0),        # segno negativo: rifiutato, come in PHP
-    ('-.5', 3.0),       # punto iniziale: rifiutato, come in PHP
+    ('-5', 3.0),        # negative sign: rejected, like in PHP
+    ('-.5', 3.0),       # leading dot: rejected, like in PHP
     ('', 3.0),
     ('abc', 3.0),
     (None, 3.0),
@@ -110,18 +110,18 @@ for text, want in cases:
     got = P._num_prefix(text, 3.0)
     check('%-12r -> %-6s' % (text, want), close(got, want, 1e-12), 'got=%s' % got)
 
-# Una tolleranza negativa non deve sopravvivere: con tol_rot negativo ogni
-# `dist > tol_rot` e' vero e nessun pannello viene abbinato.
+# A negative tolerance must not survive: with a negative tol_rot every
+# `dist > tol_rot` is true and no panel is ever matched.
 neg = P._num_prefix('-5', 3.0)
-check('tol_rot negativo non arriva al matcher', neg > 0, 'valore=%s' % fmt(neg))
-check('  e resta il default dichiarato', close(neg, 3.0, 1e-12), 'default=3.0')
+check('a negative tol_rot does not reach the matcher', neg > 0, 'value=%s' % fmt(neg))
+check('  and the declared default stays', close(neg, 3.0, 1e-12), 'default=3.0')
 
 # ---------------------------------------------------------------- 13.27
-print('\n=== 13.27: get_globals non deve più degradare in silenzio ===')
+print('\n=== 13.27: get_globals must no longer degrade silently ===')
 
 
 class FakeCursor:
-    """Mima un cursor che solleva un errore con un dato errno MySQL."""
+    """Mimics a cursor that raises an error with a given MySQL errno."""
 
     def __init__(self, exc):
         self.exc = exc
@@ -139,27 +139,27 @@ class Err(Exception):
         self.errno = errno
 
 
-# 1146 = ER_NO_SUCH_TABLE: un database senza le migration dei progetti. Degenerare ai
-# default e' legittimo, non c'e' niente da leggere.
+# 1146 = ER_NO_SUCH_TABLE: a database without the project migrations. Degrading to the
+# defaults is legitimate, there is nothing to read.
 try:
     out = P.get_globals(FakeCursor(Err("Table 'awi_db.global_settings' doesn't exist", 1146)))
-    check('tabella assente -> default, senza eccezione',
+    check('missing table -> defaults, no exception',
           isinstance(out, dict) and out.get('tol_rot') == P.DEFAULT_TOLS['tol_rot'],
           'tol_rot=%s' % out.get('tol_rot'))
 except Exception as exc:  # noqa: BLE001
-    check('tabella assente -> default, senza eccezione', False, 'sollevata: %r' % exc)
+    check('missing table -> defaults, no exception', False, 'raised: %r' % exc)
 
-# Qualsiasi altro errore deve propagare: se degrada, l'hash di configurazione cambia
-# e i dismiss dell'utente vengono cancellati.
-for errno, label in ((1045, 'accesso negato'), (2006, 'connessione persa'), (None, 'errore senza errno')):
+# Any other error must propagate: if it degrades, the configuration hash changes
+# and the user's dismissals are deleted.
+for errno, label in ((1045, 'access denied'), (2006, 'connection dropped'), (None, 'error without errno')):
     raised = False
     try:
         P.get_globals(FakeCursor(Err('boom', errno)))
     except Exception:  # noqa: BLE001
         raised = True
-    check('%s -> l\'errore si propaga' % label, raised, '' if raised else 'DEGRADATO IN SILENZIO')
+    check('%s -> the error propagates' % label, raised, '' if raised else 'DEGRADED SILENTLY')
 
-# E il caso in cui l'hash cambierebbe: i default non devono sostituire un errore.
+# And the case where the hash would change: the defaults must not replace an error.
 class WorkingCursor:
     def execute(self, *a, **k):
         return None
@@ -169,14 +169,14 @@ class WorkingCursor:
 
 
 ok = P.get_globals(WorkingCursor())
-check('lettura riuscita -> valore dal DB', ok.get('tol_rot') == '7deg', 'tol_rot=%s' % ok.get('tol_rot'))
+check('successful read -> value from the DB', ok.get('tol_rot') == '7deg', 'tol_rot=%s' % ok.get('tol_rot'))
 
-# Il codice non deve piu' contenere il fallback muto.
+# The code must no longer contain the mute fallback.
 src = open('/opt/scripts/indexer_lib/projects.py', encoding='utf-8').read()
 fn = src.split('def get_globals', 1)[1].split('\ndef ', 1)[0]
-check('get_globals registra l\'errore prima di propagare', 'logger.error' in fn, '')
-check('  e distingue 1146', '1146' in fn, '')
-check('  niente "except Exception: out = {}" muto',
+check('get_globals logs the error before propagating', 'logger.error' in fn, '')
+check('  and distinguishes 1146', '1146' in fn, '')
+check('  no mute "except Exception: out = {}"',
       'except Exception:\n        out = {}' not in fn, '')
 
-print('\nRISULTATO: ' + ('FALLITI: ' + ', '.join(FAILED) if FAILED else 'suggeritore allineato al PHP'))
+print('\nRESULT: ' + ('FAILED: ' + ', '.join(FAILED) if FAILED else 'suggester aligned with PHP'))

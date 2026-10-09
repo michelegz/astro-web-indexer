@@ -23,7 +23,7 @@ $failed = [];
 
 function check(string $label, bool $cond, string $detail = ''): void
 {
-    printf("  %-58s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FALLITO');
+    printf("  %-58s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FAILED');
     if (!$cond) {
         $GLOBALS['failed'][] = $label;
     }
@@ -200,5 +200,5 @@ $conn->prepare('DELETE FROM user_permissions WHERE user_id = :id')->execute([':i
 $conn->prepare('DELETE FROM users WHERE id = :id')->execute([':id' => $uid]);
 @unlink($jar);
 echo "\n(prova e utente di prova rimossi)\n";
-echo 'RISULTATO: ' . ($failed ? 'FALLITI: ' . implode(', ', $failed)
+echo 'RESULT: ' . ($failed ? 'FAILED: ' . implode(', ', $failed)
     : 'i quattro endpoint non pagano piu\' il blocco della home') . "\n";

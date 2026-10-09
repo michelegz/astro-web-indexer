@@ -44,16 +44,16 @@ $failed = [];
 
 function check(string $label, bool $cond, string $detail = ''): void
 {
-    printf("  %-56s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FALLITO');
+    printf("  %-56s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FAILED');
     if (!$cond) {
         $GLOBALS['failed'][] = $label;
     }
 }
 
 /**
- * Secondo parere indipendente dai regex: un parser HTML reale dice se esiste un
- * elemento o un attributo che il template non ha scritto. Nel controllo negativo ha
- * visto sia il ramo testo sia quello attributo.
+ * Second opinion independent of the regexes: a real HTML parser says whether there is an
+ * element or an attribute the template did not write. In the negative check it
+ * saw both the text branch and the attribute one.
  */
 function injectedMarkup(string $html): array
 {
@@ -70,18 +70,18 @@ function injectedMarkup(string $html): array
         }
         foreach ($el->attributes as $attr) {
             if (stripos($attr->nodeName, 'on') === 0) {
-                $bad[] = "attribute {$attr->nodeName} su <$tag>";
+                $bad[] = "attribute {$attr->nodeName} on <$tag>";
             }
         }
     }
     return array_values(array_unique($bad));
 }
 
-// Il payload copre testo, attributo con doppie apici e attributo con apici singoli.
+// The payload covers text, attribute with double quotes and attribute with single quotes.
 $XSS = 'XSSPAYLOAD<img src=x onerror=alert(1)>"\'<svg onload=alert(2)>';
 $NEEDLE = 'XSSPAYLOAD';
 
-echo "\n=== render_sff_filter() con valore di riferimento ostile ===\n";
+echo "\n=== render_sff_filter() with a hostile reference value ===\n";
 
 // Un filtro per ogni tipo, cosi' sono coperti sia il ramo toggle (che non ha slider)
 // sia i tre tipi di slider, che aggiungono data-type, value= e data-unit=.
@@ -109,53 +109,53 @@ foreach ($configs as $cfg) {
 $html = (string)ob_get_clean();
 
 file_put_contents('/tmp/sff_render_escape_check.html', $html);
-printf("  renderizzati %d byte su %d filtri\n", strlen($html), count($configs));
+printf("  rendered %d bytes over %d filters\n", strlen($html), count($configs));
 
 // Controllo di positivita': senza payload nell'HTML, 'nessuna iniezione' sarebbe
 // vero solo perche' la pagina era vuota.
 $occ = substr_count($html, $NEEDLE);
 $esc = substr_count($html, $NEEDLE . '&lt;');
-check('il payload e\' arrivato nell\'HTML', $occ > 0, "$occ occorrenze");
-printf("  occorrenze: totali=%d  con '<' come entita=%d\n", $occ, $esc);
-check('  ogni occorrenza ha \'<\' come entita', $esc === $occ,
+check('the payload reached the HTML', $occ > 0, "$occ occurrences");
+printf("  occurrences: total=%d  with '<' as entity=%d\n", $occ, $esc);
+check('  every occurrence has \'<\' as an entity', $esc === $occ,
     $esc === $occ ? '' : ($occ - $esc) . ' grezze');
 
 $liveTag = preg_match('#' . preg_quote($NEEDLE, '#') . '\s*<(img|svg|script)#i', $html, $m1);
-check('nessun tag vivo dopo il payload', !$liveTag, $liveTag ? '>>> ' . $m1[0] : '');
+check('no live tag after the payload', !$liveTag, $liveTag ? '>>> ' . $m1[0] : '');
 
 $bad = injectedMarkup($html);
-check('nessun elemento o handler iniettato (parser)', $bad === [],
+check('no injected element or handler (parser)', $bad === [],
     $bad ? implode('; ', $bad) : '');
 
 // I due contesti vanno verificati per posizione, non solo globalmente: altrimenti
 // un test che copre solo il testo passerebbe anche senza proteggere l'attributo.
-check('il valore e\' escaped nel testo (riga 37)',
+check('the value is escaped in the text (line 37)',
     str_contains($html, 'text-gray-300">' . $NEEDLE . '&lt;'), '');
-check('il valore e\' escaped in value= (riga 38)',
+check('the value is escaped in value= (line 38)',
     str_contains($html, 'class="sff-reference-value" value="' . $NEEDLE . '&lt;'), '');
 // L'etichetta della riga 51-52 usa $filterConfig['unit']: un doppio apice li'
 // chiuderebbe data-unit e inietterebbe un handler. Il campo e' del catalogo, non
 // dell'archivio, quindi e' difesa in profondita'.
-check('l\'unita\' e\' escaped in data-unit (riga 51)',
+check('the unit is escaped in data-unit (line 51)',
     str_contains($html, 'data-unit="' . $NEEDLE . '&lt;'), '');
-check('  e l\'etichetta testuale accanto (riga 52)',
+check('  and the text label next to it (line 52)',
     str_contains($html, '&pm;0' . $NEEDLE . '&lt;'), '');
 
 // Il ramo toggle non ha slider: senza questo, il test passerebbe anche se il ramo
 // slider fosse sparito e con esso la copertura di value= e data-unit.
-check('il ramo slider e\' stato renderizzato',
+check('the slider branch was rendered',
     substr_count($html, 'sff-filter-slider') === 3,
-    substr_count($html, 'sff-filter-slider') . ' slider su ' . count($configs) . ' filtri');
+    substr_count($html, 'sff-filter-slider') . ' sliders over ' . count($configs) . ' filters');
 
-echo "\n--- testo e attributo, byte grezzi ---\n";
+echo "\n--- text and attribute, raw bytes ---\n";
 if (preg_match('#text-gray-300">' . preg_quote($NEEDLE, '#') . '&lt;[^<]{0,60}#', $html, $m)) {
-    echo '  testo     : ' . $m[0] . "\n";
+    echo '  text      : ' . $m[0] . "\n";
 }
 if (preg_match('#class="sff-reference-value" value="[^"]{0,80}#', $html, $m)) {
-    echo '  attributo : ' . $m[0] . "\n";
+    echo '  attribute : ' . $m[0] . "\n";
 }
 
-echo "\nRISULTATO: " . ($failed
-    ? 'FALLITI: ' . implode(', ', $failed)
-    : 'sff_filter_template.php escapa testo, value= e data-unit') . "\n";
+echo "\nRESULT: " . ($failed
+    ? 'FAILED: ' . implode(', ', $failed)
+    : 'sff_filter_template.php escapes text, value= and data-unit') . "\n";
 exit($failed ? 1 : 0);

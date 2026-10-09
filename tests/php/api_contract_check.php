@@ -23,7 +23,7 @@ $failed = [];
 
 function check(string $label, bool $cond, string $detail = ''): void
 {
-    printf("  %-54s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FALLITO');
+    printf("  %-54s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FAILED');
     if (!$cond) {
         $GLOBALS['failed'][] = $label;
     }
@@ -217,5 +217,5 @@ $conn->prepare('DELETE FROM users WHERE id = :id')->execute([':id' => $uid]);
 @unlink($jar);
 @unlink($anon);
 echo "\n(prove e utente di prova rimossi)\n";
-echo 'RISULTATO: ' . ($failed ? 'FALLITI: ' . implode(', ', $failed)
+echo 'RESULT: ' . ($failed ? 'FAILED: ' . implode(', ', $failed)
     : 'contratto HTTP rispettato') . "\n";
