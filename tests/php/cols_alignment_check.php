@@ -1,18 +1,18 @@
 <?php
-// Verifica §4 — allineamento <th>/<td> nelle tabelle di integration group.
+// Check §4 — <th>/<td> alignment in the integration group tables.
 //
-// Conta i <th> e i <td> realmente emessi dalle funzioni di produzione
-// (renderFileTableHeaders / renderFileTableCells, scope 'project') nelle
-// configurazioni STAR_METRICS_ENABLED on/off e con varie impostazioni del cookie
-// hiddenColsProjects.
+// It counts the <th> and the <td> really emitted by the production functions
+// (renderFileTableHeaders / renderFileTableCells, scope 'project') in the
+// STAR_METRICS_ENABLED on/off configurations and with various settings of the
+// hiddenColsProjects cookie.
 //
-// Uso:  docker cp tmp/cols_alignment_check.php awi-php:/var/www/html/
-//       docker exec awi-php php /var/www/html/cols_alignment_check.php
+// Usage:  docker cp tmp/cols_alignment_check.php awi-php:/var/www/html/
+//         docker exec awi-php php /var/www/html/cols_alignment_check.php
 //
-// Il file assume il gate star aggiunto in file_cells.php. Per provare la
-// regressione, rimuovere temporaneamente il blocco
+// The file assumes the star gate added in file_cells.php. To try the
+// regression, temporarily remove the block
 //   if ($groupKey === 'star' && empty($pStar)) { continue; }
-// e il caso "star OFF" deve risultare DISALLINEATO.
+// and the "star OFF" case must come out MISALIGNED.
 
 require_once '/var/www/html/includes/config.php';
 require_once '/var/www/html/includes/language_functions.php';
@@ -21,7 +21,7 @@ require_once '/var/www/html/includes/columns.php';
 require_once '/var/www/html/includes/template_functions.php';
 require_once '/var/www/html/includes/file_cells.php';
 
-// Riga finta: i renderer leggono i valori, la forma conta.
+// Fake row: the renderers read the values, the shape is what counts.
 function fakeRow(): array
 {
     $r = [];
@@ -36,7 +36,7 @@ function fakeRow(): array
     $r['name'] = 'file.fits';
     $r['file_id'] = 1;
     $r['id'] = 1;
-    // helper con tipo: '' non e' accettato
+    // typed helper: '' is not accepted
     $r['moon_angle'] = null;
     $r['moon_phase'] = null;
     return $r;
@@ -44,8 +44,8 @@ function fakeRow(): array
 
 function scenario(string $label, bool $starMetricsEnabled, ?string $cookie): void
 {
-    // NB: il parametro non puo' chiamarsi $showStarMetrics: un `global` su quel
-    // nome lo sovrascriverebbe con il valore di init.php.
+    // NB: the parameter cannot be called $showStarMetrics: a `global` on that
+    // name would overwrite it with the value from init.php.
     global $columnGroups, $hiddenColsProjects, $visibleProjectAdvKeys,
         $visibleProjectStarKeys, $visibleProjectFrameKeys;
 
@@ -68,7 +68,7 @@ function scenario(string $label, bool $starMetricsEnabled, ?string $cookie): voi
         $_COOKIE['hiddenColsProjects'] = $cookie;
     }
 
-    // replica di init.php:69-72
+    // replica of init.php:69-72
     $hiddenColsProjects = resolveHiddenColumnsForCookie(
         $toggleable, 'hiddenColsProjects', getProjectsDefaultVisible());
     $visibleProjectAdvKeys = array_values(array_diff($advKeys, $hiddenColsProjects));
@@ -87,7 +87,7 @@ function scenario(string $label, bool $starMetricsEnabled, ?string $cookie): voi
     $td = substr_count(ob_get_clean(), '<td');
 
     $ok = $th === $td;
-    printf("%-44s th=%-4d td=%-4d  %s\n", $label, $th, $td, $ok ? 'allineato' : '<<< DISALLINEATO');
+    printf("%-44s th=%-4d td=%-4d  %s\n", $label, $th, $td, $ok ? 'aligned' : '<<< MISALIGNED');
     if (!$ok) {
         $GLOBALS['failed'] = true;
     }
@@ -98,13 +98,16 @@ $onlyBase = 'hfr,fwhm,hfr_sd,eccentricity,star_count,snr_weight,psf_signal,'
     . 'ccd_temp,visible_duplicate_count,smart_frame_finder';
 $failed = false;
 
-echo "caso" . str_repeat(' ', 22) . "th    td    esito\n";
+echo "case" . str_repeat(' ', 21) . "th    td    verdict\n";
 echo str_repeat('-', 74) . "\n";
-scenario('star ON,  cookie assente (default)', true, null);
-scenario('star OFF, cookie assente (default)', false, null);
-scenario('star ON,  tutte le star nascoste', true, $allStar);
-scenario('star OFF, tutte le star nascoste', false, $allStar);
-scenario('star ON,  solo preview+date_obs', true, $onlyBase);
-scenario('star OFF, solo preview+date_obs', false, $onlyBase);
+scenario('star ON,  cookie absent (default)', true, null);
+scenario('star OFF, cookie absent (default)', false, null);
+scenario('star ON,  all stars hidden', true, $allStar);
+scenario('star OFF, all stars hidden', false, $allStar);
+scenario('star ON,  preview+date_obs only', true, $onlyBase);
+scenario('star OFF, preview+date_obs only', false, $onlyBase);
 
-echo "\n" . ($failed ? "RISULTATO: ci sono casi disallineati" : "RISULTATO: tutti allineati");
+echo "\n" . ($failed ? "RESULT: some cases are misaligned" : "RESULT: all aligned") . "\n";
+// The exit code is what run.sh records. Without it the script falls off the end and
+// returns 0 even when it printed MISALIGNED.
+exit($failed ? 1 : 0);
