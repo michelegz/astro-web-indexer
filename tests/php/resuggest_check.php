@@ -71,11 +71,12 @@ try {
         $conn->query('SELECT id FROM files WHERE deleted_at IS NULL ORDER BY id LIMIT 4')->fetchAll(PDO::FETCH_COLUMN)
     );
     if (count($FIDS) < 4) {
-        echo "  FAIL servono 4 file esistenti, trovati " . count($FIDS) . "\n";
+        echo "  FAIL need 4 existing files, found " . count($FIDS) . "\n";
         $check(false, 'four existing files are needed');
-        return;
+        $conn->rollBack();
+        exit(1);
     }
-    echo "progetto $PROJECT, file " . implode(', ', $FIDS) . "\n";
+    echo "project $PROJECT, files " . implode(', ', $FIDS) . "\n";
 
     $node = (int)$conn->query("SELECT id FROM project_setups WHERE project_id = $PROJECT ORDER BY setup_no LIMIT 1")->fetchColumn();
     $ins = $conn->prepare(

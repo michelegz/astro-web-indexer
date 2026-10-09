@@ -31,7 +31,7 @@ for (const key of phpOrder) {
     // PHP emits id="ig-chart-G-<key>"; JS looks for id="ig-chart-G-" + s.key
     const s = jsSeries.find((x) => x.key === key);
     if (!s) newBad++;
-    console.log(`  canvas -${key.padEnd(13)} etichetta=${key.padEnd(13)} ` +
+    console.log(`  canvas -${key.padEnd(13)} label=${key.padEnd(13)} ` +
         `data=${s ? s.key : 'NOT FOUND'} ${s ? 'ok' : '<<< ERROR'}`);
 }
 console.log(`  -> ${newBad} mismatches`);

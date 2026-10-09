@@ -68,8 +68,8 @@ try {
         // Not a silent pass: with nothing to build the map for, this probe proves nothing,
         // which is the same verdict as the old builder not violating the invariant below.
         echo "no projects in DB: this probe has nothing to check\n";
-        $fail = 1;
-        return;
+        $conn->rollBack();
+        exit(1);
     }
 
     $fail = 0;
@@ -175,7 +175,7 @@ foreach ($rows as $r) {
 }
 $oldLeaf = array_sum($oldBad);
 if ($oldLeaf === 0) {
-    echo "NOTA: il builder vecchio NON viola piu' l'invariante: il confronto pre-fix non dimostra nulla\n";
+    echo "NOTE: the old builder does NOT violate the invariant anymore: the pre-fix comparison proves nothing\n";
     $fail++;
 } else {
     echo "pre-fix: the old builder violates the invariant on $oldLeaf entries "

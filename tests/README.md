@@ -406,7 +406,7 @@ Points that reading alone was not enough to close, and that the test blocks:
 - **`$nameSuffix` (line 230) is the only point that prints without `htmlspecialchars`.** The
   only caller, `igroup_files_table.php:21-26`, passes it fixed markup around a
   translation, so it is not controlled by the archive. The test verifies that invariant
-  (`$nameSuffix contiene solo il markup e la traduzione del chiamante` / `  e nessun payload ci passa dentro`) instead of taking it for
+  (`$nameSuffix contains only the markup and the translation of the caller` / `  and no payload gets into it`) instead of taking it for
   granted: it is the kind of argument that holds until someone adds a caller.
 - **`getMoonPhaseMarkup(?float, ?float)`** has the declared type, so a non-numeric string
   becomes a `TypeError` instead of ending up in the HTML: safe, but for a reason that

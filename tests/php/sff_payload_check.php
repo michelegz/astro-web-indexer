@@ -150,7 +150,7 @@ $thumbId = (int)$conn->query("SELECT id FROM files
 printf("  GET /image.php?id=%d&type=thumb -> HTTP %d, %d byte\n", $thumbId, $s2, strlen($img));
 check('image.php answers 200', $s2 === 200, 'HTTP ' . $s2);
 check('  and returns a PNG', substr($img, 1, 3) === 'PNG',
-    $s2 === 200 ? substr($img, 1, 3) : 'nessun corpo');
+    $s2 === 200 ? substr($img, 1, 3) : 'no body');
 check('  and the bytes are the thumbnail, not a placeholder',
     $s2 === 200 && strlen($img) > 200, strlen($img) . ' byte');
 

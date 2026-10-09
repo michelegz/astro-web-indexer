@@ -111,14 +111,14 @@ $html = (string)ob_get_clean();
 file_put_contents('/tmp/sff_render_escape_check.html', $html);
 printf("  rendered %d bytes over %d filters\n", strlen($html), count($configs));
 
-// Controllo di positivita': senza payload nell'HTML, 'nessuna iniezione' sarebbe
-// vero solo perche' la pagina era vuota.
+// Positivity check: without a payload in the HTML, 'no injection' would be
+// true just because the page was empty.
 $occ = substr_count($html, $NEEDLE);
 $esc = substr_count($html, $NEEDLE . '&lt;');
 check('the payload reached the HTML', $occ > 0, "$occ occurrences");
 printf("  occurrences: total=%d  with '<' as entity=%d\n", $occ, $esc);
 check('  every occurrence has \'<\' as an entity', $esc === $occ,
-    $esc === $occ ? '' : ($occ - $esc) . ' grezze');
+    $esc === $occ ? '' : ($occ - $esc) . ' raw');
 
 $liveTag = preg_match('#' . preg_quote($NEEDLE, '#') . '\s*<(img|svg|script)#i', $html, $m1);
 check('no live tag after the payload', !$liveTag, $liveTag ? '>>> ' . $m1[0] : '');
@@ -141,8 +141,8 @@ check('the unit is escaped in data-unit (line 51)',
 check('  and the text label next to it (line 52)',
     str_contains($html, '&pm;0' . $NEEDLE . '&lt;'), '');
 
-// Il ramo toggle non ha slider: senza questo, il test passerebbe anche se il ramo
-// slider fosse sparito e con esso la copertura di value= e data-unit.
+// The toggle branch has no slider: without this, the test would pass even if the
+// slider branch had vanished, taking the value= and data-unit coverage with it.
 check('the slider branch was rendered',
     substr_count($html, 'sff-filter-slider') === 3,
     substr_count($html, 'sff-filter-slider') . ' sliders over ' . count($configs) . ' filters');

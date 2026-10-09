@@ -70,7 +70,7 @@ echo "login.php: GET HTTP $sG, POST HTTP $sL\n";
 // containing the login form.
 [$sP, $pBody] = req("$base/projects.php", $jar);
 $authed = !str_contains($pBody, 'name="password"');
-echo 'projects.php dopo login: HTTP ' . $sP . ' -> '
+echo 'projects.php after login: HTTP ' . $sP . ' -> '
     . ($authed ? 'VALID SESSION' : 'LOST SESSION') . "\n\n";
 
 // direct export
@@ -90,7 +90,7 @@ $ok = $sZip === 403 && !$csrfRefusal;
 
 // comparison: the same user must not be able to download via download.php either
 [$sDl, $dBody] = req("$base/download.php", $jar);
-echo "\nPOST download.php (riferimento) -> HTTP $sDl\n";
+echo "\nPOST download.php (reference) -> HTTP $sDl\n";
 echo '  body: ' . trim(preg_replace('/\s+/', ' ', strip_tags(substr($dBody, 0, 100)))) . "\n";
 
 $conn->prepare('DELETE FROM user_permissions WHERE user_id = :id')->execute([':id' => $uid]);

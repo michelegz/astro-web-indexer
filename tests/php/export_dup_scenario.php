@@ -47,9 +47,10 @@ try {
         "SELECT id FROM files WHERE imgtype LIKE 'BIAS%' AND deleted_at IS NULL ORDER BY id LIMIT 1"
     )->fetchColumn();
     if ($PROJECT <= 0) {
-        echo "  FAIL nessun progetto con setup\n";
+        echo "  FAIL no project with setups\n";
         $check(false, 'a project with setups exists');
-        return;
+        $conn->rollBack();
+        exit(1);
     }
     if ($SHARED_FID <= 0) {
         $SHARED_FID = exportFixtureFrame($conn, 'BIAS', ['exptime' => 1.0, 'filter' => '']);
@@ -62,7 +63,8 @@ try {
     if ($setupA === false) {
         echo "no setup in project $PROJECT\n";
         $check(false, 'the project has a setup');
-        return;
+        $conn->rollBack();
+        exit(1);
     }
     $ins = $conn->prepare(
         "INSERT INTO project_setups (project_id, fingerprint, label, setup_no) "
@@ -141,7 +143,7 @@ try {
     $keyOf = static fn(array $e): string => $e['fid'] . "\0" . basename((string)$e['zip_path']);
     $newKeys = array_map($keyOf, $new['entries']);
     $oldOnly = array_values(array_diff(array_map($keyOf, $old['entries']), $newKeys));
-    $check($oldOnly === [], 'nessuna entry del builder vecchio e\' andata perduta: ' . json_encode($oldOnly));
+    $check($oldOnly === [], 'no entry of the old builder was lost: ' . json_encode($oldOnly));
 
     // The duplicate must not leak into skipped, and the manifest must agree.
     $check(
@@ -168,6 +170,6 @@ try {
     echo "\nrolled back\n";
 }
 echo $fail === 0 ? "SCENARIO OK\n" : "FAILURES: $fail\n";
-// The exit code is what run.sh records. The fixture guards above exit 1 on their own,
-// but a real assertion failure reaching this point used to return 0.
+// The exit code is what run.sh records. The fixture guards above exit 1 directly,
+// and a real assertion failure reaching this point exits on the failure count.
 exit($fail === 0 ? 0 : 1);
