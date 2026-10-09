@@ -1,13 +1,13 @@
-// Verifica §5 — escHtml() non escapa le virgolette, quindi non puo' finire in un
-// attributo. escAttr() aggiunge " e '.
+// Check §5 — escHtml() does not escape quotes, so it must not end up in an
+// attribute. escAttr() adds " and '.
 //
-//   escHtml: textContent -> innerHTML  =>  escapa solo & < >
-//   payload: Ha" onmouseover="alert(1)  =>  prima chiude title= e inietta un handler
+//   escHtml: textContent -> innerHTML  =>  escapes only & < >
+//   payload: Ha" onmouseover="alert(1)  =>  before, it closes title= and injects a handler
 //
-// Uso:  node tmp/check_escattr.mjs
+// Usage:  node tmp/check_escattr.mjs
 
-// Approssimazione fedele di escHtml: il browser non converte " ne' &apos; ne' &#39;
-// quando si passa da textContent a innerHTML.
+// A faithful approximation of escHtml: the browser converts neither " nor &apos; nor &#39;
+// when going from textContent to innerHTML.
 const escHtml = (s) => String(s ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -25,15 +25,15 @@ let bad = 0;
 for (const p of payloads) {
     const oldAttr = `title="${escHtml(p)}"`;
     const newAttr = `title="${escAttr(p)}"`;
-    // un attributo ben formato contiene esattamente 2 virgolette
+    // a well-formed attribute contains exactly 2 quotes
     const clean = (attr) => (attr.match(/"/g) || []).length === 2;
     const ok = clean(newAttr) && !clean(oldAttr);
     if (!clean(newAttr)) bad++;
     console.log(`payload : ${p}`);
-    console.log(`  prima : ${oldAttr}${clean(oldAttr) ? '' : '   <<< attributo iniettato'}`);
-    console.log(`  dopo  : ${newAttr}`);
+    console.log(`  before: ${oldAttr}${clean(oldAttr) ? '' : '   <<< attribute injected'}`);
+    console.log(`  after : ${newAttr}`);
     console.log('');
 }
-console.log(bad === 0 ? 'OK: escAttr chiude sempre l\'attributo'
-                      : `FALLITO: ${bad} casi non protetti`);
+console.log(bad === 0 ? 'OK: escAttr always closes the attribute'
+                      : `FAILED: ${bad} unprotected cases`);
 process.exit(bad === 0 ? 0 : 1);
