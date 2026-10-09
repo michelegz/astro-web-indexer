@@ -1,12 +1,12 @@
 <?php
-// Verifica 13.41 — il bootstrap slim evita il blocco dati della home page.
+// Check 13.41 — the slim bootstrap avoids the home page data block.
 //
-// Misura quante SELECT eseguirebbe init.php prima di arrivare al codice
-// dell'endpoint (albero cartelle, tre aggregate, trend stelle, conteggio LIGHT,
-// query file paginata): sono tutte cose che un endpoint JSON non legge.
+// It measures how many SELECTs init.php would run before reaching the endpoint
+// code (folder tree, three aggregates, star trend, LIGHT count, paginated file
+// query): all things a JSON endpoint never reads.
 //
-// Uso:  docker cp tmp/bootstrap_cost_check.php awi-php:/tmp/
-//       docker exec awi-php sh -c 'cd /tmp && php bootstrap_cost_check.php'
+// Usage:  docker cp tmp/bootstrap_cost_check.php awi-php:/tmp/
+//         docker exec awi-php sh -c 'cd /tmp && php bootstrap_cost_check.php'
 
 require_once '/var/www/html/includes/config.php';
 require_once '/var/www/html/includes/db_functions.php';
@@ -18,7 +18,7 @@ $failed = [];
 
 function check(string $label, bool $cond, string $detail = ''): void
 {
-    printf("  %-46s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FALLITO');
+    printf("  %-46s %s%s\n", $label, $detail, $cond ? 'OK' : '<<< FAILED');
     if (!$cond) {
         $GLOBALS['failed'][] = $label;
     }
@@ -77,22 +77,22 @@ $jar = '/tmp/bs_' . bin2hex(random_bytes(4));
 preg_match('/name="csrf_token" value="([a-f0-9]+)"/', $html, $m);
 [$sLogin] = httpPostForm("$base/login.php", $jar,
     ['username' => $tag, 'password' => $plain, 'csrf_token' => $m[1] ?? '']);
-check('login riuscito', $sLogin === 302, "HTTP $sLogin");
+check('login succeeded', $sLogin === 302, "HTTP $sLogin");
 
 $pid = (int)$conn->query('SELECT id FROM projects ORDER BY id LIMIT 1')->fetchColumn();
 $fid = (int)$conn->query("SELECT id FROM files WHERE deleted_at IS NULL AND imgtype='LIGHT'
                            AND date_obs IS NOT NULL ORDER BY id LIMIT 1")->fetchColumn();
-echo "  progetto $pid, file $fid\n\n";
+echo "  project $pid, file $fid\n\n";
 
-// riscaldamento: compila le classi una volta, cosi' il confronto e' pulito
+// warm-up: compile the classes once, so the comparison is clean
 httpPostJson("$base/api/project_preview.php", $jar,
     ['ids' => [$fid], 'project_id' => $pid, 'overrides' => []]);
 
 [$stSlim] = httpPostJson("$base/api/project_preview.php", $jar,
     ['ids' => [$fid], 'project_id' => $pid, 'overrides' => []]);
-check('endpoint risponde 200 col bootstrap slim', $stSlim === 200, "HTTP $stSlim");
+check('endpoint answers 200 with the slim bootstrap', $stSlim === 200, "HTTP $stSlim");
 
-// il blocco dati di init.php, misurato a parte
+// the init.php data block, measured separately
 $before = selects($conn);
 $t0 = microtime(true);
 getAllFoldersAsTree($conn);
@@ -105,15 +105,18 @@ getFiles($conn, '', '', '', '', '', '', '', '', 100, 0, 'name', 'ASC');
 $initMs = (microtime(true) - $t0) * 1000;
 $initSelects = selects($conn) - $before;
 
-echo "\n  costo del blocco dati di init.php (in ogni richiesta):\n";
+echo "\n  cost of the init.php data block (in every request):\n";
 printf("    %d SELECT, %.0f ms\n\n", $initSelects, $initMs);
-check('init.php eseguiva query inutili', $initSelects > 0, "$initSelects SELECT per richiesta");
-check('il blocco aveva un costo reale', $initMs > 0,
-    sprintf('%.0f ms per richiesta buttata, su tutti i 5 endpoint', $initMs));
+check('init.php ran useless queries', $initSelects > 0, "$initSelects SELECT per request");
+check('the block had a real cost', $initMs > 0,
+    sprintf('%.0f ms wasted per request, across all 5 endpoints', $initMs));
 
 $conn->prepare('DELETE FROM user_permissions WHERE user_id = :id')->execute([':id' => $uid]);
 $conn->prepare('DELETE FROM users WHERE id = :id')->execute([':id' => $uid]);
 @unlink($jar);
-echo "\n(utente di prova rimosso)\n";
-echo 'RISULTATO: ' . ($failed ? 'FALLITI: ' . implode(', ', $failed)
-    : 'il bootstrap slim evita il blocco dati della home');
+echo "\n(test user removed)\n";
+echo 'RESULT: ' . ($failed ? 'FAILED: ' . implode(', ', $failed)
+    : 'the slim bootstrap avoids the home data block') . "\n";
+// The exit code is what run.sh records. Without it the script falls off the end and
+// returns 0 even when it printed FAILURES.
+exit($failed ? 1 : 0);
