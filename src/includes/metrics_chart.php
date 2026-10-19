@@ -37,6 +37,19 @@ if ($hasTrendData):
     // Collapsed by the user on a previous visit? Default: collapsed, seven charts
     // is a lot of pixels above the table.
     $cardOpen = awiCardOpen('trend', false);
+    // The chart type: the explicit choice from the cookie, or the automatic one
+    // (bars up to AWI_TREND_AUTO_BAR_MAX points, lines beyond). Both the mode and
+    // the type it comes to are rendered here, so the page comes back drawn the way
+    // the user left it and the script below never has to know the threshold.
+    $trendPoints = count($starTrend);
+    $trendMode = awiTrendChartMode();
+    $trendType = awiTrendChartType($trendPoints);
+    $trendAutoType = awiTrendAutoType($trendPoints);
+    // Whether the cookie is there at all. An absent cookie means the preference
+    // was never expressed in one, and the script below may still find it in the
+    // old localStorage; a cookie that is there (even a broken one) is the user's
+    // answer, and the old value must not be allowed to overrule it.
+    $trendCookiePresent = isset($_COOKIE['awi_trend_type']);
 ?>
 <script src="assets/js/vendor/chart.umd.min.js"></script>
 <div class="bg-gray-800 rounded-lg shadow-md mb-6 overflow-hidden">
@@ -56,8 +69,15 @@ if ($hasTrendData):
         <svg id="trend-chevron" class="w-5 h-5 text-gray-400 transition-transform duration-200"<?= $cardOpen ? ' style="transform: rotate(180deg)"' : '' ?> fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
     </button>
     <div class="flex items-center bg-gray-700 rounded-lg" role="group" aria-label="<?php echo __('trend_chart_type'); ?>">
-        <button type="button" id="trend-type-line" class="px-2 py-1 text-sm rounded-l-lg hover:bg-blue-700 transition-colors" title="<?php echo __('trend_lines'); ?>">📈</button>
-        <button type="button" id="trend-type-bar" class="px-2 py-1 text-sm rounded-r-lg hover:bg-blue-700 transition-colors" title="<?php echo __('trend_bars'); ?>">📊</button>
+        <button type="button" id="trend-type-line" class="px-2 py-1 text-sm rounded-l-lg hover:bg-blue-700 transition-colors<?= $trendType === 'line' ? ' bg-blue-600' : '' ?>" title="<?php echo __('trend_lines'); ?>" aria-label="<?php echo __('trend_lines'); ?>" aria-pressed="<?= $trendType === 'line' ? 'true' : 'false' ?>">📈</button>
+        <button type="button" id="trend-type-bar" class="px-2 py-1 text-sm hover:bg-blue-700 transition-colors<?= $trendType === 'bar' ? ' bg-blue-600' : '' ?>" title="<?php echo __('trend_bars'); ?>" aria-label="<?php echo __('trend_bars'); ?>" aria-pressed="<?= $trendType === 'bar' ? 'true' : 'false' ?>">📊</button>
+        <?php // The third button is not a shape: it is the absence of a choice. It
+        // puts the type back under the rule of the data (bars up to the threshold,
+        // lines beyond), which a stored choice can only override. Without it the
+        // first click on "lines" would follow the user forever, including on the
+        // queries where lines are the wrong shape. The letter A says "automatic"
+        // more plainly than an icon would next to the two chart shapes. ?>
+        <button type="button" id="trend-type-auto" class="px-2 py-1 text-sm font-semibold rounded-r-lg hover:bg-blue-700 transition-colors<?= $trendMode === 'auto' ? ' bg-blue-600' : '' ?>" title="<?php echo __('trend_auto_hint', ['n' => AWI_TREND_AUTO_BAR_MAX]); ?>" aria-label="<?php echo __('trend_auto'); ?>" aria-pressed="<?= $trendMode === 'auto' ? 'true' : 'false' ?>">A</button>
     </div>
     </div>
 
@@ -100,24 +120,60 @@ document.addEventListener('DOMContentLoaded', function() {
     var body = document.getElementById('trend-body');
     var lineBtn = document.getElementById('trend-type-line');
     var barBtn = document.getElementById('trend-type-bar');
+    var autoBtn = document.getElementById('trend-type-auto');
     if (!body) return;
-    var pointCount = <?= (int)count($starTrend) ?>;
-    // Bars under ~150 files, lines above (bars become unreadable slivers).
-    var chartType = localStorage.getItem('awiTrendType') || (pointCount <= 150 ? 'bar' : 'line');
+    // Rendered by PHP from the same cookie the server read: the mode is the
+    // explicit choice (bar, line) or 'auto', and autoType is what 'auto' comes to
+    // with this many points. The threshold itself lives in PHP only.
+    var chartMode = <?= json_encode($trendMode, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+    var chartType = <?= json_encode($trendType, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+    var autoType = <?= json_encode($trendAutoType, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+    // Whether the cookie is there at all. The old localStorage value is adopted
+    // only when it is not: a cookie that is there is the user's answer, and the
+    // value left over from before the move must not overrule it - not even when
+    // the answer is "automatic".
+    var cookiePresent = <?= $trendCookiePresent ? 'true' : 'false' ?>;
     var chartsBuilt = false;
     var trendCharts = [];
-    function refreshTypeButtons() {
-        if (lineBtn) lineBtn.classList.toggle('bg-blue-600', chartType === 'line');
-        if (barBtn) barBtn.classList.toggle('bg-blue-600', chartType === 'bar');
+
+    // A user who had already chosen a type before it moved to the cookie keeps it:
+    // the old value is adopted once, on the first load after the change.
+    if (!cookiePresent && typeof awiAdoptLegacyTrendType === 'function') {
+        var legacy = awiAdoptLegacyTrendType();
+        if (legacy) {
+            chartMode = legacy;
+            chartType = legacy;
+            if (typeof awiSaveTrendType === 'function') awiSaveTrendType(legacy);
+        }
     }
-    function setChartType(t) {
-        chartType = (t === 'bar') ? 'bar' : 'line';
-        try { localStorage.setItem('awiTrendType', chartType); } catch (e) { /* private mode */ }
+
+    function refreshTypeButtons() {
+        // Two buttons can be lit at once, and they mean different things: the type
+        // button says which shape is on the screen, the auto button says that the
+        // shape was derived from the data instead of being chosen.
+        if (lineBtn) {
+            lineBtn.classList.toggle('bg-blue-600', chartType === 'line');
+            lineBtn.setAttribute('aria-pressed', chartType === 'line' ? 'true' : 'false');
+        }
+        if (barBtn) {
+            barBtn.classList.toggle('bg-blue-600', chartType === 'bar');
+            barBtn.setAttribute('aria-pressed', chartType === 'bar' ? 'true' : 'false');
+        }
+        if (autoBtn) {
+            autoBtn.classList.toggle('bg-blue-600', chartMode === 'auto');
+            autoBtn.setAttribute('aria-pressed', chartMode === 'auto' ? 'true' : 'false');
+        }
+    }
+    function setChartType(mode) {
+        chartMode = (mode === 'bar' || mode === 'line') ? mode : 'auto';
+        chartType = chartMode === 'auto' ? autoType : chartMode;
+        if (typeof awiSaveTrendType === 'function') awiSaveTrendType(chartMode);
         refreshTypeButtons();
         if (!body.classList.contains('hidden')) buildTrendCharts();
     }
     if (lineBtn) lineBtn.addEventListener('click', function() { setChartType('line'); });
     if (barBtn) barBtn.addEventListener('click', function() { setChartType('bar'); });
+    if (autoBtn) autoBtn.addEventListener('click', function() { setChartType('auto'); });
     refreshTypeButtons();
 
     // The charts are drawn on the first reveal, not at load: the card is closed by

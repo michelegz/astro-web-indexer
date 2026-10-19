@@ -31,6 +31,53 @@ function awiCardOpen(string $cardId, bool $defaultOpen): bool
     return $defaultOpen;
 }
 
+// The type of the charts of the metrics trend card: 'bar' or 'line'.
+//
+// The cookie (awi_trend_type) holds the EXPLICIT choice only. Its absence means
+// "automatic", and the automatic choice is not a value a cookie could hold: it
+// depends on how many points the current query returns (bars up to
+// AWI_TREND_AUTO_BAR_MAX files, lines beyond), so it changes with the filters.
+//
+// That is also why the card offers an "auto" button. A stored choice OVERRIDES
+// the automatic one, it does not replace it: without a way back, one click on
+// "lines" on a query with 30 files would follow the user forever, including on
+// the queries where 900 files make lines the wrong shape.
+define('AWI_TREND_AUTO_BAR_MAX', 150);
+
+/**
+ * The chart type the user asked for: 'bar', 'line' or 'auto'.
+ *
+ * A cookie nobody can produce is not read as a choice: it falls back to 'auto',
+ * the same as an absent one.
+ */
+function awiTrendChartMode(): string
+{
+    $raw = (string)($_COOKIE['awi_trend_type'] ?? '');
+    return ($raw === 'bar' || $raw === 'line') ? $raw : 'auto';
+}
+
+/**
+ * The chart type the automatic choice comes to, for this many points.
+ *
+ * Bars under ~150 files, lines above: below that threshold the bars are readable,
+ * above it they turn into unreadable slivers.
+ */
+function awiTrendAutoType(int $pointCount): string
+{
+    return $pointCount <= AWI_TREND_AUTO_BAR_MAX ? 'bar' : 'line';
+}
+
+/**
+ * The chart type the trend card has to be drawn with.
+ *
+ * @param int $pointCount How many points the charts are about to draw.
+ */
+function awiTrendChartType(int $pointCount): string
+{
+    $mode = awiTrendChartMode();
+    return $mode === 'auto' ? awiTrendAutoType($pointCount) : $mode;
+}
+
 // Helper function for table sorting icon
 function echoIcon(string $column, string $sortBy, string $sortOrder): void {
     if ($sortBy === $column) {

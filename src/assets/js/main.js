@@ -35,6 +35,51 @@ function awiBindCard(id, onOpen) {
 window.awiSaveCardState = awiSaveCardState;
 window.awiBindCard = awiBindCard;
 
+// --- THE TYPE OF THE TREND CHARTS ---
+// bar, line, or auto. The choice is remembered in a cookie (awi_trend_type) and
+// the server reads it (awiTrendChartMode(), template_functions.php), so the page
+// comes back drawn the way the user left it.
+//
+// "auto" is not a third shape: it is the absence of a choice. The automatic
+// choice depends on how many points the current query returns - bars up to
+// AWI_TREND_AUTO_BAR_MAX files, lines beyond - so the server computes it per
+// page and it is not stored anywhere. A stored choice overrides it, which is
+// why the card keeps an "auto" button: without it, one click on "lines" would
+// follow the user forever, even on the queries where lines are the wrong shape.
+const AWI_TREND_COOKIE_DAYS = 365;
+
+function awiSaveTrendType(mode) {
+    // Anything that is not one of the two shapes is not a choice: it is the
+    // automatic one, and it is written as such so the server reads the same
+    // thing this script thinks it wrote.
+    const value = (mode === 'bar' || mode === 'line') ? mode : 'auto';
+    const d = new Date();
+    d.setTime(d.getTime() + AWI_TREND_COOKIE_DAYS * 864e5);
+    document.cookie = `awi_trend_type=${value};path=/;expires=${d.toUTCString()};samesite=Lax`;
+    return value;
+}
+
+// The preference used to live in localStorage. It is adopted once, so a user who
+// had already chosen a type keeps it instead of finding the charts back in the
+// automatic shape. The old key is removed as it is read, so the adoption happens
+// exactly once and a later "auto" is not overwritten by it.
+function awiAdoptLegacyTrendType() {
+    let old = null;
+    try {
+        old = localStorage.getItem('awiTrendType');
+    } catch (e) {
+        return null; // private mode: there is nothing to adopt
+    }
+    if (old !== 'bar' && old !== 'line') {
+        return null;
+    }
+    try { localStorage.removeItem('awiTrendType'); } catch (e) { /* ignore */ }
+    return old;
+}
+
+window.awiSaveTrendType = awiSaveTrendType;
+window.awiAdoptLegacyTrendType = awiAdoptLegacyTrendType;
+
 // --- SCROLL MEMORY (re-sorts only) ---
 // A re-sort reloads the page, so clicking ▲▼ on a chart drops the user back at the
 // top of a reordered table. sortTable() leaves the row that was in view behind and

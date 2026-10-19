@@ -202,6 +202,8 @@ return [
     'trend_chart_type' => 'Tipo di grafico',
     'trend_lines' => 'Linee',
     'trend_bars' => 'Barre',
+    'trend_auto' => 'Auto',
+    'trend_auto_hint' => 'Automatico: barre fino a {n} file, linee oltre',
     'trend_sort_asc' => 'Ordina crescente',
     'trend_sort_desc' => 'Ordina decrescente',
     'metrics_trend_summary' => '{count} light frame',

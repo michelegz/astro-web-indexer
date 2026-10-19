@@ -154,6 +154,8 @@ return [
     'trend_chart_type' => 'Type de graphique',
     'trend_lines' => 'Lignes',
     'trend_bars' => 'Barres',
+    'trend_auto' => 'Auto',
+    'trend_auto_hint' => 'Automatique : barres jusqu\'à {n} fichiers, lignes au-delà',
     'trend_sort_asc' => 'Tri croissant',
     'trend_sort_desc' => 'Tri décroissant',
     'metrics_trend_summary' => '{count} images LIGHT',
