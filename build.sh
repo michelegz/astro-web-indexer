@@ -74,10 +74,8 @@ compose_live() {
 warn_legacy_override() {
     if [ -f docker-compose.override.yml ]; then
         echo "WARNING: docker-compose.override.yml is not loaded any more." >&2
-        echo "         Compose used to auto-load that name; build.sh names its" >&2
-        echo "         files explicitly now. The shared development setup lives" >&2
-        echo "         in docker-compose.dev.yml, which is tracked. Fold anything" >&2
-        echo "         of yours into it and delete this file." >&2
+        echo "         The development setup is docker-compose.dev.yml (tracked)." >&2
+        echo "         Delete this file, or fold anything of yours into it." >&2
     fi
 }
 

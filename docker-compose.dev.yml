@@ -8,18 +8,13 @@
 # contributor who clones the project gets the same development stack as
 # everyone else, instead of having to reconstruct it from a README.
 #
-# The name matters. Compose auto-loads a file called docker-compose.override.yml
-# next to docker-compose.yml and merges it over the base WITHOUT being asked,
-# and that merge can replace a scalar: this file sets `image: nginx:1.27`, so a
-# plain `docker compose build` would tag the nginx it had just built as
-# nginx:1.27 and never produce the ghcr.io/.../astro-web-indexer-nginx:<version>
-# tag that `build.sh save` and `build.sh push` export. `push` does not fail on a
-# missing tag: it ships the previous build's nginx.
-#
-# Being called .dev.yml means Compose never picks it up on its own. build.sh
-# asks for it explicitly, and only for the lifecycle commands (up, down, logs)
-# - the build step runs on docker-compose.yml alone, so the image tags it
-# produces cannot depend on any local file.
+# The name matters: Compose auto-loads a file called docker-compose.override.yml
+# and merges it over the base without being asked, and that merge can replace a
+# scalar. This file sets `image: nginx:1.27`, so under that name a build would
+# tag the nginx it had just built as nginx:1.27, and `build.sh push` would ship
+# the previous build's nginx instead of failing. Being called .dev.yml means
+# Compose never picks it up on its own: build.sh asks for it explicitly, and
+# only for the lifecycle commands.
 
 services:
   nginx:
