@@ -50,11 +50,11 @@ venv/
 # dev files
 awi-images*.tar
 docker-save.bat
-# The local development layer of docker-compose.yml. build.sh asks for it by
-# name; Compose never picks it up on its own. The old .override.yml is still
-# listed: a copy left behind must stay ignored rather than become untracked
-# noise someone commits by accident.
-/docker-compose.dev.yml
+# docker-compose.override.yml is NOT loaded any more: Compose used to auto-load
+# that name, and build.sh now names its files explicitly. A copy left behind
+# has no effect and is kept ignored so it does not become untracked noise
+# someone commits by accident. The shared development layer is
+# docker-compose.dev.yml, which IS tracked.
 /docker-compose.override.yml
 /docker-compose.override.yml.off
 /src/VERSION

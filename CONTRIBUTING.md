@@ -40,29 +40,30 @@ If you want to build the project from the source code instead of using the pre-b
 The development stack mounts `./src`, `./docker/nginx/default.conf` and the
 Python scripts straight into the containers, so a PHP edit takes effect on the
 next reload instead of the next build. Those mounts live in
-`docker-compose.dev.yml`, a local file that is **not** tracked (it is listed in
-`.gitignore`).
+`docker-compose.dev.yml`, which is **tracked**: the setup is identical for
+everyone (every path is relative to the repository, and `external/xisf` is a
+submodule with a fixed location), so there is nothing personal about it to keep
+out of git. A fresh clone gets the same development stack as everyone else.
 
-```bash
-cp /dev/null docker-compose.dev.yml   # then paste the mounts you want
-```
-
-`build.sh` asks for it by name and only for the lifecycle commands (`up`, `down`,
-`logs`). The `build` step itself runs on `docker-compose.yml` alone, so the
-images it produces and the version tags it applies never depend on a developer's
-local stack.
+`build.sh` asks for that file by name and only for the lifecycle commands (`up`,
+`down`, `logs`). The `build` step itself runs on `docker-compose.yml` alone, so
+the images it produces and the version tags it applies never depend on a local
+file.
 
 Two things worth knowing:
 
-- **Do not name it `docker-compose.override.yml`.** Compose auto-loads that name
-  and merges it over the base without being asked, and the merge can replace a
-  scalar — the dev file sets `image: nginx:1.27`, which would make
+- **Do not rename it to `docker-compose.override.yml`.** Compose auto-loads that
+  name and merges it over the base without being asked, and the merge can replace
+  a scalar — the dev file sets `image: nginx:1.27`, which would make
   `docker compose build` tag the nginx it had just built as `nginx:1.27` and never
   produce the versioned tag `build.sh push` exports. `push` does not fail on a
   missing tag: it ships the previous build's nginx. `build.sh` warns if it finds
-  a file with the old name.
-- Without the file the stack still runs, it just runs from the images built into
-  it. Your edits will not show up until the next `./build.sh build`.
+  a file with the old name; that file is ignored and has no effect, so delete it
+  once you have folded anything of yours into `docker-compose.dev.yml`.
+- **Use `./build.sh`, not a raw `docker compose`.** The dev layer is not
+  auto-loaded by design, so plain `docker compose up` runs the stack from the
+  images built into it: it works, but your edits will not show up until the next
+  `./build.sh build`.
 
 ### Managing the Application with `build.sh`
 

@@ -1,0 +1,53 @@
+# The development layer on top of docker-compose.yml: it mounts ./src, the
+# nginx config and the indexer scripts straight into the containers, so a PHP
+# edit takes effect on the next reload instead of the next build.
+#
+# It is TRACKED, on purpose. The setup is identical for everyone - every path
+# is relative to this repository, and external/xisf is a submodule with a fixed
+# location - so there is nothing personal about it to keep out of git. A
+# contributor who clones the project gets the same development stack as
+# everyone else, instead of having to reconstruct it from a README.
+#
+# The name matters. Compose auto-loads a file called docker-compose.override.yml
+# next to docker-compose.yml and merges it over the base WITHOUT being asked,
+# and that merge can replace a scalar: this file sets `image: nginx:1.27`, so a
+# plain `docker compose build` would tag the nginx it had just built as
+# nginx:1.27 and never produce the ghcr.io/.../astro-web-indexer-nginx:<version>
+# tag that `build.sh save` and `build.sh push` export. `push` does not fail on a
+# missing tag: it ships the previous build's nginx.
+#
+# Being called .dev.yml means Compose never picks it up on its own. build.sh
+# asks for it explicitly, and only for the lifecycle commands (up, down, logs)
+# - the build step runs on docker-compose.yml alone, so the image tags it
+# produces cannot depend on any local file.
+
+services:
+  nginx:
+    # In development, we mount the config and source code directly.
+    # We don't need to build a custom nginx image.
+    image: nginx:1.27
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./src:/var/www/html
+
+  php:
+    # We still build the PHP image to get extensions, but we mount the source code
+    # over the top of the code copied in the image.
+    volumes:
+      - ./src:/var/www/html
+      # This next line is crucial. It creates an anonymous volume for the vendor
+      # directory, preventing the host mount above from overwriting it.
+      # This preserves the vendor directory created during the image build.
+      - /var/www/html/vendor
+
+  python:
+    # Live-mount the indexer scripts (actual filenames) so edits apply
+    # without rebuilding. No `command:` override here on purpose: the image
+    # CMD (startup reindex + watch_fs watcher, which also drains the
+    # suggest_requests queue) must keep running, otherwise queued re-suggests
+    # stay pending forever.
+    volumes:
+      - ./docker/python/reindex.py:/opt/scripts/reindex.py
+      - ./docker/python/watch_fs.py:/opt/scripts/watch_fs.py
+      - ./docker/python/indexer_lib:/opt/scripts/indexer_lib
+      - ./external/xisf:/opt/scripts/external/xisf

@@ -47,9 +47,11 @@ get_version() {
 #
 # compose_base: the release artefacts. `build` uses it ALONE, so what gets built
 #               and tagged cannot depend on a developer's local stack.
-# compose_live: the lifecycle commands, with the optional dev layer on top. It
-#               is what mounts ./src in vivo. Being additive here is safe: the
-#               image tags were already set by compose_base before `up` runs.
+# compose_live: the lifecycle commands, with the dev layer on top. It is what
+#               mounts ./src in vivo, and it is tracked (docker-compose.dev.yml),
+#               so a fresh clone gets the same development stack. Being additive
+#               here is safe: the image tags were already set by compose_base
+#               before `up` runs.
 # =============================================================================
 compose_base() {
     docker compose -f docker-compose.yml "$@"
@@ -64,14 +66,18 @@ compose_live() {
     fi
 }
 
-# A leftover docker-compose.override.yml used to be loaded automatically and now
-# is not. Without this the developer gets a stack with no live mounts and no
-# explanation: their PHP edits stop taking effect and `npm run watch` looks
-# broken. Saying it out loud is cheaper than the bug report.
+# A leftover docker-compose.override.yml is dead weight: Compose used to
+# auto-load that name and build.sh now names its files explicitly, so the file
+# has no effect at all. Saying so is cheaper than the bug report - and the
+# advice matters, because the obvious fix ("rename it to docker-compose.dev.yml")
+# would OVERWRITE the shared dev layer, which is tracked, with a personal copy.
 warn_legacy_override() {
     if [ -f docker-compose.override.yml ]; then
-        echo "WARNING: docker-compose.override.yml is no longer loaded automatically." >&2
-        echo "         Rename it to docker-compose.dev.yml to keep your live mounts." >&2
+        echo "WARNING: docker-compose.override.yml is not loaded any more." >&2
+        echo "         Compose used to auto-load that name; build.sh names its" >&2
+        echo "         files explicitly now. The shared development setup lives" >&2
+        echo "         in docker-compose.dev.yml, which is tracked. Fold anything" >&2
+        echo "         of yours into it and delete this file." >&2
     fi
 }
 
