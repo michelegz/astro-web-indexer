@@ -38,6 +38,9 @@ require_once '/var/www/html/includes/language_functions.php';
 require_once '/var/www/html/includes/language.php';
 require_once '/var/www/html/includes/db_functions.php';
 require_once '/var/www/html/includes/columns.php';
+// buildDirPermissionFilter(), which getDistinctValues() calls: without this the
+// rendering of filters.php dies on an undefined function.
+require_once '/var/www/html/includes/auth.php';
 require_once '/var/www/html/includes/template_functions.php';
 
 $failed = [];
