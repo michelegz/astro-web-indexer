@@ -86,6 +86,7 @@ JS tests run locally with Node.
 | `trend_type_check.php` | the type of the trend charts: the cookie holds the **explicit** choice, the automatic one follows the number of points (bars up to `AWI_TREND_AUTO_BAR_MAX`, lines above), an unreadable cookie is not read as a choice, and the three buttons and the cookie always agree | no writes (synthetic `$starTrend`) |
 | `check_trend_type.mjs` | `awiSaveTrendType` writes `awi_trend_type=bar\|line\|auto` and nothing else; the old `localStorage` value is adopted once and then removed; the partial no longer reads the preference from `localStorage` | none |
 | `check_nginx_upstream.mjs` | nginx resolves the php container **per request** (Docker's embedded DNS), not once at startup: a php container recreated by a build comes back with a different address, and a server that kept the old one answers 502 with nothing in the build output to explain it | none |
+| `check_build_push.mjs` | `build.sh` builds through `compose_base` (the dev layer must not decide the tag of the release image), the push names the version tag of the four services, and it refuses to push without a GHCR credential | none |
 | `api_bootstrap_all_check.php` | the 4 non-projects endpoints migrated to `api_bootstrap.php` no longer load `init.php` | creates and removes 1 user |
 | `api_bootstrap_sweep.php` | the same 4 endpoints on **happy and error paths**; no PHP diagnostic in the body | no writes |
 | `calib_filter_id_check.php` | the filter column name arrives from the JSON body and is validated | no writes |

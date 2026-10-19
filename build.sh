@@ -79,6 +79,32 @@ warn_legacy_override() {
     fi
 }
 
+# =============================================================================
+# Registry credentials
+# -----------------------------------------------------------------------------
+# A push without a credential is refused by the registry only AFTER the layers
+# are prepared: twenty lines of "Preparing" and "Waiting" and then one
+# "unauthorized: unauthenticated", with nothing saying that the real problem
+# is a missing login. The check happens before the first push, where the
+# answer is still one line long.
+#
+# The credential can live in the config file (a plain "ghcr.io" entry) or in a
+# credential helper. When there is a helper the push is left alone: the helper
+# is the only one that knows what it holds, and a wrong guess here would
+# block a push that would have worked.
+# =============================================================================
+ghcr_credential_present() {
+    local cfg="${DOCKER_CONFIG:-$HOME/.docker}/config.json"
+    [ -f "$cfg" ] || return 1
+    if grep -q '"ghcr\.io"' "$cfg"; then
+        return 0
+    fi
+    if grep -q '"credsStore"\|"credHelpers"' "$cfg"; then
+        return 0
+    fi
+    return 1
+}
+
 AWI_VERSION=$(get_version)
 echo "Detected version: $AWI_VERSION"
 export AWI_VERSION
@@ -179,12 +205,17 @@ case "$COMMAND" in
         ;;
     push)
         echo "Pushing images with tag $AWI_VERSION to GHCR..."
-        
-        # Check for ghcr.io login
-        #if ! docker info | grep -q "ghcr.io"; then
-        #    echo "Error: You are not logged into ghcr.io. Please run 'echo \$GH_PAT | docker login ghcr.io -u <username> --password-stdin' first."
-        #    exit 1
-        #fi
+
+        # A push without a credential dies at the registry, after the layers
+        # are prepared, with an "unauthorized" that says nothing about the
+        # login that is missing. Caught here, where the answer is one line.
+        if ! ghcr_credential_present; then
+            echo "Error: no credential for ghcr.io in ${DOCKER_CONFIG:-$HOME/.docker}/config.json." >&2
+            echo "       The registry refuses an anonymous push with 'unauthorized'." >&2
+            echo "       Log in with a token that has the 'write:packages' scope:" >&2
+            echo "         echo \$GH_PAT | docker login ghcr.io -u <github-user> --password-stdin" >&2
+            exit 1
+        fi
 
         SERVICES=("nginx" "php" "python" "mariadb")
         IMAGE_OWNER=${IMAGE_OWNER:-michelegz} # Use environment variable or default
