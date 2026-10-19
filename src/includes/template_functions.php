@@ -1,4 +1,36 @@
 <?php
+
+// Set of collapsible cards and their cookie ids.
+define('AWI_CARD_IDS', ['filters', 'stats', 'trend']);
+
+/**
+ * Whether a collapsible card has to be rendered OPEN.
+ *
+ * The state comes from the cookie instead of being hardcoded because the inline
+ * script of each card only knows how to TOGGLE: without the cookie a card collapsed
+ * by the user would come back expanded and snap shut on the first click, which is a
+ * flash of the wrong layout on every single page load.
+ *
+ * One cookie per card (`card_filters=0`), written by awiSaveCardState() in main.js.
+ * A cookie that is missing, empty or unreadable falls back to $defaultOpen, so a card
+ * introduced by a later release still starts from its own default instead of
+ * inheriting the state of another one.
+ *
+ * @param string $cardId One of AWI_CARD_IDS.
+ * @param bool $defaultOpen State to use when the cookie says nothing.
+ */
+function awiCardOpen(string $cardId, bool $defaultOpen): bool
+{
+    $raw = $_COOKIE['card_' . $cardId] ?? null;
+    if ($raw === '1') {
+        return true;
+    }
+    if ($raw === '0') {
+        return false;
+    }
+    return $defaultOpen;
+}
+
 // Helper function for table sorting icon
 function echoIcon(string $column, string $sortBy, string $sortOrder): void {
     if ($sortBy === $column) {

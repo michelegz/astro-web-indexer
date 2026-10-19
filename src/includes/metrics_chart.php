@@ -34,13 +34,16 @@ if ($hasTrendData):
         $trendLabels[] = $row['name'] ?? '';
     }
     $trendPayload = ['labels' => $trendLabels, 'series' => $trendConfig];
+    // Collapsed by the user on a previous visit? Default: collapsed, seven charts
+    // is a lot of pixels above the table.
+    $cardOpen = awiCardOpen('trend', false);
 ?>
 <script src="assets/js/vendor/chart.umd.min.js"></script>
 <div class="bg-gray-800 rounded-lg shadow-md mb-6 overflow-hidden">
     <div class="w-full flex flex-wrap items-center justify-between gap-2 p-4">
     <button type="button"
             id="trend-toggle"
-            aria-expanded="false"
+            aria-expanded="<?= $cardOpen ? 'true' : 'false' ?>"
             aria-controls="trend-body"
             class="flex-1 flex flex-wrap items-center justify-between gap-2 hover:bg-gray-700/50 transition-colors text-left rounded">
         <span class="flex items-center gap-2 font-semibold text-gray-100">
@@ -50,7 +53,7 @@ if ($hasTrendData):
                 <?php echo __('metrics_trend_summary', ['count' => $trendCount]); ?>
             </span>
         </span>
-        <svg id="trend-chevron" class="w-5 h-5 text-gray-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        <svg id="trend-chevron" class="w-5 h-5 text-gray-400 transition-transform duration-200"<?= $cardOpen ? ' style="transform: rotate(180deg)"' : '' ?> fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
     </button>
     <div class="flex items-center bg-gray-700 rounded-lg" role="group" aria-label="<?php echo __('trend_chart_type'); ?>">
         <button type="button" id="trend-type-line" class="px-2 py-1 text-sm rounded-l-lg hover:bg-blue-700 transition-colors" title="<?php echo __('trend_lines'); ?>">📈</button>
@@ -58,7 +61,7 @@ if ($hasTrendData):
     </div>
     </div>
 
-    <div id="trend-body" class="hidden border-t border-gray-700 p-4 flex flex-col gap-6">
+    <div id="trend-body" class="border-t border-gray-700 p-4 flex flex-col gap-6<?= $cardOpen ? '' : ' hidden' ?>">
         <?php foreach ($trendConfig as $i => $cfg): ?>
         <div>
             <?php // The metric name moves out of the canvas and into this header so
@@ -89,12 +92,10 @@ if ($hasTrendData):
 </div>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    var toggle = document.getElementById('trend-toggle');
     var body = document.getElementById('trend-body');
-    var chevron = document.getElementById('trend-chevron');
     var lineBtn = document.getElementById('trend-type-line');
     var barBtn = document.getElementById('trend-type-bar');
-    if (!toggle || !body) return;
+    if (!body) return;
     var pointCount = <?= (int)count($starTrend) ?>;
     // Bars under ~150 files, lines above (bars become unreadable slivers).
     var chartType = localStorage.getItem('awiTrendType') || (pointCount <= 150 ? 'bar' : 'line');
@@ -113,15 +114,19 @@ document.addEventListener('DOMContentLoaded', function() {
     if (lineBtn) lineBtn.addEventListener('click', function() { setChartType('line'); });
     if (barBtn) barBtn.addEventListener('click', function() { setChartType('bar'); });
     refreshTypeButtons();
-    toggle.addEventListener('click', function() {
-        var isHidden = body.classList.toggle('hidden');
-        toggle.setAttribute('aria-expanded', isHidden ? 'false' : 'true');
-        if (chevron) chevron.style.transform = isHidden ? '' : 'rotate(180deg)';
-        if (!isHidden && !chartsBuilt) {
-            chartsBuilt = true;
-            buildTrendCharts();
-        }
-    });
+
+    // The charts are drawn on the first reveal, not at load: the card is closed by
+    // default and Chart.js on seven canvases nobody is looking at is wasted work.
+    function buildOnce() {
+        if (chartsBuilt) return;
+        chartsBuilt = true;
+        buildTrendCharts();
+    }
+    awiBindCard('trend', buildOnce);
+    // ...but a card the user left open comes back OPEN from the cookie and nobody
+    // clicks it: without this the card would open onto seven blank canvases, and
+    // buildTrendCharts() would never run until the first collapse/reopen.
+    if (!body.classList.contains('hidden')) buildOnce();
 
     function median(values) {
         var nums = values.filter(function(v) { return typeof v === 'number' && isFinite(v); }).sort(function(a, b) { return a - b; });

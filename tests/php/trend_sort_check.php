@@ -45,6 +45,8 @@ require_once '/var/www/html/includes/language_functions.php';
 require_once '/var/www/html/includes/language.php';
 require_once '/var/www/html/includes/db_functions.php';
 require_once '/var/www/html/includes/columns.php';
+// awiCardOpen(), which the partial reads for the remembered card state.
+require_once '/var/www/html/includes/template_functions.php';
 
 $failed = [];
 

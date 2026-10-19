@@ -1,3 +1,40 @@
+// --- COLLAPSIBLE CARDS ---
+// Defined OUTSIDE the DOMContentLoaded callback on purpose: the partials
+// (filters.php, statistics.php, metrics_chart.php) bind their cards from their
+// own inline listeners, and those are registered while the body is still being
+// parsed — i.e. they run BEFORE this file's listener. A helper defined inside
+// the callback would not exist yet when they call it.
+//
+// One cookie per card, card_<id>=1 open / 0 collapsed. The initial state is
+// rendered by PHP from the same cookie (awiCardOpen() in template_functions.php),
+// so a card the user collapsed comes back collapsed instead of flashing open and
+// snapping shut on the first click.
+const AWI_CARD_COOKIE_DAYS = 365;
+
+function awiSaveCardState(id, open) {
+    const d = new Date();
+    d.setTime(d.getTime() + AWI_CARD_COOKIE_DAYS * 864e5);
+    document.cookie = `card_${id}=${open ? 1 : 0};path=/;expires=${d.toUTCString()};samesite=Lax`;
+}
+
+function awiBindCard(id, onOpen) {
+    const toggle = document.getElementById(id + '-toggle');
+    const body = document.getElementById(id + '-body');
+    if (!toggle || !body) return;
+    const chevron = document.getElementById(id + '-chevron');
+    toggle.addEventListener('click', function () {
+        const isHidden = body.classList.toggle('hidden');
+        toggle.setAttribute('aria-expanded', isHidden ? 'false' : 'true');
+        if (chevron) chevron.style.transform = isHidden ? '' : 'rotate(180deg)';
+        awiSaveCardState(id, !isHidden);
+        // Fired only when the card actually opens, never on the collapse.
+        if (!isHidden && typeof onOpen === 'function') onOpen();
+    });
+}
+
+window.awiSaveCardState = awiSaveCardState;
+window.awiBindCard = awiBindCard;
+
 document.addEventListener('DOMContentLoaded', () => {
     // --- DOM references ---
     const sidebar = document.getElementById('sidebar');

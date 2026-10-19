@@ -26,6 +26,7 @@ security fixes.
 - **New header fields** - rotator angle and name, sensor readout mode, and meteo data (cloud cover, dewpoint, humidity, pressure, ambient temperature), available as table columns (hidden by default)
 - **Metrics trend charts** - line/bar toggle with an adaptive default per metric, and an ▲▼ pair on every chart to sort the file table by that metric, the same control the integration group charts on the projects page carry. The button lights up on the direction the table is currently sorted in. The charts keep following the table order, so a chart can never disagree with the rows below it
 - **Table controls above the main table** - columns button, view controls and top pagination moved out of the header area
+- **The cards remember how you left them** - Filters, Per-filter statistics and Metrics trend keep their open/collapsed state in a cookie, one per card, and the server renders it that way, so a card you collapsed is already collapsed when the page comes back instead of flashing open and snapping shut on the first click. An absent cookie keeps today's defaults (Filters open, the other two collapsed)
 
 ### Security Fixes
 All of these were reachable on 1.4.0 and are fixed here.

@@ -2,21 +2,23 @@
 // Leggi le preferenze di visualizzazione dai cookie per evitare il flickering
 $viewMode = $_COOKIE['viewMode'] ?? 'list';
 $thumbSize = $_COOKIE['thumbSize'] ?? '3';
+// Collapsed by the user on a previous visit? Default: open.
+$cardOpen = awiCardOpen('filters', true);
 ?>
 <div class="bg-gray-800 rounded-lg shadow-md mb-6 overflow-hidden">
     <button type="button"
             id="filters-toggle"
-            aria-expanded="true"
+            aria-expanded="<?= $cardOpen ? 'true' : 'false' ?>"
             aria-controls="filters-body"
             class="w-full flex flex-wrap items-center justify-between gap-2 p-4 hover:bg-gray-700/50 transition-colors text-left">
         <span class="flex items-center gap-2 font-semibold text-gray-100">
             <span aria-hidden="true">🔍</span>
             <span><?php echo __('filters'); ?></span>
         </span>
-        <svg id="filters-chevron" class="w-5 h-5 text-gray-400 transition-transform duration-200" style="transform: rotate(180deg)" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        <svg id="filters-chevron" class="w-5 h-5 text-gray-400 transition-transform duration-200"<?= $cardOpen ? ' style="transform: rotate(180deg)"' : '' ?> fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
     </button>
 
-    <div id="filters-body" class="border-t border-gray-700">
+    <div id="filters-body" class="border-t border-gray-700<?= $cardOpen ? '' : ' hidden' ?>">
 <form id="filters-form" method="get" class="flex flex-wrap gap-4 items-end p-4">
     <input type="hidden" name="dir" value="<?= htmlspecialchars($dir) ?>">
     <input type="hidden" name="page" value="1"> <!-- Resetta la pagina quando si applicano i filtri -->
@@ -312,16 +314,10 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 </div>
 <script>
+// The toggle is bound by awiBindCard() (main.js), which also writes the cookie:
+// the three cards of this page are the same card, written out three times.
 document.addEventListener('DOMContentLoaded', function() {
-    var toggle = document.getElementById('filters-toggle');
-    var body = document.getElementById('filters-body');
-    var chevron = document.getElementById('filters-chevron');
-    if (!toggle || !body) return;
-    toggle.addEventListener('click', function() {
-        var isHidden = body.classList.toggle('hidden');
-        toggle.setAttribute('aria-expanded', isHidden ? 'false' : 'true');
-        if (chevron) chevron.style.transform = isHidden ? '' : 'rotate(180deg)';
-    });
+    awiBindCard('filters');
 });
 </script>
 <script>

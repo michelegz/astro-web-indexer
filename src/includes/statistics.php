@@ -4,11 +4,14 @@
 // Non renderizzare nulla se non ci sono dati.
 if (!empty($filterStats) && $totalExposure > 0):
     $statsCount = count($filterStats);
+    // Collapsed by the user on a previous visit? Default: collapsed, the numbers
+    // are two lines down the page and the card is an overview.
+    $cardOpen = awiCardOpen('stats', false);
 ?>
 <div class="bg-gray-800 rounded-lg shadow-md mb-6 overflow-hidden">
     <button type="button"
             id="stats-toggle"
-            aria-expanded="false"
+            aria-expanded="<?= $cardOpen ? 'true' : 'false' ?>"
             aria-controls="stats-body"
             class="w-full flex flex-wrap items-center justify-between gap-2 p-4 hover:bg-gray-700/50 transition-colors text-left">
         <span class="flex items-center gap-2 font-semibold text-gray-100">
@@ -18,10 +21,10 @@ if (!empty($filterStats) && $totalExposure > 0):
                 <?php echo __('statistics_summary', ['count' => $statsCount]); ?>
             </span>
         </span>
-        <svg id="stats-chevron" class="w-5 h-5 text-gray-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        <svg id="stats-chevron" class="w-5 h-5 text-gray-400 transition-transform duration-200"<?= $cardOpen ? ' style="transform: rotate(180deg)"' : '' ?> fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
     </button>
 
-    <div id="stats-body" class="hidden border-t border-gray-700">
+    <div id="stats-body" class="border-t border-gray-700<?= $cardOpen ? '' : ' hidden' ?>">
         <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
                 <thead class="bg-gray-700/50 text-gray-300">
@@ -64,15 +67,7 @@ if (!empty($filterStats) && $totalExposure > 0):
 </div>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    var toggle = document.getElementById('stats-toggle');
-    var body = document.getElementById('stats-body');
-    var chevron = document.getElementById('stats-chevron');
-    if (!toggle || !body) return;
-    toggle.addEventListener('click', function() {
-        var isHidden = body.classList.toggle('hidden');
-        toggle.setAttribute('aria-expanded', isHidden ? 'false' : 'true');
-        if (chevron) chevron.style.transform = isHidden ? '' : 'rotate(180deg)';
-    });
+    awiBindCard('stats');
 });
 </script>
 <?php endif; ?>
