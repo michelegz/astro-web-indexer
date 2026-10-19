@@ -47,25 +47,29 @@ if (close === -1) {
 }
 const lifted = mainJs.slice(decl, close + 2) + ' return window.sortTable;';
 
-// The body only touches window.location and the URLSearchParams global, both
-// available here: a stub window is enough to run the shipped code unmodified.
-const build = new Function('window', lifted);
+// The body only touches window.location, the URLSearchParams global and the scroll
+// anchor, all available here: a stub window is enough to run the shipped code
+// unmodified. The anchor is counted rather than stubbed away — sortTable() calling
+// it is exactly the coupling that makes the scroll memory work on a re-sort, and a
+// silent stub would let it rot unnoticed.
+const build = new Function('window', 'awiCaptureScroll', lifted + ' return window.sortTable;');
 
 /** Runs the real sortTable over a fake location and returns the new query string. */
 function sortFrom(search, ...args) {
     const window = { location: { search } };
-    const sortTable = build(window);
+    const captured = { calls: 0 };
+    const sortTable = build(window, () => { captured.calls++; });
     if (typeof sortTable !== 'function') {
         console.log('FAILED: main.js no longer assigns a function to window.sortTable');
         process.exit(1);
     }
     sortTable(...args);
-    return new URLSearchParams(window.location.search);
+    return { params: new URLSearchParams(window.location.search), captured };
 }
 
 let bad = 0;
 function check(label, search, args, expected) {
-    const p = sortFrom(search, ...args);
+    const { params: p, captured } = sortFrom(search, ...args);
     const got = { sort_by: p.get('sort_by'), sort_order: p.get('sort_order'), page: p.get('page') };
     const ok = Object.entries(expected).every(([k, v]) => got[k] === v);
     if (!ok) bad++;
@@ -74,6 +78,12 @@ function check(label, search, args, expected) {
     console.log(`        sortTable(${[...args].map(a => `'${a}'`).join(', ')})`);
     console.log(`        -> sort_by=${got.sort_by} sort_order=${got.sort_order} page=${got.page}`);
     if (!ok) console.log(`        expected ${JSON.stringify(expected)}`);
+    // Every sort leaves an anchor behind, whatever the direction: without it the
+    // table reorders under the user and the page drops them at the top.
+    if (captured.calls !== 1) {
+        bad++;
+        console.log(`        FAIL  anchor captured ${captured.calls} times, expected 1`);
+    }
 }
 
 console.log('--- column headers: one argument, TOGGLE (unchanged behaviour) ---');
@@ -100,13 +110,15 @@ check('an unknown direction falls back to the toggle, never to a silent no-op',
     { sort_by: 'hfr', sort_order: 'DESC', page: '1' });
 
 console.log('\n--- the active filters survive, the page does not ---');
-const p = sortFrom('?dir=M33&object=M31&filter=Ha&exptime_min=60&page=7', 'hfr', 'DESC');
+const { params: p, captured } = sortFrom('?dir=M33&object=M31&filter=Ha&exptime_min=60&page=7', 'hfr', 'DESC');
 const kept = ['dir', 'object', 'filter', 'exptime_min'];
 const lost = kept.filter((k) => p.get(k) === null);
 console.log(`  ${lost.length === 0 ? 'ok  ' : 'FAIL'}  filters preserved: ${kept.map((k) => `${k}=${p.get(k)}`).join(' ')}`);
 if (lost.length) { bad++; console.log(`        lost: ${lost.join(', ')}`); }
 console.log(`  ${p.get('page') === '1' ? 'ok  ' : 'FAIL'}  page reset to 1 (got ${p.get('page')})`);
 if (p.get('page') !== '1') bad++;
+console.log(`  ${captured.calls === 1 ? 'ok  ' : 'FAIL'}  the row in view was anchored before leaving (${captured.calls} time)`);
+if (captured.calls !== 1) bad++;
 
 console.log(bad === 0
     ? '\nOK: an explicit direction is honoured, a missing one still toggles'

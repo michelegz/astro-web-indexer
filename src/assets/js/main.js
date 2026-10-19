@@ -35,6 +35,119 @@ function awiBindCard(id, onOpen) {
 window.awiSaveCardState = awiSaveCardState;
 window.awiBindCard = awiBindCard;
 
+// --- SCROLL MEMORY (re-sorts only) ---
+// A re-sort reloads the page, so clicking ▲▼ on a chart drops the user back at the
+// top of a reordered table. sortTable() leaves the row that was in view behind and
+// the next load brings it back to the same height on screen.
+//
+// The anchor is an ELEMENT, not a pixel offset, and that is the whole design. A row
+// carries the file id (`tr[data-id]`, table.php:129) and a trend chart carries its
+// own key, so the position survives the three things that move a page under the
+// user's feet here: the thumbnails arrive after the first paint (no width/height on
+// the <img>, so the rows start flat and grow), the watcher indexes new files while
+// the tab is closed, and the table is reordered under them.
+//
+const AWI_SCROLL_KEY = 'awiScrollAnchor';
+
+// What can be anchored: the table rows, and the block of each trend chart. The
+// chart blocks are not decoration. The ▲▼ buttons live up there, and with the card
+// open the table is a screenful or two BELOW the button that was clicked, so
+// anchoring on a row nobody can see saves a top edge thousands of pixels down and
+// the correction then aims at nothing. Staying on the chart that was just clicked
+// is what the user actually meant.
+const AWI_ANCHOR_SELECTOR = '[data-scroll-anchor], [data-id].selectable-item';
+
+// On screen, not merely below the fold. `bottom > 0` alone also accepts a row that
+// starts 3000px down, and that was the bug: the page landed in a place that looked
+// arbitrary, because the anchor had been picked out of sight.
+//
+// Both views of the table are in the DOM at once, one of them display:none. A
+// hidden element measures 0 and falls outside the test on its own.
+function awiAnchorInView() {
+    const h = window.innerHeight;
+    for (const el of document.querySelectorAll(AWI_ANCHOR_SELECTOR)) {
+        const r = el.getBoundingClientRect();
+        if (r.bottom > 0 && r.top < h) {
+            return {
+                kind: el.dataset.scrollAnchor !== undefined ? 'el' : 'row',
+                key: el.dataset.scrollAnchor ?? el.dataset.id,
+                top: r.top,
+            };
+        }
+    }
+    return null;
+}
+
+// Finds the anchor on THIS page and returns where its top edge sits relative to
+// the viewport. Deliberately NOT filtered on «is it on screen»: at this point the
+// page is still at the top and the anchor is, by definition, off screen — that is
+// where we are about to go. Only the display:none twin is skipped, by its box.
+function awiFindAnchor(kind, key) {
+    const sel = kind === 'el'
+        ? '[data-scroll-anchor="' + key + '"]'
+        : '[data-id="' + key + '"].selectable-item';
+    for (const el of document.querySelectorAll(sel)) {
+        const r = el.getBoundingClientRect();
+        if (r.bottom > r.top) return r.top;
+    }
+    return null;
+}
+
+function awiCaptureScroll() {
+    const a = awiAnchorInView();
+    // The key goes into a selector on the next page. Rows are file ids, charts are
+    // 'trend-<n>': one charset covers both and keeps a quote out of the selector.
+    if (!a || !/^[A-Za-z0-9_-]+$/.test(String(a.key))) return;
+    // Everything but the sort: if the destination is not this same view, the
+    // anchor is stale and must not fire.
+    const ctx = new URLSearchParams(window.location.search);
+    ctx.delete('sort_by');
+    ctx.delete('sort_order');
+    try {
+        sessionStorage.setItem(AWI_SCROLL_KEY, JSON.stringify({
+            kind: a.kind,
+            key: a.key,
+            // Distance from the top edge of the viewport. Negative when the anchor
+            // was cut off by it, and putting that same offset back restores the
+            // very part the user was looking at.
+            top: a.top,
+            ctx: ctx.toString(),
+        }));
+    } catch (e) { /* private mode, or sessionStorage full */ }
+}
+
+function awiRestoreScroll() {
+    let raw;
+    try { raw = sessionStorage.getItem(AWI_SCROLL_KEY); } catch (e) { return; }
+    if (!raw) return;
+    // One shot. Read it and it is gone, so it can only ever fire for the navigation
+    // that set it, never for some later visit that happens to look similar.
+    try { sessionStorage.removeItem(AWI_SCROLL_KEY); } catch (e) { /* ignore */ }
+    let saved;
+    try { saved = JSON.parse(raw); } catch (e) { return; }
+    if (!saved || typeof saved.key !== 'string' || !/^[A-Za-z0-9_-]+$/.test(saved.key)) return;
+    const ctx = new URLSearchParams(window.location.search);
+    ctx.delete('sort_by');
+    ctx.delete('sort_order');
+    if (ctx.toString() !== saved.ctx) return;
+    const top = awiFindAnchor(saved.kind, saved.key);
+    if (top === null) return; // not on this page: filtered out, or a re-sort moved it
+    const delta = top - saved.top;
+    // The anchor is already where it should be. Scrolling "just in case" would show a
+    // page sitting still for no reason, which reads as a glitch.
+    if (Math.abs(delta) < 2) return;
+    window.scrollTo(0, Math.max(0, window.scrollY + delta));
+}
+
+// On load, not on DOMContentLoaded: the document is still growing while the
+// thumbnails stream in, and a restore computed against the short version lands
+// somewhere else entirely once they arrive.
+if (document.readyState === 'complete') {
+    awiRestoreScroll();
+} else {
+    window.addEventListener('load', awiRestoreScroll);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     // --- DOM references ---
     const sidebar = document.getElementById('sidebar');
@@ -756,6 +869,10 @@ document.addEventListener('DOMContentLoaded', () => {
     //                    table already sorted ascending must sort ascending
     //                    again, not flip it to descending)
     window.sortTable = (column, order) => {
+        // Before leaving: remember the row in view. sortTable() is the only
+        // navigation on this page that reorders content in place, so it is the
+        // only one that needs it.
+        awiCaptureScroll();
         const urlParams = new URLSearchParams(window.location.search);
         const currentSortBy = urlParams.get('sort_by') || 'name';
         const currentSortOrder = urlParams.get('sort_order') || 'ASC';

@@ -82,6 +82,7 @@ JS tests run locally with Node.
 | `check_sort_direction.mjs` | `sortTable(key, dir)` with an explicit direction **jumps** instead of toggling; the column headers (one argument) still toggle | none |
 | `card_state_check.php` | a card comes back as the user left it: `aria-expanded`, the `hidden` class and the chevron rotation agree, for every cookie value and every card in `AWI_CARD_IDS`; an unreadable cookie falls back to the default | reads the dropdown values, like the page |
 | `check_card_cookie.mjs` | `awiBindCard` moves the toggle, the three DOM signals and the cookie together; `onOpen` fires on opening only; one card does not touch the others | none |
+| `check_scroll_anchor.mjs` | the scroll memory anchors on **what was on screen** — a table row, or the trend chart whose ▲▼ was clicked — never on a pixel offset and never on a row below the fold; it survives a page that grew, skips the hidden view on both capture and restore, is one-shot, refuses a foreign context and a tampered key, and runs on `load` | none |
 | `api_bootstrap_all_check.php` | the 4 non-projects endpoints migrated to `api_bootstrap.php` no longer load `init.php` | creates and removes 1 user |
 | `api_bootstrap_sweep.php` | the same 4 endpoints on **happy and error paths**; no PHP diagnostic in the body | no writes |
 | `calib_filter_id_check.php` | the filter column name arrives from the JSON body and is validated | no writes |

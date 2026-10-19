@@ -63,7 +63,12 @@ if ($hasTrendData):
 
     <div id="trend-body" class="border-t border-gray-700 p-4 flex flex-col gap-6<?= $cardOpen ? '' : ' hidden' ?>">
         <?php foreach ($trendConfig as $i => $cfg): ?>
-        <div>
+        <?php // data-scroll-anchor: the ▲▼ buttons of this block are usually clicked
+        // with the table still off screen, so this is what the scroll memory anchors
+        // on. Without it the anchor would be the first table row, thousands of
+        // pixels below the fold, and the restore would aim at nothing. See
+        // awiAnchorInView() in main.js. ?>
+        <div data-scroll-anchor="trend-<?= $i ?>">
             <?php // The metric name moves out of the canvas and into this header so
             // the ▲▼ buttons can sit next to it, exactly like the integration
             // group charts on the projects page. Clicking one re-sorts the file
