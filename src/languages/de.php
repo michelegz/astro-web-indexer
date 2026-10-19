@@ -153,6 +153,8 @@ return [
     'trend_chart_type' => 'Diagrammtyp',
     'trend_lines' => 'Linien',
     'trend_bars' => 'Balken',
+    'trend_sort_asc' => 'Aufsteigend sortieren',
+    'trend_sort_desc' => 'Absteigend sortieren',
     'metrics_trend_summary' => '{count} Light-Frames',
     'metrics_median' => 'Median',
     'filter_by_folder' => 'Nach Ordner filtern',

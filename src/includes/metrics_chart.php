@@ -61,6 +61,26 @@ if ($hasTrendData):
     <div id="trend-body" class="hidden border-t border-gray-700 p-4 flex flex-col gap-6">
         <?php foreach ($trendConfig as $i => $cfg): ?>
         <div>
+            <?php // The metric name moves out of the canvas and into this header so
+            // the ▲▼ buttons can sit next to it, exactly like the integration
+            // group charts on the projects page. Clicking one re-sorts the file
+            // table (same path as clicking the column header), and the next
+            // render repaints every chart in that new order: the card's promise
+            // is "charts follow the table order", so sorting one chart behind
+            // the table's back would break it. ?>
+            <div class="flex items-center justify-between mb-1">
+                <span class="text-xs font-bold" style="color: #e5e7eb;"><?php echo htmlspecialchars($cfg['label'], ENT_QUOTES, 'UTF-8'); ?></span>
+                <span class="flex gap-1">
+                    <button type="button"
+                            class="trend-sort text-gray-400 hover:text-white text-xs px-1<?= $sortBy === $cfg['key'] && strtoupper($sortOrder) === 'ASC' ? ' text-white' : '' ?>"
+                            onclick="sortTable('<?php echo htmlspecialchars($cfg['key'], ENT_QUOTES, 'UTF-8'); ?>', 'ASC')"
+                            title="<?php echo __('trend_sort_asc'); ?>">▲</button>
+                    <button type="button"
+                            class="trend-sort text-gray-400 hover:text-white text-xs px-1<?= $sortBy === $cfg['key'] && strtoupper($sortOrder) === 'DESC' ? ' text-white' : '' ?>"
+                            onclick="sortTable('<?php echo htmlspecialchars($cfg['key'], ENT_QUOTES, 'UTF-8'); ?>', 'DESC')"
+                            title="<?php echo __('trend_sort_desc'); ?>">▼</button>
+                </span>
+            </div>
             <div style="height: 210px"><canvas id="trend-chart-<?= $i ?>"></canvas></div>
         </div>
         <?php endforeach; ?>
@@ -171,7 +191,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     maintainAspectRatio: false,
                     interaction: { mode: 'nearest', intersect: false },
                     plugins: {
-                        title: { display: true, text: s.label, color: '#e5e7eb', font: { size: 13, weight: 'bold' } },
+                        // The metric name is rendered by the header above the
+                        // canvas (it hosts the ▲▼ sort buttons), so the title
+                        // plugin stays off to avoid printing it twice.
+                        title: { display: false },
                         legend: { labels: { color: tickColor, boxWidth: 20 } },
                         tooltip: {
                             callbacks: {

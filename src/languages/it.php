@@ -202,6 +202,8 @@ return [
     'trend_chart_type' => 'Tipo di grafico',
     'trend_lines' => 'Linee',
     'trend_bars' => 'Barre',
+    'trend_sort_asc' => 'Ordina crescente',
+    'trend_sort_desc' => 'Ordina decrescente',
     'metrics_trend_summary' => '{count} light frame',
     'metrics_median' => 'Mediana',
     'filter_by_folder' => 'Filtra per Cartella',

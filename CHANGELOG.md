@@ -24,7 +24,7 @@ security fixes.
 - **INSTRUME and TELESCOP filters** - the per-page control moved into the pagination bars, and all filter dropdowns now respect the date and exposure filters
 - **Tile-compressed FITS** - CFITSIO/FPACK `.fz` files are indexed like any other FITS
 - **New header fields** - rotator angle and name, sensor readout mode, and meteo data (cloud cover, dewpoint, humidity, pressure, ambient temperature), available as table columns (hidden by default)
-- **Metrics trend charts** - line/bar toggle with an adaptive default per metric
+- **Metrics trend charts** - line/bar toggle with an adaptive default per metric, and an ▲▼ pair on every chart to sort the file table by that metric, the same control the integration group charts on the projects page carry. The button lights up on the direction the table is currently sorted in. The charts keep following the table order, so a chart can never disagree with the rows below it
 - **Table controls above the main table** - columns button, view controls and top pagination moved out of the header area
 
 ### Security Fixes

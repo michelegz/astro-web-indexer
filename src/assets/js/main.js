@@ -713,14 +713,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- SORTING TABLE ---
-    window.sortTable = (column) => {
+    // order omitted  -> toggle ASC/DESC, used by the clickable column headers
+    // order given     -> jump straight to that direction, used by the explicit
+    //                    ▲▼ buttons of the metrics trend card (clicking ▲ on a
+    //                    table already sorted ascending must sort ascending
+    //                    again, not flip it to descending)
+    window.sortTable = (column, order) => {
         const urlParams = new URLSearchParams(window.location.search);
         const currentSortBy = urlParams.get('sort_by') || 'name';
         const currentSortOrder = urlParams.get('sort_order') || 'ASC';
 
-        let newSortOrder = 'ASC';
-        if (currentSortBy === column) {
-            newSortOrder = (currentSortOrder === 'ASC' ? 'DESC' : 'ASC');
+        let newSortOrder;
+        if (order === 'ASC' || order === 'DESC') {
+            newSortOrder = order;
+        } else {
+            newSortOrder = 'ASC';
+            if (currentSortBy === column) {
+                newSortOrder = (currentSortOrder === 'ASC' ? 'DESC' : 'ASC');
+            }
         }
 
         urlParams.set('sort_by', column);

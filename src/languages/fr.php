@@ -154,6 +154,8 @@ return [
     'trend_chart_type' => 'Type de graphique',
     'trend_lines' => 'Lignes',
     'trend_bars' => 'Barres',
+    'trend_sort_asc' => 'Tri croissant',
+    'trend_sort_desc' => 'Tri décroissant',
     'metrics_trend_summary' => '{count} images LIGHT',
     'metrics_median' => 'Médiane',
     'filter_by_folder' => 'Filtrer par Dossier',

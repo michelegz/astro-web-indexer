@@ -202,6 +202,8 @@ return [
     'trend_chart_type' => 'Chart type',
     'trend_lines' => 'Lines',
     'trend_bars' => 'Bars',
+    'trend_sort_asc' => 'Sort ascending',
+    'trend_sort_desc' => 'Sort descending',
     'metrics_trend_summary' => '{count} light frames',
     'metrics_median' => 'Median',
     'filter_by_folder' => 'Filtra by Folder',
