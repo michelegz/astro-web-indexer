@@ -33,6 +33,48 @@ get_version() {
     fi
 }
 
+# =============================================================================
+# Compose file selection
+# -----------------------------------------------------------------------------
+# Every `docker compose` call below goes through one of these two. Passing any
+# -f turns OFF Compose's automatic loading of docker-compose.override.yml, which
+# is the point: without a -f, Compose merges that file over docker-compose.yml
+# on its own, and the merge can REPLACE a scalar. The dev layer sets
+# `image: nginx:1.27`, so a plain `docker compose build` builds the nginx image
+# and tags it nginx:1.27 -- the ghcr.io/.../astro-web-indexer-nginx:<version>
+# tag is never produced, and `save`/`push`, which only name images and never
+# touch Compose, then ship the previous build's nginx without complaining.
+#
+# compose_base: the release artefacts. `build` uses it ALONE, so what gets built
+#               and tagged cannot depend on a developer's local stack.
+# compose_live: the lifecycle commands, with the optional dev layer on top. It
+#               is what mounts ./src in vivo. Being additive here is safe: the
+#               image tags were already set by compose_base before `up` runs.
+# =============================================================================
+compose_base() {
+    docker compose -f docker-compose.yml "$@"
+}
+
+compose_live() {
+    warn_legacy_override
+    if [ -f docker-compose.dev.yml ]; then
+        docker compose -f docker-compose.yml -f docker-compose.dev.yml "$@"
+    else
+        docker compose -f docker-compose.yml "$@"
+    fi
+}
+
+# A leftover docker-compose.override.yml used to be loaded automatically and now
+# is not. Without this the developer gets a stack with no live mounts and no
+# explanation: their PHP edits stop taking effect and `npm run watch` looks
+# broken. Saying it out loud is cheaper than the bug report.
+warn_legacy_override() {
+    if [ -f docker-compose.override.yml ]; then
+        echo "WARNING: docker-compose.override.yml is no longer loaded automatically." >&2
+        echo "         Rename it to docker-compose.dev.yml to keep your live mounts." >&2
+    fi
+}
+
 AWI_VERSION=$(get_version)
 echo "Detected version: $AWI_VERSION"
 export AWI_VERSION
@@ -71,7 +113,7 @@ case "$COMMAND" in
         npm run build
 
         # Build the version-tagged images
-        docker compose build $NO_CACHE_FLAG --build-arg AWI_VERSION="$AWI_VERSION"
+        compose_base build $NO_CACHE_FLAG --build-arg AWI_VERSION="$AWI_VERSION"
 
         # Define services to tag
         SERVICES=("nginx" "php" "python" "mariadb")
@@ -93,17 +135,17 @@ case "$COMMAND" in
             done
         fi
 
-        docker compose up -d
+        compose_live up -d
         echo "Build complete. Astro Web Indexer is running."
         ;;
     start)
-        docker compose up -d
+        compose_live up -d
         ;;
     stop)
-        docker compose down
+        compose_live down
         ;;
     logs)
-        docker compose logs -f
+        compose_live logs -f
         ;;
     save)
         echo "Saving Docker images with tag $AWI_VERSION..."

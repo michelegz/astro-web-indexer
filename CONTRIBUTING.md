@@ -35,6 +35,35 @@ If you want to build the project from the source code instead of using the pre-b
     ```
     > **Note:** This command handles the entire build process, including compiling the CSS, building all Docker images with the correct version tag, and starting the services.
 
+### `docker-compose.dev.yml`: live edits without a rebuild
+
+The development stack mounts `./src`, `./docker/nginx/default.conf` and the
+Python scripts straight into the containers, so a PHP edit takes effect on the
+next reload instead of the next build. Those mounts live in
+`docker-compose.dev.yml`, a local file that is **not** tracked (it is listed in
+`.gitignore`).
+
+```bash
+cp /dev/null docker-compose.dev.yml   # then paste the mounts you want
+```
+
+`build.sh` asks for it by name and only for the lifecycle commands (`up`, `down`,
+`logs`). The `build` step itself runs on `docker-compose.yml` alone, so the
+images it produces and the version tags it applies never depend on a developer's
+local stack.
+
+Two things worth knowing:
+
+- **Do not name it `docker-compose.override.yml`.** Compose auto-loads that name
+  and merges it over the base without being asked, and the merge can replace a
+  scalar — the dev file sets `image: nginx:1.27`, which would make
+  `docker compose build` tag the nginx it had just built as `nginx:1.27` and never
+  produce the versioned tag `build.sh push` exports. `push` does not fail on a
+  missing tag: it ships the previous build's nginx. `build.sh` warns if it finds
+  a file with the old name.
+- Without the file the stack still runs, it just runs from the images built into
+  it. Your edits will not show up until the next `./build.sh build`.
+
 ### Managing the Application with `build.sh`
 
 The `build.sh` script provides several commands to manage the application's lifecycle:
