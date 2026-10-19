@@ -50,6 +50,7 @@ All of these were reachable on 1.4.0 and are fixed here.
 
 ### Minor Fixes
 - A push to the registry without a credential now asks for the credentials and logs in, instead of preparing every layer and then dying with an `unauthorized` that says nothing about the missing login. The token is asked for without echo and passed to `docker login` through a pipe, so it reaches neither the screen nor the process list; a token already in the environment is used as it is, which is how a CI does it
+- A push no longer dies on a tag that was never built. The version tag moves with every commit, so pushing after a commit but before a build had nothing under the version name, and dying there took the tags that do exist (`dev`, `latest`) down with it. An image that is not on this machine is now skipped with a word, and a push that pushed nothing at all is still a failure
 - The calibration search no longer ships thumbnails inside its JSON response
 - AstroBin ids are posted in the request body instead of being put on the request line
 - A file whose header cannot be read no longer counts as schema-upgraded, which previously advanced `data_schema_version` and left the new columns NULL forever with nothing left to retry them

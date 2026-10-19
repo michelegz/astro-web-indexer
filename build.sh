@@ -248,11 +248,26 @@ case "$COMMAND" in
         IMAGE_OWNER=${IMAGE_OWNER:-michelegz}
         IMAGE_NAMES=()
 
-        # Loop through services to build the full image names
+        # Loop through services to build the full image names. The version
+        # tag moves with every commit, so an image that is not on this
+        # machine cannot be saved, and one missing image takes the whole
+        # archive down with it: the ones that are here are saved, the others
+        # are named.
         for service in "${SERVICES[@]}"; do
-            IMAGE_NAMES+=("ghcr.io/${IMAGE_OWNER}/astro-web-indexer-${service}:$AWI_VERSION")
+            image="ghcr.io/${IMAGE_OWNER}/astro-web-indexer-${service}:$AWI_VERSION"
+            if docker image inspect "$image" > /dev/null 2>&1; then
+                IMAGE_NAMES+=("$image")
+            else
+                echo "  not built here, skipped: $image" >&2
+            fi
         done
-        
+
+        if [ "${#IMAGE_NAMES[@]}" -eq 0 ]; then
+            echo "Error: none of these images is built on this machine." >&2
+            echo "       Run './build.sh build' first." >&2
+            exit 1
+        fi
+
         # Use the array of full image names in the docker save command
         docker save -o "$OUTPUT_FILE" "${IMAGE_NAMES[@]}"
             
@@ -291,11 +306,29 @@ case "$COMMAND" in
         SERVICES=("nginx" "php" "python" "mariadb")
         IMAGE_OWNER=${IMAGE_OWNER:-michelegz} # Use environment variable or default
 
+        # What can be pushed is what was built here. The version tag moves
+        # with every commit, so a push after a commit but before a build has
+        # nothing under the version name, and dying on it would take the
+        # tags that DO exist (dev, latest) down with it. An image that is not
+        # on this machine is skipped with a word; an image that is here and
+        # the registry refuses is a real failure and stops the push.
+        PUSHED=0
+        SKIPPED=0
+        push_image() {
+            local image="$1"
+            if ! docker image inspect "$image" > /dev/null 2>&1; then
+                echo "  not built here, skipped: $image" >&2
+                SKIPPED=$((SKIPPED + 1))
+                return 0
+            fi
+            docker push "$image"
+            PUSHED=$((PUSHED + 1))
+        }
+
         # Push the version tag
         for service in "${SERVICES[@]}"; do
-            docker push "ghcr.io/${IMAGE_OWNER}/astro-web-indexer-${service}:$AWI_VERSION"
+            push_image "ghcr.io/${IMAGE_OWNER}/astro-web-indexer-${service}:$AWI_VERSION"
         done
-        echo "Version tag pushed successfully."
 
         # Additionally push 'latest' or 'dev' tags if they were created
         TAG_LATEST=false
@@ -314,14 +347,24 @@ case "$COMMAND" in
         if [ "$TAG_LATEST" = true ]; then
             echo "Pushing 'latest' tag..."
             for service in "${SERVICES[@]}"; do
-                docker push "ghcr.io/${IMAGE_OWNER}/astro-web-indexer-${service}:latest"
+                push_image "ghcr.io/${IMAGE_OWNER}/astro-web-indexer-${service}:latest"
             done
         fi
         if [ "$TAG_DEV" = true ]; then
             echo "Pushing 'dev' tag..."
             for service in "${SERVICES[@]}"; do
-                docker push "ghcr.io/${IMAGE_OWNER}/astro-web-indexer-${service}:dev"
+                push_image "ghcr.io/${IMAGE_OWNER}/astro-web-indexer-${service}:dev"
             done
+        fi
+
+        if [ "$PUSHED" -eq 0 ]; then
+            echo "Error: nothing to push, none of these images is built on this machine." >&2
+            echo "       Run './build.sh build --tag-dev' first." >&2
+            exit 1
+        fi
+        echo "Pushed $PUSHED image(s)."
+        if [ "$SKIPPED" -gt 0 ]; then
+            echo "Skipped $SKIPPED image(s) that are not built here." >&2
         fi
         ;;
     help|-h|--help)

@@ -47,16 +47,21 @@ console.log('--- the build produces the image the push names ---');
 console.log('\n--- the push names the version tag of every service ---');
 {
     const services = ['nginx', 'php', 'python', 'mariadb'];
+    const named = (tail) => new RegExp(
+        `push_image "ghcr\\.io/\\$\\{IMAGE_OWNER\\}/astro-web-indexer-\\$\\{service\\}:${tail}"`);
     for (const s of services) {
-        const re = new RegExp(`docker push "ghcr\\.io/\\$\\{IMAGE_OWNER\\}/astro-web-indexer-\\$\\{service\\}:\\$AWI_VERSION"`);
-        check(`the ${s} image is pushed with the version tag`, re.test(pushCase));
+        check(`the ${s} image is pushed with the version tag`, named('\\$AWI_VERSION').test(pushCase));
+        check(`  and with the 'latest' tag`, named('latest').test(pushCase));
+        check(`  and with the 'dev' tag`, named('dev').test(pushCase));
     }
     check('the push does not touch compose', !/docker compose/.test(pushCase),
         'compose would merge the dev layer and tag the wrong image');
+    check('there is ONE place that pushes', (sh.match(/docker push "/g) || []).length === 1,
+        'a second place would be a push that skips the checks');
     check('the push refuses to go on without a credential',
         /ghcr_credential_present/.test(pushCase));
     check('  and the check comes before the first push',
-        pushCase.indexOf('ghcr_credential_present') < pushCase.indexOf('docker push'),
+        pushCase.indexOf('ghcr_credential_present') < pushCase.indexOf('push_image'),
         'the check must run first, not after the layers are prepared');
 }
 
@@ -68,6 +73,25 @@ console.log('\n--- the credential check is honest ---');
     check('  and leaves the push alone when a helper holds the token',
         /credsStore/.test(fn) && /credHelpers/.test(fn),
         'a helper is the only one that knows what it has');
+}
+
+console.log('\n--- what is not built here is skipped, not fatal ---');
+{
+    // The version tag moves with every commit: a push after a commit but
+    // before a build has nothing under the version name. Dying there took
+    // the tags that DO exist (dev, latest) down with it.
+    check('the push checks the image before pushing it', /docker image inspect/.test(pushCase));
+    check('  and skips it with a message', /not built here, skipped/.test(pushCase));
+    check('a push that pushed nothing is a failure',
+        /nothing to push/.test(pushCase) && /exit 1/.test(pushCase),
+        'silently pushing nothing would look like a success');
+
+    // The same for save: one missing image took the whole archive down.
+    const saveCase = sh.slice(sh.indexOf('\n    save)'), sh.indexOf('\n    push)'));
+    check('the save checks the image before saving it', /docker image inspect/.test(saveCase));
+    check('  and skips it with a message', /not built here, skipped/.test(saveCase));
+    check('a save with no image at all is a failure',
+        /none of these images is built/.test(saveCase) && /exit 1/.test(saveCase));
 }
 
 console.log('\n--- a missing credential is asked for, not only complained about ---');
