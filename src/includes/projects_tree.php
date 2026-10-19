@@ -7,8 +7,11 @@
 //
 // A group header checkbox SELECTS and nothing else: it does not open the
 // group, that is the job of the arrow on the header. In a preview tree (the
-// suggestions review and the add-modal preview) a group holding new files
-// starts open, so the new links are visible without a click.
+// suggestions review and the add-modal preview) a group is open if and only
+// if it holds something new: a new link folded inside a collapsed group is a
+// new link nobody sees, and a group of files that are already in the project
+// is noise next to it. The real tree has no new files and keeps the default
+// of each level.
 //
 // projects.php includes this partial twice per request (review modal + main
 // tree), so the shared helpers are defined only once.
@@ -285,6 +288,20 @@ if (empty($projectTree['setups'])): ?>
     }
     $hypoLinks = $calCtxBase['hypoLinks'] ?? [];
     $hypoOpen = $hypoOpen ?? ['setups' => [], 'panels' => [], 'sessions' => []];
+    // A new file, in the two previews apart: a pending row (the suggestions
+    // review) or a new link (the add-modal preview). The real tree has none.
+    // A preview opens the groups that hold one and folds the others, so the
+    // eye lands on what is new and nothing else.
+    $newLight = function (array $li, int $sessionId) use ($reviewMode, $hypoLinks): bool {
+        return $reviewMode
+            ? !empty($li['pending'])
+            : isset($hypoLinks[linkKey($li, 'filter', $sessionId)]);
+    };
+    $newCal = function (array $c, string $level, int $node) use ($reviewMode, $hypoLinks): bool {
+        return $reviewMode
+            ? !empty($c['pending'])
+            : isset($hypoLinks[linkKey($c, $level, $node)]);
+    };
     ?>
     <?php foreach ($projectTree['setups'] as $setup): ?>
         <div class="tnode mb-3">
@@ -361,13 +378,33 @@ if (empty($projectTree['setups'])): ?>
                                                                         $realExp += (float)($li['exptime'] ?? 0);
                                                                     }
                                                                     $expGroups = clusterExposures($filter['lights'], $tolExpRaw ?? '1%');
+                                                                    // New files of this filter: a preview opens it only when
+                                                                    // there is one, the same rule the setup, the panel and
+                                                                    // the session follow. The real tree keeps the filter
+                                                                    // and the exposures open: that is where the work is.
+                                                                    $filterNew = false;
+                                                                    foreach ($filter['lights'] as $li) {
+                                                                        if ($newLight($li, (int)$session['id'])) {
+                                                                            $filterNew = true;
+                                                                            break;
+                                                                        }
+                                                                    }
+                                                                    if (!$filterNew) {
+                                                                        foreach ($filter['calibrations'] ?? [] as $fc) {
+                                                                            if ($newCal($fc, 'filter', (int)$session['id'])) {
+                                                                                $filterNew = true;
+                                                                                break;
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    $filterOpen = $noBulk ? ($filterNew ? ' open' : '') : ' open';
                                                                     ?>
                                                                     <div class="tnode mb-2">
                                                                         <div class="flex items-start gap-2">
                                                                             <?php if (!$hypoMode): ?>
                                                                             <input type="checkbox" class="pgroup-check mt-1 rounded bg-gray-600 border-gray-500" title="<?= __('projects_select_group') ?>">
                                                                             <?php endif; ?>
-                                                                            <details open class="flex-1 min-w-0">
+                                                                            <details<?= $filterOpen ?> class="flex-1 min-w-0">
                                                 <summary class="cursor-pointer hover:bg-gray-700/40 rounded text-sm font-medium mb-1">
                                                     <?php if ($worstB === null): ?><?= empty($pendLights) ? '' : '⏳ ' ?><?php else: ?><?= diagBox($worstB, 'B', __('projects_cal_bias')) ?><?= diagBox($worstD, 'D', __('projects_cal_dark')) ?><?= diagBox($worstF, 'F', __('projects_cal_flat')) ?><?= rotBadge($worstR, __('projects_cal_rot_ok'), __('projects_cal_rot_warn')) ?><?php endif; ?><?= __('projects_filter') ?> <?= htmlspecialchars($filter['name'] !== '' ? $filter['name'] : '—') ?>
                                                                                      <span class="ml-2 text-xs font-normal text-gray-400">
@@ -393,13 +430,23 @@ if (empty($projectTree['setups'])): ?>
                                                                                     foreach ($egShow as $li) {
                                                                                         $egExp += (float)($li['exptime'] ?? 0);
                                                                                     }
+                                                                                    // The exposure group follows its filter: open in a
+                                                                                    // preview only when it holds a new file.
+                                                                                    $egNew = false;
+                                                                                    foreach ($eg['lights'] as $li) {
+                                                                                        if ($newLight($li, (int)$session['id'])) {
+                                                                                            $egNew = true;
+                                                                                            break;
+                                                                                        }
+                                                                                    }
+                                                                                    $egOpen = $noBulk ? ($egNew ? ' open' : '') : ' open';
                                                                                     ?>
                                                                                      <div class="tnode mb-1 ml-4">
                                                                                          <div class="flex items-start gap-2">
                                                                                              <?php if (!$hypoMode): ?>
                                                                                              <input type="checkbox" class="pgroup-check mt-1 rounded bg-gray-600 border-gray-500" title="<?= __('projects_select_group') ?>">
                                                                                              <?php endif; ?>
-                                                                                             <details open class="flex-1 min-w-0">
+                                                                                             <details<?= $egOpen ?> class="flex-1 min-w-0">
                                                                                                  <summary class="cursor-pointer hover:bg-gray-700/40 rounded text-xs font-medium text-gray-300 mb-1">
                                                                                                                                                                                                             <?php if ($egWorstB !== null): ?><?= diagBox($egWorstB, 'B', __('projects_cal_bias')) ?><?= diagBox($egWorstD, 'D', __('projects_cal_dark')) ?><?= diagBox($egWorstF, 'F', __('projects_cal_flat')) ?><?= rotBadge($egWorstR, __('projects_cal_rot_ok'), __('projects_cal_rot_warn')) ?> <?php endif; ?><?= __('projects_exposure') ?> <?= htmlspecialchars(fmtExpShort($eg['exptime'])) ?><?php $egTempMed = projectMedian(array_column($egShow, 'ccd_temp')); ?><?php if ($egTempMed !== null): ?> · <?= htmlspecialchars(repTempDisplay($egTempMed)) ?><?php endif; ?>
                                                                                                       <span class="ml-2 font-normal text-gray-500"><?= count($egShow) ?> · <?= htmlspecialchars(fmtExp($egExp)) ?></span>

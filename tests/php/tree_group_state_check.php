@@ -1,6 +1,6 @@
 <?php
-// Check — the group header checkbox selects, it does not expand; and a group
-// holding new files starts open in a preview tree.
+// Check — the group header checkbox selects, it does not expand; and in a
+// preview tree a group is open if and only if it holds a new file.
 //
 //   includes/projects_tree.php   <details open class="cal-group"> when the
 //                                group holds new files (review / hypo mode)
@@ -17,9 +17,16 @@
 //    one was taken away from the user.
 //
 // 2. In a preview tree (the suggestions review and the add-modal preview) a
-//    group holding new files starts open. A new link folded inside a
-//    collapsed group is a new link nobody sees, and the preview exists
-//    exactly to show what is new.
+//    group holding new files starts open, and a group with only files that
+//    are already in the project stays folded. A new link inside a folded
+//    group is a new link nobody sees, and a group of old files open next to
+//    it is noise: the preview exists to show what is new.
+//
+// The rule is checked at EVERY level (setup, panel, session, filter,
+// exposure, calibration group): the template once hardcoded `open` on the
+// filters and the exposures, and a group of old files was sitting open
+// right next to the new ones, which is exactly what the preview must not
+// do.
 //
 // The tree is synthetic, built below, and the partial is rendered for real:
 // the check is on the HTML that reaches the browser, not on the source.
@@ -29,12 +36,14 @@
 // it twice in the same process is a fatal error.
 //
 //   hypo=1  project_tree_preview.php: the add-modal preview. The new links
-//           are the hypothetical ones ($hypoLinks), the group holding one
-//           starts open.
-//   hypo=0  projects.php: the real tree. No group starts open, the tree is
-//           there to be browsed.
+//           are the hypothetical ones ($hypoLinks), a group holding one
+//           starts open, a group of old files stays folded.
+//   hypo=0  projects.php: the real tree. No new files at all, and the
+//           default of each level: the setup, the panel, the filters and
+//           the exposures open, the sessions and the calibration groups
+//           folded.
 //   rev =2  projects.php sugModal: the suggestions review. The new files are
-//           the pending ones, the group holding one starts open.
+//           the pending ones, same rule as the hypo preview.
 //
 // Usage:
 //   docker cp tests/php/tree_group_state_check.php awi-php:/tmp/harness/
@@ -106,11 +115,11 @@ $projectTree = [
             'sessions' => [[
                 'id' => 100, 'session_no' => 3, 'astro_night' => '2026-01-01',
                 'calibrations' => [],
-                'filters' => [[
-                    'name' => 'Ha',
-                    'calibrations' => [],
-                    'lights' => [$light(201, $review ? 1 : 0)],
-                ]],
+                'filters' => [
+                    // Ha holds the new frame, SII holds only old ones.
+                    ['name' => 'Ha', 'calibrations' => [], 'lights' => [$light(201, $review ? 1 : 0)]],
+                    ['name' => 'SII', 'calibrations' => [], 'lights' => [$light(202, 0)]],
+                ],
             ]],
         ]],
     ]],
@@ -127,8 +136,9 @@ $desc = $review ? 'review=2 (projects.php sugModal, suggestions preview)'
 
 echo "\n=== $desc ===\n";
 
-// The new links of the add-modal preview: the BIAS of the setup.
-$hypoLinks = $mode ? ['101:setup:1' => true] : [];
+// The new links of the add-modal preview: the BIAS of the setup and the
+// frame of the Ha filter.
+$hypoLinks = $mode ? ['101:setup:1' => true, '201:filter:100' => true] : [];
 
 $calCtxBase = [
     'dup' => $dupLinks,
@@ -141,7 +151,12 @@ $calCtxBase = [
     'tols' => ['exp' => '1%', 'temp' => '2C'],
 ];
 $hypoMode = $mode;
-$hypoOpen = ['setups' => [], 'panels' => [], 'sessions' => []];
+// The ancestors of the new links, the way project_tree_preview.php computes
+// them: the BIAS of the setup, and the frame of the Ha filter (a link of
+// the 'filter' level points at the session that holds it).
+$hypoOpen = $mode
+    ? ['setups' => [1 => true], 'panels' => [10 => true], 'sessions' => [100 => true]]
+    : ['setups' => [], 'panels' => [], 'sessions' => []];
 $suggestReviewMode = $review;
 $suggestOpen = ['setups' => [1 => true], 'panels' => [10 => true], 'sessions' => [100 => true]];
 
@@ -159,14 +174,14 @@ try {
 printf("  rendered %d bytes\n", strlen($html));
 
 /**
- * The calibration groups of the rendered tree, each with the two things the
- * check cares about: is it open, and does it hold a new file.
+ * Every group of the rendered tree, with the three things the check cares
+ * about: the level, whether it is open, and whether it holds a new file.
  *
- * A new file is marked differently in the two preview modes, so the marker
- * follows the mode: the pending ones carry the suggestion_ids[] checkbox
- * (review), the hypothetical ones carry the "new" badge (hypo).
+ * A new file leaves a mark in the HTML in both preview modes: the pending
+ * ones carry the suggestion_ids[] checkbox (review), the hypothetical ones
+ * the "new" badge (hypo). The real tree has neither.
  */
-function calGroups(string $html, string $marker): array
+function groups(string $html): array
 {
     $doc = new DOMDocument();
     libxml_use_internal_errors(true);
@@ -174,11 +189,27 @@ function calGroups(string $html, string $marker): array
     libxml_clear_errors();
     $xp = new DOMXPath($doc);
     $out = [];
-    foreach ($xp->query("//details[contains(concat(' ', normalize-space(@class), ' '), ' cal-group ')]") as $d) {
-        $body = $d->ownerDocument->saveHTML($d);
+    foreach ($xp->query('//details') as $d) {
+        $cls = $d->getAttribute('class');
+        if (str_contains($cls, 'cal-group')) {
+            $lvl = 'cal-group';
+        } elseif (str_contains($cls, 'border-gray-700/60')) {
+            $lvl = 'panel';
+        } elseif (str_contains($cls, 'border-gray-700/40')) {
+            $lvl = 'session';
+        } elseif (str_contains($cls, 'rounded-lg')) {
+            $lvl = 'setup';
+        } else {
+            // Filter or exposure: the exposure one is the innermost, it
+            // holds the table of the lights and no other group.
+            $lvl = $xp->query('.//details', $d)->length > 0 ? 'filter' : 'exposure';
+        }
+        $body = $doc->saveHTML($d);
         $out[] = [
+            'level' => $lvl,
             'open' => $d->hasAttribute('open'),
-            'new' => $marker !== '' && str_contains($body, $marker),
+            'new' => str_contains($body, 'name="suggestion_ids[]"')
+                || str_contains($body, 'text-[10px] font-semibold text-green-300'),
             'title' => trim(preg_replace('/\s+/', ' ', (string)strip_tags(
                 (string)($d->getElementsByTagName('summary')->item(0)->textContent ?? '')
             ))),
@@ -187,32 +218,37 @@ function calGroups(string $html, string $marker): array
     return $out;
 }
 
-$marker = $review ? 'name="suggestion_ids[]"' : __('projects_hypo_new');
-$groups = calGroups($html, $marker);
+$g = groups($html);
 
-$withNew = array_values(array_filter($groups, fn($g) => $g['new']));
-$without = array_values(array_filter($groups, fn($g) => !$g['new']));
+// The check would pass on an empty tree, so the groups have to be there.
+check('the tree has groups', count($g) >= 8, count($g) . ' groups');
+
+$levels = array_count_values(array_column($g, 'level'));
+foreach (['setup', 'panel', 'session', 'filter', 'exposure', 'cal-group'] as $lvl) {
+    check("the tree has a $lvl group", ($levels[$lvl] ?? 0) > 0, $levels[$lvl] ?? 0);
+}
 
 if ($mode || $review) {
-    // The check would pass on an empty tree, so the pair has to be there.
-    check('the tree has a group with new files', $withNew !== [],
-        count($withNew) . ' of ' . count($groups));
-    check('the tree has a group without new files', $without !== [],
-        count($without) . ' of ' . count($groups));
-    foreach ($withNew as $g) {
-        check('the group with the new files is open', $g['open'], $g['title']);
-    }
-    foreach ($without as $g) {
-        check('the group without new files stays closed', !$g['open'], $g['title']);
+    // The rule: open if and only if there is something new inside.
+    foreach ($g as $grp) {
+        $lbl = $grp['level'] . ($grp['new'] ? ' (new)' : ' (old)');
+        check("the $lbl group is " . ($grp['new'] ? 'open' : 'folded'),
+            $grp['open'] === $grp['new'],
+            $grp['title']);
     }
 } else {
-    // The real tree has no new files at all, and keeps every group closed:
-    // it is there to be browsed.
-    check('the real tree has no new files', $withNew === [],
-        count($withNew) . ' of ' . count($groups));
-    foreach ($groups as $g) {
-        check('the group stays closed in the real tree', !$g['open'], $g['title']);
+    // The real tree: no new files at all, and the default of each level.
+    $default = [
+        'setup' => true, 'panel' => true, 'session' => false,
+        'filter' => true, 'exposure' => true, 'cal-group' => false,
+    ];
+    foreach ($g as $grp) {
+        check("the {$grp['level']} group keeps its default",
+            $grp['open'] === ($default[$grp['level']] ?? false),
+            $grp['title']);
     }
+    check('the real tree has no new file at all',
+        count(array_filter($g, fn($grp) => $grp['new'])) === 0);
 }
 
 // The header checkbox selects, it does not expand. The source of both
@@ -228,6 +264,6 @@ check('  and the cgroup handlers are still there',
 
 echo "\nRESULT: " . ($failed
     ? 'FAILED: ' . implode(', ', $failed)
-    : 'the group checkbox only selects, and a group with new files starts open')
+    : 'the group checkbox only selects, and a preview opens the groups with new files')
     . "\n";
 exit($failed ? 1 : 0);
