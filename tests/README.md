@@ -99,6 +99,7 @@ JS tests run locally with Node.
 | `file_cells_escape_check.php` | `file_cells.php` escapes text, attributes and href in both scopes (`main` and `project`): 62 payload occurrences, none raw | no writes (synthetic row) |
 | `table_escape_check.php` | `table.php` escapes in **both views**, with two distinct named sinks verified by position, and no PHP diagnostic reaches the HTML it parses | no writes (synthetic row) |
 | `tree_render_escape_check.php` | `projects_tree.php` escapes text, attribute and tooltip in **all three** modes (`hypoMode` 1 and 0, review 2 with `suggestion_ids[]` as an integer and the reason escaped) | no writes (synthetic tree) |
+| `tree_group_state_check.php` | the group header checkbox **selects and does not expand** the group, and in the two preview trees a group holding new files **starts open** (the real tree keeps every group closed) | no writes (synthetic tree) |
 | `sff_filter_escape_check.php` | `sff_filter_template.php` escapes the reference value in text, `value=` and `data-unit=` | no writes |
 | `tree_preview_escape_check.php` | the real HTTP chain `project_tree_preview.php` → JSON `html` → `main.js:646` | creates and removes 1 user; no writes (the preview rolls back the transaction) |
 | `export_regression_probe.php` | a frame of one type lives under that type's folder; no `fid` in two folders without being a declared duplicate, and the old builder must violate the invariant or the probe reports that it proves nothing | rolled-back transaction (synthetic DARK + BIAS) |

@@ -855,8 +855,8 @@ if ($projectBlocked) {
                         e.target.indeterminate = false;
                         return;
                     }
-                    const details = wrap.querySelector('details.cal-group');
-                    if (e.target.checked && details) details.open = true;
+                    // Selects the new files of the group; the group stays as it
+                    // is. A group holding new files is already open by default.
                     wrap.querySelectorAll('.sug-check').forEach(cb => { cb.checked = e.target.checked; });
                     e.target.indeterminate = false;
                     syncAbove(wrap);
@@ -1004,12 +1004,12 @@ if ($projectBlocked) {
                 // so the native behavior just works. No synthetic events here:
                 // ancestor boxes are synced explicitly, so a failing listener
                 // can never abort the loop mid-way (only the first row selected).
+                // The click selects and nothing else: it does not open the
+                // group, which is the job of the arrow on the header.
                 document.querySelectorAll('#treeBulkForm .cgroup-check').forEach(box => {
                     box.addEventListener('change', () => {
                         const wrap = box.closest('.cal-group-wrap');
                         if (!wrap) return;
-                        const details = wrap.querySelector('details.cal-group');
-                        if (box.checked && details) details.open = true;
                         const boxes = Array.from(wrap.querySelectorAll('.pfl-check'));
                         boxes.forEach(cb => { cb.checked = box.checked; });
                         box.indeterminate = false;

@@ -87,7 +87,11 @@ for f in tests/php/*.php; do
         record "$base (docker cp)" 1
         continue
     }
-    if [ "$base" = "tree_render_escape_check" ]; then
+    if [ "$base" = "tree_render_escape_check" ] || [ "$base" = "tree_group_state_check" ]; then
+        # Three modes in three processes: the partial declares functions at
+        # file level, so including it twice in the same process is fatal.
+        # 1 = hypo (the add-modal preview), 0 = the real tree, 2 = review
+        # (the suggestions preview).
         docker exec awi-php sh -c "cd /tmp/harness && php $base.php 1"
         record "$base hypo=1" $?
         docker exec awi-php sh -c "cd /tmp/harness && php $base.php 0"

@@ -5,6 +5,11 @@
 // (clicks inside <summary> are swallowed by the details toggle in browsers)
 // inside a .tnode wrapper that scopes their subtree.
 //
+// A group header checkbox SELECTS and nothing else: it does not open the
+// group, that is the job of the arrow on the header. In a preview tree (the
+// suggestions review and the add-modal preview) a group holding new files
+// starts open, so the new links are visible without a click.
+//
 // projects.php includes this partial twice per request (review modal + main
 // tree), so the shared helpers are defined only once.
 if (!function_exists('fmtExp')) {
@@ -190,13 +195,28 @@ function renderCalRows(array $cals, string $level, int $node, array $moveCtx = [
         $gCheck = $reviewRows
             ? array_values(array_filter($g['rows'], fn($r) => !empty($r['pending'])))
             : $gReal;
+        // A group holding new files starts open in a preview tree: the point of a
+        // preview is to show what is new, and a new link folded inside a collapsed
+        // group is a new link nobody sees. Elsewhere the group keeps the collapsed
+        // default, the tree is there to be browsed.
+        $gNew = false;
+        foreach ($g['rows'] as $r) {
+            $isNew = $reviewRows
+                ? !empty($r['pending'])
+                : isset($hypoCalLinks[linkKey($r, $level, $node)]);
+            if ($isNew) {
+                $gNew = true;
+                break;
+            }
+        }
+        $gOpen = ($reviewRows || $hypoGroups) && $gNew ? ' open' : '';
         ?>
         <div class="cal-group-wrap flex items-start gap-2 ml-4">
             <?php if ($gCheck !== [] && !$hypoGroups): ?>
                 <input type="checkbox" class="cgroup-check mt-2 rounded bg-gray-600 border-gray-500"
                        title="<?= __('projects_select_group') ?>">
             <?php endif; ?>
-        <details class="cal-group flex-1 min-w-0 mb-1">
+        <details<?= $gOpen ?> class="cal-group flex-1 min-w-0 mb-1">
             <summary class="cursor-pointer px-3 py-1.5 hover:bg-gray-700/40 rounded text-sm font-medium">
                 <span class="cal-arrow">▶︎</span>
                 <?php
