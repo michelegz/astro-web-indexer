@@ -70,6 +70,25 @@ console.log('\n--- the credential check is honest ---');
         'a helper is the only one that knows what it has');
 }
 
+console.log('\n--- a missing credential is asked for, not only complained about ---');
+{
+    const login = sh.slice(sh.indexOf('ghcr_login()'), sh.indexOf('\n}\n', sh.indexOf('ghcr_login()')));
+    check('the push asks for a login', /ghcr_login/.test(pushCase));
+    check('  and the ask comes before the first push',
+        pushCase.indexOf('ghcr_login') < pushCase.indexOf('docker push'));
+    check('the token is read without echo', /read\s+-r\s+-s\s+-p/.test(login),
+        'read -s: the token must not end up on the screen');
+    check('the token is not in the process list', /--password-stdin/.test(login),
+        'a token in argv is a token everybody can read');
+    check('a token in the environment is used as it is',
+        /GH_PAT/.test(login) && /GITHUB_TOKEN/.test(login),
+        'a CI has no terminal to ask');
+    check('without a terminal nobody is asked', /\[ ! -t 0 \]/.test(login),
+        'a pipe would wait for a token that never comes');
+    check('  and the error says what to run',
+        /docker login ghcr\.io -u/.test(pushCase));
+}
+
 console.log(bad === 0
     ? '\nOK: the build tags what the push names, and the push says what is missing'
     : `\nFAILED: ${bad} case(s)`);

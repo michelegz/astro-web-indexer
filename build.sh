@@ -89,20 +89,76 @@ warn_legacy_override() {
 # answer is still one line long.
 #
 # The credential can live in the config file (a plain "ghcr.io" entry) or in a
-# credential helper. When there is a helper the push is left alone: the helper
-# is the only one that knows what it holds, and a wrong guess here would
-# block a push that would have worked.
+# credential helper. A helper that can be asked is asked: the "get" of the
+# helper protocol says whether it holds a ghcr.io token. A helper that
+# cannot be reached is left alone: it is the only one that knows what it
+# holds, and a wrong guess here would block a push that would have worked.
+#
+# When there is no credential at all the script asks for one, the way
+# `docker login` does: the user name on the terminal, the token NOT echoed
+# and NOT in the process list (--password-stdin). A token already in the
+# environment (GH_PAT / GITHUB_TOKEN) is used as it is, which is how a CI
+# does it. Without a terminal there is nobody to ask, and the error says
+# what to run.
 # =============================================================================
 ghcr_credential_present() {
     local cfg="${DOCKER_CONFIG:-$HOME/.docker}/config.json"
     [ -f "$cfg" ] || return 1
+
+    # A plain entry in the config file.
     if grep -q '"ghcr\.io"' "$cfg"; then
         return 0
     fi
-    if grep -q '"credsStore"\|"credHelpers"' "$cfg"; then
-        return 0
+
+    # A credential helper: the per-registry one first, then the global one.
+    local helper
+    helper=$(sed -n 's/.*"credHelpers"[[:space:]]*:[[:space:]]*{[^}]*"ghcr\.io"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$cfg" | head -1)
+    [ -n "$helper" ] || helper=$(sed -n 's/.*"credsStore"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$cfg" | head -1)
+    if [ -n "$helper" ] && command -v "docker-credential-$helper" > /dev/null 2>&1; then
+        if echo ghcr.io | "docker-credential-$helper" get > /dev/null 2>&1; then
+            return 0
+        fi
+        return 1
     fi
+
+    # A helper we cannot talk to: we do not know, so we do not block.
+    grep -q '"credsStore"\|"credHelpers"' "$cfg" && return 0
     return 1
+}
+
+# Ask for a GHCR token and log in with it. The token never reaches the
+# terminal (read -s) nor the process list (--password-stdin).
+# Returns 0 when the login succeeded, 1 when the registry refused it,
+# 2 when there was no token to try.
+ghcr_login() {
+    local user="" token=""
+
+    if [ -n "${GH_PAT:-}" ] || [ -n "${GITHUB_TOKEN:-}" ]; then
+        # The environment already carries a token: a CI, or a shell that
+        # keeps it around. Nothing to ask.
+        token="${GH_PAT:-${GITHUB_TOKEN:-}}"
+        user="${GH_USER:-$(id -un)}"
+    else
+        if [ ! -t 0 ]; then
+            # No terminal to ask on (a pipe, a cron job).
+            return 2
+        fi
+        echo "No ghcr.io credential found, asking for one." >&2
+        read -r -p "GitHub user name: " user
+        read -r -s -p "Personal access token (write:packages): " token
+        echo >&2
+    fi
+
+    if [ -z "$token" ] || [ -z "$user" ]; then
+        return 2
+    fi
+
+    local ok=1
+    if printf '%s' "$token" | docker login ghcr.io -u "$user" --password-stdin; then
+        ok=0
+    fi
+    unset token
+    return $ok
 }
 
 AWI_VERSION=$(get_version)
@@ -208,13 +264,28 @@ case "$COMMAND" in
 
         # A push without a credential dies at the registry, after the layers
         # are prepared, with an "unauthorized" that says nothing about the
-        # login that is missing. Caught here, where the answer is one line.
+        # login that is missing. Caught here, where the answer is one line,
+        # and the login is asked for instead of being only complained about.
         if ! ghcr_credential_present; then
-            echo "Error: no credential for ghcr.io in ${DOCKER_CONFIG:-$HOME/.docker}/config.json." >&2
-            echo "       The registry refuses an anonymous push with 'unauthorized'." >&2
-            echo "       Log in with a token that has the 'write:packages' scope:" >&2
-            echo "         echo \$GH_PAT | docker login ghcr.io -u <github-user> --password-stdin" >&2
-            exit 1
+            rc=0
+            ghcr_login || rc=$?
+            case "$rc" in
+                0)
+                    echo "Logged in to ghcr.io." >&2
+                    ;;
+                1)
+                    echo "Error: the login to ghcr.io was refused." >&2
+                    echo "       The token is not valid, or it has not the 'write:packages' scope." >&2
+                    exit 1
+                    ;;
+                *)
+                    echo "Error: no credential for ghcr.io in ${DOCKER_CONFIG:-$HOME/.docker}/config.json." >&2
+                    echo "       The registry refuses an anonymous push with 'unauthorized'." >&2
+                    echo "       Log in with a token that has the 'write:packages' scope:" >&2
+                    echo "         echo \$GH_PAT | docker login ghcr.io -u <github-user> --password-stdin" >&2
+                    exit 1
+                    ;;
+            esac
         fi
 
         SERVICES=("nginx" "php" "python" "mariadb")

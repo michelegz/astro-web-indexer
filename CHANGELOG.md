@@ -49,7 +49,7 @@ All of these were reachable on 1.4.0 and are fixed here.
 - **Calibration search was broken on every filtered search** - the endpoint validated filter ids against an undefined `$allFilters`, so any search carrying a filter (which is what the modal always sends) died in `array_keys()` before reaching the database. The filter catalogue is now loaded explicitly, and the id that becomes a column name in the query is whitelisted outright rather than relying on real column names happening to contain no backtick
 
 ### Minor Fixes
-- A push to the registry without a credential now stops before the first image, with the login command to run, instead of preparing every layer and then dying with an `unauthorized` that says nothing about the missing login
+- A push to the registry without a credential now asks for the credentials and logs in, instead of preparing every layer and then dying with an `unauthorized` that says nothing about the missing login. The token is asked for without echo and passed to `docker login` through a pipe, so it reaches neither the screen nor the process list; a token already in the environment is used as it is, which is how a CI does it
 - The calibration search no longer ships thumbnails inside its JSON response
 - AstroBin ids are posted in the request body instead of being put on the request line
 - A file whose header cannot be read no longer counts as schema-upgraded, which previously advanced `data_schema_version` and left the new columns NULL forever with nothing left to retry them
