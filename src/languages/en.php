@@ -346,6 +346,7 @@ return [
     'projects_cal_rot_warn' => 'Flat rotation not verified (missing metadata or beyond tolerance)',
     'projects_legend_rot' => 'Flat rotation check',
     'projects_legend_flatcov' => 'Flat covered by bias or dark (grey = not needed)',
+    'projects_legend_darkcov' => 'Dark covered by bias (red = not covered)',
     'projects_flat_cov_title' => 'Dark-flat coverage of this flat',
     'projects_legend' => 'Legend',
     'projects_legend_calib' => 'Calibration status per light',

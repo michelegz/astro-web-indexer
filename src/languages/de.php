@@ -345,6 +345,7 @@ return [
     'projects_cal_rot_warn' => 'Flat-Rotation nicht geprüft (Metadaten fehlen oder außerhalb der Toleranz)',
     'projects_legend_rot' => 'Flat-Rotationsprüfung',
     'projects_legend_flatcov' => 'Flat durch Bias oder Dark abgedeckt (grau = nicht nötig)',
+    'projects_legend_darkcov' => 'Dark durch Bias abgedeckt (rot = nicht abgedeckt)',
     'projects_flat_cov_title' => 'Dark-Flat-Abdeckung dieses Flats',
     'projects_legend' => 'Legende',
     'projects_legend_calib' => 'Kalibrierstatus pro Light',

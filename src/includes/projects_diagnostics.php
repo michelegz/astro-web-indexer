@@ -1027,6 +1027,70 @@ function diagnoseProjectTree(array $tree, array $tols, array $filterAliases = []
 }
 
 /**
+ * A calibration row is a candidate when it is enabled, not pending and
+ * inside the session scope. Above session level there is no session
+ * context, so the scope is ignored there (lenient).
+ */
+function calibInScope(array $c, ?int $sid): bool
+{
+    return empty($c['pending']) && !empty($c['enabled'])
+        && ($sid === null || empty($c['scope_sessions']) || in_array($sid, $c['scope_sessions'], true));
+}
+
+/**
+ * Every enabled calibration row of the wanted types, with the pool of
+ * candidate calibrations along its own chain: the project-level links plus
+ * the ones of the node it hangs from, down to the filter (masters shadow
+ * subs, same as everywhere else). The session id is null above session
+ * level, where there is no session context.
+ *
+ * The walk is shared by the coverage diagnostics (flats and darks): same
+ * chain, same pools, so the two cannot drift apart.
+ *
+ * @return array<int, array{row: array, pool: array, sid: ?int}>
+ */
+function calibChainRows(array $tree, array $types): array
+{
+    $want = array_map('strtoupper', $types);
+    $isWanted = function (array $c) use ($want): bool {
+        return in_array(strtoupper((string)($c['imgtype'] ?? '')), $want, true)
+            && empty($c['pending']) && !empty($c['enabled']);
+    };
+    $projectCals = array_values(array_filter(
+        $tree['project_links'] ?? [],
+        fn($c) => in_array(strtoupper((string)$c['imgtype']), ['DARK', 'FLAT', 'BIAS'], true)
+    ));
+    $out = [];
+    $push = function (array $rows, array $pool, ?int $sid) use (&$out, $isWanted): void {
+        foreach ($rows as $row) {
+            if ($isWanted($row)) {
+                $out[] = ['row' => $row, 'pool' => $pool, 'sid' => $sid];
+            }
+        }
+    };
+    foreach ($tree['setups'] ?? [] as $setup) {
+        $setupCals = array_merge($projectCals, $setup['calibrations'] ?? []);
+        // The project-level links belong to every setup: they are checked
+        // once per setup, against the chain of that setup.
+        $push($setupCals, $setupCals, null);
+        foreach ($setup['panels'] ?? [] as $panel) {
+            $panelCals = array_merge($setupCals, $panel['calibrations'] ?? []);
+            $push($panel['calibrations'] ?? [], $panelCals, null);
+            foreach ($panel['sessions'] ?? [] as $session) {
+                $sid = (int)$session['id'];
+                $sessionCals = array_merge($panelCals, $session['calibrations'] ?? []);
+                $push($session['calibrations'] ?? [], $sessionCals, $sid);
+                foreach ($session['filters'] ?? [] as $filter) {
+                    $pool = array_merge($sessionCals, $filter['calibrations'] ?? []);
+                    $push($filter['calibrations'] ?? [], $pool, $sid);
+                }
+            }
+        }
+    }
+    return $out;
+}
+
+/**
  * Bias + dark coverage for every ENABLED linked flat:
  * [file_id => ['bias' => green|yellow|red, 'dark' => green|yellow|red]].
  * Darks and darkflats are equivalent here (same pool, matched by exposure
@@ -1040,65 +1104,46 @@ function diagnoseProjectTree(array $tree, array $tols, array $filterAliases = []
 function diagnoseFlatCoverage(array $tree, array $tols, array $darkRoles): array
 {
     $out = [];
-    $isFlatEnabled = fn($c) => strtoupper((string)($c['imgtype'] ?? '')) === 'FLAT'
-        && empty($c['pending']) && !empty($c['enabled']);
-    $projectCals = array_values(array_filter(
-        $tree['project_links'] ?? [],
-        fn($c) => in_array(strtoupper((string)$c['imgtype']), ['DARK', 'FLAT', 'BIAS'], true)
-    ));
-    $inScope = function (array $c, ?int $sid): bool {
-        if (empty($c['pending']) && !empty($c['enabled'])
-            && ($sid === null || empty($c['scope_sessions']) || in_array($sid, $c['scope_sessions'], true))) {
-            return true;
-        }
-        return false;
-    };
-    $checkFlat = function (array $flat, array $pool, ?int $sid) use (&$out, $tols, $inScope): void {
+    foreach (calibChainRows($tree, ['FLAT']) as $it) {
+        $flat = $it['row'];
         $darks = array_values(array_filter(
-            $pool,
-            fn($c) => strtoupper((string)$c['imgtype']) === 'DARK' && $inScope($c, $sid)
+            $it['pool'],
+            fn($c) => strtoupper((string)$c['imgtype']) === 'DARK' && calibInScope($c, $it['sid'])
         ));
         $biases = array_values(array_filter(
-            $pool,
-            fn($c) => strtoupper((string)$c['imgtype']) === 'BIAS' && $inScope($c, $sid)
+            $it['pool'],
+            fn($c) => strtoupper((string)$c['imgtype']) === 'BIAS' && calibInScope($c, $it['sid'])
         ));
         $out[(int)$flat['file_id']] = [
             'bias' => bestCalibStatus($biases, fn($c) => matchBias($flat, $c)),
             'dark' => bestCalibStatus($darks, fn($c) => matchDark($flat, $c, $tols)),
         ];
-    };
-    foreach ($tree['setups'] ?? [] as $setup) {
-        $setupCals = array_merge($projectCals, $setup['calibrations'] ?? []);
-        foreach ($setupCals as $flat) {
-            if ($isFlatEnabled($flat)) {
-                $checkFlat($flat, $setupCals, null);
-            }
-        }
-        foreach ($setup['panels'] ?? [] as $panel) {
-            $panelCals = array_merge($setupCals, $panel['calibrations'] ?? []);
-            foreach ($panel['calibrations'] ?? [] as $flat) {
-                if ($isFlatEnabled($flat)) {
-                    $checkFlat($flat, $panelCals, null);
-                }
-            }
-            foreach ($panel['sessions'] ?? [] as $session) {
-                $sid = (int)$session['id'];
-                $sessionCals = array_merge($panelCals, $session['calibrations'] ?? []);
-                foreach ($session['calibrations'] ?? [] as $flat) {
-                    if ($isFlatEnabled($flat)) {
-                        $checkFlat($flat, $sessionCals, $sid);
-                    }
-                }
-                foreach ($session['filters'] ?? [] as $filter) {
-                    $pool = array_merge($sessionCals, $filter['calibrations'] ?? []);
-                    foreach ($filter['calibrations'] ?? [] as $flat) {
-                        if ($isFlatEnabled($flat)) {
-                            $checkFlat($flat, $pool, $sid);
-                        }
-                    }
-                }
-            }
-        }
+    }
+    return $out;
+}
+
+/**
+ * Bias coverage for every ENABLED linked dark:
+ * [file_id => green|yellow|red].
+ * A master dark is the dark minus the bias, so a dark with no matching bias
+ * is not calibrated. The bias candidates are the rows along the dark's own
+ * chain (masters shadow subs, same as flats and lights); above session
+ * level there is no session context, so scope is ignored there (lenient).
+ * The matching is by binning/gain (matchBias), the same rule the light and
+ * flat paths use. No candidate at all => red, mirroring the light
+ * convention (missing candidate, not broken data: uncovered darks still
+ * export, WBPP decides).
+ */
+function diagnoseDarkCoverage(array $tree): array
+{
+    $out = [];
+    foreach (calibChainRows($tree, ['DARK']) as $it) {
+        $dark = $it['row'];
+        $biases = array_values(array_filter(
+            $it['pool'],
+            fn($c) => strtoupper((string)$c['imgtype']) === 'BIAS' && calibInScope($c, $it['sid'])
+        ));
+        $out[(int)$dark['file_id']] = bestCalibStatus($biases, fn($c) => matchBias($dark, $c));
     }
     return $out;
 }

@@ -360,6 +360,7 @@ $calCtxBase = [
     'filterAliases' => $filterAliases,
     'darkRoles' => $darkRolesMain,
     'flatCov' => $projectTree !== null ? diagnoseFlatCoverage($projectTree, $projectTols, $darkRolesMain) : [],
+    'darkCov' => $projectTree !== null ? diagnoseDarkCoverage($projectTree) : [],
     'tols' => [
         'exp' => (string)($projectTols['tol_exp'] ?? '1%'),
         'temp' => (string)($projectTols['tol_temp'] ?? '2C'),
@@ -384,6 +385,7 @@ $sugCalCtx = [
     'filterAliases' => $filterAliases,
     'darkRoles' => $sugMergedDark,
     'flatCov' => $sugMergedTree !== null ? diagnoseFlatCoverage($sugMergedTree, $projectTols, $sugMergedDark) : [],
+    'darkCov' => $sugMergedTree !== null ? diagnoseDarkCoverage($sugMergedTree) : [],
     'reviewMode' => true,
     'tols' => [
         'exp' => (string)($projectTols['tol_exp'] ?? '1%'),
@@ -1130,6 +1132,7 @@ if ($projectBlocked) {
                 <span class="inline-flex items-center"><?= diagBox('green', 'B', __('projects_cal_bias')) ?><?= diagBox('green', 'D', __('projects_cal_dark')) ?><?= diagBox('green', 'F', __('projects_cal_flat')) ?><span><?= htmlspecialchars(__('projects_legend_calib')) ?></span></span>
                 <span class="inline-flex items-center"><?= rotBadge('ok', __('projects_cal_rot_ok'), __('projects_cal_rot_warn')) ?><?= rotBadge('warn', __('projects_cal_rot_ok'), __('projects_cal_rot_warn')) ?><span><?= htmlspecialchars(__('projects_legend_rot')) ?></span></span>
                 <span class="inline-flex items-center"><?= diagBox('green', 'B', __('projects_cal_bias')) ?><?= diagBox('grey', 'D', __('projects_cal_not_needed')) ?><span><?= htmlspecialchars(__('projects_legend_flatcov')) ?></span></span>
+                <span class="inline-flex items-center"><?= diagBox('green', 'B', __('projects_cal_bias')) ?><span><?= htmlspecialchars(__('projects_legend_darkcov')) ?></span></span>
             </div>
             </details>
             <div id="renameModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60">

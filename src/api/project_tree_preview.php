@@ -121,11 +121,13 @@ try {
         $dupLinks = indexDuplicateLinks($tree);
         $darkRoles = indexDarkRoles($tree, $projectTols);
         $flatCov = diagnoseFlatCoverage($tree, $projectTols, $darkRoles);
+        $darkCov = diagnoseDarkCoverage($tree);
         $calCtxBase = [
             'dup' => $dupLinks,
             'filterAliases' => $filterAliases,
             'darkRoles' => $darkRoles,
             'flatCov' => $flatCov,
+            'darkCov' => $darkCov,
             'hypoLinks' => $hypoLinks,
             'hypoMode' => true,
             'tols' => [

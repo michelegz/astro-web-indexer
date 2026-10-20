@@ -173,6 +173,7 @@ function renderCalRows(array $cals, string $level, int $node, array $moveCtx = [
     }
     $dup = $moveCtx['dup'] ?? [];
     $flatCov = $moveCtx['flatCov'] ?? [];
+    $darkCov = $moveCtx['darkCov'] ?? [];
     $hypoCalLinks = $moveCtx['hypoLinks'] ?? [];
     $hypoGroups = !empty($moveCtx['hypoMode']);
     // Suggestion-review modal: pending rows selectable via suggestion_ids[],
@@ -224,6 +225,10 @@ function renderCalRows(array $cals, string $level, int $node, array $moveCtx = [
                 <span class="cal-arrow">▶︎</span>
                 <?php
                 $gWorstB = $gWorstD = null;
+                // Darks and darkflats need a bias and nothing else: the
+                // group carries the bias badge, the worst of its rows.
+                $gWorstBias = null;
+                $gDark = $g['kind'] === 'dark' || $g['kind'] === 'darkflat';
                 if ($g['kind'] === 'flat') {
                     foreach ($g['rows'] as $gr) {
                         if ((!empty($gr['pending']) && !$reviewRows) || empty($gr['enabled'])) {
@@ -235,9 +240,19 @@ function renderCalRows(array $cals, string $level, int $node, array $moveCtx = [
                             $gWorstD = $gWorstD === null ? ($gs['dark'] ?? 'red') : diagWorst($gWorstD, $gs['dark'] ?? 'red');
                         }
                     }
+                } elseif ($gDark) {
+                    foreach ($g['rows'] as $gr) {
+                        if ((!empty($gr['pending']) && !$reviewRows) || empty($gr['enabled'])) {
+                            continue;
+                        }
+                        $gs = $darkCov[(int)$gr['file_id']] ?? null;
+                        if ($gs !== null) {
+                            $gWorstBias = $gWorstBias === null ? $gs : diagWorst($gWorstBias, $gs);
+                        }
+                    }
                 }
                 ?>
-                <?php if ($gWorstB !== null): ?><?= flatCovBadges(['bias' => $gWorstB, 'dark' => $gWorstD], __('projects_cal_bias'), __('projects_cal_dark'), __('projects_cal_not_needed')) ?><?php endif; ?><span><?= htmlspecialchars(calGroupTitle($g)) ?></span>
+                <?php if ($gWorstB !== null): ?><?= flatCovBadges(['bias' => $gWorstB, 'dark' => $gWorstD], __('projects_cal_bias'), __('projects_cal_dark'), __('projects_cal_not_needed')) ?><?php endif; ?><?php if ($gWorstBias !== null): ?><?= diagBox($gWorstBias, 'B', __('projects_cal_bias')) ?><?php endif; ?><span><?= htmlspecialchars(calGroupTitle($g)) ?></span>
             </summary>
             <ul class="flex flex-col gap-0.5 mb-1 px-3">
         <?php foreach ($g['rows'] as $c): ?>
@@ -255,7 +270,7 @@ function renderCalRows(array $cals, string $level, int $node, array $moveCtx = [
                     <input type="checkbox" name="suggestion_ids[]" value="<?= (int)$c['suggestion_id'] ?>" class="sug-check rounded bg-gray-600 border-gray-500">
                 <?php endif; ?>
                 <span class="text-gray-500">[<?= htmlspecialchars($c['imgtype']) ?>]</span>
-                <?php if ($g['kind'] === 'flat' && !$isOff && (!$isPend || $reviewRows) && isset($flatCov[(int)$c['file_id']]) && is_array($flatCov[(int)$c['file_id']])): ?><?= flatCovBadges($flatCov[(int)$c['file_id']], __('projects_cal_bias'), __('projects_cal_dark'), __('projects_cal_not_needed')) ?><?php endif; ?><span><?= ($isHypoCal || $isNewPend) ? '<span class="text-[10px] font-semibold text-green-300 border border-green-700 rounded px-1 mr-1">' . __('projects_hypo_new') . '</span>' : '' ?><span<?= $cReason !== '' ? ' title="' . htmlspecialchars($cReason) . '"' : '' ?> class="<?= ($isHypoCal || $isNewPend) ? 'text-green-300 font-medium' : '' ?>"><?= htmlspecialchars($c['name']) ?></span>
+                <?php if ($g['kind'] === 'flat' && !$isOff && (!$isPend || $reviewRows) && isset($flatCov[(int)$c['file_id']]) && is_array($flatCov[(int)$c['file_id']])): ?><?= flatCovBadges($flatCov[(int)$c['file_id']], __('projects_cal_bias'), __('projects_cal_dark'), __('projects_cal_not_needed')) ?><?php endif; ?><?php if ($gDark && !$isOff && (!$isPend || $reviewRows) && isset($darkCov[(int)$c['file_id']])): ?><?= diagBox($darkCov[(int)$c['file_id']], 'B', __('projects_cal_bias')) ?><?php endif; ?><span><?= ($isHypoCal || $isNewPend) ? '<span class="text-[10px] font-semibold text-green-300 border border-green-700 rounded px-1 mr-1">' . __('projects_hypo_new') . '</span>' : '' ?><span<?= $cReason !== '' ? ' title="' . htmlspecialchars($cReason) . '"' : '' ?> class="<?= ($isHypoCal || $isNewPend) ? 'text-green-300 font-medium' : '' ?>"><?= htmlspecialchars($c['name']) ?></span>
                 <?php if ($isPend && !$isNewPend): ?><span title="<?= __('projects_pending_hypo') ?>">⏳</span><?php endif; ?>
                 <?php if ($isOff): ?><span class="text-gray-500">(<?= __('projects_link_off') ?>)</span><?php endif; ?>
                 <?php if (count($cDup) > 1): ?><span title="<?= htmlspecialchars(__('projects_dup_levels') . ': ' . implode(', ', $cDup)) ?>">⧉×<?= count($cDup) ?></span><?php endif; ?>

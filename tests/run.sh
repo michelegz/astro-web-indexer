@@ -13,7 +13,8 @@
 #   "standalone" and the "with-tree" ones, a single path, fewer ways to go wrong;
 # - Python tests run in /tmp inside awi-python with
 #   AWI_PROJECTS_LIB=/opt/scripts (never write into the mounts: /tmp is not mounted);
-# - tree_render_escape_check.php runs in THREE processes (hypo 1, 0 and review 2);
+# - tree_render_escape_check.php, tree_group_state_check.php and
+#   tree_dark_badge_check.php run in THREE processes (hypo 1, 0 and review 2);
 # - hash_parity is a two-halves gate: php + python + diff;
 # - stale_check.py / stale_resurrect.py are manual tools (they want a
 #   file_id): they are skipped with a note.
@@ -87,7 +88,7 @@ for f in tests/php/*.php; do
         record "$base (docker cp)" 1
         continue
     }
-    if [ "$base" = "tree_render_escape_check" ] || [ "$base" = "tree_group_state_check" ]; then
+    if [ "$base" = "tree_render_escape_check" ] || [ "$base" = "tree_group_state_check" ] || [ "$base" = "tree_dark_badge_check" ]; then
         # Three modes in three processes: the partial declares functions at
         # file level, so including it twice in the same process is fatal.
         # 1 = hypo (the add-modal preview), 0 = the real tree, 2 = review
