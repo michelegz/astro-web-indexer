@@ -1441,6 +1441,17 @@ function calGroupTitle(array $g): string
 }
 
 /**
+ * One-line group header of a group of light frames: "[LIGHT] Ha".
+ * The calibration groups carry their type in brackets (see calGroupTitle)
+ * and the lights do the same, so every group of the tree says what it
+ * holds. An unnamed filter keeps the dash the tree uses for a missing name.
+ */
+function lightGroupTitle(string $name): string
+{
+    return '[LIGHT] ' . ($name !== '' ? $name : '—');
+}
+
+/**
  * Short session label with progressive number: "N3 · 2024-05-01" (night only
  * when session_no is missing, e.g. partially migrated rows). Sessions use N
  * so they can never be confused with setup S numbers.
