@@ -82,6 +82,8 @@ return [
     'hash' => 'Hash',
     'modification_time' => 'Änderungszeit',
     'duplicates_tooltip' => '%1$d von %2$d Duplikaten sind sichtbar',
+    'metrics_pending' => 'Metriken ausstehend',
+    'metrics_pending_tooltip' => 'Die Sternmetriken dieses Frames werden noch berechnet',
     'export_astrobin_csv' => 'Für AstroBin exportieren (CSV)',
     'projects_export_zip' => 'ZIP herunterladen',
     'projects_export_skipped' => 'Übersprungen',

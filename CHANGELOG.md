@@ -9,6 +9,7 @@ DATE-OBS calendar with INSTRUME/TELESCOP filters, and a batch of archive-integri
 security fixes.
 
 ### New Features
+- **The archive shows up before the numbers do** - the indexer works in two passes now: the fast one writes each file (header, preview, frame statistics) so it appears in the frontend straight away, and the slow one computes the star metrics afterwards. On an older machine the star metrics were the whole cost of an index, and nothing was visible until they were done. A frame whose metrics are still owed carries a "metrics pending" marker, a run interrupted in between is picked up again by the next one, and `INDEXER_PHASE_MODE=single` goes back to the single pass (the pixels are decoded once, but nothing is visible until the metrics are known)
 - **Projects** - create, rename, archive and delete imaging projects with per-project tolerances and three assign modes: manual, automatic suggestions, and frozen (locked, no new files). A panel on the home page lists them; `projects.php` is the detail view
 - **Project tree** - frames organized as setup → panel → session, with collapsible sections, per-project consecutive numbering (S/P/N counters for setups, panels and sessions) and fingerprint details (including `OFFSET`) shown on each setup
 - **Automatic project suggestions** - a suggestion engine proposes the right project/panel/session for every new frame and queues them for review in a wizard; suggestions are re-evaluated when the matching context changes, dismissals are remembered and visible, and you can accept, dismiss or create the project inline. Add-to-project also works straight from Smart Frame Finder results, with a two-step preview and custom setups via override
@@ -67,8 +68,9 @@ All of these were reachable on 1.4.0 and are fixed here.
 > ./build.sh build                         # required: the Python suggester is baked into the image
 > docker compose down && docker compose up -d
 > ```
-> Migrations run automatically on PHP container start (23 new ones, including the
-> project tables, per-project numbering, thresholds and new frame context columns).
+> Migrations run automatically on PHP container start (24 new ones, including the
+> project tables, per-project numbering, thresholds, new frame context columns
+> and the `metrics_pending` flag that tells the two indexer passes apart).
 
 ## v1.4.0
 

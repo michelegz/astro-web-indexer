@@ -22,7 +22,8 @@ import logging
 from astropy.io import fits
 from xisf import XISF
 
-from indexer_lib.file_utils import get_header_value, get_xisf_header_value, pick_image_hdu
+from indexer_lib.file_utils import (get_header_value, get_xisf_header_value,
+                                    pick_image_hdu_header)
 
 logger = logging.getLogger('reindex')
 
@@ -73,7 +74,10 @@ def schema_upgrade_worker(task, fits_root):
         get_value = None
         if file_lower.endswith(('.fits', '.fit', '.fz')):
             with fits.open(full_path, ignore_missing_end=True) as hdul:
-                header, _ = pick_image_hdu(hdul)
+                # Header only: the pixels are not needed here, and on a .fz
+                # reading them meant decompressing the whole frame for a
+                # handful of keywords.
+                header, _ = pick_image_hdu_header(hdul)
                 get_value = get_header_value
         elif file_lower.endswith('.xisf'):
             xisf_file = XISF(full_path)

@@ -112,6 +112,19 @@ docker exec -it awi-python python /opt/scripts/reindex.py /var/fits --debug --fo
 | `--star-metrics` / `--no-star-metrics` | `STAR_METRICS_ENABLED` | Compute star/quality metrics for LIGHT frames (plus pixel statistics for every frame). | `true` |
 | `--backfill-star-metrics` | - | Reprocess pixel data of files still missing computed metrics (LIGHT frames without HFR, any frame without pixel statistics), then continue normally. | `false` |
 | `--recompute-star-metrics` | - | Recompute star metrics for ALL LIGHT frames, even ones already computed (e.g. after a formula change). Skips thumbnails like backfill. | `false` |
+| `--phase-mode` | `INDEXER_PHASE_MODE` | How the indexing is split: `two` (default) writes each file first, so it shows up in the frontend, and computes the star metrics after; `single` does everything in one pass. | `two` |
+
+**The two passes**
+
+The default mode writes the row in a fast pass (header, preview, frame statistics) and
+computes the star metrics in a slow one, so a big archive becomes browsable long before
+the numbers are ready. A row that still owes its metrics carries `files.metrics_pending = 1`
+and shows a "metrics pending" marker in the table; a run interrupted in between is picked
+up again by the next one, because the flag is committed in batches.
+
+Both modes share the same extraction (`indexer_lib/frame_extract.py`), so they cannot
+drift apart. `single` decodes the pixels once instead of twice, at the cost of showing
+nothing until the metrics are known.
 
 
 ## 📁 Directory Structure

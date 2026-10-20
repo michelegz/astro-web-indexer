@@ -173,6 +173,7 @@ $thumbSize = $_COOKIE['thumbSize'] ?? '3';
                 <a href="/fits/<?= rawurlencode($f['path']) ?>" download class="text-blue-400 hover:text-blue-300">
                     <?= htmlspecialchars($f['name'] ?? '') ?>
                 </a>
+                <?php renderPendingBadge($f); ?>
                 <?php if (($f['total_duplicate_count'] ?? 1) > 1): ?>
                     <?php 
                         $visibleCount = $f['visible_duplicate_count'];

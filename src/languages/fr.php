@@ -82,6 +82,8 @@ return [
     'hash' => 'Hash',
     'modification_time' => 'Date de modification',
     'duplicates_tooltip' => '%1$d sur %2$d doublons sont visibles',
+    'metrics_pending' => 'métriques en attente',
+    'metrics_pending_tooltip' => 'Les métriques stellaires de cette image sont encore en cours de calcul',
     'export_astrobin_csv' => 'Exporter pour AstroBin (CSV)',
     'projects_export_zip' => 'Télécharger ZIP',
     'projects_export_skipped' => 'Ignorés',

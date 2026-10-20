@@ -30,6 +30,30 @@ def get_header_value(header, key, default=None, type_func=None):
             return default
     return val
 
+def image_hdu_index(hdul):
+    """Index of the first HDU holding an image, decided from the headers alone.
+
+    Touching `hdu.data` is what makes a pass expensive: it reads the whole
+    frame, and on a tile-compressed .fz it decompresses it. The header
+    already says which HDU carries the image, so the choice is made here
+    without the pixels.
+
+    A table extension (XTENSION='BINTABLE') holds data too, but it is not an
+    image: it is skipped instead of being taken for one.
+    """
+    for i, hdu in enumerate(hdul):
+        try:
+            hdr = hdu.header
+        except Exception:
+            continue
+        if hdr.get('NAXIS', 0) < 1:
+            continue
+        if hdr.get('XTENSION') in ('BINTABLE', 'TABLE', 'A3DTABLE'):
+            continue
+        return i
+    return None
+
+
 def pick_image_hdu(hdul):
     """Return (header, data) from the first HDU that actually holds an image.
 
@@ -40,18 +64,38 @@ def pick_image_hdu(hdul):
     HDU (which wins: FPACK copies the original keywords there).
     """
     primary_header = hdul[0].header
-    for hdu in hdul:
-        try:
-            data = hdu.data
-        except Exception:
-            continue
-        if data is not None:
-            if hdu is hdul[0]:
-                return primary_header, data
-            merged = primary_header.copy()
-            merged.update(hdu.header)
-            return merged, data
-    return primary_header, None
+    idx = image_hdu_index(hdul)
+    if idx is None:
+        return primary_header, None
+    hdu = hdul[idx]
+    try:
+        data = hdu.data
+    except Exception:
+        data = None
+    if hdu is hdul[0]:
+        return primary_header, data
+    merged = primary_header.copy()
+    merged.update(hdu.header)
+    return merged, data
+
+
+def pick_image_hdu_header(hdul):
+    """Return (header, None) from the image HDU, without reading the pixels.
+
+    Same HDU as pick_image_hdu, chosen from the header keywords alone: the
+    schema upgrade pass needs the header and nothing else, and it used to pay
+    for the whole frame (decompressing it on a .fz) to get it.
+    """
+    primary_header = hdul[0].header
+    idx = image_hdu_index(hdul)
+    if idx is None:
+        return primary_header, None
+    hdu = hdul[idx]
+    if hdu is hdul[0]:
+        return hdu.header, None
+    merged = primary_header.copy()
+    merged.update(hdu.header)
+    return merged, None
 
 
 def get_xisf_header_value(header, key, default=None, type_func=None):

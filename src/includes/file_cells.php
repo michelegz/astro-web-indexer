@@ -16,6 +16,28 @@ function fileIdOf(array $f): int
 }
 
 /**
+ * The "metrics pending" marker of a row whose star metrics are still owed.
+ *
+ * The indexer writes the row first (header, preview, frame statistics) and
+ * computes the star metrics after, so a row can sit in the table with its
+ * metric columns empty while the slow pass is still working on it. Without
+ * the marker an empty HFR column looks like a frame with no stars, which is
+ * a different thing entirely.
+ *
+ * The flag lives in files.metrics_pending: 1 means the metrics pass has not
+ * run on that row yet.
+ */
+function renderPendingBadge(array $f): void
+{
+    if (empty($f['metrics_pending'])) {
+        return;
+    }
+    echo '<span class="ml-2 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-700 text-blue-100"'
+        . ' title="' . htmlspecialchars(__('metrics_pending_tooltip')) . '">'
+        . htmlspecialchars(__('metrics_pending')) . '</span>';
+}
+
+/**
  * Sort keys rendered right-aligned / parsed numerically by the
  * client-side sorter of the project tables.
  */
@@ -227,7 +249,7 @@ function renderFileTableCells(array $f, string $scope, string $nameSuffix = ''):
                 <td class="p-3"<?= $attr('name') ?>>
                     <a href="/fits/<?= rawurlencode($f['path'] ?? '') ?>" download class="text-blue-400 hover:text-blue-300">
                         <?= htmlspecialchars($f['name'] ?? '') ?>
-                    </a><?= $nameSuffix ?>
+                    </a><?= $nameSuffix ?><?php renderPendingBadge($f); ?>
                 </td>
                 <?php if ($show('visible_duplicate_count')): ?>
                                 <td class="p-3 text-center"<?= $attr('visible_duplicate_count') ?>>

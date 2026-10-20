@@ -87,6 +87,7 @@ The indexer includes a powerful suite for identifying and managing duplicate fil
 The indexing engine is designed to be fast, efficient, and resilient, making it suitable for managing large and dynamic data archives.
 
 - **Parallel Processing:** The indexer uses parallel processing to take advantage of modern multi-core CPUs, allowing faster initial scans and full re-indexing, even when handling large sets of files.
+- **Two-Pass Indexing:** the archive becomes browsable long before the slow numbers are ready. The fast pass writes each file (header, preview, frame statistics) so it shows up in the frontend, and the slow pass computes the star metrics afterwards. A frame whose metrics are still owed carries a "metrics pending" marker, and a run interrupted in between is resumed by the next one. Set `INDEXER_PHASE_MODE=single` to go back to one pass: the pixels are then decoded once, but nothing is visible until the metrics are known.
 - **Fast Rescans:** The indexer uses a combination of file modification time (`mtime`) and size to quickly skip files that have not changed since the last scan. This makes subsequent indexing runs extremely fast.
 - **Content-Based Identification:** Files are uniquely identified by their `xxhash`, a high-speed hashing algorithm.
 - **Soft-Delete Recovery:** When a file is removed from the filesystem, it is not immediately deleted from the database. Instead, it is marked as "deleted" for a configurable retention period (default: 30 days). This provides a safety net against accidental deletions or temporary filesystem unavailability. If the file reappears within the retention period, it is instantly restored without need of full reindexing and hash calculation.
@@ -171,6 +172,7 @@ These variables control the behavior of the Python indexing and watching scripts
 | `DEBUG` | Enables verbose debug logging for the indexing scripts. Set to `true` or `false`. | `false` |
 | `THUMB_SIZE` | The size (width and height) in pixels for generated thumbnails. | `300` |
 | `INDEXER_WORKERS` | The number of parallel worker processes for indexing. The default is safe for most systems. Increase it on powerful machines with a lot of RAM, or decrease it if you encounter memory-related issues. | `4` |
+| `INDEXER_PHASE_MODE` | How the indexing is split. `two` (default) writes the file first, so it shows up in the frontend, and computes the star metrics after. `single` does everything in one pass: the pixels are decoded once, but nothing is visible until the metrics are known. | `two` |
 | `POLL_INTERVAL` | Polling interval in seconds for the filesystem watcher, used when inotify is not supported (e.g. Docker Desktop on Windows). Has no effect when native inotify is used. | `30` |
 | `FORCE_POLLING` | Set to `true` to force the polling-based watcher even on systems that support inotify (e.g. NFS mounts). | `false` |
 | `STAR_METRICS_ENABLED` | Set to `false` to skip all computed metrics (star quality for LIGHT frames, pixel statistics for every frame) and hide the related table columns, trend charts and chooser entries. | `true` |

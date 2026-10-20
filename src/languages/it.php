@@ -130,6 +130,8 @@ return [
     'hash' => 'Hash',
     'modification_time' => 'Data Modifica',
     'duplicates_tooltip' => '%1$d di %2$d duplicati sono visibili',
+    'metrics_pending' => 'metriche in attesa',
+    'metrics_pending_tooltip' => 'Le metriche stellari di questo frame sono ancora in calcolo',
     'export_astrobin_csv' => 'Esporta per AstroBin (CSV)',
     'projects_export_zip' => 'Scarica ZIP',
     'projects_export_skipped' => 'Esclusi',

@@ -83,6 +83,8 @@ return [
     'hash' => 'Hash',
     'modification_time' => 'Fecha de Modificación',
     'duplicates_tooltip' => '%1$d de %2$d duplicados están visibles',
+    'metrics_pending' => 'métricas pendientes',
+    'metrics_pending_tooltip' => 'Las métricas estelares de este frame aún se están calculando',
     'export_astrobin_csv' => 'Exportar para AstroBin (CSV)',
     'projects_export_zip' => 'Descargar ZIP',
     'projects_export_skipped' => 'Omitidos',
