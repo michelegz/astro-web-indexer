@@ -54,7 +54,7 @@ function check(string $label, bool $cond, string $detail = ''): void
 }
 
 /** The state a card must have when the cookie says nothing. */
-$defaults = ['filters' => true, 'stats' => false, 'trend' => false];
+$defaults = ['filters' => true, 'stats' => false, 'trend' => false, 'indexer' => false];
 
 // The fixtures filters.php, statistics.php and metrics_chart.php read. Set once here
 // and pulled into the rendering scope by renderCard(): a partial included from inside
@@ -89,12 +89,23 @@ $fixture = [
         ['name' => 'light-002.fits', 'hfr' => 2.02, 'fwhm' => 3.01, 'hfr_sd' => 0.19,
             'eccentricity' => 0.21, 'star_count' => 1910, 'snr_weight' => 0.68, 'psf_signal' => 1180.0],
     ],
+    // The status card's default is dynamic (open while a run is active), so the
+    // fixture pins it to "idle, no run" and therefore to the collapsed default.
+    'indexerStatus' => [
+        'available' => true,
+        'current' => null,
+        'last' => null,
+        'history' => [],
+        'watcher' => null,
+        'archive' => ['metrics_pending' => 0],
+    ],
 ];
 
 $partials = [
     'filters' => 'filters.php',
     'stats' => 'statistics.php',
     'trend' => 'metrics_chart.php',
+    'indexer' => 'indexer_status.php',
 ];
 
 /**
@@ -204,7 +215,7 @@ foreach ($defaults as $card => $defaultOpen) {
     }
 }
 
-echo "\n=== the three cards do not share one cookie ===\n";
+echo "\n=== the cards do not share one cookie ===\n";
 // One card collapsed must not move the others: a single shared cookie would make
 // this fail, and the user would open Filtri and find Statistiche gone too.
 $_COOKIE['card_stats'] = '0';

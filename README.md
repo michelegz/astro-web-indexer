@@ -36,6 +36,7 @@ This project is developed and maintained in my spare time. If you find it useful
 - 📁 Browse and search FITS, tile-compressed FITS (`.fz`) and XISF files in a directory structure
 - 🔍 Advanced filtering by object, filter type, image type, instrument, telescope, observation date and exposure time, with an observation-date calendar marking the time and session of every captured night
 - 🔄 Real-time monitoring and automatic indexing of new files
+- 📡 Indexer status card for admins: current phase, progress, ETA, errors, watcher state, frames awaiting metrics and the last five runs, refreshed every five seconds
 - 🖼️ Built-in preview generation (full and 100% crop) with a non-linear MTF stretch
 - 👁️ Calculates Field of View (FoV) and angular resolution based on FITS header data
 - 🌘 Calculates Moon phase for each image at the time of acquisition

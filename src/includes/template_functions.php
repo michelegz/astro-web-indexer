@@ -1,7 +1,7 @@
 <?php
 
 // Set of collapsible cards and their cookie ids.
-define('AWI_CARD_IDS', ['filters', 'stats', 'trend']);
+define('AWI_CARD_IDS', ['filters', 'stats', 'trend', 'indexer']);
 
 /**
  * Whether a collapsible card has to be rendered OPEN.

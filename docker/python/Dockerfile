@@ -32,4 +32,4 @@ ENV PATH="/opt/venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 
 # Startup command
-CMD ["sh", "-c", "python reindex.py /var/fits && python watch_fs.py /var/fits"]
+CMD ["sh", "-c", "python reindex.py /var/fits --run-reason startup && python watch_fs.py /var/fits"]

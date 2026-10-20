@@ -22,6 +22,7 @@ try:
 except ImportError:
     PollingObserver = None
 from watchdog.events import FileSystemEventHandler, FileSystemEvent
+from indexer_lib.status import WatcherStatus
 
 # Configure logging
 logging.basicConfig(
@@ -61,23 +62,31 @@ def _inotify_supported(path: str) -> bool:
 
 
 class FitsHandler(FileSystemEventHandler):
-    def __init__(self, fits_dir, reindex_script, db_params, rescan_interval=5, debug=False, retention_days=30, thumb_size=300):
+    def __init__(self, fits_dir, reindex_script, db_params, rescan_interval=5, debug=False, retention_days=30, thumb_size=300, watcher=None):
         self.fits_dir = Path(fits_dir)
         self.reindex_script = Path(reindex_script)
         self.db_params = db_params
         self.debug = debug
         self.retention_days = retention_days
         self.thumb_size = thumb_size
+        self.watcher = watcher
         self.pending_reindex = False
         self.last_reindex = 0
         self.cooldown = 10  # Seconds after a successful reindex
         self.cooldown_max = 300  # Ceiling for the backoff after repeated failures
         self.reindex_failures = 0
         self.reindex_reason = "startup"
+        self.reindex_reason_code = "startup"
         self.rescan_interval = float(rescan_interval)
         self.last_scan = 0.0
         self.known_files = self._initial_scan()
         logging.info(f"Initial known files count: {len(self.known_files)}")
+        self._publish_scan()
+
+    def _publish_scan(self):
+        """Tell the frontend how large the archive the watcher can see is."""
+        if self.watcher is not None:
+            self.watcher.scanned(len(self.known_files))
 
     def _normalize_path(self, p):
         try:
@@ -112,24 +121,24 @@ class FitsHandler(FileSystemEventHandler):
         logging.debug(f"DISPATCH: {event.event_type} | is_dir={event.is_directory} | src={event.src_path}")
         super().dispatch(event)
 
-    def _log_and_schedule(self, src_path, reason):
+    def _log_and_schedule(self, src_path, reason, code):
         try:
             rel_path = Path(src_path).relative_to(self.fits_dir)
         except Exception:
             rel_path = src_path
         logging.info(f"{reason}: {rel_path}")
-        self.schedule_reindex(reason)
+        self.schedule_reindex(reason, code)
 
     def on_created(self, event):
         if event.is_directory: return
         if self._is_valid_file(event.src_path):
             self.known_files.add(self._normalize_path(event.src_path))
-            self._log_and_schedule(event.src_path, "file creation")
+            self._log_and_schedule(event.src_path, "file creation", "created")
 
     def on_modified(self, event):
         if event.is_directory: return
         if self._is_valid_file(event.src_path):
-            self._log_and_schedule(event.src_path, "file modification")
+            self._log_and_schedule(event.src_path, "file modification", "modified")
 
     def on_moved(self, event):
         if event.is_directory: return
@@ -139,13 +148,13 @@ class FitsHandler(FileSystemEventHandler):
             self.known_files.discard(src_norm)
         if self._is_valid_file(dest_norm):
             self.known_files.add(dest_norm)
-        self._log_and_schedule(event.dest_path, "file move")
+        self._log_and_schedule(event.dest_path, "file move", "moved")
 
     def on_deleted(self, event):
         if event.is_directory: return
         if self._is_valid_file(event.src_path):
             self.known_files.discard(self._normalize_path(event.src_path))
-            self._log_and_schedule(event.src_path, "file deletion")
+            self._log_and_schedule(event.src_path, "file deletion", "deleted")
 
     def scan_and_detect(self):
         """Periodic safety net for the events inotify missed.
@@ -177,18 +186,25 @@ class FitsHandler(FileSystemEventHandler):
             if created:
                 logging.info(f"Scan detected {len(created)} created file(s)")
                 self.known_files.update(created)
-                self.schedule_reindex("scan creation")
+                self.schedule_reindex("scan creation", "scan")
             if deleted:
                 logging.info(f"Scan detected {len(deleted)} deleted file(s)")
                 for p in deleted: self.known_files.discard(p)
-                self.schedule_reindex("scan deletion")
+                self.schedule_reindex("scan deletion", "scan")
+            self._publish_scan()
         except Exception as e:
             logging.error(f"Rescan error: {e}")
 
-    def schedule_reindex(self, reason="unknown"):
+    def schedule_reindex(self, reason="unknown", code="manual"):
         self.pending_reindex = True
         self.reindex_reason = reason
+        self.reindex_reason_code = code
         logging.info(f"Reindex scheduled due to {reason}.")
+        if self.watcher is not None:
+            # Not forced: a directory copy can queue thousands of events, and the
+            # state only has to change once. The reason itself is kept in Python
+            # and passed to the child, so the row's pending_reason may lag a burst.
+            self.watcher.update('scheduled', pending_reason=code)
 
     def check_and_reindex(self):
         if not self.pending_reindex:
@@ -197,13 +213,17 @@ class FitsHandler(FileSystemEventHandler):
         if current_time - self.last_reindex < self.cooldown:
             return
         logging.info(f"Cooldown elapsed, starting reindex (reason: {self.reindex_reason})")
+        if self.watcher is not None:
+            self.watcher.update('running', force=True,
+                                pending_reason=self.reindex_reason_code)
         try:
             cmd = [
                 sys.executable, str(self.reindex_script), str(self.fits_dir),
                 "--host", self.db_params["host"], "--user", self.db_params["user"],
                 "--password", self.db_params["password"], "--database", self.db_params["database"],
                 "--retention-days", str(self.retention_days),
-                "--thumb-size", str(self.thumb_size)
+                "--thumb-size", str(self.thumb_size),
+                "--run-reason", self.reindex_reason_code,
             ]
             if self.debug:
                 cmd.append("--debug")
@@ -217,6 +237,10 @@ class FitsHandler(FileSystemEventHandler):
             self.pending_reindex = False
             self.reindex_failures = 0
             self.cooldown = 10
+            if self.watcher is not None:
+                self.watcher.update('idle', force=True, failures=0,
+                                    cooldown_seconds=self.cooldown,
+                                    pending_reason=None)
         except (subprocess.CalledProcessError, OSError, subprocess.TimeoutExpired) as e:
             self.last_reindex = current_time
             self.reindex_failures += 1
@@ -227,9 +251,14 @@ class FitsHandler(FileSystemEventHandler):
                 f"Reindex failed ({self.reindex_failures} in a row, "
                 f"next attempt in {self.cooldown}s): {e}"
             )
+            if self.watcher is not None:
+                self.watcher.update('error', force=True,
+                                    failures=self.reindex_failures,
+                                    cooldown_seconds=self.cooldown,
+                                    pending_reason=self.reindex_reason_code)
 
 
-def process_suggest_queue(db_params):
+def process_suggest_queue(db_params, watcher=None):
     """Claim one pending re-suggest request and run its per-project backfill.
 
     The web container only enqueues rows (see enqueueSuggestRequest in PHP):
@@ -319,6 +348,10 @@ def process_suggest_queue(db_params):
         if cur.rowcount != 1:
             return False
         logging.info(f"Suggest backfill starting (request {req_id}, project {project_id})")
+        if watcher is not None:
+            # A backfill can grind for minutes and blocks this loop: say so
+            # instead of letting the heartbeat go quiet while it is busy.
+            watcher.update('working', force=True)
         try:
             counts = suggest_projects_backfill(conn, project_id)
         except Exception as e:
@@ -332,6 +365,8 @@ def process_suggest_queue(db_params):
                 conn.commit()
             except Exception:
                 pass
+            if watcher is not None:
+                watcher.update('idle', force=True)
             return True
         try:
             cur.execute(
@@ -343,6 +378,8 @@ def process_suggest_queue(db_params):
         except Exception as e:
             logging.error(f"Suggest queue result write failed (request {req_id}): {e}")
         logging.info(f"Suggest backfill done (request {req_id}, project {project_id}): {counts}")
+        if watcher is not None:
+            watcher.update('idle', force=True)
         return True
     except Exception as e:
         # Same reasoning as the empty-queue return: the connection is cached, so it must
@@ -385,8 +422,19 @@ def main():
         sys.exit(1)
     db_params = { "host": args.db_host, "user": args.db_user, "password": args.db_password, "database": args.db_name }
 
+    watcher = WatcherStatus(db_params, config={
+        'rescan_interval': args.rescan_interval,
+        'poll_interval': args.poll_interval,
+        'force_polling': bool(args.force_polling),
+        'retention_days': retention_days,
+        'thumb_size': thumb_size,
+        'debug': bool(is_debug),
+    })
+
     if PollingObserver is None:
         logging.error("PollingObserver not available. Please reinstall watchdog.")
+        watcher.update('error', force=True)
+        watcher.close()
         sys.exit(1)
 
     # Use inotify (native Observer) only when the filesystem actually supports it.
@@ -404,12 +452,14 @@ def main():
     
     event_handler = FitsHandler(
         args.fits_dir, args.reindex_script, db_params,
-        rescan_interval=args.rescan_interval, debug=is_debug, retention_days=retention_days, thumb_size=thumb_size
+        rescan_interval=args.rescan_interval, debug=is_debug, retention_days=retention_days, thumb_size=thumb_size,
+        watcher=watcher
     )
     observer.schedule(event_handler, args.fits_dir, recursive=True)
     observer.start()
 
     logging.info(f"Started monitoring directory {args.fits_dir}")
+    watcher.update('scheduled' if event_handler.pending_reindex else 'idle', force=True)
     try:
         while True:
             event_handler.check_and_reindex()
@@ -420,13 +470,23 @@ def main():
             # must not take the whole monitor down. Previously only KeyboardInterrupt
             # was handled, so a transient error ended the process silently.
             try:
-                process_suggest_queue(db_params)
+                if process_suggest_queue(db_params, watcher):
+                    next_state = ('scheduled' if event_handler.pending_reindex
+                                  else ('error' if event_handler.reindex_failures else 'idle'))
+                    watcher.update(next_state, force=True)
             except Exception as e:
                 logging.error(f"Suggest queue error: {e}")
+                next_state = ('scheduled' if event_handler.pending_reindex
+                              else ('error' if event_handler.reindex_failures else 'idle'))
+                watcher.update(next_state, force=True)
+            watcher.heartbeat()
             time.sleep(1)
     except KeyboardInterrupt:
         observer.stop()
         logging.info("Monitoring interrupted by user")
+    finally:
+        watcher.update('stopped', force=True)
+        watcher.close()
     observer.join()
 
 if __name__ == "__main__":

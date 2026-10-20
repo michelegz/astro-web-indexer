@@ -75,13 +75,16 @@ JS tests run locally with Node.
 | `calib_suggest_check.py` | §7 — DARK/BIAS linked to a setup, no orphan sessions | rolled-back transactions (synthetic DARK/BIAS when the archive has none) |
 | `session_numbering_check.py` | §8 — `session_no` follows the night on the Python side | rolled-back transaction |
 | `watch_backoff_check.py` | §10 — the watcher does not retry every second | no writes (subprocess stub) |
+| `indexer_status_check.py` | the status publisher builds valid SQL (including the watcher upsert), throttles per-file progress, closes with `NOW()`, prunes the history to five and disables itself without raising when the migration has not run | no writes (fake connection) |
 | `imgtype_parity_check.py` | §13.6 — the migration SQL matches Python | no writes |
 | `check_chart_ids.mjs` | §3 — canvas ids per metric key | none |
 | `check_escattr.mjs` | §5 — `escAttr` closes the `title` attribute | none |
 | `trend_sort_check.php` | the ▲▼ buttons of the trend card sort the table by **their own** metric, the key survives `buildOrderClause()` (no silent fallback to `name`), the name is not printed twice and the active sort is lit | no writes (synthetic `$starTrend`) |
 | `check_sort_direction.mjs` | `sortTable(key, dir)` with an explicit direction **jumps** instead of toggling; the column headers (one argument) still toggle | none |
 | `card_state_check.php` | a card comes back as the user left it: `aria-expanded`, the `hidden` class and the chevron rotation agree, for every cookie value and every card in `AWI_CARD_IDS`; an unreadable cookie falls back to the default | reads the dropdown values, like the page |
+| `indexer_status_check.php` | the PHP status channel: a running row is decorated with phase, percentage, ETA and rate, finishing it moves it into the history with a duration from the row clocks, and the watcher stale rule distinguishes idle from a long backfill | rolled-back transaction |
 | `check_card_cookie.mjs` | `awiBindCard` moves the toggle, the three DOM signals and the cookie together; `onOpen` fires on opening only; one card does not touch the others | none |
+| `check_indexer_history_state.mjs` | the indexer card's "recent runs" `<details>` keeps a manual open/closed choice across the five-second `innerHTML` repaint, while an untouched card still uses the idle/active default | none |
 | `check_scroll_anchor.mjs` | the scroll memory anchors on **what was on screen** — a table row, or the trend chart whose ▲▼ was clicked — never on a pixel offset and never on a row below the fold; it survives a page that grew, skips the hidden view on both capture and restore, is one-shot, refuses a foreign context and a tampered key, and runs on `load` | none |
 | `trend_type_check.php` | the type of the trend charts: the cookie holds the **explicit** choice, the automatic one follows the number of points (bars up to `AWI_TREND_AUTO_BAR_MAX`, lines above), an unreadable cookie is not read as a choice, and the three buttons and the cookie always agree | no writes (synthetic `$starTrend`) |
 | `check_trend_type.mjs` | `awiSaveTrendType` writes `awi_trend_type=bar\|line\|auto` and nothing else; the old `localStorage` value is adopted once and then removed; the partial no longer reads the preference from `localStorage` | none |

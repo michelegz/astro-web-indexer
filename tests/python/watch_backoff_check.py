@@ -17,6 +17,8 @@ import os
 import subprocess
 import sys
 
+sys.path.insert(0, os.environ.get("AWI_PROJECTS_LIB", "/opt/scripts"))
+
 WATCH = os.environ.get("AWI_WATCH_FS", "/opt/scripts/watch_fs.py")
 spec = importlib.util.spec_from_file_location("watch_fs", WATCH)
 watch_fs = importlib.util.module_from_spec(spec)
@@ -45,6 +47,8 @@ def make_handler():
     h.cooldown_max = 300
     h.reindex_failures = 0
     h.reindex_reason = "test"
+    h.reindex_reason_code = "test"
+    h.watcher = None
     h.rescan_interval = 5.0
     h.last_scan = 0.0
     h.known_files = set()

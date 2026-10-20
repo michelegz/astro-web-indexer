@@ -2,7 +2,7 @@
 // three DOM signals must move together with it.
 //
 //   main.js: awiSaveCardState(id, open)   card_<id>=1|0
-//   main.js: awiBindCard(id, onOpen)      the toggle shared by the 3 cards
+//   main.js: awiBindCard(id, onOpen)      the toggle shared by the collapsible cards
 //
 // The PHP side (awiCardOpen(), template_functions.php) renders the card from
 // that cookie, and the inline script of each partial only ever TOGGLES. So a

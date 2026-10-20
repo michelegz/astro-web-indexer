@@ -17,6 +17,7 @@ from indexer_lib.file_utils import calculate_hash
 from indexer_lib.db_utils import soft_delete_missing_files, purge_deleted_files, update_duplicate_counts
 from indexer_lib.schema_upgrade import SCHEMA_VERSION_FIELDS, schema_upgrade_worker
 from indexer_lib.projects import suggest_projects_for_files, suggest_projects_backfill
+from indexer_lib.status import RunStatus
 from datetime import datetime
 
 # Configure logging
@@ -89,7 +90,7 @@ def _flush(conn, cur, sql, batch, on_batch=None):
 
 
 def run_pass(conn, cur, worker_func, tasks, sql, build_row, workers=4,
-             on_result=None, on_batch=None, label="files"):
+             on_result=None, on_batch=None, on_progress=None, label="files"):
     """Runs a worker over the tasks and writes the results in batches.
 
     A batch the database rejects is rolled back and dropped, so one bad
@@ -97,12 +98,18 @@ def run_pass(conn, cur, worker_func, tasks, sql, build_row, workers=4,
     record was replayed in every later flush, so one unreadable file made
     every remaining file in the run fail with it and the final flush at the
     end of the loop failed too.
+
+    ``on_progress(attempted, errors)`` is called after every result, including
+    the failed ones: it is the hook the status row uses to show a live counter.
+    The publisher throttles the actual writes, so this stays cheap.
     """
     processed = 0
     errors = 0
+    attempted = 0
     batch = []
     with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
         for result in executor.map(worker_func, tasks):
+            attempted += 1
             try:
                 if result['status'] == 'error':
                     errors += 1
@@ -124,6 +131,9 @@ def run_pass(conn, cur, worker_func, tasks, sql, build_row, workers=4,
                 except Exception:
                     pass
                 batch.clear()
+            finally:
+                if on_progress is not None:
+                    on_progress(attempted, errors)
         if batch:
             # The tail flush stays outside the try on purpose: a bad record
             # there fails loudly, after everything else has been committed.
@@ -171,6 +181,10 @@ parser.add_argument("--phase-mode", choices=("two", "single"),
                     help="How the indexing is split: 'two' (default) writes the file "
                          "first, so it shows up in the frontend, and computes the star "
                          "metrics after; 'single' does everything in one pass")
+parser.add_argument("--run-reason", default="manual",
+                    help="Stable code recorded in indexer_runs (startup, created, "
+                         "modified, moved, deleted, scan, manual, backfill, recompute, "
+                         "suggest). watch_fs.py passes the reason that triggered the run.")
 parser.add_argument("--star-metrics-profile", choices=list(star_analysis.PROFILES),
                     default=_profile_default(),
                     help="How the star metrics are measured: 'fast' (bright stars only, "
@@ -297,6 +311,12 @@ def metrics_worker(full_path, fits_root, star_metrics=True, star_profile=None):
 
 
 def main():
+    # Defined before the try: an early failure (DB down, unreadable archive)
+    # still has to close the status row with a reason.
+    status = None
+    error_count = 0
+    processed_count = 0
+    measured_count = 0
     try:
         two_phase = args.phase_mode == 'two'
         mode_label = ('two passes (fast pass, then the star metrics)' if two_phase
@@ -323,34 +343,76 @@ def main():
 
         current_schema_version = 5
 
+        # A manual run that is really a backfill should say so in the card. The
+        # watcher always passes its own code, so this only refines the default.
+        run_reason = args.run_reason
+        if run_reason == 'manual':
+            if args.suggest_projects:
+                run_reason = 'suggest'
+            elif args.recompute_star_metrics:
+                run_reason = 'recompute'
+            elif args.backfill_star_metrics:
+                run_reason = 'backfill'
+
+        status = RunStatus(
+            {
+                'host': args.host,
+                'user': args.user,
+                'password': args.password,
+                'database': args.database,
+            },
+            reason=run_reason,
+            phase_mode=args.phase_mode,
+            config={
+                'phase_mode': args.phase_mode,
+                'workers': args.workers,
+                'star_metrics': bool(args.star_metrics),
+                'star_metrics_profile': args.star_metrics_profile,
+                'thumb_size': args.thumb_size,
+                'retention_days': args.retention_days,
+                'force': bool(force_reindex),
+                'skip_cleanup': bool(args.skip_cleanup),
+                'backfill_star_metrics': bool(args.backfill_star_metrics),
+                'recompute_star_metrics': bool(args.recompute_star_metrics),
+            },
+        )
+
         if args.suggest_projects:
             logger.info("Suggesting project links for the whole archive...")
+            status.phase('projects')
             suggest_projects_backfill(conn)
+            status.finish('done', error_count=error_count)
             return
 
+        status.phase('loading')
         logger.info("Loading existing file data from database...")
         cur.execute("SELECT path, file_hash, mtime, file_size, deleted_at, data_schema_version, metrics_pending FROM files")
         db_files = {row[0]: {'hash': row[1], 'mtime': row[2], 'size': row[3], 'deleted_at': row[4],
                              'schema_version': row[5], 'metrics_pending': row[6]} for row in cur.fetchall()}
         logger.info(f"Loaded {len(db_files)} records from the database.")
+        status.progress(force=True, db_files=len(db_files))
 
         tasks = []
         pending_tasks = []
         schema_upgrade_tasks = []
         skipped_count = 0
-        error_count = 0
         disk_files = {}
         # Worker result params for the project suggestion pass (freshly
         # processed files only; unchanged files are covered on demand via
         # --suggest-projects).
         suggest_metas = []
 
+        status.phase('scanning')
+        scan_seen = 0
         logger.info("Scanning filesystem and identifying files to process...")
         for root, dirs, files in os.walk(fits_root):
             for file in files:
                 file_lower = file.lower()
                 if not file_lower.endswith(('.fits', '.fit', '.fz', '.xisf')):
                     continue
+
+                scan_seen += 1
+                status.progress(files_scanned=scan_seen)
 
                 full_path = os.path.join(root, file)
                 rel_path = os.path.relpath(full_path, fits_root)
@@ -437,7 +499,17 @@ def main():
             fast_tasks = list(dict.fromkeys(tasks + pending_tasks))
         slow_tasks = []
 
+        status.progress(
+            force=True,
+            files_scanned=len(disk_files),
+            db_files=len(db_files),
+            skipped=skipped_count,
+            files_total=len(fast_tasks),
+            metrics_total=len(pending_tasks),
+        )
+
         if fast_tasks:
+            status.phase('headers', total=len(fast_tasks))
             sql = '''
                 INSERT INTO files (
                     path, file_hash, name, mtime, file_size, width, height, resolution, fov_w, fov_h,
@@ -538,20 +610,29 @@ def main():
                     update_duplicate_counts(conn, cur, file_hash)
                 hashes_to_update.clear()
 
+            base_errors = error_count
             processed_count, errors = run_pass(
                 conn, cur, worker_func, fast_tasks, sql,
                 build_row=lambda r: r['params'],
                 on_result=on_result, on_batch=on_batch,
+                on_progress=lambda done, errs: status.progress(
+                    phase_done=done, error_count=base_errors + errs),
                 workers=args.workers, label='files')
             error_count += errors
+            status.progress(force=True, phase_done=len(fast_tasks),
+                            files_done=processed_count, error_count=error_count)
 
         conn.commit()
 
         # Project suggestions for freshly processed files (suggest/manual
         # modes queue wizard rows; auto mode links directly; frozen skipped).
         # They run on the header fields, so they do not wait for the metrics.
+        if suggest_metas:
+            status.phase('projects', total=len(suggest_metas))
         try:
             suggest_projects_for_files(conn, suggest_metas)
+            if suggest_metas:
+                status.progress(force=True, phase_done=len(suggest_metas))
         except Exception as e:
             logger.error(f"Project suggestion pass failed (indexing is unaffected): {e}")
 
@@ -561,6 +642,7 @@ def main():
         if two_phase:
             slow_tasks = list(dict.fromkeys(slow_tasks + pending_tasks))
         if slow_tasks:
+            status.phase('metrics', total=len(slow_tasks), metrics_total=len(slow_tasks))
             metrics_sql = (
                 "UPDATE files SET hfr=%s, fwhm=%s, hfr_sd=%s, eccentricity=%s, star_count=%s, "
                 "snr_weight=%s, psf_signal=%s, metrics_pending=0 WHERE path=%s"
@@ -568,26 +650,35 @@ def main():
             metrics_worker_func = partial(metrics_worker, fits_root=fits_root,
                                            star_metrics=args.star_metrics,
                                            star_profile=profile)
+            base_errors = error_count
             measured_count, errors = run_pass(
                 conn, cur, metrics_worker_func, slow_tasks, metrics_sql,
                 build_row=lambda r: (r['params']['hfr'], r['params']['fwhm'],
                                      r['params']['hfr_sd'], r['params']['eccentricity'],
                                      r['params']['star_count'], r['params']['snr_weight'],
                                      r['params']['psf_signal'], r['path']),
+                on_progress=lambda done, errs: status.progress(
+                    phase_done=done, metrics_done=done, error_count=base_errors + errs),
                 label='measurements')
             error_count += errors
+            status.progress(force=True, phase_done=len(slow_tasks),
+                            metrics_done=measured_count, error_count=error_count)
 
         conn.commit()
 
         schema_upgraded_count = 0
         if schema_upgrade_tasks:
+            status.phase('schema', total=len(schema_upgrade_tasks))
             logger.info(f"Performing lightweight schema upgrade for {len(schema_upgrade_tasks)} files (header-only, no thumbnail regeneration)...")
             upgrade_worker_func = partial(schema_upgrade_worker, fits_root=fits_root)
+            schema_attempted = 0
             with concurrent.futures.ProcessPoolExecutor(max_workers=args.workers) as executor:
                 for result in executor.map(upgrade_worker_func, schema_upgrade_tasks):
+                    schema_attempted += 1
                     if result['status'] == 'error':
                         error_count += 1
                         logger.error(f"Schema upgrade failed for {result['path']}: {result['reason']}")
+                        status.progress(phase_done=schema_attempted, error_count=error_count)
                         continue
                     # A file whose header could not be read has extracted nothing. Advancing
                     # data_schema_version anyway would mark it up to date with every new
@@ -600,6 +691,7 @@ def main():
                             f"Schema upgrade deferred for {result['path']}: header not "
                             f"readable, version left at {result['old_version']}"
                         )
+                        status.progress(phase_done=schema_attempted, error_count=error_count)
                         continue
                     # Build the SET clause only for fields added between old_version and current
                     old_v = result['old_version']
@@ -619,7 +711,10 @@ def main():
                     if schema_upgraded_count % commit_interval == 0:
                         conn.commit()
                         logger.info(f"Schema upgrade progress: {schema_upgraded_count} files updated.")
+                    status.progress(phase_done=schema_attempted, error_count=error_count)
             conn.commit()
+            status.progress(force=True, phase_done=len(schema_upgrade_tasks),
+                            error_count=error_count)
             logger.info(f"Schema upgrade complete: {schema_upgraded_count} files updated.")
 
         backfilled_count = 0
@@ -652,6 +747,7 @@ def main():
                 else:
                     logger.info(f"Found {len(backfill_tasks)} files missing metrics.")
                 if backfill_tasks:
+                    status.phase('backfill', total=len(backfill_tasks))
                     backfill_sql = (
                         "UPDATE files SET hfr=%s, fwhm=%s, hfr_sd=%s, eccentricity=%s, star_count=%s, "
                         "snr_weight=%s, psf_signal=%s, background_mean=%s, min_pixel=%s, max_pixel=%s, "
@@ -664,12 +760,15 @@ def main():
                                             thumb_size=thumb_size, with_metrics=True,
                                             with_thumbs=False, star_metrics=True,
                                             star_profile=profile)
+                    backfill_attempted = 0
                     with concurrent.futures.ProcessPoolExecutor(max_workers=args.workers) as executor:
                         for result in executor.map(backfill_func, backfill_tasks):
+                            backfill_attempted += 1
                             try:
                                 if result['status'] == 'error':
                                     error_count += 1
                                     logger.error(f"Backfill failed for {result['path']}: {result['reason']}")
+                                    status.progress(phase_done=backfill_attempted, error_count=error_count)
                                     continue
                                 elapsed = result.get('elapsed')
                                 if elapsed is not None and elapsed > SLOW_FILE_SECONDS:
@@ -690,15 +789,20 @@ def main():
                                     mins = max((datetime.now() - backfill_start).total_seconds() / 60, 1e-6)
                                     logger.info(f"Backfill progress: {backfilled_count} files updated "
                                                 f"({backfilled_count / mins:.1f} files/min).")
+                                status.progress(phase_done=backfill_attempted, error_count=error_count)
                             except Exception as e:
                                 logger.error(f"Error during backfill for {result.get('path', 'unknown file')}: {e}")
                                 error_count += 1
+                                status.progress(phase_done=backfill_attempted, error_count=error_count)
                     conn.commit()
+                    status.progress(force=True, phase_done=len(backfill_tasks),
+                                    error_count=error_count)
                     logger.info(f"Backfill complete: {backfilled_count} files updated.")
 
         soft_deleted_count = 0
         purged_count = 0
         if not args.skip_cleanup:
+            status.phase('cleanup')
             soft_deleted_count = soft_delete_missing_files(conn, cur, db_files, disk_files)
             purged_count = purge_deleted_files(conn, cur, args.retention_days)
 
@@ -714,12 +818,25 @@ def main():
         logger.info(f"Files purged: {purged_count}")
         logger.info(f"Errors encountered: {error_count}")
 
+        status.finish(
+            'done',
+            error_count=error_count,
+            files_done=processed_count,
+            metrics_done=measured_count,
+            skipped=skipped_count,
+            files_scanned=len(disk_files),
+            db_files=len(db_files),
+        )
+
     except KeyboardInterrupt:
         # Ctrl+C: don't just crash with a traceback and lose the current batch.
         # The ProcessPoolExecutor context managers above shut down on the way
         # out (spawned workers also receive SIGINT and terminate); commit
         # whatever was already executed so the next run resumes where we stopped.
         logger.warning("Interrupted by user (Ctrl+C): committing partial progress and exiting...")
+        if status is not None:
+            status.finish('interrupted', error_count=error_count,
+                          last_error='Interrupted by user')
         try:
             conn.commit()
             logger.info("Partial progress committed.")
@@ -728,11 +845,22 @@ def main():
         sys.exit(130)
     except mysql.connector.Error as err:
         logger.error(f"Database error: {err}")
+        if status is not None:
+            status.finish('error', error_count=error_count, last_error=str(err))
         sys.exit(1)
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
+        if status is not None:
+            status.finish('error', error_count=error_count, last_error=str(e))
         sys.exit(1)
     finally:
+        # Every path out closes the row: done/error/interrupted set above, and a
+        # BaseException (a signal, a spawned worker dying hard) leaves it as the
+        # last phase with an honest label instead of a phantom "running" row.
+        if status is not None:
+            status.finish('interrupted', error_count=error_count,
+                          last_error='Indexer stopped before finishing')
+            status.close()
         if 'conn' in locals() and conn.is_connected():
             conn.close()
 

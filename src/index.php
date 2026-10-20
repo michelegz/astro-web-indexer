@@ -16,6 +16,7 @@ include __DIR__ . '/includes/projects_panel.php';
                 include __DIR__ . '/includes/metrics_chart.php';
                 include __DIR__ . '/includes/table.php';
                 include __DIR__ . '/includes/pagination.php';
+                include __DIR__ . '/includes/indexer_status.php';
                 ?>
             </main>
             <?php include __DIR__ . '/includes/footer.php'; ?>
@@ -35,6 +36,7 @@ $jsVersion = max(
 );
 ?>
 <script src="assets/js/main.js?v=<?= $jsVersion ?>"></script>
+<script src="assets/js/indexer_status.js?v=<?= @filemtime(__DIR__ . '/assets/js/indexer_status.js') ?: $jsVersion ?>"></script>
 <script src="assets/js/astrobin_export.js?v=<?= @filemtime(__DIR__ . '/assets/js/astrobin_export.js') ?: $jsVersion ?>"></script>
 <script src="assets/js/sff.js?v=<?= $jsVersion ?>"></script> <!-- Include the new SFF script -->
 
