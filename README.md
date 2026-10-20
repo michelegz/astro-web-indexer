@@ -176,6 +176,7 @@ These variables control the behavior of the Python indexing and watching scripts
 | `POLL_INTERVAL` | Polling interval in seconds for the filesystem watcher, used when inotify is not supported (e.g. Docker Desktop on Windows). Has no effect when native inotify is used. | `30` |
 | `FORCE_POLLING` | Set to `true` to force the polling-based watcher even on systems that support inotify (e.g. NFS mounts). | `false` |
 | `STAR_METRICS_ENABLED` | Set to `false` to skip all computed metrics (star quality for LIGHT frames, pixel statistics for every frame) and hide the related table columns, trend charts and chooser entries. | `true` |
+| `STAR_METRICS_PROFILE` | How the star metrics are measured. `default` (5.0 sigma, minimum area 9 px) is what the indexer has always done. `fast` (7.0 sigma, minimum area 12 px) measures the bright, well resolved stars only, at about half the cost, and the HFR moves by ~2%. `sensitive` (3.5 sigma, minimum area 9 px) counts every faint source, at about a third more cost, and the HFR moves by ~4%. The FWHM does not change: it is measured on the brightest stars, which every profile detects. Changing it does not touch the files already indexed: re-measure them with `--recompute-star-metrics`. | `default` |
 
 ### 🗄️ Database Connection
 

@@ -34,9 +34,36 @@ Method notes:
   share meaning and scale: suitable for ranking/weighting frames.
 
 All failures return None (never block indexing); the caller stores NULLs.
+
+The measurement profile
+-----------------------
+The detection threshold and the minimum area decide which stars a frame has,
+and they are the two knobs worth turning: one machine wants fewer stars
+measured, another wants the faint ones. They are exposed as a profile
+(STAR_METRICS_PROFILE, or --star-metrics-profile) with three settings,
+because the useful combinations are not continuous.
+
+Measured on an 8.5 Mpx Ha frame:
+
+    profile     threshold  min area   time    HFR          FWHM
+    default     5.0 sigma  9 px       1.00x   reference    reference
+    fast        7.0 sigma  12 px      0.54x   -2.2%       unchanged
+    sensitive   3.5 sigma  9 px       1.31x   +3.6%       unchanged
+
+The FWHM does not move: it is measured on the brightest MAX_FWHM_STARS
+stars, and every profile detects those. The HFR does, because a lower
+threshold admits the faint and spurious detections, whose half-flux radius
+is larger.
+
+Everything else here is a worst-case bound, not a tuning knob: MAX_STARS and
+MAX_FWHM_STARS keep a crowded field from taking minutes (on a cluster with
+3351 stars, lifting the caps doubles the frame time), and MIN_FWHM_STARS sits
+on a cliff (below ~50 usable profiles the FWHM silently becomes 2xHFR, which
+is a different scale - two of them in one archive would break the trends).
 """
 
 import logging
+import os
 import time
 
 import numpy as np
@@ -51,8 +78,26 @@ except ImportError:  # pragma: no cover - reindex must survive a missing dep
 logger = logging.getLogger('reindex.star_analysis')
 _sep_warning_logged = False
 
-THRESH_SIGMA = 5.0
-MIN_AREA = 9
+# The profiles, and the knobs they set. The detection threshold and the
+# minimum area are the only two the user can turn: everything else below is
+# a bound that keeps the worst case in check (see the module docstring).
+DEFAULT_PROFILE = 'default'
+PROFILES = {
+    # Bright, well resolved stars only: the purest focus HFR, and about twice
+    # as fast. The marginally resolved stars (9-12 px) are the ones a lower
+    # threshold would have added, and they are the ones that inflate the mean.
+    'fast': {'thresh_sigma': 7.0, 'min_area': 12},
+    # What the indexer has always done.
+    'default': {'thresh_sigma': 5.0, 'min_area': 9},
+    # Every faint source counted, at the same noise rejection: the HFR comes
+    # out a few percent higher, because the faint detections are bigger.
+    'sensitive': {'thresh_sigma': 3.5, 'min_area': 9},
+}
+
+# The knobs the analysis reads. The profile in force overwrites them (see
+# apply_profile), so the code below reads them exactly as it always did.
+THRESH_SIGMA = PROFILES[DEFAULT_PROFILE]['thresh_sigma']
+MIN_AREA = PROFILES[DEFAULT_PROFILE]['min_area']
 MAX_ECCENTRICITY = 0.8
 OUTLIER_SIGMA = 1.5
 MIN_DIMENSION = 32
@@ -83,6 +128,54 @@ _BAD_FLAG_BITS = 4 | 8 | 16 | 32
 # per-star cutout cost stays in the milliseconds (vs seconds for sep.extract).
 MAX_FWHM_STARS = 200
 MIN_FWHM_STARS = 20
+
+# The profile in force, and its name (for the startup log).
+_active_profile = DEFAULT_PROFILE
+
+
+def resolve_profile(name):
+    """The profile name to use, whatever the caller passed.
+
+    Never raises: an unknown name falls back to the default one. The warning
+    is the caller's business, so that the workers (which resolve it too, and
+    are one process each) stay quiet and the message is printed once.
+    """
+    wanted = (name or '').strip().lower()
+    return wanted if wanted in PROFILES else DEFAULT_PROFILE
+
+
+def apply_profile(name, warn=True):
+    """Put a profile in force and return the name actually in force.
+
+    The knobs are module attributes, so a profile is applied by assigning
+    them: the analysis reads them as it always did. The name is returned
+    because the caller may have asked for something that does not exist.
+    """
+    global THRESH_SIGMA, MIN_AREA, _active_profile
+
+    wanted = (name or '').strip().lower()
+    resolved = resolve_profile(wanted)
+    if warn and wanted and wanted != resolved:
+        logger.warning(f"Unknown star metrics profile '{wanted}', using "
+                       f"'{resolved}' (known: {', '.join(sorted(PROFILES))}).")
+    profile = PROFILES[resolved]
+    THRESH_SIGMA = profile['thresh_sigma']
+    MIN_AREA = profile['min_area']
+    _active_profile = resolved
+    return resolved
+
+
+def active_profile():
+    """What is in force right now, for the startup log."""
+    return {'name': _active_profile,
+            'thresh_sigma': THRESH_SIGMA,
+            'min_area': MIN_AREA}
+
+
+# The environment picks the profile for this process. It is applied silently:
+# the warning about an unknown name belongs to the parent, which resolves it
+# once and hands the resolved name down to the workers.
+apply_profile(os.getenv('STAR_METRICS_PROFILE', DEFAULT_PROFILE), warn=False)
 
 
 def _channel_score(ch):

@@ -9,6 +9,7 @@ from functools import partial
 import multiprocessing
 
 # Corrected imports for the new structure
+from indexer_lib import star_analysis
 from indexer_lib.frame_extract import (frame_resolution, header_params, metric_params,
                                        metrics_owed, open_frame, preview_params,
                                        stats_params)
@@ -34,6 +35,21 @@ def _phase_mode_default():
         logger.warning(f"INDEXER_PHASE_MODE='{raw}' is not one of 'two'/'single', using 'two'.")
         return "two"
     return raw
+
+
+def _profile_default():
+    """STAR_METRICS_PROFILE, with a readable answer when it says nonsense.
+
+    The name is resolved here, once, and handed down to the workers: they are
+    spawned processes, they do not inherit this one's runtime state, and an
+    unknown name must be reported once, not by every worker.
+    """
+    raw = (os.getenv("STAR_METRICS_PROFILE", "default") or "default").strip().lower()
+    resolved = star_analysis.resolve_profile(raw)
+    if raw != resolved:
+        logger.warning(f"STAR_METRICS_PROFILE='{raw}' is not one of "
+                       f"{', '.join(star_analysis.PROFILES)}, using '{resolved}'.")
+    return resolved
 
 
 def ensure_schema(conn):
@@ -155,6 +171,12 @@ parser.add_argument("--phase-mode", choices=("two", "single"),
                     help="How the indexing is split: 'two' (default) writes the file "
                          "first, so it shows up in the frontend, and computes the star "
                          "metrics after; 'single' does everything in one pass")
+parser.add_argument("--star-metrics-profile", choices=list(star_analysis.PROFILES),
+                    default=_profile_default(),
+                    help="How the star metrics are measured: 'fast' (bright stars only, "
+                         "about twice as fast), 'default' (5.0 sigma, min area 9), "
+                         "'sensitive' (every faint source counted, about a third slower). "
+                         "Overrides STAR_METRICS_PROFILE.")
 args = parser.parse_args()
 
 if args.debug:
@@ -177,7 +199,7 @@ SLOW_FILE_SECONDS = 60.0
 
 # --- Worker functions for multiprocessing ---
 def frame_worker(full_path, fits_root, thumb_size, with_metrics=True, with_thumbs=True,
-                 star_metrics=True):
+                 star_metrics=True, star_profile=None):
     """The worker of the fast pass, and of the single-phase mode.
 
     It produces every column but the star metrics when with_metrics=False:
@@ -193,6 +215,13 @@ def frame_worker(full_path, fits_root, thumb_size, with_metrics=True, with_thumb
     file_name = os.path.basename(full_path)
 
     try:
+        if star_profile:
+            # The workers are spawned: they re-import the modules and inherit
+            # this process's arguments, not its runtime state. The profile
+            # therefore travels with the work and is applied here, to this
+            # process's own copy of the knobs.
+            star_analysis.apply_profile(star_profile, warn=False)
+
         stat = os.stat(full_path)
         mtime = stat.st_mtime
         file_size = stat.st_size
@@ -233,7 +262,7 @@ def frame_worker(full_path, fits_root, thumb_size, with_metrics=True, with_thumb
                 'elapsed': time.perf_counter() - t_start}
 
 
-def metrics_worker(full_path, fits_root, star_metrics=True):
+def metrics_worker(full_path, fits_root, star_metrics=True, star_profile=None):
     """The worker of the slow pass: the star metrics alone.
 
     It opens the file again, because the fast pass already closed it: the
@@ -245,6 +274,11 @@ def metrics_worker(full_path, fits_root, star_metrics=True):
     logger.debug(f"Worker[{os.getpid()}] measuring: {rel_path}")
 
     try:
+        if star_profile:
+            # See frame_worker: the profile travels with the work, because a
+            # spawned worker does not inherit the parent's runtime state.
+            star_analysis.apply_profile(star_profile, warn=False)
+
         ctx = open_frame(full_path, with_data=True)
         resolution = None
         try:
@@ -268,6 +302,18 @@ def main():
         mode_label = ('two passes (fast pass, then the star metrics)' if two_phase
                       else 'single pass (everything at once)')
         logger.info(f"Indexing mode: {mode_label}")
+
+        # The measurement profile decides which stars a frame has. It is
+        # resolved once here and handed down to the workers, which are
+        # spawned and would not see it otherwise.
+        profile = star_analysis.apply_profile(args.star_metrics_profile)
+        active = star_analysis.active_profile()
+        if args.star_metrics:
+            logger.info(f"Star metrics profile: {active['name']} "
+                        f"(threshold {active['thresh_sigma']:g} sigma, "
+                        f"min area {active['min_area']} px)")
+        else:
+            logger.info("Star metrics profile: not in use (star metrics are off)")
 
         logger.info(f"Connecting to database {args.database} on {args.host}")
         conn = mysql.connector.connect(host=args.host, user=args.user, password=args.password, database=args.database)
@@ -457,7 +503,7 @@ def main():
             '''
             worker_func = partial(frame_worker, fits_root=fits_root, thumb_size=thumb_size,
                                    with_metrics=not two_phase, with_thumbs=True,
-                                   star_metrics=args.star_metrics)
+                                   star_metrics=args.star_metrics, star_profile=profile)
 
             hashes_to_update = set()
 
@@ -520,7 +566,8 @@ def main():
                 "snr_weight=%s, psf_signal=%s, metrics_pending=0 WHERE path=%s"
             )
             metrics_worker_func = partial(metrics_worker, fits_root=fits_root,
-                                           star_metrics=args.star_metrics)
+                                           star_metrics=args.star_metrics,
+                                           star_profile=profile)
             measured_count, errors = run_pass(
                 conn, cur, metrics_worker_func, slow_tasks, metrics_sql,
                 build_row=lambda r: (r['params']['hfr'], r['params']['fwhm'],
@@ -615,7 +662,8 @@ def main():
                     backfill_start = datetime.now()
                     backfill_func = partial(frame_worker, fits_root=fits_root,
                                             thumb_size=thumb_size, with_metrics=True,
-                                            with_thumbs=False, star_metrics=True)
+                                            with_thumbs=False, star_metrics=True,
+                                            star_profile=profile)
                     with concurrent.futures.ProcessPoolExecutor(max_workers=args.workers) as executor:
                         for result in executor.map(backfill_func, backfill_tasks):
                             try:

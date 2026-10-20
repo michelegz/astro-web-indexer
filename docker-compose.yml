@@ -63,6 +63,7 @@ services:
       - POLL_INTERVAL=${POLL_INTERVAL:-30}
       - FORCE_POLLING=${FORCE_POLLING:-false}
       - STAR_METRICS_ENABLED=${STAR_METRICS_ENABLED:-true}
+      - STAR_METRICS_PROFILE=${STAR_METRICS_PROFILE:-default}
       - PYTHONUNBUFFERED=1
     restart: unless-stopped
     depends_on:

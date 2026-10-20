@@ -113,6 +113,7 @@ docker exec -it awi-python python /opt/scripts/reindex.py /var/fits --debug --fo
 | `--backfill-star-metrics` | - | Reprocess pixel data of files still missing computed metrics (LIGHT frames without HFR, any frame without pixel statistics), then continue normally. | `false` |
 | `--recompute-star-metrics` | - | Recompute star metrics for ALL LIGHT frames, even ones already computed (e.g. after a formula change). Skips thumbnails like backfill. | `false` |
 | `--phase-mode` | `INDEXER_PHASE_MODE` | How the indexing is split: `two` (default) writes each file first, so it shows up in the frontend, and computes the star metrics after; `single` does everything in one pass. | `two` |
+| `--star-metrics-profile` | `STAR_METRICS_PROFILE` | How the star metrics are measured: `fast` (bright, well resolved stars only, about twice as fast), `default` (5.0 sigma, minimum area 9 px), `sensitive` (every faint source counted, about a third slower). | `default` |
 
 **The two passes**
 
@@ -125,6 +126,23 @@ up again by the next one, because the flag is committed in batches.
 Both modes share the same extraction (`indexer_lib/frame_extract.py`), so they cannot
 drift apart. `single` decodes the pixels once instead of twice, at the cost of showing
 nothing until the metrics are known.
+
+**The measurement profiles**
+
+A profile sets the two knobs that decide which stars a frame has: the detection
+threshold and the minimum area. Measured on this project's own archive (an 8.5 Mpx Ha
+frame), `fast` costs 0.54x the time and moves the HFR by -2.2%, `sensitive` costs 1.31x
+and moves it by +3.6%. The FWHM does not move: it is measured on the brightest 200
+stars, and every profile detects those.
+
+The knobs live in `indexer_lib/star_analysis.py`, which exposes `apply_profile()` and
+`resolve_profile()`. An unknown name never raises: it warns and falls back to
+`default`. The profile is resolved once by `reindex.py` and handed down to the workers
+through the pickled arguments, because the workers are spawned processes and do not
+inherit the parent's runtime state.
+
+Changing the profile does not touch the files already indexed: re-measure them with
+`--recompute-star-metrics`, or the archive keeps both measurements.
 
 
 ## 📁 Directory Structure
